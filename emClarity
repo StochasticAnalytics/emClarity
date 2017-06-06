@@ -1,0 +1,35 @@
+#!/bin/bash
+
+#Please modify this line to point to the text file in your MCR root
+#where you pasted the lines suggested to add to LD_LIBRARY_PATH during install.
+#MCR_BASH=/Path/To/mcr_bash.mrc
+MCR_BASH=""
+
+
+#Please modify this line to point to the install for emClarity binary
+#emClarity_ROOT=/Path/To/emClarity_#######
+emClarity_ROOT=""
+
+
+
+
+if [ -f ${MCR_BASH} ]; then
+  source ${MCR_BASH}
+else
+  echo "Did not find your mcr_bash file, did you fill it in above?"
+  exit 1
+fi
+
+if [ ! -f ${emClarity_Root}/emClarity_521294a ]; then
+  echo "Did not find the binary on the path, did you fill it in above?"
+  exit 1
+fi
+
+argList=
+while [ $# -gt 0 ]; do
+  token=$1
+  argList="${argList} ${token}"
+  shift
+done
+
+${emClarity_Root}/emClarity_521294a ${argList}
