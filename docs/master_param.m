@@ -239,7 +239,7 @@ defEstimate=4e-6
 defWindow=2.5e-6
 % The PS is considered from the lower resolution inflection point
 % past the first zero to this cutoff resolution
-defCutOff=9e-10
+defCutOff=8e-10
 
 % Total dose in electron/A^2, assumed constant rate
 CUM_e_DOSE=100
@@ -259,18 +259,18 @@ numWorkers=7
 % The following can be adjusted but be careful
 
 % Change in z height allowed for tile inclusion in global estimate
-deltaZTolerance=25e-9
+deltaZTolerance=50e-9
 % Offset, use to determine tilt gradient.
 zShift=0
 % Tile size, smaller = smoother, but longer runs. Larger values needed to ensure
 % high frequency information is included.
 tileSize=320
 % overlap as a fraction of tilesize (tileSize/tileOverlap)
-tileOverlap=16
+tileOverlap=4
 % Padded size to reduce aliasing effects, more important as defocus becomes higher.
 % for defocus > 6um use 1536, 1024 prob okay for lower. On any decent card, going smaller
 % doesn't really speed things up so don't bother
-paddedSize=512
+paddedSize=1536
 
 %%%%%%%%%%%%%%%%%%    Developmental Parameters    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Rln_mVals=[160,160,120; 48,48,40; 0,0,0]
