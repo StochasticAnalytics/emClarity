@@ -1,11 +1,33 @@
 #!/bin/bash
 
+# make a bin10 directory and create bin 10 tomos for evaluation.
+if [[ ${1} -eq -1 ]] ; then
+  mkdir -p bin10
+
+  ls aliStacks/*.fixed | 
+    while read iTiltSeries ; do
+    
+      bN=$(basename $iTiltSeries _ali1.fixed)
+      # bin the aligned stack prior to reconstruction
+      newstack -bin 10 $iTiltSeries bin10/${bN}_bin10.fixed
+      tilt -input bin10/${bN}_bin10.fixed \
+           -output bin10/${bN}_bin10.rec \
+           -TILTFILE fixedStacks/${bN}.tlt \
+           -RADIAL 0.15,0.05 \
+           -UseGPU 0 \
+           -THICKNESS 300 \
+           -RotateBy90
+
+    done
+
+exit 0
+fi
 
 baseName=${1}
 modFile="bin10/${1}_bin10.mod"
 modBin=10 # this could be changed, but works well in most cases and is ill advised.
 modThick=300 # this could be changed, particularly if your sample is thicker
-             # than 2000 pixels. But then it is probably a bad candidate for
+             # than 3000 pixels. But then it is probably a bad candidate for
              # high resolution tomography anyhow ( assuming your pixel size > 1Ang) 
 
 wrkDir=$(pwd)
@@ -59,7 +81,7 @@ mkdir -p recon
 # For gag particles, pick right at the apparent edge, and use a pad factor of
 # 1.2 - For other samples where you are just reducing the area, use a pad factor of
 # 1.0 or at least check that no out of bounds are included (add auto check someday)
-padFact=1.07
+padFact=1.0
 for iPart in $(seq 1 ${numParticles[0]}) ; do 
   c=[]  
 

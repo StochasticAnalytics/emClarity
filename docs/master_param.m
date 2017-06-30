@@ -7,34 +7,34 @@
 
 
 % String to name the structure that contains all of the metadata, projectName
-subTomoMeta=gagSP_3dCTF_asym
+subTomoMeta=rln_tutorial_1
 
 
 % Number of GPUS, either a list [1,3] or one int indicating a range 1:int
-nGPUs=4
+nGPUs=1
 % 1 use as much memory as possible | 2 conserve memory. Always try to run in 1
 % but often at full sampling 2 is necessary.
-avgMemory=2
+avgMemory=1
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%    Mask parameters    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-NoA_mType=cylinder
-Pca_mType=cylinder
-Cls_mType=cylinder
-Raw_mType=cylinder
-Fsc_mType=cylinder
-Kms_mType=cylinder
+NoA_mType=sphere
+Pca_mType=sphere
+Cls_mType=sphere
+Raw_mType=sphere
+Fsc_mType=sphere
+Kms_mType=sphere
 
-Fsc_shapeMask=1
+Fsc_shapeMask=0
 Pca_shapeMask=0
 Raw_shapeMask=0
 
 % mask size, radius, center - note here mask size is ignored, and the window size
 % is used insead. Note that each is a 3 x 3 matrix
 NoA_mVals=[156,156,156; 84,84,84; 0,0,0]
-Pca_mVals=[156,156,156; 46,46,36; 0,0,-11]
+Pca_mVals=[156,156,156; 84,84,84; 0,0,0]
 Cls_mVals=[156,156,156; 84,84,84; 0,0,0]
 Raw_mVals=[156,156,156; 84,84,84; 0,0,0]
 Fsc_mVals=[156,156,156; 84,84,84; 0,0,0]
@@ -43,13 +43,13 @@ Kms_mVals=[156,156,156; 84,84,84; 0,0,0]
 
 % Sampling rate
 % Note that all pixel values should be entered at full binning 
-NoA_samplingRate=1
-Pca_samplingRate=1
-Cls_samplingRate=1
-Raw_samplingRate=1
-Kms_samplingRate=1
-Fsc_samplingRate=1
-Ref_samplingRate=1
+NoA_samplingRate=4
+Pca_samplingRate=4
+Cls_samplingRate=4
+Raw_samplingRate=4
+Kms_samplingRate=4
+Fsc_samplingRate=4
+Ref_samplingRate=4
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -63,7 +63,7 @@ flgQualityWeight=1
 flgPrecision=single
 interpolationOrder=1
 flgCones=0
-flgClassify=-1
+flgClassify=0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 flgCenterRefCOM=1
@@ -79,8 +79,8 @@ removeBottomPercent=0.0
 
 
 NoA_className=0 
-NoA_classes_odd=[0;6.*ones(1,1)]
-NoA_classes_eve=[0;6.*ones(1,1)]
+NoA_classes_odd=[0;1.*ones(1,1)]
+NoA_classes_eve=[0;1.*ones(1,1)]
 
 ref_AngleShift_odd=0
 ref_TransShift_odd=[0,0,0]
@@ -116,9 +116,9 @@ Raw_className=0
 Raw_classes_odd=[0;1.*ones(2,1)]
 Raw_classes_eve=[0;1.*ones(2,1)]
 
-Raw_peakSearch=[44,44,64]
+Raw_peakSearch=[64,64,64]
 Raw_centerOfMass=[3,3,3]
-Raw_angleSearch=[0,0,3,0.75,3]
+Raw_angleSearch=[0,0,12,3,0]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%    FSC Paramters    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -138,7 +138,7 @@ Fsc_bfactor=40
 
 % For very tightly packed subTomos set to 1 to avoid mixing halfsets
 % form overlaping peripheral density.
-fscGoldSplitOnTomos=1
+fscGoldSplitOnTomos=0
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -180,13 +180,14 @@ flgWMDs=3
 %%%%%%%%%%%%%%%%%%%    Template matching parameters    %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Tmp_bandpassFilter=[0.15,400,44,1.35]
+
 Tmp_samplingRate=6
-Tmp_threshold=240
+Tmp_threshold=400
 Tmp_targetSize=[512,512,512]
+
 % lattice param is ~ 120A for trimer, 69A for unitcell
-Tmp_latticeRadius=[65,65,300]
-Tmp_angleSearch=[180,9,28,7,0]
+Tmp_latticeRadius=[160,160,160]
+Tmp_angleSearch=[180,12,180,12,0]
 Tmp_xcfScale=xcf
 
 xfcSize=[256,256,256]
@@ -197,7 +198,7 @@ xfcSize=[256,256,256]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-mapBackIter=4
+mapBackIter=0
 mapBackLowPass=12
 mapBackRePrjSize=128
 
@@ -222,11 +223,11 @@ defocusErrorEst=30e-9
 %%%%%%%%%%   Microscope parameters     %%%%%%%%%%
 
 % Of the data saved in fixed stacks - MUST match header
-PIXEL_SIZE=0.675e-10 
+PIXEL_SIZE=2.17e-10 
 % Currently any super-resolution data is cropped in Fourier Space after alignment
 % allowing for finer sampling when interpolating the stacks, while then 
 % filtering out noise due to aliasing.
-SuperResolution=1
+SuperResolution=0
 % Spherical abberation
 Cs=2.7e-3 
 % Accelerating voltage

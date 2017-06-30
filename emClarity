@@ -2,12 +2,12 @@
 
 #Please modify this line to point to the text file in your MCR root
 #where you pasted the lines suggested to add to LD_LIBRARY_PATH during install.
-#MCR_BASH=/Path/To/mcr_bash.mrc
+#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"
 MCR_BASH=""
 
 
 #Please modify this line to point to the install for emClarity binary
-#emClarity_ROOT=/Path/To/emClarity_#######
+#emClarity_ROOT=/work/emClarity
 emClarity_ROOT=""
 
 
@@ -20,7 +20,7 @@ else
   exit 1
 fi
 
-if [ ! -f ${emClarity_ROOT}/emClarity_2926633 ]; then
+if [ ! -f ${emClarity_ROOT}/emClarity_ff938c8 ]; then
   echo "Did not find the binary on the path, did you fill it in above?"
   exit 1
 fi
@@ -32,4 +32,4 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-${emClarity_ROOT}/emClarity_2926633 ${argList}
+${emClarity_ROOT}/emClarity_ff938c8 ${argList}
