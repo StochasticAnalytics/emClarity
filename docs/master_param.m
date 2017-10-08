@@ -67,6 +67,7 @@ flgClassify=0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 flgCenterRefCOM=1
+flgSymmetrizeSubTomos=0
 duplicateRadius=8
 duplicateSampling=3
 flgCCCcutoff=0.00
