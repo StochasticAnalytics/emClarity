@@ -5,7 +5,7 @@
 % String to name the structure that contains all of the metadata, projectName
 subTomoMeta=emClarity_tutorial
 
-fastScratchDisk=fastScratchDisk=/local/cache
+fastScratchDisk=
 
 % Number of GPUS
 nGPUs=4
@@ -123,7 +123,7 @@ Fsc_refVector_odd=[1]
 Fsc_refVector_eve=[1]
 
 
-Fsc_bfactor=10
+Fsc_bfactor=20
 
 % For very tightly packed subTomos set to 1 to avoid mixing halfsets
 % form overlaping peripheral density.
@@ -243,7 +243,7 @@ flgCtfStripWidth=1536
 
 
 flgPrecision=single
-flgCones=2
+flgCones=0
 flgClassify=0
 flgSymmetrizeSubTomos=0
 duplicateRadius=8
@@ -253,7 +253,7 @@ removeBottomPercent=0.0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 
-experimentalOpts=[1,1,1,2,1,1,1,3,6,0]
+experimentalOpts=[1,1,1,1.5,4,1,1,3,0.03,0,1]
 
 
 
