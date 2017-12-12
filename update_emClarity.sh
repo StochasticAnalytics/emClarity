@@ -18,6 +18,7 @@ fi
 
 cd ..
 
+echo yes | rm -r emClarity~
 mv emClarity emClarity~
 
 git clone --depth=1 https://github.com/bHimes/emClarity.git
