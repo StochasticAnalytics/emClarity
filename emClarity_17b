@@ -20,16 +20,16 @@ else
   exit 1
 fi
 
-if [ ! -f ${emClarity_ROOT}/emClarity_2017b ]; then
+if [ ! -f ${emClarity_ROOT}/emClarity_968e7b8 ]; then
   echo "Did not find the binary on the path, did you fill it in above?"
   exit 1
 fi
 
-argList=
+argList=968e7b8 
 while [ $# -gt 0 ]; do
   token=$1
   argList="${argList} ${token}"
   shift
 done
 
-${emClarity_ROOT}/emClarity_2017b ${argList}
+${emClarity_ROOT}/emClarity_968e7b8 ${argList}
