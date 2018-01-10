@@ -44,8 +44,8 @@ tomoCprLowPass=18
 
 
 tomoCprDefocusRefine=1
-tomoCprDefocusRange=500e-9; 
-tomoCprDefocusStep=20e-9;
+tomoCprDefocusRange=300e-9; 
+tomoCprDefocusStep=15e-9;
 
 
 
@@ -250,6 +250,7 @@ removeBottomPercent=0.0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 
-experimentalOpts=[1,1,1,1.5,4,1,1,3,1,0,1]
+experimentalOpts=[2,1,1,1.5,4,1,1,3,1,0,1]
 fastScratchDisk=
 
+rmsScale=1.0

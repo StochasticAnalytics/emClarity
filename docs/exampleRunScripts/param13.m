@@ -39,13 +39,12 @@ Cls_samplingRate=1
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-
-tomoCprLowPass=18
+tomoCprLowPass=15
 
 
 tomoCprDefocusRefine=1
-tomoCprDefocusRange=500e-9; 
-tomoCprDefocusStep=20e-9;
+tomoCprDefocusRange=200e-9; 
+tomoCprDefocusStep=10e-9;
 
 
 
@@ -250,6 +249,7 @@ removeBottomPercent=0.0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 
-experimentalOpts=[1,1,1,1.5,4,1,1,3,1,0,1]
+experimentalOpts=[2,1,1,1.5,10,1,1,3,1,0,1]
 fastScratchDisk=
 
+rmsScale=1.0
