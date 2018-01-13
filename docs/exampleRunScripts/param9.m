@@ -3,10 +3,10 @@
 
 
 % String to name the structure that contains all of the metadata, projectName
-subTomoMeta=emClarity_tutorial
+subTomoMeta=testRelease2
 
 % Number of GPUS, either a list [1,3] or one int indicating a range 1:int
-nGPUs=4
+nGPUs=2
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%    Mask parameters    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -25,7 +25,7 @@ Cls_mType=sphere
 % avoid wraparound error in cross-correlation.
 Ali_mRadius=[180,180,180]
 Ali_mCenter=[ 0,0,0 ]
-Cls_mRadius=[180,180,180]
+Cls_mRadius=[ 60,60,60 ]
 Cls_mCenter=[ 0,0,0 ]
 
 
@@ -57,7 +57,7 @@ Raw_className=0
 Raw_classes_odd=[0;1.*ones(2,1)]
 Raw_classes_eve=[0;1.*ones(2,1)]
 
-Raw_angleSearch=[0,0,6,1]
+Raw_angleSearch=[0,0,6,0.5]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%    Template matching parameters    %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -66,7 +66,7 @@ Raw_angleSearch=[0,0,6,1]
 
 Tmp_samplingRate=5
 Tmp_threshold=400
-Tmp_angleSearch=[180,15,180,15,0]
+Tmp_angleSearch=[180,9,28,7,0]
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,7 +119,7 @@ Fsc_refVector_odd=[1]
 Fsc_refVector_eve=[1]
 
 
-Fsc_bfactor=40
+Fsc_bfactor=10
 
 % For very tightly packed subTomos set to 1 to avoid mixing halfsets
 % form overlaping peripheral density.
@@ -177,7 +177,7 @@ flgSlabPad=0.25
 % dimension perpendicular to the tilt-axis to pad to during ctf multiplication.
 flgCtfStripWidth=1536
 % Used to deterine slab height and strip width during ctf correction
-defocusErrorEst=50e-9
+defocusErrorEst=1
 
 
 %%%%%%%%%%   Microscope parameters     %%%%%%%%%%
@@ -250,7 +250,6 @@ removeBottomPercent=0.0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 
-experimentalOpts=[2,1,1,1.5,10,1,1,3,1,0,1]
+experimentalOpts=[2,1,1,1.5,4,1,1,3,1,0,1]
 fastScratchDisk=
 
-rmsScale=1.0

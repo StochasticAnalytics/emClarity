@@ -36,7 +36,7 @@ jobName=job_${programName}_${dT}
 	echo '#PBS -V'
 	echo '#PBS -j oe'
 	echo '#PBS -m e'
-#	echo '#PBS -M himes.benjamin@gmail.com'
+#	echo '#PBS -M yourEmailAT@wherever.com'
 	echo ''
 	echo 'source ${HOME}/MATLAB_BH_v15a/mcr2015a_BH.bash'
         echo 'module load cuda75/toolkit/7.5.18'
