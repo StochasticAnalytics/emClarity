@@ -253,3 +253,4 @@ flgRotAvgRef=0
 experimentalOpts=[2,1,1,1.5,4,1,1,3,1,0,1]
 fastScratchDisk=
 
+rmsScale=3.5
