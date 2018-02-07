@@ -1,5 +1,10 @@
 #!/bin/bash
 
+modBin=10 # this could be changed, but works well in most cases and is ill advised.
+modThick=300 # this could be changed, particularly if your sample is thicker
+             # than 3000 pixels. But then it is probably a bad candidate for
+             # high resolution tomography anyhow ( assuming your pixel size > 1Ang) 
+
 # make a bin10 directory and create bin 10 tomos for evaluation.
 if [[ ${1} -eq -1 ]] ; then
   mkdir -p bin10
@@ -15,7 +20,7 @@ if [[ ${1} -eq -1 ]] ; then
            -TILTFILE fixedStacks/${bN}.tlt \
            -RADIAL 0.15,0.05 \
            -UseGPU 0 \
-           -THICKNESS 300 \
+           -THICKNESS ${modThick} \
            -RotateBy90
 
     done
@@ -25,10 +30,7 @@ fi
 
 baseName=${1}
 modFile="bin10/${1}_bin10.mod"
-modBin=10 # this could be changed, but works well in most cases and is ill advised.
-modThick=300 # this could be changed, particularly if your sample is thicker
-             # than 3000 pixels. But then it is probably a bad candidate for
-             # high resolution tomography anyhow ( assuming your pixel size > 1Ang) 
+
 
 wrkDir=$(pwd)
 
