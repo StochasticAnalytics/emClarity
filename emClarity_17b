@@ -25,11 +25,7 @@ if [ ! -f ${emClarity_ROOT}/emClarity_2017b ]; then
   exit 1
 fi
 
-<<<<<<< HEAD
-argList=b302afd 
-=======
-argList=ce53546 
->>>>>>> master
+argList=30d6b0f 
 while [ $# -gt 0 ]; do
   token=$1
   argList="${argList} ${token}"
