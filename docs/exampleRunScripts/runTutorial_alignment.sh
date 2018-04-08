@@ -1,7 +1,8 @@
 skipThis=1
 
 # If you have fewer physical cores available than requested, your distro will complain.
-nCores=24
+
+set -e
 
 
 ### If you have run ctf estimation, then you could skip this as the first 

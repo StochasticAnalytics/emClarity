@@ -253,7 +253,7 @@ removeBottomPercent=0.0
 flgMultiRefAlignment=0
 flgRotAvgRef=0
 
-experimentalOpts=[2,1,1,1.5,4,1,1,3,1,0,1]
+experimentalOpts=[1,1,1,1.5,4,1,1,3,1,0,1]
 
 % In tomoCPR this scales the standard deviation of the background tomogram used 
 % to generate reference to 1/rmsScale. Experimental, may have a significant
