@@ -561,7 +561,7 @@ for iRef = 1:nReferences
    % Only need to calculate phase randomized masks if the fscShapeMask is
    % applied during the FSC calculation. If instead it is used to estimate
    % the particle volume (flgEstSolvent) then no mask is directly applied.
-    fscRandCutoffRes = 3*masterTM.currentResForDefocusError;
+    fscRandCutoffRes = 3*masterTM.currentResForDefocusError(1);
     lowResShift = pixelSize*2 - 10;
     if lowResShift <= 0
       lowResShift = 0
