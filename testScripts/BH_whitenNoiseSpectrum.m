@@ -1,4 +1,4 @@
-function [ reWeight, radialAvg ] = BH_whitenNoiseSpectrum( imgIN, maskIN, pixelSize, flgNorm )
+function [ reWeight, radialAvg, radialVect, rFit ] = BH_whitenNoiseSpectrum( imgIN, maskIN, pixelSize, flgNorm )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -55,12 +55,12 @@ i = 2;
 n = floor(0.005*oX);
 idxVect = n;
 while n < oX
-  idxVect = [idxVect (n+floor((idxVect(i-1).^.5)))];
+  idxVect = [idxVect (n+floor((idxVect(i-1).^.25)))];
   n = idxVect(i);
   i = i + 1;
 end
 
-whiteningCutoff = 8; % Ang
+whiteningCutoff = 1; % Ang
 
 idxVect = idxVect(1:end-1);
 idxVect(end) = oX;

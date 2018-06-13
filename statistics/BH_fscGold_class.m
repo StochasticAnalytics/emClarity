@@ -570,7 +570,7 @@ for iRef = 1:nReferences
     end
     % Randomize beyond ~ 20A -- calc so that the cutoff is exactly where a FSC
     % shell is bound. the 10 in the divisor is set in the calc_shells function,.
-    binDiv = 1*ceil(padDIM(1)^(1/3));
+    binDiv = ceil(1.5*padDIM(1)^(1/3));
     shellInc = 0.5/(floor(padDIM(1)/binDiv)*pixelSize);
     randCutoff = floor((1/(fscRandCutoffRes)-lowResShift)/ shellInc) * shellInc
     fscTcutoff = (floor((1/(fscRandCutoffRes*.95)-lowResShift)/ shellInc)) * shellInc
@@ -584,7 +584,7 @@ for iRef = 1:nReferences
 
     clear randGrid
     [ fou1 ] = fftn(BH_padZeros3d(img1, fscPAD(1,:), fscPAD(2,:), 'cpu', 'singleTaper'));
-        
+       
     for iShuffle = 1    
       rng('shuffle')
       fou1 = single(real(ifftn(abs(fou1) .* exp(1i .* (...
@@ -959,6 +959,8 @@ clear fout famp1 famp2 fphase1 fphase2
   
   %%%%%%%%%%%%%%%%%%%%%%%%%
   % For comparing results from a tight mask and solvent normalized fsc
+  % The tight mask calculation is not so reliable (which is by it isn't used in the first place.
+  % This is used for the figure S3 in the Nature Methods paper, but not in regular us.
     figure('Visible','off'), plot(osX,fnval(fitTightFSC,osX),'k-.',...
                                   osX,fnval(fscTrue,osX),'k',...
                                   osX,fnval(fitFSC{1},osX),'b',...
@@ -971,11 +973,11 @@ clear fout famp1 famp2 fphase1 fphase2
     xlabel('Spatial Freq'); ylabel('fsc');
     ylim([-.05 1.025])  
     file_out = sprintf('%s-%d-fscFull_%s', outputPrefix, iRef, halfSet);
-    saveas(gcf, file_out,'pdf')
+   % saveas(gcf, file_out,'pdf')
     
-    fscRandOUT = fopen(sprintf('%s-%d-fscFull_%s.txt', outputPrefix, iRef, halfSet),'w');
-    fprintf(fscRandOUT,'%4.4f\t%4.4f\t%4.4f\t%4.4f\n',[osX,fnval(fitTightFSC,osX),fnval(fscTrue,osX),fnval(fitFSC{1},osX)]');
-    fclose(fscRandOUT); 
+   % fscRandOUT = fopen(sprintf('%s-%d-fscFull_%s.txt', outputPrefix, iRef, halfSet),'w');
+   % fprintf(fscRandOUT,'%4.4f\t%4.4f\t%4.4f\t%4.4f\n',[osX,fnval(fitTightFSC,osX),fnval(fscTrue,osX),fnval(fitFSC{1},osX)]');
+   % fclose(fscRandOUT); 
     figure('Visible','off'), plot(osX,cRef{1}(osX),'kd','MarkerSize',3); hold on;
     if (flgCones)
 
@@ -1143,7 +1145,7 @@ if ~isa(halfAngle,'cell')
 end
 
 
-binDiv = 1*ceil(padDIM(1)^(1/3));
+binDiv = ceil(1.5*padDIM(1)^(1/3));
 if ( flgPowerSpectrum )
   bin = floor(size(cross,1)/3);
 else
