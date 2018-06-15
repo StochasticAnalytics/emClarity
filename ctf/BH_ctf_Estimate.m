@@ -116,15 +116,11 @@ fineAngStep = deg2rad(0.5);
 
 
 
-eraseSigma = 3;%pBH.('beadSigma');
-if ( eraseSigma > 0 )
-  eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5));
-  flgImodErase = 0
-else
-  % Converte bead diameter to pixels and add a little to be safe.
-  eraseRadius = 1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5);
-  flgImodErase = 1
-end
+eraseSigma = 3;
+
+eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5));
+flgImodErase = 0
+
   
   
 % Assuming that the first CTF zero is always less than this value 
@@ -285,33 +281,9 @@ mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
 if exist(sprintf('%s.erase',mapBackPrfx),'file')
   flgEraseBeads = 1;
-  % create and later run a script to erase gold beads using imods
-  % ccderaser and the present fiducial model.
-
-  % In addition to pixel size matching, it seems as if when the
-  % origin in the header is not 0,0,0 then the erase model won't fit
-  % - figure out how to adjust
-
-  if ( flgImodErase )
-  eraseOUT = fopen(sprintf('%s_erase.com',mapBackPrfx),'w');
-  fprintf(eraseOUT,['#Command file to erase gold beads\n', ...
-                    'ccderaser -StandardInput << EOF\n', ...
-                    'BetterRadius %f\n', ... % need to get bead and pixel size from meta data
-                    'InputFile %s\n', ...
-                    'OutputFile %s-erase\n',...
-                    'ModelFile %s.erase\n',...
-                    'MergePatches 1\n',...
-                    'ExcludeAdjacent\n',...
-                    'CircleObjects /\n',...
-                    'PolynomialOrder 1\n',...
-                    'ExpandCircleIterations 10\n',...
-                    'EOF'],min(56,eraseRadius),outputStackName,outputStackName,mapBackPrfx);
-  fclose(eraseOUT);               
-  [~] = system(sprintf('chmod a=wrx %s_erase.com',mapBackPrfx));
-  end
-
 else
   flgEraseBeads = 0;
+  fprintf('\nDid not find the gold bead file (%s) for erasing, will skip\n\n',sprintf('%s.erase',mapBackPrfx));
 end
 
 
@@ -476,8 +448,11 @@ for i = 1:d3
 end 
 
 
-if ( flgEraseBeads && ~(flgImodErase) )
-    beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
+if ( flgEraseBeads )
+    system(sprintf('model2point -float fixedStacks/%s.erase  fixedStacks/%s.erase2',fileName,fileName));
+    %beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
+    beadList = load(sprintf('fixedStacks/%s.erase2',fileName));
+   
     beadList(:,1:2) = beadList(:,1:2) ./ scalePixelsBy;
     STACK = BH_eraseBeads(STACK,eraseRadius, beadList);
 end 

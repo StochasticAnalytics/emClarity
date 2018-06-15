@@ -69,3 +69,7 @@ echo "\${emClarity_ROOT}/emClarity_${binaryOutName} \${argList}"
 } > emClarity_${scriptOutName}
 
 chmod a=wrx emClarity_${scriptOutName}
+
+mkdir -p ../bin
+mv emClarity_${scriptOutName} ../bin
+mv emClarity_${binaryOutName} ../bin

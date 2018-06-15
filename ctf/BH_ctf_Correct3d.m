@@ -112,7 +112,7 @@ try
   % further denoise prior to template matching.
   flgMedianFilter = pBH.('ctfMedianFilter');
 catch
-  flgMedianFitler = 0;
+  flgMedianFilter = 0;
 end
   
 
