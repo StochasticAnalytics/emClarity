@@ -160,7 +160,7 @@ zShift = zShift / PIXEL_SIZE;
 tileOverlap = 4;
 tileSize = floor(680e-10 / PIXEL_SIZE);
 tileSize = tileSize + mod(tileSize,2);
-fprintf('Using a tile size of %d',tileSize);
+fprintf('Using a tile size of %d\n',tileSize);
 overlap = floor(tileSize ./ tileOverlap);
 
 % Size to padTile to should be even, large, and preferably a power of 2
@@ -173,8 +173,13 @@ padVAL = BH_multi_padVal([tileSize,tileSize], [paddedSize,paddedSize]);
 
 
 
-if exist(tltFile, 'file') &&  exist(stackNameIN, 'file')
+if exist(tltFile, 'file') 
   rawTLT = load(tltFile);
+else
+  fprintf('ignoring %s, because the file is not found.\n', tltFile)
+end
+
+if exist(stackNameIN, 'file')
   
   if length(tltOrder) ~= length(rawTLT)
     error('The length of the collectionOrder %d and tilt Geometry %d are different\n', ...
@@ -188,7 +193,7 @@ if exist(tltFile, 'file') &&  exist(stackNameIN, 'file')
     pathName = '.';
   end
 else
-  fprintf('ignoring %s, because the file is not found.\n', tltFile)
+  fprintf('ignoring %s, because the file is not found.\n', stackNameIN)
 
 end
 

@@ -37,7 +37,7 @@ if nArgs > 1
     checkHelp = ~strcmpi(varargin{2},'help') || ~strcmpi(varargin{2},'h') || ~strcmp(varargin{2},'experimental');
   end
 elseif nArgs == 0
-  error('\n\n\tRun with help or %s for a list of functions\n\n','h');
+  error('\n\n\tRun with help for a list of functions\n\n');
 %   checkHelp = 0;
 end
 

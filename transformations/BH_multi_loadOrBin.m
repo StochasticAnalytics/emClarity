@@ -1,5 +1,5 @@
 function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = ...
-                                        BH_multi_loadOrBin( IMG, SAMPLING,DIMENSION )
+                                        BH_multi_loadOrBin( IMG, SAMPLING,DIMENSION, varargin )
 %Check to see if a cached binned image exists, either load or bin and load.
 %   Switched to using imod's newstack and binvol to create binning and
 %   removed inline binning from my workflow.
@@ -8,6 +8,13 @@ iPixelHeader = '';
 iOriginHeader = '';
 imgExt = '';
 flgLoad = 0;
+
+if nargin > 3
+  flgMedianFilter = varargin{1};
+else
+  flgMedianFilter = 0;
+end
+
 if SAMPLING < 0
   samplingRate = abs(SAMPLING);
   IMG_OUT = '';
@@ -82,6 +89,9 @@ if samplingRate > 1
         newStack = zeros(binSize,'single');
         for iPrj = 1:binSize(3)
           iProjection = gpuArray(getVolume(tiltObj,[-1],[-1],iPrj));
+          if ( flgMedianFilter )        
+            iProjection = medfilt2(iProjection,[3,3]);
+          end
           iProjection = fftn(iProjection).*bpFilt;
           iProjection = real(ifftn(ifftshift(BH_padZeros3d(fftshift(iProjection),...
                                              trimVal(1,:),trimVal(2,:),'GPU','single'))));

@@ -105,6 +105,15 @@ try
 catch
   flg2dCTF = 0;
 end   
+
+try
+  % Part of the experiment with template matching using higher res info, also 
+  % allow for a median filter post CTF correction, pre reconstruction to 
+  % further denoise prior to template matching.
+  flgMedianFilter = pBH.('ctfMedianFilter');
+catch
+  flgMedianFitler = 0;
+end
   
 
 % ctf3dDepth=pBH.('defocusErrorEst')
@@ -224,7 +233,8 @@ for iGPU = 1:nGPUs
     preBinStacks(TLT, tiltList{iTilt}, mapBackIter,1,...
                                                       samplingRate,...
                                                       PosControl2d,...
-                                                      tiltWeight);
+                                                      tiltWeight,...
+                                                      flgMedianFilter);
 
   end                                                 
 end
@@ -394,6 +404,8 @@ parfor iGPU = 1:nGPUs
                                             preCombDefocus,samplingRate);  
       end
       % Write out the stack to the cache directory as a tmp file
+
+
      
       outputStack = sprintf('%s/%s_ali%d_%d.fixed', ...
                             tmpCache,tiltList{iTilt},mapBackIter+1,iSection)
@@ -713,7 +725,8 @@ end
 function [] = preBinStacks(TLT, STACK_PRFX, mapBackIter,usableArea,...
                                                       samplingRate,...
                                                       PosControl2d,...
-                                                      tiltWeight)
+                                                      tiltWeight,...
+                                                      flgMedianFilter)
                                                     
                                                    
 
@@ -731,7 +744,7 @@ fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
 inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
                      prefix,STACK_PRFX,mapBackIter+1,suffix,samplingRate);
 if ~exist(inputStack, 'file')
-  BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
+  BH_multi_loadOrBin(fullStack,-1.*samplingRate,2,flgMedianFilter);
 end
 
 

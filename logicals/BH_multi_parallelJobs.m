@@ -27,10 +27,10 @@ fprintf('found totalMem on GPU1 %3.3e, nWorkers %d, so scaling nProcs by %2.2f\n
 % even better o explicitly depend on memory available ( this will allow smaller cards to be used )
 
 % nParProcesses =  nGPUs .*  (floor(scaleMem.*384./calcSize).^2+ceil(scaleMem.*288./calcSize));
-nParProcesses =  ceil(scaleMem .* nGPUs .*  (floor(384./calcSize).^2+ceil(256./calcSize)));
-
+nParProcesses =  ceil(scaleMem .* nGPUs .*  (floor(384./calcSize).^2+ceil(256./calcSize)))
+fprintf('scaleMem %f nGpus %f calcSize %f nParProc %f\n',scaleMem,nGPUs,calcSize,nParProcesses);
 %nParProcesses = min(2*nTomograms, nGPUs .*  (floor(scaleMem.*384./calcSize).^2+ceil(scaleMem.*288./calcSize)));
-nParProcesses = min(nParProcesses, pInfo.NumWorkers);
+nParProcesses = min(nParProcesses, pInfo.NumWorkers)
 if ( flgAvg )
   if flgAvg == -1
     % Linear interpolation
@@ -41,15 +41,7 @@ if ( flgAvg )
   end
 end
 
-% This doesn't actually fix the problem.
-% Check for exclustive process mode, this is shit.
-% gDev = parallel.gpu.GPUDevice.getDevice(1);
-% if ~strcmpi(gDev.ComputeMode,'Default')
-%   fprintf('\n\n\nGPU COMPUTE MODE IS %s\n\n',gDev.ComputeMode);
-%   fprintf('\n This is an unfortunate waste of resources, and dramatically slows down emClarity\n');
-%   fprintf('\n Using only nProcesses, if you or your sysadmin will change to Default compute mode, it is much better\n',nGPUs);
-%   nParProcesses = nGPUs;
-% end
+
 
 maxLen = length(1:nParProcesses:nTomograms);
 newLen = maxLen;
@@ -62,7 +54,11 @@ while newLen == maxLen
   end
 end
 
+
 nParProcesses = nParProcesses - mod(nParProcesses - nGPUs,2);
+if (nParProcesses == 0)
+  nParProcesses = 2*nGPUs;
+end
 fprintf('Using %d workers in %d batches\n',nParProcesses,nTomograms./nParProcesses);
 % Divide the tomograms up over each gpu
 iterList = cell(nParProcesses,1);

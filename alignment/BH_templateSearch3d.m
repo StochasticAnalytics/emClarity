@@ -195,7 +195,7 @@ else
 end
 
 latticeRadius = pBH.('particleRadius');
-targetSize    = [512,512,512];%pBH.('Tmp_targetSize');
+targetSize    = [512,512,512];
 angleSearch   = pBH.('Tmp_angleSearch');
 
 statsRadius = 1;
@@ -255,9 +255,11 @@ catch
   lowResCut = 40;
 end
 
-% % %  % Read and/or bin the tomogram and template
-% % % [tomogram,  mapPath, mapName, mapExt] = ...
-% % %                                    BH_multi_eveRotOrBin( MAP, samplingRate, 3 );
+try
+  useCtfCorrected = pBH.('useCtfCorrected');
+catch
+  useCtfCorrected = 0;
+end
 
 mapPath = './cache';
 mapName = sprintf('%s_%d_bin%d',tomoName,tomoNumber,samplingRate);
@@ -269,7 +271,10 @@ sprintf('recon/%s_recon.coords',tomoName)
 reconCoords = recGeom(tomoNumber,:);
 clear recGeom
 
-    
+% TODO in testing ctf flipped for using higher resolutions, there is no catch
+% to make sure that this isn't just builing a non-ctf corrected tomo.
+% If the idea pans out, deal with it. (Probably by just doing ctf corrected all 
+% the time)
 [ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
                                      reconCoords, mapBackIter, samplingRate,...
                                      -1*gpuIDX, reconScaling,1); 
@@ -279,8 +284,7 @@ clear recGeom
 % into a predictible range
 
 % Wait until after application of/distortion by tomo's ctf to downsample the template. 
-% % % [template, tempPath, tempName, tempExt] = ...
-% % %                               BH_multi_loadOrBin( TEMPLATE, samplingRate, 3 );   
+
 [template, tempPath, tempName, tempExt] = ...
                               BH_multi_loadOrBin( TEMPLATE, 1, 3 ); 
                             
@@ -532,13 +536,18 @@ for  iX = 1:nIters(1)
     
     if ( statLoop > 1 )
       maskStack(:,:,:,tomoIDX) = ( maskStack(:,:,:,tomoIDX) | rmsMask > highRms | rmsMask < lowRms);
-    end      
+    end     
+
+    if ( useCtfCorrected )
+      tomoChunk = tomoChunk ./ rmsMask;
+    else 
       % Using the non-ctf corrected stack since we limit toA all practical
       % defocus (<8um) should be entirely negative, so just flip in real
       % space
-   
+    
       tomoChunk = -1.*(tomoChunk ./ rmsMask);
 %       backgroundVol = backgroundVol + gather(tomoChunk.*maskStack(:,:,:,tomoIDX));
+    end
 
     
     if ( calcStats )
@@ -625,47 +634,43 @@ clear tomoWedgeMask averagingMask rmsMask bandpassFilter statBinary validAreaMas
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Temp while testing new dose weighting
-      TLT = tiltGeometry;
-      nPrjs = size(TLT,1);
-
-      
-      kVal = 0;
-      [ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' )
+TLT = tiltGeometry;
+nPrjs = size(TLT,1);
 
 
-     
-
-      % The negative size is to overried the default cubic dimension enforcement  
-      %[ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, 'applyMask',particleThickness,1, 1, samplingRate);
+kVal = 0;
+[ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' )
 
 
 
-      switch wedgeType
-        case 1
-          % make a binary wedge
-          [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                         'binaryWedgeGPU',particleThickness,...
-                                                       1, 1, samplingRate);
-        case 2
-          % make a non-CTF wedge
-          [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                         'applyMask',particleThickness,...
-                                                       2, 1, samplingRate);   
-        case 3
-          % make a CTF without exposure weight
-          [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                         'applyMask',particleThickness,...
-                                                       3, 1, samplingRate);   
-        case 4
-          % make a wedge with full-ctf
-          [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                         'applyMask',particleThickness,...
-                                                       4, 1, samplingRate);  
-        otherwise
-          error('wedgeType must be 1-4');
-      end
-      
-      wedgeMask = gather(ifftshift(wedgeMask));
+
+
+switch wedgeType
+  case 1
+    % make a binary wedge
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'binaryWedgeGPU',particleThickness,...
+                                                 1, 1, samplingRate);
+  case 2
+    % make a non-CTF wedge
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 2, 1, samplingRate);   
+  case 3
+    % make a CTF without exposure weight
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 3, 1, samplingRate);   
+  case 4
+    % make a wedge with full-ctf
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 4, 1, samplingRate);  
+  otherwise
+    error('wedgeType must be 1-4');
+end
+
+wedgeMask = gather(ifftshift(wedgeMask));
                                      
       
         
