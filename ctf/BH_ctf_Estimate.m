@@ -449,7 +449,7 @@ end
 
 
 if ( flgEraseBeads )
-    system(sprintf('imodtrans -i fixedStacks/%s.fixed fixedStacks/%s.erase fixedStacks/%s.tmpMod',fileName,fileName));
+    system(sprintf('imodtrans -i fixedStacks/%s.fixed fixedStacks/%s.erase fixedStacks/%s.tmpMod',fileName,fileName,fileName));
     system(sprintf('model2point -float fixedStacks/%s.tmpMod  fixedStacks/%s.erase2',fileName,fileName));
     system(sprintf('rm fixedStacks/%s.tmpMod',fileName));
     %beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
