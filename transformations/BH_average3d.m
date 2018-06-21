@@ -364,9 +364,12 @@ elseif loadTomo
 elseif interpOrder == 4
   limitToOneProcess = 1;
 else
-  limitToOneProcess = 0; 
+  limitToOneProcess = pBH.('nCpuCores'); 
   interpOrder = 1;
 end
+
+
+
 
 
 fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOneProcess);
