@@ -66,7 +66,7 @@ parfor iGPU = 1:nGPUs
     
   if ( flgParallel )
     useGPU = iGPU;
-    gDev = gpuDevice(useGPU)
+    gDev = gpuDevice(useGPU);
   else
     useGPU = BH_multi_checkGPU(-1);
     gDev = gpuDevice(useGPU);
@@ -235,21 +235,6 @@ iStack=1;
 
 if (SuperResolution)
   halfMask = fftshift(BH_bandpass3d(1.*[d1,d2,1],0,0,4,'GPU',1));
-
-
-
-% else
-%   % Even though we oversample by padding, the nyquist is the same so crop
-%   % there
-%   halfMask2 = fftshift(BH_bandpass3d([2.*[d1,d2],1],0,0,2,'GPU',1));
-%   fftMask = BH_fftShift(0,[2.*[d1,d2],1],1); 
-%   ifftMask = BH_fftShift(0,[-2.*[d1,d2],1],1); 
-%   % Calculate grids in reciprocal pixels including 2pi for phase shifting
-%   [dU, dV] = BH_multi_gridCoordinates(2.*[d1,d2],'Cartesian','GPU', ...
-%                                                   {'none'},1,1,0);
-%   dU = dU .* (-2i*pi);
-%   dV = dV .* (-2i*pi);  
-
 end
 
 TLT = INPUT_CELL{iStack,1};
@@ -362,15 +347,7 @@ system('mkdir -p aliStacks');
     tlt_tmp{i} = TLT(i,:);
   end
 
-% % % % % 
-% tmp override
-%   numWORKERS = 2;
-%   try
-%     parpool(numWORKERS)
-%   catch
-%     delete(gcp)
-%     parpool(numWORKERS)
-%   end
+
 
   if (flgSkipUpdate)
     continue
