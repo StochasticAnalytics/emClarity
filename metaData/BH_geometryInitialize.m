@@ -233,11 +233,27 @@ parfor iGPU = 1:nGPUs
 % % %     mapExt  = fileInfo{iTomo,3};
     % Load in the template matching geometry for the tomogram, and the model file 
     % which may (or may not) have been edited.
-
-    tmpSearchGeom = importdata(sprintf('convmap/%s.csv',mapName));
-
-    if (convertEulers)
+    try
+      tmpSearchGeom = importdata(sprintf('convmap/%s.csv',mapName));
+    catch
+      error('Did not find the file convmap/%s.csv\n\nMake sure the binning in your parameter file is correct.',mapName)
+    end
+    tmpSearchGeom(1,:)
+    % New check for all -1 and then convert to Protomo
+    if ( abs(sum(tmpSearchGeom(1,17:25)) + 9) < 1e-3 )
+       fprintf('\nconverting euler angles from Protomo trf convention\n');
+     for iAng = 1:size(tmpSearchGeom,1)
       
+      tmpSearchGeom(iAng,17:25) = reshape( ...
+                                    BH_defineMatrix( ...
+                                      -1.* flip(tmpSearchGeom(iAng,14:16)),...
+                                      'Bah','inv'),1,9);
+
+      tmpSearchGeom(iAng,11:13) = tmpSearchGeom(iAng,11:13)+1;
+     end   
+    end
+    if (convertEulers)
+   
       fprintf('converting euler angles to spider/relion convention\n');
       for iAng = 1:size(tmpSearchGeom,1)
         tmpSearchGeom(iAng,17:25) = reshape( ...
