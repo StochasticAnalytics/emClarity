@@ -349,17 +349,9 @@ try
 catch
   interpOrder = 1;
 end
-try 
-  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
-catch
-  flgLimitToOneProcess = 0;
-end
 
-if ( flgLimitToOneProcess )
-  % For sinc memory is limiting, use same flag to multi_parallel_jobs for large SV
-  limitToOneProcess = 1;
-  interpOrder = abs(interpOrder);
-elseif loadTomo
+
+if ( loadTomo )
   limitToOneProcess = loadTomo;
 elseif interpOrder == 4
   limitToOneProcess = 1;
@@ -442,7 +434,7 @@ end
         geometry = subTomoMeta.(cycleRead).RawAlign;
       else
         geometry = subTomoMeta.(cycleRead).geometry;
-        eachTomo = true;
+        eachTomo = false;%true;
       end
       if ~(flgClassify)
         doNotTrim = true;

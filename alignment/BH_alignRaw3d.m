@@ -1,4 +1,4 @@
-function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
+ function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
                                                                
 %Extract and align class averages and references from 4D montages derived.
 %
@@ -103,7 +103,7 @@ className    = pBH.('Raw_className');
 try 
   loadTomo = pBH.('loadTomo')
 catch
-  loadTomo = 0
+  loadTomo = 0;
 end
 try 
   eraseMaskType = pBH.('Tmp_eraseMaskType');
@@ -218,7 +218,7 @@ ctfGroupList = masterTM.('ctfGroupSize');
 if ( loadTomo )
   limitToOne = loadTomo;
 else
-  limitToOne = loadTomo;
+  limitToOne = pBH.('nCpuCores');
 end
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
 if ( flgReverseOrder )
