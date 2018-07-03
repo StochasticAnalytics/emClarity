@@ -218,7 +218,7 @@ ctfGroupList = masterTM.('ctfGroupSize');
 if ( loadTomo )
   limitToOne = loadTomo;
 else
-  limitToOne = loadTomo;
+  limitToOne = pBH.('nCpuCores');
 end
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
 if ( flgReverseOrder )

@@ -211,7 +211,8 @@ nTomograms = length(tomoList);
 [ preMaskType, preMaskSize, preMaskRadius, preMaskCenter ] = ...
                                   BH_multi_maskCheck(pBH, 'Ali', refPixelSize);
 
-
+% This is prob not a good way to make sure the mask size matches::w
+maskSize=preMaskSize;
 
 % Make sure everthing matches the extracted average and wedge
 cpuVols = struct;
@@ -391,12 +392,14 @@ if (PREVIOUS_PCA)
   volumeMask = gpuArray(getVolume(MRCImage( ...
                               sprintf('%s_pcaVolMask.mrc',outputPrefix))));
 else
+ 
   [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+
 
   if ( flgPcaShapeMask )
       % when combining the addition is harmless, but is a convenient way to
       % include when sets are left 100% separate.
-      volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, maskRadius, maskCenter);  
+      volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '','');  
   end
   
   if (flgLoadMask)

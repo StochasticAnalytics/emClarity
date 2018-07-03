@@ -460,7 +460,7 @@ parfor iGPU = 1:nGPUs
           
           
 
-          nTiltWorkers = 4;
+          nTiltWorkers = 2;
           nTotalSlices = (iCoords(iTomo,3)-iCoords(iTomo,2)+1)
           tiltChunkSize = ceil(nTotalSlices/nTiltWorkers)
           tiltChunks = iCoords(iTomo,2):tiltChunkSize:iCoords(iTomo,3)
