@@ -9,7 +9,7 @@ post="_${shortHead}"
 
 outName="$(basename ${mFile} .m)${post}"
 
-binaryOutName="1_0_0"
+binaryOutName="1_0_4"
 scriptOutName=17b
 matlab -nosplash -nodisplay -nojvm -r "mcc -m  ${mFile} -a fitInMap.py  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       

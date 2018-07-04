@@ -83,7 +83,7 @@ if (cycleNumber)
     fprintf('The optimal ctfDepth was not found\n');
     fprintf('Inputs %3.3e pix %3.3e cs %3.3e wl %3.3e def %3.3e resTarget %3.3e tomoDepth\n',...
              pixelSize*10^-10, Cs, Lambda, Defocus,resCutOff,thicknessAng);
-    ctfDepth = 20e-9;
+    ctfDepth = min(thicknessAng/30 * 10^-9,resCutOff(1) * 10 ^-8)
   elseif ctfDepth < 0.5*10e-9
     fprintf('\n\nCapping ctfDepth to 5 nm from a calc %3.3f nm\n\n',ctfDepth*10^9);
     ctfDepth = 10e-9;
