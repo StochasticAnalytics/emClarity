@@ -291,10 +291,10 @@ clear recGeom
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
 fprintf('size of provided template %d %d %d\n',size(template));
-trimTemp = BH_multi_padVal(size(template),ceil(1.15.*latticeRadius./pixelSizeFULL));
+trimTemp = BH_multi_padVal(size(template),ceil(sqrt(2)*max(latticeRadius(:))./pixelSizeFULL));
 template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
 clear trimTemp
-fprintf('size after trim to 1.15x lattice radius %d %d %d\n',size(template));
+fprintf('size after trim to sqrt(2)*max(lattice radius) %d %d %d\n',size(template));
                             
 if isempty(mapPath) ; mapPath = '.' ; end
 if isempty(tempPath) ; tempPath = '.' ; end
@@ -310,7 +310,8 @@ template = padarray(template, mod(size(template),2),0, 'post');
 template = template - mean(template(:));
 
 templateBIN = BH_reScale3d(template,'',sprintf('%f',1/samplingRate),'cpu');
-
+templateBIN = templateBIN - mean(templateBIN(:));
+templateBIN = templateBIN  ./rms(templateBIN(:));
 
 sizeTemp = size(template)
 sizeTempBIN = size(templateBIN)
@@ -372,9 +373,9 @@ validArea = OUTPUT(4,:);
 validCalc = OUTPUT(5,:);
 nIters    = OUTPUT(6,:);
 
-[ padVal ] = BH_multi_padVal( sizeTemp, sizeChunk );
-tempPre = padVal(1,:);
-tempPost = padVal(2,:);
+%[ padVal ] = BH_multi_padVal( sizeTemp, sizeChunk );
+%tempPre = padVal(1,:);
+%tempPost = padVal(2,:);
 
 [ padBIN ] = BH_multi_padVal( sizeTempBIN, sizeChunk );
 [ trimValid ] = BH_multi_padVal(sizeChunk, validArea);
@@ -384,10 +385,31 @@ if ( tmpDecoy )
   % the maximum rate of change in the ccc
   
   % the -1 searches for the next smallest fast fourier size
-  decoySize = BH_multi_iterator(-1.*floor(tmpDecoy.*sizeChunk),'fourier');
-  fprintf('\n\ndecoy size %d %d %d from chunkSize %d %d %d\n\n',decoySize,sizeChunk);  
-  padDecoy1 = BH_multi_padVal( sizeTempBIN, decoySize);
-  padDecoy2 = BH_multi_padVal( decoySize, sizeChunk );
+  templateBIN = gpuArray(templateBIN);
+  tmpCCC = 1;
+  tmpDecoy = 1;
+  
+  while tmpCCC > 0.8
+    tmpDecoy = tmpDecoy - .01;
+    %decoySize = BH_multi_iterator(-1.*floor(tmpDecoy.*sizeChunk),'fourier');
+    %fprintf('\n\ndecoy size %d %d %d from chunkSize %d %d %d\n\n',decoySize,sizeChunk);  
+    %padDecoy1 = BH_multi_padVal( sizeTempBIN, decoySize);
+    %padDecoy2 = BH_multi_padVal( decoySize, sizeChunk );
+    decoyTest = BH_reScale3d(templateBIN,'',tmpDecoy,'GPU');
+    decoyTrim = BH_multi_padVal(size(decoyTest),size(templateBIN));
+    decoyTest = BH_padZeros3d(decoyTest,decoyTrim(1,:),decoyTrim(2,:),'GPU','single');
+    decoyTest = decoyTest - mean(decoyTest(:));
+    decoyTest = decoyTest ./ rms(decoyTest(:));
+    tmpCCC = gather(sum(sum(sum(decoyTest.*templateBIN)))./numel(decoyTest));
+    fprintf('tmpDecoy %f ccc %f\n',tmpDecoy,tmpCCC);
+    
+  end
+  decoyTest = fftn(BH_reScale3d(templateBIN,'',tmpDecoy,'GPU'));
+  decoyNorm = gather(sum(abs(decoyTest(:)))./sum(abs(fftn(templateBIN(:)))));
+  padDecoy = BH_multi_padVal(size(decoyTest),sizeChunk);
+  clear decoyTest
+  templateBIN = gather(templateBIN);
+
 end
 
 
@@ -639,7 +661,8 @@ nPrjs = size(TLT,1);
 
 
 kVal = 0;
-[ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' )
+%%%%% [ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' )
+[ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' )
 
 
 
@@ -670,11 +693,13 @@ switch wedgeType
     error('wedgeType must be 1-4');
 end
 
-wedgeMask = gather(ifftshift(wedgeMask));
+%wedgeMask = gather(ifftshift(wedgeMask));
                                      
-      
+% Now just using the mask to calculate the power remaining in the template,
+% without actually applying.
+wedgeMask = gather(find(ifftshift(wedgeMask)));
         
- 
+
         
     
  
@@ -703,7 +728,8 @@ for iAngle = 1:size(angleStep,1)
 
   %numRefIter = nAngles(1);
   numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
-  tempImg = gpuArray(template);
+  tempImg = gpuArray(templateBIN); %%%%% NEW switch to bin
+  tempWdg = gpuArray(wedgeMask);
 
 % % %   interpMaskGPU = gpuArray(interpMask);
   
@@ -712,10 +738,11 @@ for iAngle = 1:size(angleStep,1)
 
   % SAVE_IMG(MRCImage(gather(fftshift(tempWedgeMask))), 'tmpWedge.mrc') ;
 
-  [ tempFilter ] = BH_bandpass3d(sizeChunk,0.1, maxSizeForHighPass, ...
-                                          lowResCut,'GPU', pixelSizeFULL );
+  % Just bandpass the tomo, no need to do this twice.
+  %[ tempFilter ] = BH_bandpass3d(sizeChunk,0.1, maxSizeForHighPass, ...
+  %                                        lowResCut,'GPU', pixelSizeFULL );
 
-  tempWedgeMask = gpuArray(wedgeMask) .* tempFilter; 
+  %tempWedgeMask = gpuArray(wedgeMask) .* tempFilter; 
 
   clear referenceStack tempFilter
   % Calculate all references for each out of plane tilt only once
@@ -778,15 +805,22 @@ for iAngle = 1:size(angleStep,1)
 
 
 
-          tempFou = BH_bandLimitCenterNormalize(tempRot,tempWedgeMask,'',[tempPre;tempPost],precisionTaper);
+          %%%%%tempFou = BH_bandLimitCenterNormalize(tempRot,tempWedgeMask,'',[tempPre;tempPost],precisionTaper);
 
-          tempRot = BH_padZeros3d(real(ifftn(tempFou)),-1.*tempPre,-1.*tempPost,'GPU',precision); 
+          %%%%%tempRot = BH_padZeros3d(real(ifftn(tempFou)),-1.*tempPre,-1.*tempPost,'GPU',precision); 
           
-          tempRot = gather(BH_reScale3d(tempRot,'',sprintf('%f',1/samplingRate),'GPU'));
+          %%%%%tempRot = gather(BH_reScale3d(tempRot,'',sprintf('%f',1/samplingRate),'GPU'));
 
-          if (firstLoopOverTomo)
-            SAVE_IMG(MRCImage(tempRot), sprintf('temp_%s.mrc',convTMPNAME),pixelSize);
-          end
+         % if (firstLoopOverTomo)
+         %   SAVE_IMG(MRCImage(tempRot), sprintf('temp_%s.mrc',convTMPNAME),pixelSize);
+         % end
+          
+          normScore = fftn(tempRot);
+          preTot = sum(abs(normScore(:)));
+          normScore = normScore(tempWdg);
+          tempRot = tempRot ./ (sum(abs(normScore(:)))/preTot);
+          clear normScore preTot
+          
           referenceStack(:,:,:,intraLoopAngle) = tempRot;
          
           tempFou = fftn(BH_padZeros3d(tempRot,padBIN(1,:),padBIN(2,:),'GPU',precision));
@@ -813,34 +847,36 @@ for iAngle = 1:size(angleStep,1)
         % Even with local normalization, test with all padding and
         % goodness.
 %         tomoNorm = ((sqrt(sum(sum(sum(abs(tomoFou).^2)))) ./ numel(tomoFou)));
-        tempNorm = ((sqrt(sum(sum(sum(abs(tempFou).^2)))) ./ numel(tempFou)));
+%        tempNorm = ((sqrt(sum(sum(sum(abs(tempFou).^2)))) ./ numel(tempFou)));
         
         ccfmap = BH_padZeros3d(fftshift(real(single(...
-                               ifftn(tomoFou.*conj(tempFou))./tempNorm))),...%./(tomoNorm.*tempNorm))))),...
+                               ifftn(tomoFou.*conj(tempFou))))),...%./(tomoNorm.*tempNorm))))),...
                                trimValid(1,:),trimValid(2,:),'GPU',precision);
         
         if ( tmpDecoy > 0 )
            tempFou = [];
            if (firstLoopOverAngle)
-             decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d(tempRot, ...
-                                padDecoy1(1,:),padDecoy1(2,:), ...
-                                'GPU',precision))), ...
-                                padDecoy2(1,:),padDecoy2(2,:),...
-                                'GPU',precision,0,1);
+%              decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d(tempRot, ...
+%                                 padDecoy1(1,:),padDecoy1(2,:), ...
+%                                 'GPU',precision))), ...
+%                                 padDecoy2(1,:),padDecoy2(2,:),...
+%                                 'GPU',precision,0,1);
+             decoy = BH_padZeros3d(BH_reScale3d(tempRot./decoyNorm,'',tmpDecoy,'GPU'),...
+                                   padDecoy(1,:),padDecoy(2,:),'GPU','single');
            else
-             decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d( ...
-                                referenceStack(:,:,:,intraLoopAngle), ...
-                                padDecoy1(1,:),padDecoy1(2,:), ...
-                                'GPU',precision))), ...
-                                padDecoy2(1,:),padDecoy2(2,:),...
-                                'GPU',precision,0,1);             
+%              decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d( ...
+%                                 referenceStack(:,:,:,intraLoopAngle), ...
+%                                 padDecoy1(1,:),padDecoy1(2,:), ...
+%                                 'GPU',precision))), ...
+%                                 padDecoy2(1,:),padDecoy2(2,:),...
+%                                 'GPU',precision,0,1);
+             decoy = BH_padZeros3d(BH_reScale3d(referenceStack(:,:,:,intraLoopAngle)./decoyNorm,'',tmpDecoy,'GPU'),...
+                                   padDecoy(1,:),padDecoy(2,:),'GPU','single');                              
            end
            
-           
-
-           
+                      
            decoy = BH_padZeros3d(fftshift(real(single( ...
-                                 ifftn(tomoFou.*decoy)))),..../(decoyNorm.*tomoNorm))))),
+                                 ifftn(tomoFou.*conj(fftn(decoy)))))),..../(decoyNorm.*tomoNorm))))),
                                  trimValid(1,:), ...
                                  trimValid(2,:),'GPU',precision);
         elseif ( tmpDecoy < 0 )
