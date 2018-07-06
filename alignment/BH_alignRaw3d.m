@@ -556,7 +556,6 @@ geometryResults   = cell(nParProcesses,1);
    parpool(nParProcesses)
  end
 
-size(ref_FT1{2})
 size(ref_FT2)
 
 system('mkdir -p alignResume');

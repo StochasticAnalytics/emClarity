@@ -4,9 +4,9 @@ function BH_geometry_Constraints(PARAMETER_FILE, CYCLE, distCut, angCut, lattice
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
 
-
+pixelSize = pBH.('PIXEL_SIZE')*10^10;
 angCut = [0,str2num(angCut)]
-distCut = str2num(distCut)
+distCut = str2num(distCut)./pixelSize
 modBin = 7;
 nNeighbors = str2num(latticeNumber)
 nTotal = 0;
@@ -26,19 +26,21 @@ baseNum = fieldnames(geom);
 for i = 1:length(baseNum)
   i
 
-listIN = geom.(baseNum{i});
-size(listIN)
-return
+  
+listIN = gpuArray(geom.(baseNum{i}));
+
 nVol = size(listIN,1);
 keepList = zeros(nVol,2);
 
 
+
   for iPt = 1:nVol
     iPt
-    if ( listIN(iPt,26) == -9999 )
-      distVect = sqrt((listIN(:,11)-listIN(iPt,11)).^2 + ...
+ 
+    if ( listIN(iPt,26) ~= -9999 )
+      distVect = sqrt(((listIN(:,11)-listIN(iPt,11)).^2 + ...
                     (listIN(:,12)-listIN(iPt,12)).^2 + ...
-                    (listIN(:,13)-listIN(iPt,13)).^2);
+                    (listIN(:,13)-listIN(iPt,13)).^2));
 
       closeVect = find(distVect < distCut);
 
@@ -50,7 +52,12 @@ keepList = zeros(nVol,2);
 
        for iAng = 1:length(closeVect)
          iAxis = reshape(listIN(closeVect(iAng),17:25),3,3)*[0;0;1];
-         iAngDiff = acosd(dot(particleAxis,iAxis));
+         iDot = dot(particleAxis,iAxis);
+         if (abs(iDot) > 1 && abs(iDot) < 1.0001)
+           iDot = fix(iDot);
+         end
+         iDot;
+         iAngDiff = acosd(iDot);
          if abs(iAngDiff) < abs(angCut(2)) && abs(iAngDiff) > abs(angCut(1))
            nAngClose = nAngClose + 1;
          end
