@@ -71,15 +71,10 @@ keepList = zeros(nVol,2);
   end
 
   % Remove the positions
-  geom.(baseNum{i})(~keepList,26) = -9999;
-  keepList = keepList(keepList~=0);
+ % geom.(baseNum{i})(~keepList,26) = -9999;
+  geom.(baseNum{i})= geom.(baseNum{i})(keepList,:);
 
-%modOUT = listIN(keepList,11:13)./modBin;
-%modFileOUT = fopen('tmp.txt','w');
-%fprintf(modFileOUT,'%f %f %f\n',modOUT');
-%fclose(modFileOUT);
-
-nTotal = nTotal + length(keepList)
+  nTotal = nTotal + sum(keepList~=0);
 end
 %system(sprintf('point2model -circle 3 -sphere 2 -scat -thick 2 -color 80,191,255 -image ../cache/%s.rec tmp.txt %s.mod',modNameIn,modNameIn));
   
