@@ -71,8 +71,11 @@ keepList = zeros(nVol,2);
   end
 
   % Remove the positions
- % geom.(baseNum{i})(~keepList,26) = -9999;
-  geom.(baseNum{i})= geom.(baseNum{i})(keepList,:);
+  if (CYCLE) 
+    geom.(baseNum{i})(~keepList,26) = -9999;
+  else
+    geom.(baseNum{i})= geom.(baseNum{i})(keepList,:);
+  end
 
   nTotal = nTotal + sum(keepList~=0);
 end
