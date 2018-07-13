@@ -1,41 +1,64 @@
 function BH_geometry_Constraints(PARAMETER_FILE, CYCLE, distCut, angCut, latticeNumber)
 
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+flgCSV = 0;
+CYCLE = str2num(CYCLE);
+try 
+  pixelSize = str2double(PARAMETER_FILE)
+  flgCSV = 1;
+  [failedCSV,csvList] = system('ls convmap/*.csv');
+  if (failedCSV)
+    error('Did not find your csv files in convmap folder');
+  end
+  geom = strsplit(csvList)
+  nModFiles = length(geom)-1
+  
+catch
+  pBH = BH_parseParameterFile(PARAMETER_FILE);
+  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  pixelSize = pBH.('PIXEL_SIZE')*10^10;
+  
 
-pixelSize = pBH.('PIXEL_SIZE')*10^10;
+  cycleNumber = sprintf('cycle%0.3u', CYCLE);
+
+  if (CYCLE)
+    geom  = subTomoMeta.(cycleNumber).RawAlign;
+  else
+    geom = subTomoMeta.('cycle000').('geometry');
+  end
+  baseNum = fieldnames(geom);
+  nModFiles = length(baseNum);
+end
+
+
+
+
 angCut = [0,str2num(angCut)]
 distCut = str2num(distCut)./pixelSize
 modBin = 7;
 nNeighbors = str2num(latticeNumber)
 nTotal = 0;
-CYCLE = str2num(CYCLE);
-
-cycleNumber = sprintf('cycle%0.3u', CYCLE);
-
-if (CYCLE)
-  geom  = subTomoMeta.(cycleNumber).RawAlign;
-else
-  geom = subTomoMeta.('cycle000').('geometry');
-end
-
-baseNum = fieldnames(geom);
 
 
-for i = 1:length(baseNum)
+
+
+
+for i = 1:nModFiles
   i
 
-  
-listIN = gpuArray(geom.(baseNum{i}));
+  if flgCSV
+    listIN = gpuArray(load(geom{i}));
+  else
+    listIN = gpuArray(geom.(baseNum{i}));
+  end
 
 nVol = size(listIN,1);
-keepList = zeros(nVol,2);
+keepList = zeros(nVol,1);
 
 
 
   for iPt = 1:nVol
-    iPt
+    
  
     if ( listIN(iPt,26) ~= -9999 )
       distVect = sqrt(((listIN(:,11)-listIN(iPt,11)).^2 + ...
@@ -69,25 +92,42 @@ keepList = zeros(nVol,2);
 
     end
   end
-
-  % Remove the positions
-  if (CYCLE) 
-    geom.(baseNum{i})(~keepList,26) = -9999;
-  else
-    geom.(baseNum{i})= geom.(baseNum{i})(keepList,:);
-  end
-
-  nTotal = nTotal + sum(keepList~=0);
-end
-%system(sprintf('point2model -circle 3 -sphere 2 -scat -thick 2 -color 80,191,255 -image ../cache/%s.rec tmp.txt %s.mod',modNameIn,modNameIn));
+  
   
 
-if (CYCLE)
-  subTomoMeta.(cycleNumber).RawAlign = geom;
-else
-  subTomoMeta.('cycle000').('geometry') = geom;
-end
+  if ( flgCSV )
+    listIN = listIN(find(keepList),:);
+    [~,fileName,~] = fileparts(geom{i});
 
-save(sprintf('%s.mat', pBH.('subTomoMeta')),'subTomoMeta');
+    csvOUT = fopen(sprintf('convmap/%s.txt',fileName),'w');
+    for iLine = 1:size(listIN,1)
+
+      fprintf(csvOUT,'%4.4f %4.4f %4.4f\n',listIN(iLine,[11:13])./listIN(iLine,2));
+    end
+    fclose(csvOUT);
+    
+    system(sprintf('point2model -number 1 -circle 3 -sphere 3 -scat -thick 3 -color 80,191,255 -image cache/%s.rec convmap/%s.txt convmap/%s.mod',fileName,fileName,fileName));
+  else
+    
+    % Remove the positions
+    if (CYCLE) 
+      geom.(baseNum{i})(~keepList,26) = -9999;
+    else
+      geom.(baseNum{i})= geom.(baseNum{i})(keepList,:);
+    end
+  end
+  nTotal = nTotal + sum(keepList~=0);
+end
+%
+  nTotal
+if ~flgCSV
+  if (CYCLE)
+    subTomoMeta.(cycleNumber).RawAlign = geom;
+  else
+    subTomoMeta.('cycle000').('geometry') = geom;
+  end
+
+  save(sprintf('%s.mat', pBH.('subTomoMeta')),'subTomoMeta');
+end
 
 end % end of function

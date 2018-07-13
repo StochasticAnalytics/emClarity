@@ -12,12 +12,17 @@ if length(varargin) == 5
   mapBack = varargin{5};
   collectionORDER = varargin{6};
 
-elseif length(varargin) == 2
+elseif length(varargin) <= 3
   % PARAMETER_FILE, STACK_BASENAME, gpuIDX
   % Assumes that all required files are in ./fixedStacks
   PARAMETER_FILE = varargin{1};
   STACK_BASENAME = varargin{2};
-
+  
+  if length(varargin) == 3
+    anglesSkipped = str2num(anglesSkipped);
+  else
+    anglesSkipped = [];
+  end
   
   stackNameIN = sprintf('fixedStacks/%s.fixed', STACK_BASENAME);
   tltFile = sprintf('fixedStacks/%s.tlt', STACK_BASENAME);
@@ -53,8 +58,27 @@ elseif (flgMapBack)
 end
 
 
+try
+  rawTLT = load(tltFile);
+catch
+  error('The tilt angle file %s was not found.\n', tltFile);
+end
 
-tltOrder = load(collectionORDER);
+
+try
+  flgCosineDose = pBH.('oneOverCosineDose');
+  startingAngle = pBH.('startingAngle');
+  startingDirection = pBH.('startingDirection');
+  doseSymmetricIncrement = pBH.('DoseSymmetricIncrement');
+  doseAtMinTilt = pBH.('doseAtMinTilt');
+  flgOldDose = 0;
+  tltOrder = calc_dose_scheme(pBH,rawTLT,anglesSkipped);
+catch
+  fprintf('Falling back on old dose specification through a *.order file\n');
+  fprintf('Parameters flgCosineDose=(0/1 bool), startingAngle=, startingDirection=[pos/neg],doseSymmetricIncrement=[0, or # tilts per sweep, and doseAtMinTilt are needed for the new method.\n');
+  tltOrder = load(collectionORDER);
+  flgOldDose = 1;
+end
 
 
 PIXEL_SIZE = pBH.('PIXEL_SIZE');
@@ -142,9 +166,13 @@ catch
 end
 
 try 
-  zShift = pBH.('zShift');
+  zShift = abs(pBH.('zShift'));
 catch
-  zShift = 0;
+  zShift = 150e-9;
+end
+
+if abs(zShift) > 100e-7
+  error('make sure your zShift values are of reasonable amounts (50-200nm)');
 end
 
 % Starting at +/- 100nm
@@ -168,12 +196,6 @@ end
 padVAL = BH_multi_padVal([tileSize,tileSize], [paddedSize,paddedSize]);
 
 
-
-if exist(tltFile, 'file') 
-  rawTLT = load(tltFile);
-else
-  fprintf('ignoring %s, because the file is not found.\n', tltFile)
-end
 
 if exist(stackNameIN, 'file')
   
@@ -199,7 +221,7 @@ end
 % Make ctf directory to store diagnostic images
 system(sprintf('mkdir -p %s/ctf', pathName)); 
 
-if ~(flgResume)
+% if ~(flgResume)
 
 
 
@@ -539,7 +561,7 @@ sum(nTiles)
 
 radialForCTF = {radialForCTF./(pixelOUT.*10^-10),0,phi}; clear phi                                                       
 
-flgExpFilter = 1
+flgExpFilter = 0;
 %if ( flgExpFilter)
 %  [exposureFilter] = BH_exposureFilter(paddedSize.*[1,1], tltForExp,'GPU',1,0);
 %  exposureFilter = gather(exposureFilter);
@@ -556,14 +578,37 @@ radialAvg(length(freqVector)) = gpuArray(double(0));
 
 tic
 nT = 1;
+nT2=0;
+nT3= 0;
 
-psTile = zeros((paddedSize).*[1,1],'single','gpuArray');
+psTile = zeros([(paddedSize).*[1,1],3],'single','gpuArray');
 
 
-doseWeight = zeros(paddedSize.*[1,1], 'single','gpuArray');
-for k = 1:size(STACK,3)
-  doseFilter = BH_exposureFilter(paddedSize.*[1,1], tltForExp(k,:),'GPU',1,0);
-   tmpTile = zeros(paddedSize.*[1,1],'single','gpuArray');
+for k = 1:d3
+ 
+  tiltIDX = TLT(k,1);
+  % Center the pixel coordinates
+  iEvalMask = BH_multi_gridCoordinates([d1C,1,1],'Cartesian','GPU',{'none'},0,1,0);
+
+  % Convert to the z-height in the projection
+  iEvalMask = iEvalMask.*(-1.*tand(TLT(tiltIDX,4)));
+  
+  iEvalPos = iEvalMask;
+  iEvalNeg = iEvalMask;
+  
+  % Shift by any amount wanted
+  iEvalPos = iEvalPos - zShift;
+  iEvalNeg = iEvalNeg + zShift;
+  
+  % Select region limited by tolerance  
+  iEvalPos = ( iEvalPos > gpuArray(-deltaZTolerance) & iEvalPos < gpuArray(deltaZTolerance));
+  iEvalNeg = ( iEvalNeg > gpuArray(-deltaZTolerance) & iEvalNeg < gpuArray(deltaZTolerance));
+  iEvalMask = ( iEvalMask > gpuArray(-deltaZTolerance) & iEvalMask < gpuArray(deltaZTolerance));
+
+  
+  
+   tmpTile = zeros([paddedSize.*[1,1],3],'single','gpuArray');
+
 %     iProjection = double(gpuArray(STACK(:,:,TLT(k,1))));
   if flgCrop
     [iProjection,~] = cropIMG(gpuArray(STACK(:,:,TLT(k,1))),PIXEL_SIZE*10^10);
@@ -578,51 +623,59 @@ for k = 1:size(STACK,3)
                        BH_movingRMS(iProjection,[tileSize,tileSize]);
 
 
-    %doseFilter = gpuArray(exposureFilter(:,:,TLT(k,1)));
-    % Weight according to the actual contribution
-     doseWeight = doseWeight + nTiles(TLT(k,1)).*doseFilter;
+
  
 
   for i = 1+tileSize/2:overlap:d1C-tileSize/2
-   for j = 1+tileSize/2:overlap:d2C-tileSize/2    
-      if evalMask(i,j,TLT(k,1))
+    if iEvalMask(i) || iEvalPos(i) || iEvalNeg(i)
+      for j = 1+tileSize/2:overlap:d2C-tileSize/2  
+     
+      %if evalMask(i,j,TLT(k,1))
 
 
-
-         tmpTile = tmpTile + abs(fftn( ...
+         thisTile = abs(fftn( ...
                                  BH_padZeros3d(...
                                  (iProjection( ...
                                         i-tileSize/2+1:i+tileSize/2,...
                                         j-tileSize/2+1:j+tileSize/2)),...
                                                   padVAL(1,:),padVAL(2,:),...
                                                   'GPU','singleTaper')));
+         tmpTile(:,:,1) = tmpTile(:,:,1) + thisTile;
 
 
-
-         nT = nT+1;
+         if (iEvalMask(i))
+            nT = nT+1;
+            tmpTile(:,:,1) = tmpTile(:,:,1) + thisTile;
+         end
+         if ( iEvalPos(i) )
+           nT2 = nT2+1;
+           tmpTile(:,:,2) = tmpTile(:,:,2) + thisTile;
+         end
+         if (iEvalNeg(i) )
+           nT3 = nT3+1;
+           tmpTile(:,:,3) = tmpTile(:,:,3) + thisTile;
+         end
 
       end
     end
   end
+  fprintf('nT tiles %d nTPos %d nTNeg %dfor tilt k %d\n',nT,nT2,nT3,k);
+  
   % Apply the dose filter to the sum of each projection to save a bunch of
   % multiplicaiton
-  psTile = psTile + tmpTile .* doseFilter; 
+  psTile = psTile + tmpTile; 
 
 end
 toc
 
+rotAvgPowerSpec = psTile;
 
-% Normalize the final weighted average of the dose weights
-doseWeight = doseWeight ./ sum(nTiles(:));
-rotAvgPowerSpec = (fftshift(psTile));
+for iTile = 1:3
+  rotAvgPowerSpec(:,:,iTile) = (fftshift(rotAvgPowerSpec(:,:,iTile)));
+end
 AvgPowerSpec = rotAvgPowerSpec;
 
-% doseWeight = ifftshift(gather(doseWeight./sum(nTiles(:,1))));
-doseWeight = fftshift(gather(doseWeight));
 
-
-	
-% doseWeight = ifftshift(gather(doseWeight./sum(nTiles(:,1))));
 
 [rot1, rot2, ~, r1,r2, ~] = BH_multi_gridCoordinates(paddedSize.*[1,1], ...
                                                     'Cartesian','GPU', ...
@@ -633,243 +686,272 @@ for i = 0.5:0.5:360
   ROT1 = R(1).*rot1 + R(4).*rot2;
   ROT2 = R(2).*rot1 + R(5).*rot2;
   
-  rotAvgPowerSpec = rotAvgPowerSpec + interpn(r1,r2,AvgPowerSpec,...
+  for iTile = 1:3
+    rotAvgPowerSpec(:,:,iTile) = rotAvgPowerSpec(:,:,iTile) + ...
+                                 interpn(r1,r2,AvgPowerSpec(:,:,iTile),...
                                               ROT1,ROT2,'linear',0);
+  end
 end
  clear ROT1 ROT2
 % Normalize on avgerage #, doseWeighting, and a radial filter to account
 % for rotational averaging.
-rotAvgPowerSpec = rotAvgPowerSpec ./ (720.*ifftshift(doseWeight).*(sqrt(fftshift(radialForCTF{1}.*(pixelOUT.*10^-10))))); clear a
+rotAvgPowerSpec = rotAvgPowerSpec ./ (720); clear a
 % rotAvgPowerSpec = rotAvgPowerSpec ./ (720.*(sqrt(fftshift(radialForCTF{1}.*(pixelOUT.*10^-10))))); clear a
 
-AvgPowerSpec = AvgPowerSpec ./ ifftshift(doseWeight);
+
 
 checkInfNan = (isnan(rotAvgPowerSpec) | isinf(rotAvgPowerSpec));
 rotAvgPowerSpec(checkInfNan) =  mean(mean(rotAvgPowerSpec(~checkInfNan)));
 
-radialAvg = [rotAvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1)]';
-radialPS = [AvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1)]';
+currentDefocusEst = defEST;
+currentDefocusWin = defWIN;
+measuredVsExpected = zeros(2,3);
+for iTilt = 1:3
+
+  radialAvg = [rotAvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
+  radialPS = [AvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
 
 
-defRange = [defEST-defWIN,defEST+defWIN]
+  defRange = [currentDefocusEst-currentDefocusWin,currentDefocusEst+currentDefocusWin]
 
-if defRange(2) > -0.05
-  fprintf('\n\nCapping defocus to 50nm from wanted %f. Do you mean to search so close to focus??\n\n',abs(defRange(2)));
-  defRange(2) = -0.05;
-end
-defInc   = [0.01];
+  if defRange(2) > -0.05
+    fprintf('\n\nCapping defocus to 50nm from wanted %f. Do you mean to search so close to focus??\n\n',abs(defRange(2)));
+    defRange(2) = -0.05;
+  end
+  defInc   = [0.01];
 
-defVal = (defRange(1):defInc:defRange(2))';
+  defVal = (defRange(1):defInc:defRange(2))';
 
-cccStorage = zeros(length(defVal),2);
-cccStorage(:,1) = defVal;
-nDF = 1;
-for iDF = defVal'
-  DF = iDF*10^-6
+  cccStorage = zeros(length(defVal),2);
+  cccStorage(:,1) = defVal;
+  nDF = 1;
+  for iDF = defVal'
+    DF = iDF*10^-6
 
-  [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+    [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
 
-  [ bg,  bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
+    [ bg,  bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
 
-  [ iCCC ] = calc_CCC( freqVector, bg,  bandpass, radialAvg, rV, cccScale);
+    [ iCCC ] = calc_CCC( freqVector, bg,  bandpass, radialAvg, rV, cccScale);
 
-  cccStorage(nDF, 2) = gather(iCCC);
-  nDF = nDF +1;
-end
+    cccStorage(nDF, 2) = gather(iCCC);
+    nDF = nDF +1;
+  end
 
-[~,maxVal] = max(cccStorage(:,2));
-maxDef = cccStorage(maxVal,1)
+  [~,maxVal] = max(cccStorage(:,2));
+  maxDef = cccStorage(maxVal,1)
 
-figure('Visible','off'), scatter(cccStorage(:,1), cccStorage(:,2));
-title(sprintf('CCC\nmax = %03.3f micron', maxDef));
-xlabel('defocus (micron)'); ylabel('CCC');
+  figure('Visible','off'), scatter(cccStorage(:,1), cccStorage(:,2));
+  title(sprintf('CCC\nmax = %03.3f micron', maxDef));
+  xlabel('defocus (micron)'); ylabel('CCC');
 
-  saveas(gcf,sprintf('%s/ctf/%s_ccFIT.pdf',pathName,stackNameOUT), 'pdf')
+    saveas(gcf,sprintf('%s/ctf/%s_ccFIT.pdf',pathName,stackNameOUT), 'pdf')
 
-  DF = maxDef*10^-6;
+    DF = maxDef*10^-6;
 
-  [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+    [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
 
-  [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
-
-
-
-figure('Visible','off'), plot(freqVector(bandpass),backGroundBuffer.*bg(freqVector(bandpass)),freqVector(bandpass),abs(radialAvg(bandpass)));
-title('Background fitting')
-
-  saveas(gcf,sprintf('%s/ctf/%s_bgFit.pdf',pathName,stackNameOUT), 'pdf')
-
-
-% [ diagnosticIMG ] = make_diagnosticIMG( Hqz, pixelOUT, bandpass, bg, {rotAvgPowerSpec});
-% 
-% SAVE_IMG(MRCImage(diagnosticIMG), ...
-%                        sprintf('%s/ctf/%s_diag%s',pathName,fileName,extension));
-
-                     clear STACK exposureFilter evalMask
-                     
- pdfOUT = sprintf('%s/ctf/%s_psRadial.pdf',pathName,stackNameOUT)
-
-  
-  bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
-  bgSubPS = bgSubPS ./ max(bgSubPS(:));
-  figure('Visible','off'), plot(freqVector(bandpass)./(pixelOUT),bgSubPS(bandpass), freqVector(bandpass)./(pixelOUT),abs(rV(bandpass)).^2./max(abs(rV(bandpass)).^2),'-g');
-  title(sprintf('CTF fit\n%03.3f μm ', maxDef));
-  xlabel('Spatial Frequency (1/Å)'); ylabel('Relative Power');
-
-  saveas(gcf,pdfOUT, 'pdf')
-%   save('resume.mat');
-else
-%   load('resume.mat');
-  
-  
-end %%% temp to troubleshoot  
-  if (flgAstigmatism)
-    
-    radialForCTF = {fftshift(radialForCTF{1}),1,fftshift(radialForCTF{3})};  
-    [radialAstig,~,~,~,~,~] = ...
-                         BH_multi_gridCoordinates(size(Hqz),'Cartesian',...
-                                                     'GPU',{'none'},1,1,1);
-  
-    % Hqz from max defocus still exisists
-    
-    [ bg, bandpass, ~ ] = prepare_spectrum( Hqz, highCutoff ,...
-                                            freqVector, AvgPowerSpec, radialAstig);
-                                          
-    [ bgSubPS ] = calc_CCC( radialAstig, bg, bandpass, AvgPowerSpec,-9999, cccScale) ; 
-    
-    SAVE_IMG(MRCImage(gather(bgSubPS)), ...
-                       sprintf('%s/ctf/%s_avgPS-bgSub%s',pathName,fileName,extension)); 
-                     
-                     
-
-
-    SAVE_IMG(MRCImage(gather(AvgPowerSpec)), ...
-                         sprintf('%s/ctf/%s_avgPS%s',pathName,fileName,extension));
-
-     
-    coarseDefSearch = 0:floor(maxAstig/astigStep);
-    coarseAngSearch = -pi/2:coarseAngStep:pi/2;
-
-    fineAngSearch = -1*coarseAngStep/2:fineAngStep:coarseAngStep/2;
-    fineDefSearch = -astigStep/2:astigStep/4:astigStep/2;
+    [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
 
 
 
-    initAstigCCC = zeros(length(coarseDefSearch)*length(coarseAngSearch),3, 'gpuArray');
+  figure('Visible','off'), plot(freqVector(bandpass),backGroundBuffer.*bg(freqVector(bandpass)),freqVector(bandpass),abs(radialAvg(bandpass)));
+  title('Background fitting')
+
+    saveas(gcf,sprintf('%s/ctf/%s_bgFit.pdf',pathName,stackNameOUT), 'pdf')
 
 
-    n=1;
-    
-    for iAng = coarseAngSearch
-      for iDelDF = coarseDefSearch
-        df1 =  maxDef*10^-6 - iDelDF*astigStep;
-        df2 =  maxDef*10^-6 + iDelDF*astigStep;
+  % [ diagnosticIMG ] = make_diagnosticIMG( Hqz, pixelOUT, bandpass, bg, {rotAvgPowerSpec});
+  % 
+  % SAVE_IMG(MRCImage(diagnosticIMG), ...
+  %                        sprintf('%s/ctf/%s_diag%s',pathName,fileName,extension));
 
-         
-        [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-                                [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0);
+                       clear STACK exposureFilter evalMask
 
-%         [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff ,...
-%                                              freqVector, radialPS, radialAstig); 
-            
-                
-        [ iCCC ] = calc_CCC( radialAstig, bgSubPS, bandpass, AvgPowerSpec, Hqz, cccScale)                                            
-       
+   pdfOUT = sprintf('%s/ctf/%s_psRadial_%d.pdf',pathName,stackNameOUT,iTilt)
 
 
-        initAstigCCC(n,:) = [iAng,iDelDF*astigStep,iCCC]; 
-        n = n + 1;                 
-        fprintf('%d / %d coarse astigmatism search\n',n,size(initAstigCCC,1));
-      end
-    end
+    bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
+    bgSubPS = bgSubPS ./ max(bgSubPS(:));
+    figure('Visible','off'), plot(freqVector(bandpass)./(pixelOUT),bgSubPS(bandpass), freqVector(bandpass)./(pixelOUT),abs(rV(bandpass)).^2./max(abs(rV(bandpass)).^2),'-g');
+    title(sprintf('CTF fit\n%03.3f μm ', maxDef));
+    xlabel('Spatial Frequency (1/Å)'); ylabel('Relative Power');
+
+    saveas(gcf,pdfOUT, 'pdf')
 
 
-    nPeaks = 1;
-    top3 = zeros(nPeaks,3,'gpuArray');
 
-    for iCCC = 1:nPeaks
-      [~,c] = max(initAstigCCC(:,3));
-      top3(iCCC,:) = initAstigCCC(c,:);
-      initAstigCCC = initAstigCCC(initAstigCCC(:,1)~=initAstigCCC(c,1),:);
-    end
+    if (flgAstigmatism)
 
-    top3
-    
-    refineCCC = zeros(length(fineDefSearch)*length(fineAngSearch)*nPeaks,3,'gpuArray');
+      radialForCTF = {fftshift(radialForCTF{1}),1,fftshift(radialForCTF{3})};  
+      [radialAstig,~,~,~,~,~] = ...
+                           BH_multi_gridCoordinates(size(Hqz),'Cartesian',...
+                                                       'GPU',{'none'},1,1,1);
 
-    n=1;
-    for iPeak = 1:nPeaks
-      mAng = top3(iPeak,1);
-      mDef = top3(iPeak,2);
+      % Hqz from max defocus still exisists
 
-      for iAng = fineAngSearch   
-        for iDelDF = fineDefSearch
+      [ bg, bandpass, ~ ] = prepare_spectrum( Hqz, highCutoff ,...
+                                              freqVector, AvgPowerSpec(:,:,iTilt), radialAstig);
 
-          df1 =  maxDef*10^-6 - (mDef + iDelDF);
-          df2 =  maxDef*10^-6 + (mDef + iDelDF);
+      [ bgSubPS ] = calc_CCC( radialAstig, bg, bandpass, AvgPowerSpec(:,:,iTilt),-9999, cccScale) ; 
 
-          % For values very close to zero, the search range may include
-          % values |df1| < |df2| which is against convention.
-          if abs(df1) >= abs(df2)
-          
+      SAVE_IMG(MRCImage(gather(bgSubPS)), ...
+                         sprintf('%s/ctf/%s_avgPS-bgSub%s',pathName,fileName,extension)); 
 
-            [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-                                [df1,df2,iAng+mAng], ...
-                                size(radialForCTF{1}), -AMPCONT,-1.0);
-                                           
-          
-            [ iCCC ] = calc_CCC( radialAstig,bgSubPS, bandpass, ...
-                                 AvgPowerSpec, Hqz,cccScale )   
-      
-          else
-            iCCC = -9999
-          end
-        
-          refineCCC(n,:) = [iAng+mAng,mDef + iDelDF,iCCC]; 
-          n = n + 1;   
-          fprintf('%d / %d fine astigmatism search\n',n,size(refineCCC,1));
+
+
+
+      SAVE_IMG(MRCImage(gather(AvgPowerSpec)), ...
+                           sprintf('%s/ctf/%s_avgPS%s',pathName,fileName,extension));
+
+
+      coarseDefSearch = 0:floor(maxAstig/astigStep);
+      coarseAngSearch = -pi/2:coarseAngStep:pi/2;
+
+      fineAngSearch = -1*coarseAngStep/2:fineAngStep:coarseAngStep/2;
+      fineDefSearch = -astigStep/2:astigStep/4:astigStep/2;
+
+
+
+      initAstigCCC = zeros(length(coarseDefSearch)*length(coarseAngSearch),3, 'gpuArray');
+
+
+      n=1;
+
+      for iAng = coarseAngSearch
+        for iDelDF = coarseDefSearch
+          df1 =  maxDef*10^-6 - iDelDF*astigStep;
+          df2 =  maxDef*10^-6 + iDelDF*astigStep;
+
+
+          [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                                  [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0);
+
+  %         [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff ,...
+  %                                              freqVector, radialPS, radialAstig); 
+
+
+          [ iCCC ] = calc_CCC( radialAstig, bgSubPS, bandpass, AvgPowerSpec, Hqz, cccScale)                                            
+
+
+
+          initAstigCCC(n,:) = [iAng,iDelDF*astigStep,iCCC]; 
+          n = n + 1;                 
+          fprintf('%d / %d coarse astigmatism search\n',n,size(initAstigCCC,1));
         end
       end
+
+
+      nPeaks = 1;
+      top3 = zeros(nPeaks,3,'gpuArray');
+
+      for iCCC = 1:nPeaks
+        [~,c] = max(initAstigCCC(:,3));
+        top3(iCCC,:) = initAstigCCC(c,:);
+        initAstigCCC = initAstigCCC(initAstigCCC(:,1)~=initAstigCCC(c,1),:);
+      end
+
+      top3
+
+      refineCCC = zeros(length(fineDefSearch)*length(fineAngSearch)*nPeaks,3,'gpuArray');
+
+      n=1;
+      for iPeak = 1:nPeaks
+        mAng = top3(iPeak,1);
+        mDef = top3(iPeak,2);
+
+        for iAng = fineAngSearch   
+          for iDelDF = fineDefSearch
+
+            df1 =  maxDef*10^-6 - (mDef + iDelDF);
+            df2 =  maxDef*10^-6 + (mDef + iDelDF);
+
+            % For values very close to zero, the search range may include
+            % values |df1| < |df2| which is against convention.
+            if abs(df1) >= abs(df2)
+
+
+              [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                                  [df1,df2,iAng+mAng], ...
+                                  size(radialForCTF{1}), -AMPCONT,-1.0);
+
+
+              [ iCCC ] = calc_CCC( radialAstig,bgSubPS, bandpass, ...
+                                   AvgPowerSpec, Hqz,cccScale )   
+
+            else
+              iCCC = -9999
+            end
+
+            refineCCC(n,:) = [iAng+mAng,mDef + iDelDF,iCCC]; 
+            n = n + 1;   
+            fprintf('%d / %d fine astigmatism search\n',n,size(refineCCC,1));
+          end
+        end
+      end
+      figure, plot(refineCCC(:,1), refineCCC(:,3), 'bo');
+      [~,c] = max(refineCCC(:,3));
+      save( sprintf('%s/ctf/%s_CCC.mat',pathName,fileName),'refineCCC','initAstigCCC');
+      topScore = fopen(sprintf('%s/ctf/%s_astig.txt',pathName,fileName),'w');
+      fprintf(topScore,'%7.7e %7.7e %2.7f\n',refineCCC(c,:));
+      fclose(topScore);
+
+
+
+
     end
-    figure, plot(refineCCC(:,1), refineCCC(:,3), 'bo');
-    [~,c] = max(refineCCC(:,3));
-    save( sprintf('%s/ctf/%s_CCC.mat',pathName,fileName),'refineCCC','initAstigCCC');
-    topScore = fopen(sprintf('%s/ctf/%s_astig.txt',pathName,fileName),'w');
-    fprintf(topScore,'%7.7e %7.7e %2.7f\n',refineCCC(c,:));
-    fclose(topScore);
-    
-    
- 
-    
-  end
-  
+
+  if ( iTilt == 1)
+    % Turn off astigmatism and restrict search range for handedness check.
+    flgAstigmatism = 0;
+    radialForCTF = {fftshift(radialForCTF{1}),1,fftshift(radialForCTF{3})};  
+    currentDefocusEst = maxDef;
+    currentDefocusWin = ceil(defWIN*.25);
+    measuredVsExpected(1,:) = [maxDef + zShift*PIXEL_SIZE*10^6, maxDef, maxDef - zShift*PIXEL_SIZE*10^6];
+    measuredVsExpected(2,2) = maxDef;
+    % Add the determined defocus, and write out with mic paramters as well.
+    TLT(:,15) = repmat(maxDef*10^-6,size(TLT,1),1);
+    if (flgAstigmatism) && (refineCCC(c,3)~=-9999)
+      TLT(:,12) = repmat(gather(refineCCC(c,2)),size(TLT,1),1);
+      TLT(:,13) = repmat(gather(refineCCC(c,1)),size(TLT,1),1);
+    end
+
+    % Sort descending along the magnitude of the tilt angles because higher tilts take
+    % longer on CTF correction. If more processor available than projections,
+    % this doesn't affect anything.
+    [~, idx] = sortrows(abs(TLT(:,4)), -1);
+    TLT = TLT(idx,:);
+    % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
+    % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
+    % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
+    fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
+    fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
+             '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
+             '%d\t%d\t%d\n'], TLT');
 
 
-      
-  % Add the determined defocus, and write out with mic paramters as well.
-  TLT(:,15) = repmat(maxDef*10^-6,size(TLT,1),1);
-  if (flgAstigmatism) && (refineCCC(c,3)~=-9999)
-    TLT(:,12) = repmat(gather(refineCCC(c,2)),size(TLT,1),1);
-    TLT(:,13) = repmat(gather(refineCCC(c,1)),size(TLT,1),1);
-  end
+  elseif iTilt == 2
+    measuredVsExpected(2,1) = maxDef;
+  elseif iTilt == 3
+    measuredVsExpected(2,3) = maxDef;
+  end % Stuff we only do on the full determin (tilt1)
 
-  % Sort descending along the magnitude of the tilt angles because higher tilts take
-  % longer on CTF correction. If more processor available than projections,
-  % this doesn't affect anything.
-  [~, idx] = sortrows(abs(TLT(:,4)), -1);
-  TLT = TLT(idx,:);
-  % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
-  % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
-  % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
-  fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
-  fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
-           '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-           '%d\t%d\t%d\n'], TLT');
-
-
-
-
+end % Loop on handedness check
+if sum(abs(diff(measuredVsExpected,1))) > sum(abs(measuredVsExpected(1,:) - flip(measuredVsExpected(2,:))))
+  warnInvertedHand = 1;
+else
+  warnInvertedHand = 0;
 end
+
+fprintf('\n*************\nn');
+fprintf('Expected defocus %3.2f %3.2f %3.2f\n\n', measuredVsExpected(1,:));
+fprintf('Measured defocus %3.2f %3.2f %3.2f\n\n' ,measuredVsExpected(2,:));
+if warnInvertedHand
+  fprintf('\n\nIt looks like your handedness may be inverted!!\n\n');
+end
+fprintf('****************\n');
+  
+end % end of flag resume (partially killed)
 
 function [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, dualAxis)
 
@@ -1133,3 +1215,51 @@ function [ croppedIMG,pixelOUT ] = cropIMG(IMG,pixelIN)
   
 end
 
+function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped)
+
+  flgCosineDose = pBH.('oneOverCosineDose');
+  startingAngle = pBH.('startingAngle');
+  startingDirection = pBH.('startingDirection');
+  doseSymmetricIncrement = pBH.('DoseSymmetricIncrement');
+  doseAtMinTilt = pBH.('doseAtMinTilt');
+  
+  tltOrder = zeros(length(rawTLT),2);
+  
+  totalDose = doseAtMinTilt;
+  nMax = length(rawTLT)+1;
+  
+     if strcmpi(startingDirection,'pos')
+       searchNextPos = true;
+       
+     elseif strcmpi(startingdirection, 'neg')
+       searchNextPos = false;
+     else
+       error('starting direction should be pos/neg');
+     end
+  
+
+      % We always start from the first tilt.
+     [~,iTilt] = min(abs(rawTLT-startingAngle));
+     tltOrder(iTilt,:) = [rawTLT(iTilt),totalDose];
+     
+     posVect = rawTLT;
+     negVect = rawTLT;
+
+     % Define positive and negative RELATIVE to start angle
+     posVect(posVect - startingAngle < 0) = nan;
+     negVect(negVect - startingAngle > 0) = nan;
+     rawTLT(iTLT) = nan;
+     posVect(iTLT) = nan;
+     negVect(iTLT) = nan; % should already be
+     
+     
+
+
+     
+    
+  
+  % This will be a naive run through that works only if the angles are in
+  % order.
+  
+end
+  

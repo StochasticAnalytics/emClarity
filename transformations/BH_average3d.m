@@ -350,13 +350,23 @@ catch
   interpOrder = 1;
 end
 
+try 
+  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
+catch
+  flgLimitToOneProcess = 0;
+end
 
 if ( loadTomo )
-  limitToOneProcess = loadTomo;
+  limitToOne = loadTomo;
+    if (flgLimitToOneProcess)
+    limitToOne = min(limitToOne, flgLimitToOneProcess);
+  end
 elseif interpOrder == 4
-  limitToOneProcess = 1;
+  limitToOne = 1;
+elseif (flgLimitToOneProcess)
+  limitToOne = flgLimitToOneProcess;
 else
-  limitToOneProcess = pBH.('nCpuCores'); 
+  limitToOne = pBH.('nCpuCores'); 
   interpOrder = 1;
 end
 
@@ -364,7 +374,7 @@ end
 
 
 
-fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOneProcess);
+fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOne);
 
 if ~(ismember(interpOrder,[1,4]))
   error('interpolationOrder must be 1,,4 - linear,sinc');
@@ -534,7 +544,7 @@ end
                                        BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
 padREF = [0,0,0;0,0,0];                                     
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOneProcess);
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);
 
 origMaskSize = sizeMask;
 %%%%% Considering removing doNotTrim and making this the default. Temporarily

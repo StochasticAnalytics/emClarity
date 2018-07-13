@@ -214,12 +214,25 @@ ctfGroupList = masterTM.('ctfGroupSize');
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
                                        BH_multi_validArea( maskSize, maskRadius, scaleCalcSize  )
-                                     
+
+
+try 
+  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
+catch
+  flgLimitToOneProcess = 0;
+end
+
 if ( loadTomo )
   limitToOne = loadTomo;
+  if (flgLimitToOneProcess)
+    limitToOne = min(limitToOne, flgLimitToOneProcess);
+  end
+elseif (flgLimitToOneProcess)
+  limitToOne = flgLimitToOneProcess;
 else
   limitToOne = pBH.('nCpuCores');
 end
+
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
 if ( flgReverseOrder )
   % Flip the order for reverse processing on a second machine. This will also disable saving of 

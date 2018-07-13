@@ -291,8 +291,9 @@ clear recGeom
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
 fprintf('size of provided template %d %d %d\n',size(template));
-trimTemp = BH_multi_padVal(size(template),ceil(sqrt(2)*max(latticeRadius(:))./pixelSizeFULL));
+trimTemp = BH_multi_padVal(size(template),ceil(2*sqrt(2)*pBH.('Ali_mRadius')./pixelSizeFULL));
 template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
+SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
 fprintf('size after trim to sqrt(2)*max(lattice radius) %d %d %d\n',size(template));
                             
@@ -1044,7 +1045,7 @@ gpuDevice(useGPU);
 
 % scale the magnitude of the results to be 0 : 1
 szK = latticeRadius;%floor(0.8.*szM);
-rmDim = max(szK).*[1,1,1];
+rmDim = max(max(eraseMaskRadius),max(szK)).*[1,1,1];
 mag = RESULTS_peak; clear RESULTS_peak
 % Normalize so the difference if using a decoy makes sense. The input decoy
 % should have the same power, so I'm not sure why this is needed, but it is
@@ -1122,7 +1123,12 @@ while  n <= peakThreshold
         
         
 [i,j,k] = ind2sub(sizeTomo,coord);
-c = gather([i,j,k]);
+try
+  c = gather([i,j,k]);
+catch
+  print('Ran into some trouble gathering the i,j,k. Breaking out\n');
+  break
+end
 
   if Ang(gather(coord)) > 0
 

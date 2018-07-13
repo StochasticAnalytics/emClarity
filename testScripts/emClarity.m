@@ -29,12 +29,15 @@ fprintf('\n\n')
 fprintf('\t\t***************************************\n\n');
 % Get rid of the shorthead passed in by the emClarity script.
 varargin = varargin(2:end);
+if strcmpi(varargin{1},'h')
+  varargin{1} = 'help';
+end
 % nargin doesn't adjust for the shift.
 nArgs = length(varargin);
 % For some reason, this doesn't fall through, so error if < arg
 if nArgs > 1
   if ~strcmp(varargin{2},'check')
-    checkHelp = ~strcmpi(varargin{2},'help') || ~strcmpi(varargin{2},'h') || ~strcmp(varargin{2},'experimental');
+    checkHelp = ~strcmpi(varargin{2},'help') || ~strcmp(varargin{2},'experimental');
   end
 elseif nArgs == 0
   error('\n\n\tRun with help for a list of functions\n\n');
@@ -56,6 +59,10 @@ if nArgs > 1 && checkHelp
     case 'benchmark'
       % nothing to parse
       multiGPUs= 0;
+    case 'cleanTemplateSearch'
+      % nothing to parse
+      multiGPUs = 0;
+
     otherwise
       pBH = emC_testParse(varargin{2});
   end
@@ -91,6 +98,7 @@ switch varargin{1}
              '\nctf - estimate, correct, or refine the CTF.\n',...
              '\ntomoCPR - tomogram constrained projection refinement\n',...
              '\ntemplateSearch - template matching/ global search\n',...
+             '\ncleanTemplateSearch - clean search results based on neighbor constraints\n',...
              '\nrescale - change the mag on a volume\n',...
              '\nremoveDuplicates - remove subtomos that have migrated to the same position\n',...
              '\nremoveNeighbors - clean templateSearch results based on lattice constraints\n']);
@@ -429,7 +437,7 @@ switch varargin{1}
            '[threshold override]\n',...
            'gpuIDX.\n']);
     else
-      wedgeType = 3;
+      wedgeType = 1;
       if length(varargin) == 7
         BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
                            varargin{5}, varargin{6},wedgeType,varargin{7});
@@ -439,7 +447,19 @@ switch varargin{1}
                            varargin{7},varargin{8});
       end
     end
+    
+  case 'cleanTemplateSearch'
+     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+       length(varargin) ~= 5 
+       fprintf(['\npixelSize (Ang)\n',...
+           'distance to neightbor (Ang)\n',...
+           'angular deviation to neighbor (degrees)\n', ...
+           'min number neighbors (one less than expected is usually good)\n']);  
+     else
+    
+      BH_geometry_Constraints(varargin{2}, '0', varargin{3}, varargin{4}, varargin{5});
 
+     end
   otherwise
     error('command --%s-- not recognized. Try "help" for a list.', varargin{1})
 end
