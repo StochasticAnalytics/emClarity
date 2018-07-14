@@ -101,7 +101,8 @@ catch
   % Global option, Global Grouping, Local Opt, Local Grouping.
   % All early tests were Opt 5 (linear mapping) Default Grouping 5
   tiltAliOption = [5,5,5,5];
-end
+
+  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -288,6 +289,18 @@ for iTiltSeries = tiltStart:nTiltSeries
     fullPixelSize = fullPixelSize * 2;
   end
   pixelSize = fullPixelSize.*samplingRate;
+  
+try 
+  eraseMaskType = pBH.('peak_mType');
+	eraseMaskRadius = pBH.('peak_mRadius')./pixelSize;
+  fprintf('Further restricting peak search to radius %f %f %f\n',...
+          eraseMaskRadius);
+  eraseMask = 1;
+catch
+  eraseMask = 0;
+  fprintf('\n');
+end
+
 
   [ ~,~,maskRadius,~ ] = BH_multi_maskCheck(pBH,'Ali',pixelSize)
    PARTICLE_RADIUS = floor(max(pBH.('particleRadius')./pixelSize));
@@ -1098,21 +1111,25 @@ for iTiltSeries = tiltStart:nTiltSeries
     CTFSIZE = CTFSIZE(1:2)
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
-    if strcmpi(METHOD, 'GPU')
+   
+    if (eraseMask)
+      peakMask = BH_mask3d(eraseMaskType,(tileSize(1)+2.*padTile(1)).*[1,1],eraseMaskRadius,[0,0],'2d');
+      peakMaskDefSearch = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
+      peakMask(peakMask < 0.99) = 0;
+      peakMaskDef(peakMaskDefSearch < 0.99) = 0;
+    else
       peakMask = BH_mask3d('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
       peakMaskDefSearch = BH_mask3d('sphere',CTFSIZE,peakSearchRad,[0,0],'2d');
-      
-      fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
-      fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
-      [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
-                                                      {'none'},1,1,0);
-      dU = dU .* (2i*pi);
-      dV = dV .* (2i*pi);  
-
-    else
-      peakMask = BH_mask3d_cpu('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
-      fftMask = BH_fftShift(0,CTFSIZE,0);
     end
+
+    fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
+    fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
+    [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
+                                                    {'none'},1,1,0);
+    dU = dU .* (2i*pi);
+    dV = dV .* (2i*pi);  
+
+
     
 %     [ peakMask ] = BH_multi_randomizeTaper(peakMask);
 

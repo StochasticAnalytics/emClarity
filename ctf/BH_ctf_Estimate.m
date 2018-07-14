@@ -19,9 +19,9 @@ elseif length(varargin) <= 3
   STACK_BASENAME = varargin{2};
   
   if length(varargin) == 3
-    anglesSkipped = str2num(anglesSkipped);
+    anglesSkipped = str2num(varargin{3});
   else
-    anglesSkipped = [];
+    anglesSkipped = 0;
   end
   
   stackNameIN = sprintf('fixedStacks/%s.fixed', STACK_BASENAME);
@@ -69,13 +69,15 @@ try
   flgCosineDose = pBH.('oneOverCosineDose');
   startingAngle = pBH.('startingAngle');
   startingDirection = pBH.('startingDirection');
-  doseSymmetricIncrement = pBH.('DoseSymmetricIncrement');
+  doseSymmetricIncrement = pBH.('doseSymmetricIncrement');
   doseAtMinTilt = pBH.('doseAtMinTilt');
+
   flgOldDose = 0;
   tltOrder = calc_dose_scheme(pBH,rawTLT,anglesSkipped);
 catch
-  fprintf('Falling back on old dose specification through a *.order file\n');
-  fprintf('Parameters flgCosineDose=(0/1 bool), startingAngle=, startingDirection=[pos/neg],doseSymmetricIncrement=[0, or # tilts per sweep, and doseAtMinTilt are needed for the new method.\n');
+  fprintf('\nFalling back on old dose specification through a *.order file\n\n');
+  fprintf('Parameters flgCosineDose=(0/1 bool), \nstartingAngle=, \nstartingDirection=[pos/neg],\ndoseSymmetricIncrement=[0, or # tilts per sweep],\n doseAtMinTilt are needed for the new method.\n');
+  pause(2);
   tltOrder = load(collectionORDER);
   flgOldDose = 1;
 end
@@ -199,13 +201,29 @@ padVAL = BH_multi_padVal([tileSize,tileSize], [paddedSize,paddedSize]);
 
 if exist(stackNameIN, 'file')
   
-  if length(tltOrder) ~= length(rawTLT)
+  if size(tltOrder,1) ~= length(rawTLT)
     error('The length of the collectionOrder %d and tilt Geometry %d are different\n', ...
                                         length(tltOrder),length(tltInfo));
   end 
-  TLT = zeros(length(rawTLT),22);
-  TLT(:,1) = 1:length(rawTLT);
-  TLT(:,4) = rawTLT; clear rawTLT
+  
+  if ( flgOldDose )
+    TLT = zeros(length(rawTLT),22);
+    TLT(:,1) = 1:length(rawTLT);
+    TLT(:,4) = rawTLT; clear rawTLT
+    nSkipped = 0;
+  else
+    notIncluded = (tltOrder(:,3) == -9999);
+    nSkipped = sum(notIncluded);
+    TLT = zeros(length(rawTLT)-nSkipped,22);
+    TLT(:,1) = tltOrder(~notIncluded,2); % This was only the appropriate tilts are read in.
+    TLT(:,4) = tltOrder(~notIncluded,2); clear rawTLT
+    TLT(:,11) = tltOrder(~notIncluded,3);
+    skippedList = fopen(sprintf('fixedStacks/%s.skipped',STACK_BASENAME),'w');
+    fprintf(skippedList,'%f\n',TLT(notIncluded,1));
+    fclose(skippedList);
+  end
+  
+ 
   [pathName,fileName,extension] = fileparts(stackNameIN);
   if isempty(pathName)
     pathName = '.';
@@ -233,6 +251,7 @@ system(sprintf('mkdir -p %s/ctf', pathName));
   % created in IMod alignment.
 
   iHeader = getHeader(iMrcObj);
+  iHeader.nZ = iHeader.nZ - nSkipped;
   iPixelHeader = [iHeader.cellDimensionX/iHeader.nX .* scalePixelsBy, ...
                   iHeader.cellDimensionY/iHeader.nY .* scalePixelsBy, ...
                   iHeader.cellDimensionZ/iHeader.nZ];
@@ -265,27 +284,29 @@ TLT(:,20:22) = repmat([d1,d2,d3],size(TLT,1),1);
 % filter by Grant/Grigorieff - 
   nPrjs = size(TLT,1);
 
-
-if CUM_e_DOSE < 0
-  % This is a dose per tilt at 0degress to be scaled by the cosine of the
-  % tilt angle
-  flgCosineDose = 1
-  exposure = abs(CUM_e_DOSE)
-else
-  flgCosineDose = 0
-  exposure = CUM_e_DOSE./nPrjs
-end
-
-totalExposure = 0;
-for iExposure = 1:nPrjs
-  % find the projection angle most closley matching (
-  [~,iTilt] = min(abs(TLT(:,4)-tltOrder(iExposure)));
-  if flgCosineDose == 0
-    totalExposure = totalExposure + exposure;
+if ( flgOldDose )
+  if CUM_e_DOSE < 0
+    % This is a dose per tilt at 0degress to be scaled by the cosine of the
+    % tilt angle
+    flgCosineDose = 1
+    exposure = abs(CUM_e_DOSE)
   else
-    totalExposure = totalExposure + exposure/cosd(TLT(iTilt,4));
+    flgCosineDose = 0
+    exposure = CUM_e_DOSE./nPrjs
   end
-  TLT(iTilt,11) = totalExposure;
+
+  totalExposure = 0;
+  for iExposure = 1:nPrjs
+    % find the projection angle most closley matching (
+    [~,iTilt] = min(abs(TLT(:,4)-tltOrder(iExposure)));
+    if flgCosineDose == 0
+      totalExposure = totalExposure + exposure;
+    else
+      totalExposure = totalExposure + exposure/cosd(TLT(iTilt,4));
+    end
+    TLT(iTilt,11) = totalExposure;
+
+  end
 
 end
   
@@ -659,7 +680,7 @@ for k = 1:d3
       end
     end
   end
-  fprintf('nT tiles %d nTPos %d nTNeg %dfor tilt k %d\n',nT,nT2,nT3,k);
+  fprintf('%d tiles at dZ= 0\t%d tiles at dZ > 0\t%d tiles at dZ < 0, after tilt %d\n',nT,nT2,nT3,k);
   
   % Apply the dose filter to the sum of each projection to save a bunch of
   % multiplicaiton
@@ -709,7 +730,7 @@ measuredVsExpected = zeros(2,3);
 for iTilt = 1:3
 
   radialAvg = [rotAvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
-  radialPS = [AvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
+%   radialPS = [AvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
 
 
   defRange = [currentDefocusEst-currentDefocusWin,currentDefocusEst+currentDefocusWin]
@@ -771,13 +792,13 @@ for iTilt = 1:3
    pdfOUT = sprintf('%s/ctf/%s_psRadial_%d.pdf',pathName,stackNameOUT,iTilt)
 
 
-    bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
-    bgSubPS = bgSubPS ./ max(bgSubPS(:));
-    figure('Visible','off'), plot(freqVector(bandpass)./(pixelOUT),bgSubPS(bandpass), freqVector(bandpass)./(pixelOUT),abs(rV(bandpass)).^2./max(abs(rV(bandpass)).^2),'-g');
-    title(sprintf('CTF fit\n%03.3f μm ', maxDef));
-    xlabel('Spatial Frequency (1/Å)'); ylabel('Relative Power');
+%     bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
+%     bgSubPS = bgSubPS ./ max(bgSubPS(:));
+%     figure('Visible','off'), plot(freqVector(bandpass)./(pixelOUT),bgSubPS(bandpass), freqVector(bandpass)./(pixelOUT),abs(rV(bandpass)).^2./max(abs(rV(bandpass)).^2),'-g');
+%     title(sprintf('CTF fit\n%03.3f μm ', maxDef));
+%     xlabel('Spatial Frequency (1/Å)'); ylabel('Relative Power');
 
-    saveas(gcf,pdfOUT, 'pdf')
+%     saveas(gcf,pdfOUT, 'pdf')
 
 
 
@@ -943,13 +964,16 @@ else
   warnInvertedHand = 0;
 end
 
-fprintf('\n*************\nn');
-fprintf('Expected defocus %3.2f %3.2f %3.2f\n\n', measuredVsExpected(1,:));
-fprintf('Measured defocus %3.2f %3.2f %3.2f\n\n' ,measuredVsExpected(2,:));
-if warnInvertedHand
-  fprintf('\n\nIt looks like your handedness may be inverted!!\n\n');
+fprintf('\n******************************************************\n\n');
+fprintf('\nCloser to focus |\tAt focus |\tFarther from focus\n\n');
+fprintf('Expected defocus %3.2f %3.2f %3.2f\n\n', abs(measuredVsExpected(1,:)));
+fprintf('Measured defocus %3.2f %3.2f %3.2f\n\n' ,abs(measuredVsExpected(2,:)));
+if ( warnInvertedHand )
+  fprintf('\nIt looks like your handedness may be inverted!!\n');
+else
+  fprintf('\nIt looks like your handedness is probably correct.\n');
 end
-fprintf('****************\n');
+fprintf('\n******************************************************\n\n\n');
   
 end % end of flag resume (partially killed)
 
@@ -1220,40 +1244,108 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped)
   flgCosineDose = pBH.('oneOverCosineDose');
   startingAngle = pBH.('startingAngle');
   startingDirection = pBH.('startingDirection');
-  doseSymmetricIncrement = pBH.('DoseSymmetricIncrement');
+  doseSymmetricIncrement = pBH.('doseSymmetricIncrement');
   doseAtMinTilt = pBH.('doseAtMinTilt');
   
-  tltOrder = zeros(length(rawTLT),2);
+  tltOrder = zeros(length(rawTLT),3);
   
   totalDose = doseAtMinTilt;
   nMax = length(rawTLT)+1;
   
-     if strcmpi(startingDirection,'pos')
-       searchNextPos = true;
-       
-     elseif strcmpi(startingdirection, 'neg')
-       searchNextPos = false;
-     else
-       error('starting direction should be pos/neg');
-     end
+  % Get the actual angles from the index
+  anglesToSkip = rawTLT(anglesSkipped);
   
 
-      % We always start from the first tilt.
-     [~,iTilt] = min(abs(rawTLT-startingAngle));
-     tltOrder(iTilt,:) = [rawTLT(iTilt),totalDose];
-     
-     posVect = rawTLT;
-     negVect = rawTLT;
 
-     % Define positive and negative RELATIVE to start angle
-     posVect(posVect - startingAngle < 0) = nan;
-     negVect(negVect - startingAngle > 0) = nan;
-     rawTLT(iTLT) = nan;
-     posVect(iTLT) = nan;
-     negVect(iTLT) = nan; % should already be
-     
-     
+    % We always start from the first tilt.
+   [~,iTilt] = min(abs(rawTLT-startingAngle));
+   tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),totalDose];
+   tmpTLT = rawTLT([1:iTilt-1,iTilt+1:end]);
+   largerAngles = tmpTLT(tmpTLT-startingAngle > 0);
+   smallerAngles= tmpTLT(tmpTLT-startingAngle < 0);
+   % Now split into thos that are larger or smaller than the min tilt
+   if ( startingAngle >= 0 )
 
+       largerAngles = sort(largerAngles,'ascend');
+       smallerAngles = sort(smallerAngles,'descend');
+
+   else
+
+       largerAngles = sort(largerAngles,'ascend');
+       smallerAngles = sort(smallerAngles,'descend');
+
+   end
+   
+   clear tmpTLT
+   
+   if ( doseSymmetricIncrement )
+     % It is assumed that blocks of this many tilts are collected NOT
+     % counting the first tilt. 
+     switchAfterNTilts = doseSymmetricIncrement;
+   else
+     if strcmpi(startingDirection,'pos')
+       switchAfterNTilts = length(largerAngles);
+     elseif strcmpi(startingDirection,'neg')
+       switchAfterNTilts = length(smallerAngles);
+     else
+       error('flgDose symmetric is 0 and starting direction must be pos or neg');
+     end
+   end
+
+   maxTries = length(largerAngles) + length(smallerAngles) +2;
+   nAngle = 2;
+   while ~isempty(largerAngles) || ~isempty(smallerAngles)
+    
+     if strcmpi(startingDirection,'pos')
+       try
+        nextTilt = largerAngles(1);
+       catch
+         nextTilt = smallerAngles(1);
+       end
+       largerAngles = largerAngles(2:end);
+     else
+       try
+        nextTilt = smallerAngles(1);
+       catch
+         nextTilt = largerAngles(1);
+       end
+       smallerAngles = smallerAngles(2:end);
+     end
+     [~,iTilt] = min(abs(rawTLT-nextTilt));
+     switchAfterNTilts = switchAfterNTilts -1;
+     
+     if (switchAfterNTilts == 0)
+        if strcmpi(startingDirection,'pos')
+         startingDirection = 'neg';
+        elseif strcmpi(startingDirection,'neg')
+          startingDirection = 'pos';
+        end
+       if ( doseSymmetricIncrement )
+         switchAfterNTilts = doseSymmetricIncrement;
+       end
+     end
+      
+     if (flgCosineDose)
+       totalDose = totalDose + (1/cosd(rawTLT(iTilt)))*doseAtMinTilt;
+     else
+       totalDose = totalDose + doseAtMinTilt;
+     end
+     
+     % The dose is incremented but don't add to the list.
+     if ~ismember(rawTLT(iTilt),anglesToSkip)
+      tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),totalDose];
+     else
+       tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),-9999];
+     end
+      nAngle = nAngle + 1;
+   
+        
+     if (maxTries == 0)
+       error('max iterations in creating tilt order exceeded, breaking out');
+     end
+     maxTries = maxTries - 1;
+   end
+     
 
      
     

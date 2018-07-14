@@ -331,7 +331,11 @@ switch varargin{1}
 
       switch varargin{2}
         case 'estimate'
-          BH_ctf_Estimate(varargin{3},varargin{4});
+          if nargin == 4
+            BH_ctf_Estimate(varargin{3},varargin{4});
+          else
+            BH_ctf_Estimate(varargin{3},varargin{4},varargin{5});
+          end
         case 'refine'
           if length(varargin) == 4
             error('You need to specify a gpuIDX')

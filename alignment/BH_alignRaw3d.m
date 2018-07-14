@@ -106,8 +106,8 @@ catch
   loadTomo = 0;
 end
 try 
-  eraseMaskType = pBH.('Tmp_eraseMaskType');
-	eraseMaskRadius = pBH.('Tmp_eraseMaskRadius')./pixelSize;
+  eraseMaskType = pBH.('peak_mType');
+	eraseMaskRadius = pBH.('peak_mRadius')./pixelSize;
   fprintf('Further restricting peak search to radius %f %f %f\n',...
           eraseMaskRadius);
   eraseMask = 1;

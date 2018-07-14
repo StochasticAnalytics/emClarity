@@ -40,6 +40,11 @@ catch
   fprintf('using TLT %s\n', TLTNAME);
 end
 
+try
+  applyExposureFilter = pBH.('applyExposureFilter');
+catch
+  applyExposureFilter = 0;
+end
 
 % % % CTF_STACK = sprintf('%s/%s_ctf%s',pathName,fileName,extension);
 !mkdir -p ctfStacks

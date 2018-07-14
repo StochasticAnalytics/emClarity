@@ -203,12 +203,12 @@ statsRadius = 1;
 convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 
 try 
-  eraseMaskType = pBH.('Tmp_eraseMaskType');
+  eraseMaskType = pBH.('peak_mType');
 catch
   eraseMaskType = 'sphere';
 end
 try
-  eraseMaskRadius = pBH.('Tmp_eraseMaskRadius');
+  eraseMaskRadius = pBH.('peak_mRadius');
 catch
   eraseMaskRadius = 0.75.*latticeRadius;
 end
@@ -470,7 +470,12 @@ tomoCoords= zeros(nTomograms, 3, 'uint16');
                                               lowResCut,'cpu', pixelSize );
          
 try
-  doMedFilt = pBH.('Tmp_medianFilter')
+  doMedFilt = pBH.('Tmp_medianFilter');
+  if ~ismember(doMedFilt,[3,5,7])
+    error('Tmp_medianFilter can only be 3,5, or 7');
+  else
+    fprintf('Using median filter, size %d',doMedFilt);
+  end
 catch
   doMedFilt =0
 end
