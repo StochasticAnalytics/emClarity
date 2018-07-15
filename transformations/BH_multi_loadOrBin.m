@@ -89,7 +89,8 @@ if samplingRate > 1
         newStack = zeros(binSize,'single');
         for iPrj = 1:binSize(3)
           iProjection = gpuArray(getVolume(tiltObj,[-1],[-1],iPrj));
-          if ( flgMedianFilter )        
+          if ( flgMedianFilter )    
+            fprintf('Doing median filter prior to binning\n');
             iProjection = medfilt2(iProjection,[3,3]);
           end
           iProjection = fftn(iProjection).*bpFilt;

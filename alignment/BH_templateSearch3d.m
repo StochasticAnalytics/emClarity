@@ -4,147 +4,11 @@ function [hAvg, hRms, avgRange, rmsRange]  = BH_templateSearch3d( PARAMETER_FILE
  
                                                        
 %3d template matching
-%
-%
-%   Input variables:
-%
-%   MAP = Tomogram to be searched for motifs. The final binned size is limited
-%         to roughly 5gb on a Tesla K40.
-%
-%   TEMPLATE = Reference volume containing the motif to search for.
-%
-%   RAWTLT = File containing the tilt angles as in IMOD convention (underfocus
-%            magnitude increases with the X-axis for a positive tilt. These will
-%            be used both to create a wedge mask to appropriately distort
-%            the
-%   
-%   SAMPLING = Integer sampling, values of 3 or 4 are generally good for the
-%              work I am doing, where the full sampling rate is <= 3A/pixel. For
-%              gold standard work, the template matching step must be low-pass
-%              filtered quite strongly to avoid biasing the data.
-%
-% 
-%   PEAK_THRESHOLD = minimum multiple of standard deviations above the mean of
-%                    cummulative covariance map that a peak needs to be in order
-%                    to be counted as valid. By default, the maximum number of
-%                    peaks to be accepted is 10,000- but this should only
-%                    happen when no real peaks are found (by my thoughts
-%                    anyhow!) Generally, it is advisable to test this with other
-%                    parameters on your own data, in order to accept just
-%                    slightly more (some false positives) than you expect, which
-%                    can be later ignored via CCC or classification (or both.)
-%
-%   ANGLE_SEARCH = [a1 a2 a3 a4 helical] the angular search is a grid searched
-%                  designed to exhaustively sample a unit sphere over the range
-%                  you specify. Out of plane +/- a1 in steps of size a2, in
-%                  plane +/- a3 in steps of a4. These together define a set of
-%                  "latitudes" if you will, and the in plane sampling at each
-%                  point sampled on that latitude, while the longitudinal
-%                  sampling is calculated to be evenly sampled at the same rate
-%                  as the latitude. The smaller the out of plane step size, the
-%                  more longitudinal sampling points, and also the larger the
-%                  absolute out of plane angle, the greater number of steps it
-%                  takes to make a full revolution.
-%     
-%                  helical = 0 or 1 to indicate a helical rather than spherical
-%                  grid search. I haven't actually tested this thoroughly so if
-%                  set to 1 should be used with some extra caution.
-%
-%   TARGET_SIZE = [256 256 256] is the dimension, ideally a power of 2, 
-%                  that we would like to pad each tomo chunk to, and this 
-%                  depends on the available memory. In the future, I should set 
-%                  this up as an automatic calculation. Minimal padding is size
-%                  chunk + size reference. Should also be smaller than the 
-%                  minimum dimenstion of you tomo.
-%
-%   LATTICE_RADIUS = [x,y,z] unbinned lattice dimension (i.e. particle radius)
-%                    that will be excluded after a given peak is picked. In
-%                    ANGSTROM
-%
-%
-%   
-%   Output variables:
-%
-%   None - saved to disk, .mat file with the geometry of best match found, as
-%          well as the sampled version of the cummulative correlation map, which
-%          can be viewed with the positions overlayed to asses the quality,
-%          which can depend on not only the reference, but also the bandpass and
-%          binning chosen as well as the angular search parameters.
-%
-%   
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   Goals & limitations:
-%
-%   3D template matching using a GPU. Developed on 4Gb card, consider this
-%   a minimum memory requirement.
-%
-%   Tomogram and reference are read into memory.
-%   Chunks of size ~ 384 x 384 x zDIM are processed at a time, which
-%   are padded to next power 2 (512), leaving a minimal zero padding
-%   buffer for the cross correlation. Ideally the padding would be twice
-%   the image size, but this is just too large a memory requirement. 
-%
-%   The references are calculated on the fly, which takes a significant
-%   portion of the computational effort, so larger chunks (fewer repeated
-%   calculations) are preferable. See note in TODO section. 
-%
-%   Missing wedge region and low pass are taken from the tomogram chunk and
-%   the rotated reference. They are then set to have mean 0 and std 1 in
-%   the image domain, and compared by xcf. It is assumed the template
-%   doesn't have a substantial amount of missing information itself.
-%   
-%   Each reference is given a reference that has an index between (0,pi)
-%   and this is stored as the phase in the ccmap (which is inherently
-%   real-valued.) Each iteration, the abs(ccmap) is compared to the new
-%   ccmap, and updated to include and higher values, such that the final
-%   peak search is performed on a "cummulative" ccmap which makes selecting
-%   a threshold much easier. The default is mean + 6*std which has worked
-%   well so far as judged by leaving only a few false positives (which are
-%   easly removed in later classification in subvolume analysis.)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   TODO
-%   1) Handle a list of multiple tomograms
-%   2) Handle GPU mempory more dynamically
-%   3) Handle variable missing wedge geometry
-%   4) Determine balance of number of references/ number of chunks, vs.
-%   memory requirements for storing the references in memory, and for large
-%   grid searches, the benefit of calculating the references ahead of time,
-%   even if the must be read into/out of memory onto scratch space. I think
-%   for anything but an in plane search, this might be worthwhile.
-%   Currently using MRC --> tif, reading in tif (individual images as
-%   reading/writing multipage tifs with MATLAB takes forever.) 
-%   5) Set-up to take low-pass cut off and pixel size as input
-%   6) Test the benefit of filling in the wedge with low amplitude random
-%   phase information as a way of decreasing the influence of the wedge.
-%   7) Perform a number of test cases for different size tomo/template and
-%   different step sizes in order to be able to more accurately estimate the
-%   time needed for a given search range. This can also be used to boost the
-%   usage on archer.3
-%   8) Tomogram padding with numbers other than zero, I can't rember why i did
-%   this initially, so ideally it should be figured out or changed.
-%
-%   - position - 0.5 for protomo display
-%   - add field "total number" to track subtomonuber + a check to see if
-%   geometry structure already exists
-%
-%
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MAP = 'gag2_sirt10.mrc';
-% PARAMETER_FILE = 'gagInitParam.m'
-% TEMPLATE = 'briggsDup_scaleTrim.mrc';
-% RAWTLT = './raw/GagSM4A_7.rawtlt';                                                                                               
-% if (nargin ~= 5) 
-%   if (nargin ~= 6 && nargin ~= 7)
-%     error('args = PARAMETER_FILE,MAP,TEMPLATE, RAWTLT, SYMMETRY, [gpuIDX(1,2)], wedgeType')
-%   end/fast_scratch/himesb/testRMS_45/cycle012_testRMS_15_class0_REF_ODD.mrc
-% end
+
 
 precision = 'single';
 precisionTaper = 'singleTaper';
@@ -181,9 +45,9 @@ end
 samplingRate  = pBH.('Tmp_samplingRate');
 
 try
-  tmpDecoy = pBH.('templateDecoy')
+  tmpDecoy = pBH.('templateDecoy');
 catch
-  tmpDecoy = 0
+  tmpDecoy = 0;
 end
 
 if ( cmdLineThresh )
@@ -213,26 +77,9 @@ catch
   eraseMaskRadius = 0.75.*latticeRadius;
 end
 
-try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta')
-  % Make certain this is a new alignment
-  if length(fieldnames(subTomoMeta.cycle000)) > 1
-    error('It looks like this is not a new project, remove mat file.')
-  end
-  
-  % Make sure each subTomo has a unique idx
-  nPreviousSubTomos = 0;
-  fieldList = fieldnames(subTomoMeta.cycle000.geometry);
-  for iField = 1:size(fieldList,1)
-    nPreviousSubTomos = nPreviousSubTomos + ...
-        size(subTomoMeta.cycle000.geometry.(sprintf('%s',fieldList{iField})),1);
-  end
-  subTomoMeta.('nSubTomoTotal') = nPreviousSubTomos;
-catch 
-  fprintf('\n\nDid not eveRot geometry.\n\n')
-  subTomoMeta = struct();
-  nPreviousSubTomos = 0;
-end
+
+nPreviousSubTomos = 0;
+
 reconScaling = 1;
 try
   nPeaks = pBH.('nPeaks');
@@ -252,7 +99,7 @@ try
   lowResCut = pBH.('lowResCut');
 catch
   % Current default, which may be too conservative.
-  lowResCut = 40;
+  lowResCut = 36;
 end
 
 try
@@ -314,13 +161,10 @@ templateBIN = BH_reScale3d(template,'',sprintf('%f',1/samplingRate),'cpu');
 templateBIN = templateBIN - mean(templateBIN(:));
 templateBIN = templateBIN  ./rms(templateBIN(:));
 
+
 sizeTemp = size(template)
 sizeTempBIN = size(templateBIN)
 
-% % borderMask =  gather(BH_mask3d('rectangle',sizeTemp,(sizeTemp./2)-6,[1,1,1])); 
-
-% % % interpMask = BH_mask3d_cpu('sphere',sizeTemp,max(latticeRadius./pixelSizeFULL).*[1,1,1],[0,0,0]);
-% % % interpMask = interpMask > 0.01;
 
 % Calculate exclusion area around chosen peaks.
 % Convert Ang to pixels
@@ -667,10 +511,8 @@ nPrjs = size(TLT,1);
 
 
 kVal = 0;
-%%%%% [ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' )
-[ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' )
 
-
+[ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' );
 
 
 
@@ -737,18 +579,7 @@ for iAngle = 1:size(angleStep,1)
   tempImg = gpuArray(templateBIN); %%%%% NEW switch to bin
   tempWdg = gpuArray(wedgeMask);
 
-% % %   interpMaskGPU = gpuArray(interpMask);
-  
 
-% % %   tempWedgeMask = tempWedgeMask .^ (0.25./tempWedgeMask);    
-
-  % SAVE_IMG(MRCImage(gather(fftshift(tempWedgeMask))), 'tmpWedge.mrc') ;
-
-  % Just bandpass the tomo, no need to do this twice.
-  %[ tempFilter ] = BH_bandpass3d(sizeChunk,0.1, maxSizeForHighPass, ...
-  %                                        lowResCut,'GPU', pixelSizeFULL );
-
-  %tempWedgeMask = gpuArray(wedgeMask) .* tempFilter; 
 
   clear referenceStack tempFilter
   % Calculate all references for each out of plane tilt only once

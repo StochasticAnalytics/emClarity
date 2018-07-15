@@ -65,7 +65,7 @@ catch
 end
 
 
-try
+% try
   flgCosineDose = pBH.('oneOverCosineDose');
   startingAngle = pBH.('startingAngle');
   startingDirection = pBH.('startingDirection');
@@ -74,13 +74,13 @@ try
 
   flgOldDose = 0;
   tltOrder = calc_dose_scheme(pBH,rawTLT,anglesSkipped);
-catch
-  fprintf('\nFalling back on old dose specification through a *.order file\n\n');
-  fprintf('Parameters flgCosineDose=(0/1 bool), \nstartingAngle=, \nstartingDirection=[pos/neg],\ndoseSymmetricIncrement=[0, or # tilts per sweep],\n doseAtMinTilt are needed for the new method.\n');
-  pause(2);
-  tltOrder = load(collectionORDER);
-  flgOldDose = 1;
-end
+% catch
+%   fprintf('\nFalling back on old dose specification through a *.order file\n\n');
+%   fprintf('Parameters flgCosineDose=(0/1 bool), \nstartingAngle=, \nstartingDirection=[pos/neg],\ndoseSymmetricIncrement=[0, or # tilts per sweep],\n doseAtMinTilt are needed for the new method.\n');
+%   pause(2);
+%   tltOrder = load(collectionORDER);
+%   flgOldDose = 1;
+% end
 
 
 PIXEL_SIZE = pBH.('PIXEL_SIZE');
@@ -207,21 +207,21 @@ if exist(stackNameIN, 'file')
   end 
   
   if ( flgOldDose )
-    TLT = zeros(length(rawTLT),22);
+    TLT = zeros(length(rawTLT),23);
     TLT(:,1) = 1:length(rawTLT);
+    TLT(:,23) = 1:length(rawTLT);
     TLT(:,4) = rawTLT; clear rawTLT
     nSkipped = 0;
   else
-    notIncluded = (tltOrder(:,3) == -9999);
-    nSkipped = sum(notIncluded);
-    TLT = zeros(length(rawTLT)-nSkipped,22);
-    TLT(:,1) = tltOrder(~notIncluded,2); % This was only the appropriate tilts are read in.
-    TLT(:,4) = tltOrder(~notIncluded,2); clear rawTLT
-    TLT(:,11) = tltOrder(~notIncluded,3);
-    skippedList = fopen(sprintf('fixedStacks/%s.skipped',STACK_BASENAME),'w');
-    fprintf(skippedList,'%f\n',TLT(notIncluded,1));
-    fclose(skippedList);
+    included = (tltOrder(:,3) ~= -9999);
+    nSkipped = (sum(~included)); % used to adjust header
+    TLT = zeros(sum(included),23);
+    TLT(:,1) = 1:sum(included);
+    TLT(:,23) = tltOrder(included,1); % This was only the appropriate tilts are read in.
+    TLT(:,4) = tltOrder(included,2); clear rawTLT
+    TLT(:,11) = tltOrder(included,3);
   end
+  
   
  
   [pathName,fileName,extension] = fileparts(stackNameIN);
@@ -251,10 +251,12 @@ system(sprintf('mkdir -p %s/ctf', pathName));
   % created in IMod alignment.
 
   iHeader = getHeader(iMrcObj);
-  iHeader.nZ = iHeader.nZ - nSkipped;
+  
   iPixelHeader = [iHeader.cellDimensionX/iHeader.nX .* scalePixelsBy, ...
                   iHeader.cellDimensionY/iHeader.nY .* scalePixelsBy, ...
                   iHeader.cellDimensionZ/iHeader.nZ];
+  % Reduce the Z dimension after pixel size is calculated         
+  iHeader.nZ = iHeader.nZ - nSkipped;
                 
   iOriginHeader= [iHeader.xOrigin , ...
                   iHeader.yOrigin , ...
@@ -381,7 +383,7 @@ for i = 1:d3
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
 
-     iProjection = single(getVolume(iMrcObj,-1,-1,TLT(i,1)));
+     iProjection = single(getVolume(iMrcObj,-1,-1,TLT(i,23)));
 
     % Information beyond the physical nyquist should be removed to limit
     % aliasing of noise prior tto interpolation.
@@ -405,7 +407,7 @@ for i = 1:d3
     % of the odd output here we can just read it in this way, unlike super res. 
 
     iProjection = ...
-                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,1)));
+                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,23)));
              
 
   end
@@ -792,13 +794,13 @@ for iTilt = 1:3
    pdfOUT = sprintf('%s/ctf/%s_psRadial_%d.pdf',pathName,stackNameOUT,iTilt)
 
 
-%     bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
-%     bgSubPS = bgSubPS ./ max(bgSubPS(:));
-%     figure('Visible','off'), plot(freqVector(bandpass)./(pixelOUT),bgSubPS(bandpass), freqVector(bandpass)./(pixelOUT),abs(rV(bandpass)).^2./max(abs(rV(bandpass)).^2),'-g');
-%     title(sprintf('CTF fit\n%03.3f μm ', maxDef));
-%     xlabel('Spatial Frequency (1/Å)'); ylabel('Relative Power');
+    bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
+    bgSubPS = bgSubPS ./ max(bgSubPS(:));
+    figure('Visible','off'), plot(freqVector(bandpass)./(pixelOUT),bgSubPS(bandpass), freqVector(bandpass)./(pixelOUT),abs(rV(bandpass)).^2./max(abs(rV(bandpass)).^2),'-g');
+    title(sprintf('CTF fit\n%03.3f μm ', maxDef));
+    xlabel('Spatial Frequency (1/Å)'); ylabel('Relative Power');
 
-%     saveas(gcf,pdfOUT, 'pdf')
+    saveas(gcf,pdfOUT, 'pdf')
 
 
 
@@ -1252,9 +1254,12 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped)
   totalDose = doseAtMinTilt;
   nMax = length(rawTLT)+1;
   
-  % Get the actual angles from the index
-  anglesToSkip = rawTLT(anglesSkipped);
-  
+  if (anglesSkipped)
+    % Get the actual angles from the index
+    anglesToSkip = rawTLT(anglesSkipped);
+  else
+    anglesToSkip = [];
+  end
 
 
     % We always start from the first tilt.
@@ -1348,7 +1353,7 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped)
      
 
      
-    
+    tltOrder
   
   % This will be a naive run through that works only if the angles are in
   % order.

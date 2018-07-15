@@ -432,7 +432,7 @@ system('mkdir -p aliStacks');
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
     
-     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(1)));
+     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(23)));
      
     % Information beyond the physical nyquist should be removed to limit
     % aliasing of noise prior tto interpolation.
@@ -455,7 +455,7 @@ system('mkdir -p aliStacks');
     % If it is even sized, shift up one pixel so that the origin is in the middle
     % of the odd output here we can just read it in this way, unlike super res.  
     iProjection = ...
-                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(1)));
+                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23)));
     
 
   end

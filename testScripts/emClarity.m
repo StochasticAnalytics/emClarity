@@ -59,7 +59,7 @@ if nArgs > 1 && checkHelp
     case 'benchmark'
       % nothing to parse
       multiGPUs= 0;
-    case 'cleanTemplateSearch'
+    case 'removeNeighbors'
       % nothing to parse
       multiGPUs = 0;
 
@@ -130,9 +130,9 @@ switch varargin{1}
   case 'removeNeighbors'
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
        length(varargin) ~= 6 
-      fprintf(['\nparam.m CYCLE distanceCutoff (Ang) angleCutoff (Deg) N-neighbors\n']);
+      fprintf(['\npixelSize CYCLE distanceCutoff (Ang) angleCutoff (Deg) N-neighbors\n']);
     else
-      emC_testParse(varargin{2})
+      %emC_testParse(varargin{2})
       BH_geometry_Constraints(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
     end    
     
@@ -331,7 +331,7 @@ switch varargin{1}
 
       switch varargin{2}
         case 'estimate'
-          if nargin == 4
+          if nargin == 5
             BH_ctf_Estimate(varargin{3},varargin{4});
           else
             BH_ctf_Estimate(varargin{3},varargin{4},varargin{5});

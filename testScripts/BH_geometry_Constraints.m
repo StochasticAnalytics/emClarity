@@ -6,7 +6,7 @@ CYCLE = str2num(CYCLE);
 try 
   pixelSize = str2double(PARAMETER_FILE)
   flgCSV = 1;
-  [failedCSV,csvList] = system('ls convmap/*.csv');
+  [failedCSV,csvList] = system('ls convmap/*.csv'); % add explicit convmap check TODO
   if (failedCSV)
     error('Did not find your csv files in convmap folder');
   end
@@ -106,7 +106,7 @@ keepList = zeros(nVol,1);
     end
     fclose(csvOUT);
     
-    system(sprintf('point2model -number 1 -circle 3 -sphere 3 -scat -thick 3 -color 80,191,255 -image cache/%s.rec convmap/%s.txt convmap/%s.mod',fileName,fileName,fileName));
+    system(sprintf('point2model -number 1 -circle 3 -sphere 3 -scat  -color 80,191,255 -image cache/%s.rec convmap/%s.txt convmap/%s.mod',fileName,fileName,fileName));
   else
     
     % Remove the positions
