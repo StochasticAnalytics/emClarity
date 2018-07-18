@@ -929,7 +929,7 @@ for iTilt = 1:3
     flgAstigmatism = 0;
     radialForCTF = {fftshift(radialForCTF{1}),1,fftshift(radialForCTF{3})};  
     currentDefocusEst = maxDef;
-    currentDefocusWin = ceil(defWIN*.25);
+    currentDefocusWin = (defWIN*.25);
     measuredVsExpected(1,:) = [maxDef + zShift*PIXEL_SIZE*10^6, maxDef, maxDef - zShift*PIXEL_SIZE*10^6];
     measuredVsExpected(2,2) = maxDef;
     % Add the determined defocus, and write out with mic paramters as well.
@@ -950,7 +950,7 @@ for iTilt = 1:3
     fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
     fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
              '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-             '%d\t%d\t%d\n'], TLT');
+             '%d\t%d\t%d\t%8.2f\n'], TLT');
 
 
   elseif iTilt == 2
@@ -1286,7 +1286,7 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped)
    if ( doseSymmetricIncrement )
      % It is assumed that blocks of this many tilts are collected NOT
      % counting the first tilt. 
-     switchAfterNTilts = doseSymmetricIncrement;
+     switchAfterNTilts = doseSymmetricIncrement-1;
    else
      if strcmpi(startingDirection,'pos')
        switchAfterNTilts = length(largerAngles);

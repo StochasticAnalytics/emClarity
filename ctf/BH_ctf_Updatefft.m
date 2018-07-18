@@ -61,7 +61,7 @@ catch
   ppool = parpool(nGPUs);
 end
 
-parfor iGPU = 1:nGPUs
+for iGPU = 1:nGPUs
   for iTilt = 1:length(ITER_LIST{iGPU})
     
   if ( flgParallel )
@@ -231,7 +231,8 @@ iStack=1;
                   iHeader.yOrigin , ...
                   iHeader.zOrigin ] ./ (1+abs(SuperResolution));
 
-  d1 = iHeader.nX; d2 = iHeader.nY; d3 = iHeader.nZ;
+  d1 = iHeader.nX; d2 = iHeader.nY; d3 = size(INPUT_CELL{iStack,1},1);%iHeader.nZ;
+  
 
 if (SuperResolution)
   halfMask = fftshift(BH_bandpass3d(1.*[d1,d2,1],0,0,4,'GPU',1));
@@ -592,7 +593,7 @@ system('mkdir -p aliStacks');
       fileID = fopen(tlt_OUT{iStack}, 'w');
       fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
                '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-               '%d\t%d\t%d\n'], TLT');
+               '%d\t%d\t%d\t%3.2f\n'], TLT');
              
 
     if ( flgEraseBeads && ~(flgImodErase) )    

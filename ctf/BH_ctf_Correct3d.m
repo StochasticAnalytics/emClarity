@@ -663,6 +663,7 @@ useableArea = [d1-128,d2-128,maxZpix];
 
 
     iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)));
+    fprintf('iPrj %d size %d, %d\n',iPrj,size(STACK,3),TLT(iPrj,1));
     iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
     
 %     iMask = convn(single(iEvalMask),taperMask,'same');
