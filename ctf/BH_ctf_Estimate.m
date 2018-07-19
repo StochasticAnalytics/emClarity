@@ -1,3 +1,4 @@
+
 function [  ] = BH_ctf_Estimate(varargin)
 
 !mkdir -p aliStacks
@@ -65,7 +66,7 @@ catch
 end
 
 
-% try
+try
   flgCosineDose = pBH.('oneOverCosineDose');
   startingAngle = pBH.('startingAngle');
   startingDirection = pBH.('startingDirection');
@@ -74,13 +75,13 @@ end
 
   flgOldDose = 0;
   tltOrder = calc_dose_scheme(pBH,rawTLT,anglesSkipped);
-% catch
-%   fprintf('\nFalling back on old dose specification through a *.order file\n\n');
-%   fprintf('Parameters flgCosineDose=(0/1 bool), \nstartingAngle=, \nstartingDirection=[pos/neg],\ndoseSymmetricIncrement=[0, or # tilts per sweep],\n doseAtMinTilt are needed for the new method.\n');
-%   pause(2);
-%   tltOrder = load(collectionORDER);
-%   flgOldDose = 1;
-% end
+catch
+  fprintf('\nFalling back on old dose specification through a *.order file\n\n');
+  fprintf('Parameters flgCosineDose=(0/1 bool), \nstartingAngle=, \nstartingDirection=[pos/neg],\ndoseSymmetricIncrement=[0, or # tilts per sweep],\n doseAtMinTilt are needed for the new method.\n');
+  pause(2);
+  tltOrder = load(collectionORDER);
+  flgOldDose = 1;
+end
 
 
 PIXEL_SIZE = pBH.('PIXEL_SIZE');
