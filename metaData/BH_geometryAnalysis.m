@@ -145,7 +145,12 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
       end
     case 'Cluster'
   
-        classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
+        try
+          classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
+        catch
+          classVector{1}  = pBH.(sprintf('%s_classes',fieldPrefix));
+        end
+        
         classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
 
         classCoeffs{1} =  pBH.('Pca_coeffs_odd');
