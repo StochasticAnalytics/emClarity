@@ -48,9 +48,9 @@ end
 samplingRate  = pBH.('Tmp_samplingRate');
 
 try
-  tmpDecoy = pBH.('templateDecoy');
+  tmpDecoy = pBH.('templateDecoy')
 catch
-  tmpDecoy = 0;
+  tmpDecoy = 0
 end
 
 if ( cmdLineThresh )
@@ -235,29 +235,33 @@ if ( tmpDecoy )
   
   % the -1 searches for the next smallest fast fourier size
   templateBIN = gpuArray(templateBIN);
-  tmpCCC = 1;
-  tmpDecoy = 1;
+
   
-  while tmpCCC > 0.8
-    tmpDecoy = tmpDecoy - .01;
-    %decoySize = BH_multi_iterator(-1.*floor(tmpDecoy.*sizeChunk),'fourier');
-    %fprintf('\n\ndecoy size %d %d %d from chunkSize %d %d %d\n\n',decoySize,sizeChunk);  
-    %padDecoy1 = BH_multi_padVal( sizeTempBIN, decoySize);
-    %padDecoy2 = BH_multi_padVal( decoySize, sizeChunk );
-    decoyTest = BH_reScale3d(templateBIN,'',tmpDecoy,'GPU');
-    decoyTrim = BH_multi_padVal(size(decoyTest),size(templateBIN));
-    decoyTest = BH_padZeros3d(decoyTest,decoyTrim(1,:),decoyTrim(2,:),'GPU','single');
-    decoyTest = decoyTest - mean(decoyTest(:));
-    decoyTest = decoyTest ./ rms(decoyTest(:));
-    tmpCCC = gather(sum(sum(sum(decoyTest.*templateBIN)))./numel(decoyTest));
-    fprintf('tmpDecoy %f ccc %f\n',tmpDecoy,tmpCCC);
-    
-  end
-  decoyTest = fftn(BH_reScale3d(templateBIN,'',tmpDecoy,'GPU'));
+% % %   while tmpCCC > 0.8
+% % %     tmpDecoy = tmpDecoy - .01;
+% % %     %decoySize = BH_multi_iterator(-1.*floor(tmpDecoy.*sizeChunk),'fourier');
+% % %     %fprintf('\n\ndecoy size %d %d %d from chunkSize %d %d %d\n\n',decoySize,sizeChunk);  
+% % %     %padDecoy1 = BH_multi_padVal( sizeTempBIN, decoySize);
+% % %     %padDecoy2 = BH_multi_padVal( decoySize, sizeChunk );
+% % %     decoyTest = BH_reScale3d(templateBIN,'',tmpDecoy,'GPU');
+% % %     decoyTrim = BH_multi_padVal(size(decoyTest),size(templateBIN));
+% % %     decoyTest = BH_padZeros3d(decoyTest,decoyTrim(1,:),decoyTrim(2,:),'GPU','single');
+% % %     decoyTest = decoyTest - mean(decoyTest(:));
+% % %     decoyTest = decoyTest ./ rms(decoyTest(:));
+% % %     tmpCCC = gather(sum(sum(sum(decoyTest.*templateBIN)))./numel(decoyTest));
+% % %     fprintf('tmpDecoy %f ccc %f\n',tmpDecoy,tmpCCC);
+% % %     
+% % %   end
+  
+  decoyTest = BH_reScale3d(templateBIN,'',tmpDecoy,'GPU');
+  decoyTrim = BH_multi_padVal(size(decoyTest),size(templateBIN));
+  decoyTest = fftn(BH_padZeros3d(decoyTest,decoyTrim(1,:),decoyTrim(2,:),'GPU','single'));
+  decoyShift = -1.*gather(BH_multi_xcf_Translational(decoyTest,conj(fftn(templateBIN)),'',[3,3,3]));  
   decoyNorm = gather(sum(abs(decoyTest(:)))./sum(abs(fftn(templateBIN(:)))));
-  padDecoy = BH_multi_padVal(size(decoyTest),sizeChunk);
+  padDecoy = BH_multi_padVal(size(decoyTest),sizeChunk) + decoyTrim;
   clear decoyTest
   templateBIN = gather(templateBIN);
+  fprintf('tmpDecoy %f normFactor %f and shift by %2.2f %2.2f %2.2f\n',tmpDecoy,decoyNorm,decoyShift);
 
 end
 
@@ -739,29 +743,24 @@ for iAngle = 1:size(angleStep,1)
         if ( tmpDecoy > 0 )
            tempFou = [];
            if (firstLoopOverAngle)
-%              decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d(tempRot, ...
-%                                 padDecoy1(1,:),padDecoy1(2,:), ...
-%                                 'GPU',precision))), ...
-%                                 padDecoy2(1,:),padDecoy2(2,:),...
-%                                 'GPU',precision,0,1);
-             decoy = BH_padZeros3d(BH_reScale3d(tempRot./decoyNorm,'',tmpDecoy,'GPU'),...
+
+             decoy = BH_padZeros3d(BH_reScale3d(tempRot./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
                                    padDecoy(1,:),padDecoy(2,:),'GPU','single');
            else
-%              decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d( ...
-%                                 referenceStack(:,:,:,intraLoopAngle), ...
-%                                 padDecoy1(1,:),padDecoy1(2,:), ...
-%                                 'GPU',precision))), ...
-%                                 padDecoy2(1,:),padDecoy2(2,:),...
-%                                 'GPU',precision,0,1);
-             decoy = BH_padZeros3d(BH_reScale3d(referenceStack(:,:,:,intraLoopAngle)./decoyNorm,'',tmpDecoy,'GPU'),...
+              % Probably just make a second decoy stack to avoid
+              % re-interpolating. If it works, then do this.
+             decoy = BH_padZeros3d(BH_reScale3d(referenceStack(:,:,:,intraLoopAngle)./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
                                    padDecoy(1,:),padDecoy(2,:),'GPU','single');                              
            end
            
-                      
+
+         
            decoy = BH_padZeros3d(fftshift(real(single( ...
                                  ifftn(tomoFou.*conj(fftn(decoy)))))),..../(decoyNorm.*tomoNorm))))),
                                  trimValid(1,:), ...
                                  trimValid(2,:),'GPU',precision);
+                               
+
         elseif ( tmpDecoy < 0 )
           
           % Just use the mirror image of the template, i.e. take the conj
@@ -918,8 +917,8 @@ if ( tmpDecoy )
   RESULTS_decoy = RESULTS_decoy(1+tomoPre(1):end-tomoPost(1),...
                             1+tomoPre(2):end-tomoPost(2),...
                             1+tomoPre(3):end-tomoPost(3));
-  RESULTS_decoy = RESULTS_decoy ./ std(RESULTS_decoy(:));
-  RESULTS_decoy(RESULTS_decoy < 0) = 0; 
+%   RESULTS_decoy = RESULTS_decoy ./ std(RESULTS_decoy(:));
+  RESULTS_decoy(RESULTS_decoy < 1) = 1; 
   
 end
 gpuDevice(useGPU);
@@ -932,7 +931,7 @@ mag = RESULTS_peak; clear RESULTS_peak
 % Normalize so the difference if using a decoy makes sense. The input decoy
 % should have the same power, so I'm not sure why this is needed, but it is
 % an easy fix and a problem for future Ben to figure out.
-mag = mag ./ std(mag(:));
+% mag = mag ./ std(mag(:));
 
 system(sprintf('mkdir -p %s',convTMPNAME));
 system(sprintf('mv temp_%s.mrc %s',convTMPNAME,convTMPNAME));
@@ -946,7 +945,9 @@ if ( tmpDecoy )
   decoyOUT = sprintf('./%s/%s_decoy.mrc',convTMPNAME,mapName);
   SAVE_IMG(MRCImage((RESULTS_decoy)),decoyOUT);
   diffOUT = sprintf('./%s/%s_convmap-decoy.mrc',convTMPNAME,mapName);
-  mag = mag - RESULTS_decoy; clear RESULTS_decoy
+  decoyLogical = mag < RESULTS_decoy;
+  mag(decoyLogical) = 0;
+  mag(~decoyLogical) = mag(~decoyLogical) - RESULTS_decoy(~decoyLogical); clear RESULTS_decoy
   SAVE_IMG(MRCImage((mag)),diffOUT);
 end
 angleFILE = fopen(angleListOUT,'w');
@@ -991,7 +992,7 @@ n = 1;
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
 %%%removalMask = (removalMask < 1);
-while  n <= peakThreshold
+while  n <= peakThreshold && MAX > 0
 
 %
 % Some indicies come back as an error, even when they seem like the
