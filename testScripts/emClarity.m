@@ -441,7 +441,7 @@ switch varargin{1}
            '[threshold override]\n',...
            'gpuIDX.\n']);
     else
-      wedgeType = 1;
+      wedgeType = 4;
       if length(varargin) == 7
         BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
                            varargin{5}, varargin{6},wedgeType,varargin{7});

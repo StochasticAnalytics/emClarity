@@ -39,8 +39,11 @@ pBH = BH_parseParameterFile(PARAMETER_FILE);
 try
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR; clear subTomoMeta
+  % Make sure we get a CTF corrected stack
+  shouldBeCTF = 1;
 catch
   mapBackIter = 0;
+  shouldBeCTF = -1;
 end
 samplingRate  = pBH.('Tmp_samplingRate');
 
@@ -99,7 +102,7 @@ try
   lowResCut = pBH.('lowResCut');
 catch
   % Current default, which may be too conservative.
-  lowResCut = 36;
+  lowResCut = 40;
 end
 
 try
@@ -118,27 +121,28 @@ sprintf('recon/%s_recon.coords',tomoName)
 reconCoords = recGeom(tomoNumber,:);
 clear recGeom
 
-% TODO in testing ctf flipped for using higher resolutions, there is no catch
-% to make sure that this isn't just builing a non-ctf corrected tomo.
-% If the idea pans out, deal with it. (Probably by just doing ctf corrected all 
-% the time)
+
 [ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
                                      reconCoords, mapBackIter, samplingRate,...
-                                     -1*gpuIDX, reconScaling,1); 
+                                     shouldBeCTF*gpuIDX, reconScaling,1); 
                                            
  
 % We'll handle image statistics locally, but first place the global environment
 % into a predictible range
 
-% Wait until after application of/distortion by tomo's ctf to downsample the template. 
+  
 
 [template, tempPath, tempName, tempExt] = ...
                               BH_multi_loadOrBin( TEMPLATE, 1, 3 ); 
                             
+
+                            
+                            
+                            
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
-fprintf('size of provided template %d %d %d\n',size(template));
-trimTemp = BH_multi_padVal(size(template),ceil(2*sqrt(2)*pBH.('Ali_mRadius')./pixelSizeFULL));
+fprintf('size of provided template %d %d %d\n',size(template{1}));
+trimTemp = BH_multi_padVal(size(template{1}),ceil(2*sqrt(2)*pBH.('Ali_mRadius')./pixelSizeFULL));
 template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
 SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
@@ -296,7 +300,48 @@ fftw('planner','patient');
 fftn(opt);
 clear opt ans
 
+% Temp while testing new dose weighting
+TLT = tiltGeometry;
+nPrjs = size(TLT,1);
 
+
+kVal = 0;
+
+% % [ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' );
+[ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' );
+
+
+
+switch wedgeType
+  case 1
+    % make a binary wedge
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'binaryWedgeGPU',particleThickness,...
+                                                 1, 1, samplingRate);
+  case 2
+    % make a non-CTF wedge
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 2, 1, samplingRate);   
+  case 3
+    % make a CTF without exposure weight
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 3, 1, samplingRate);   
+  case 4
+    % make a wedge with full-ctf
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 4, 1, samplingRate);  
+  otherwise
+    error('wedgeType must be 1-4');
+end
+
+wedgeMask = (ifftshift(wedgeMask));
+%                                      
+% % Now just using the mask to calculate the power remaining in the template,
+% % without actually applying.
+% wedgeMask = gather(find(ifftshift(wedgeMask)));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Preprocess the tomogram
@@ -310,8 +355,14 @@ tomoStack = zeros([sizeChunk,nTomograms], 'single');
 % backgroundVol = zeros(sizeChunk,'single');
 tomoCoords= zeros(nTomograms, 3, 'uint16');
 
-[ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 0,maxSizeForHighPass, ...
+% % % [ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 0,maxSizeForHighPass, ...
+% % %                                               lowResCut,'cpu', pixelSize );
+% In switching to the full 3D-sampling function the high pass is
+% already incorporated in the CTF. Still include one for very low
+% resolution to deal with gradients in the tomos.
+[ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 10e-4,1000, ...
                                               lowResCut,'cpu', pixelSize );
+                                          
          
 try
   doMedFilt = pBH.('Tmp_medianFilter');
@@ -355,6 +406,8 @@ for  iX = 1:nIters(1)
                          cutY:cutY+sizeChunk(2)-1,...
                          cutZ:cutZ+sizeChunk(3)-1);
                                        
+   
+    tomoChunk = real(ifftn(fftn(tomoChunk).*wedgeMask));
               
                                   
     if ( statLoop < 2 )             
@@ -505,15 +558,9 @@ clear tomoWedgeMask averagingMask rmsMask bandpassFilter statBinary validAreaMas
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Temp while testing new dose weighting
-TLT = tiltGeometry;
-nPrjs = size(TLT,1);
-
-
 kVal = 0;
 
 [ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' );
-
 
 
 switch wedgeType
@@ -541,11 +588,11 @@ switch wedgeType
     error('wedgeType must be 1-4');
 end
 
-%wedgeMask = gather(ifftshift(wedgeMask));
-                                     
-% Now just using the mask to calculate the power remaining in the template,
-% without actually applying.
-wedgeMask = gather(find(ifftshift(wedgeMask)));
+wedgeMask = gather(ifftshift(wedgeMask));
+%                                      
+% % Now just using the mask to calculate the power remaining in the template,
+% % without actually applying.
+% wedgeMask = gather(find(ifftshift(wedgeMask)));
         
 
         
@@ -571,6 +618,7 @@ for iAngle = 1:size(angleStep,1)
   else
      phiStep = angleStep(iAngle,3);
   end
+     phiStep = angleStep(iAngle,3);
   
   gpuDevice(useGPU);
 
@@ -652,11 +700,9 @@ for iAngle = 1:size(angleStep,1)
          %   SAVE_IMG(MRCImage(tempRot), sprintf('temp_%s.mrc',convTMPNAME),pixelSize);
          % end
           
-          normScore = fftn(tempRot);
-          preTot = sum(abs(normScore(:)));
-          normScore = normScore(tempWdg);
-          tempRot = tempRot ./ (sum(abs(normScore(:)))/preTot);
-          clear normScore preTot
+          normScore = fftn(tempRot).*tempWdg;
+          tempRot = tempRot ./ (sum(abs(normScore(:)).^2));
+          clear normScore 
           
           referenceStack(:,:,:,intraLoopAngle) = tempRot;
          

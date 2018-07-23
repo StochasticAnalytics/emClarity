@@ -716,9 +716,7 @@ useableArea = [d1-128,d2-128,maxZpix];
 
 
   clear bandNyquist iMask exposureFilter  iProjection lowRMSMAsk
-% % Push to gpu when initializing workers
-% deltaZ = gather(deltaZ);
-% evalMask = gather(evalMask);
+
 
 end
 
