@@ -59,7 +59,7 @@ molMass = MOL_MASS.*(25/samplingRate);
    % number of subtomograms contributing to the average should also be
    % considered to then work back to an estimate of the SNR in the particle
    % (tomogram) volume.
-   rmsScale = MOL_MASS;
+   rmsScale = sqrt(MOL_MASS);
  end
  
 try
@@ -101,7 +101,8 @@ catch
   % Global option, Global Grouping, Local Opt, Local Grouping.
   % All early tests were Opt 5 (linear mapping) Default Grouping 5
   tiltAliOption = [5,5,5,5];
-end
+
+  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -111,7 +112,7 @@ tmpCache= pBH.('fastScratchDisk');
 nGPUs = pBH.('nGPUs');
 pInfo = parcluster();
 gpuScale=3*samplingRate;
-nWorkers = min(nGPUs*gpuScale,pInfo.NumWorkers); % 18
+nWorkers = min(nGPUs*gpuScale,pBH.('nCpuCores')); % 18
 fprintf('Using %d workers as max of %d %d*nGPUs and %d nWorkers visible\n', ...
         nWorkers,gpuScale,nGPUs*gpuScale,pInfo.NumWorkers);
       
@@ -288,6 +289,18 @@ for iTiltSeries = tiltStart:nTiltSeries
     fullPixelSize = fullPixelSize * 2;
   end
   pixelSize = fullPixelSize.*samplingRate;
+  
+try 
+  eraseMaskType = pBH.('peak_mType');
+	eraseMaskRadius = pBH.('peak_mRadius')./pixelSize;
+  fprintf('Further restricting peak search to radius %f %f %f\n',...
+          eraseMaskRadius);
+  eraseMask = 1;
+catch
+  eraseMask = 0;
+  fprintf('\n');
+end
+
 
   [ ~,~,maskRadius,~ ] = BH_multi_maskCheck(pBH,'Ali',pixelSize)
    PARTICLE_RADIUS = floor(max(pBH.('particleRadius')./pixelSize));
@@ -518,6 +531,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       % capsids, so add to rather than just insert. Creates a little higher
       % density from the tomo in background but this is better than
       % replacing high res model density and an easy solution.
+      
       try
         
         avgSampling(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
@@ -542,27 +556,33 @@ for iTiltSeries = tiltStart:nTiltSeries
               
 
       catch
-        overShoot = size(avgTomo) - (lowerLeftVol + [sX,sY,sZ]) 
-        avgSampling(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) = ...
-        avgSampling(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) +  ones(size(tomo)-20,'uint8');
-        overlapMask = (avgSampling(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) <= 1);
-        tomo = tomo(11:end-10,11:end-10,11:end-10) .* overlapMask;
-        avgSampling(avgSampling > 1) = 1;
-        overlapMask = [];       
+        overShoot = size(avgTomo) - (lowerLeftVol + [sX,sY,sZ]);
+        CLIPSIZE = max(abs(overShoot(:)));
+        fprintf('WARNING, your tomo is too close to an edge. Overshoot x,y,z, %d %d %d.\nClipping tomo by %d\n',overshoot,CLIPSIZE);
+        avgSampling(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE+1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE+1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE+1) = ...
+        avgSampling(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE+1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE+1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE+1) + 1;
+        overlapMask = (avgSampling(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                                   lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                                   lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1) <= 1);
 
+        tomo = tomo(CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE) .* overlapMask;
+        avgSampling(avgSampling > 1) = 1;
+       
+        
+        
+    
+        overlapMask = []; 
         % Should match, but allow a couple pixels of wiggle room
-        avgTomo(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) = ...
-        avgTomo(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11)      +  tomo(11:end-10,11:end-10,11:end-10); 
+        avgTomo(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1) = ...
+        avgTomo(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1)      +  tomo;%(CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE); 
            
       end      
               
@@ -742,6 +762,7 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   if (buildTomo)
    fclose(coordOUT);
+   
 
     p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 ',...
                    '%smapBack%d/%s.coord %smapBack%d/%s.3dfid'], ...
@@ -853,10 +874,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         
         while (keepItRunning)
      
-% % %           inc = 0:mapBackRePrjSize:maxZ-1
-% % %           if inc(end) < maxZ-1
-% % %             inc = [inc, maxZ-1]
-% % %           end
+
           inc = 0:mapBackRePrjSize:sTY-1;
           if inc(end) < sTY-1
             inc = [inc,sTY-1];
@@ -1093,21 +1111,25 @@ for iTiltSeries = tiltStart:nTiltSeries
     CTFSIZE = CTFSIZE(1:2)
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
-    if strcmpi(METHOD, 'GPU')
+   
+    if (eraseMask)
+      peakMask = BH_mask3d(eraseMaskType,(tileSize(1)+2.*padTile(1)).*[1,1],eraseMaskRadius,[0,0],'2d');
+      peakMaskDefSearch = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
+      peakMask(peakMask < 0.99) = 0;
+      peakMaskDef(peakMaskDefSearch < 0.99) = 0;
+    else
       peakMask = BH_mask3d('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
       peakMaskDefSearch = BH_mask3d('sphere',CTFSIZE,peakSearchRad,[0,0],'2d');
-      
-      fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
-      fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
-      [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
-                                                      {'none'},1,1,0);
-      dU = dU .* (2i*pi);
-      dV = dV .* (2i*pi);  
-
-    else
-      peakMask = BH_mask3d_cpu('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
-      fftMask = BH_fftShift(0,CTFSIZE,0);
     end
+
+    fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
+    fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
+    [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
+                                                    {'none'},1,1,0);
+    dU = dU .* (2i*pi);
+    dV = dV .* (2i*pi);  
+
+
     
 %     [ peakMask ] = BH_multi_randomizeTaper(peakMask);
 

@@ -1,4 +1,4 @@
-function [ outputVol ] = BH_reScale3d( inputVol, nameOUT, MAG, METHOD )
+function [ outputVol ] = BH_reScale3d( inputVol, nameOUT, MAG, METHOD, varargin )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -6,6 +6,12 @@ if (isnumeric(MAG))
   mag = MAG; 
 else
   mag = str2num(MAG);
+end
+
+if nargin > 4
+  xyzShift = varargin{1};
+else
+  xyzShift = [0,0,0];
 end
 
 pixelSize = 1.0;
@@ -69,11 +75,11 @@ clear bandPass
 
 [~,~,~,x,y,z] = BH_multi_gridCoordinates(sizeVol,'Cartesian',METHOD,...
                                         {'single',[1,0,0;0,1,0;0,0,1],...
-                                        [0,0,0]','forward',1,mag},0,1,0);
+                                        xyzShift','forward',1,mag},0,1,0);
 
 [X,Y,Z,~,~,~] = BH_multi_gridCoordinates(sizeOut,'Cartesian',METHOD,...
                                         {'single',[1,0,0;0,1,0;0,0,1],...
-                                        [0,0,0]','forward',1,mag},0,1,0);
+                                        xyzShift','forward',1,mag},0,1,0);
 
 
   

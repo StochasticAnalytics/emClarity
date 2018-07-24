@@ -61,12 +61,12 @@ catch
   ppool = parpool(nGPUs);
 end
 
-parfor iGPU = 1:nGPUs
+for iGPU = 1:nGPUs
   for iTilt = 1:length(ITER_LIST{iGPU})
     
   if ( flgParallel )
     useGPU = iGPU;
-    gDev = gpuDevice(useGPU)
+    gDev = gpuDevice(useGPU);
   else
     useGPU = BH_multi_checkGPU(-1);
     gDev = gpuDevice(useGPU);
@@ -231,25 +231,11 @@ iStack=1;
                   iHeader.yOrigin , ...
                   iHeader.zOrigin ] ./ (1+abs(SuperResolution));
 
-  d1 = iHeader.nX; d2 = iHeader.nY; d3 = iHeader.nZ;
+  d1 = iHeader.nX; d2 = iHeader.nY; d3 = size(INPUT_CELL{iStack,1},1);%iHeader.nZ;
+  
 
 if (SuperResolution)
   halfMask = fftshift(BH_bandpass3d(1.*[d1,d2,1],0,0,4,'GPU',1));
-
-
-
-% else
-%   % Even though we oversample by padding, the nyquist is the same so crop
-%   % there
-%   halfMask2 = fftshift(BH_bandpass3d([2.*[d1,d2],1],0,0,2,'GPU',1));
-%   fftMask = BH_fftShift(0,[2.*[d1,d2],1],1); 
-%   ifftMask = BH_fftShift(0,[-2.*[d1,d2],1],1); 
-%   % Calculate grids in reciprocal pixels including 2pi for phase shifting
-%   [dU, dV] = BH_multi_gridCoordinates(2.*[d1,d2],'Cartesian','GPU', ...
-%                                                   {'none'},1,1,0);
-%   dU = dU .* (-2i*pi);
-%   dV = dV .* (-2i*pi);  
-
 end
 
 TLT = INPUT_CELL{iStack,1};
@@ -362,15 +348,7 @@ system('mkdir -p aliStacks');
     tlt_tmp{i} = TLT(i,:);
   end
 
-% % % % % 
-% tmp override
-%   numWORKERS = 2;
-%   try
-%     parpool(numWORKERS)
-%   catch
-%     delete(gcp)
-%     parpool(numWORKERS)
-%   end
+
 
   if (flgSkipUpdate)
     continue
@@ -455,7 +433,7 @@ system('mkdir -p aliStacks');
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
     
-     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(1)));
+     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(23)));
      
     % Information beyond the physical nyquist should be removed to limit
     % aliasing of noise prior tto interpolation.
@@ -478,7 +456,7 @@ system('mkdir -p aliStacks');
     % If it is even sized, shift up one pixel so that the origin is in the middle
     % of the odd output here we can just read it in this way, unlike super res.  
     iProjection = ...
-                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(1)));
+                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23)));
     
 
   end
@@ -615,7 +593,7 @@ system('mkdir -p aliStacks');
       fileID = fopen(tlt_OUT{iStack}, 'w');
       fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
                '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-               '%d\t%d\t%d\n'], TLT');
+               '%d\t%d\t%d\t%3.2f\n'], TLT');
              
 
     if ( flgEraseBeads && ~(flgImodErase) )    

@@ -16,6 +16,7 @@ if nargin > 7
     calcOneD = 1;
     end
   else
+    precision = 'double';
     calcOneD = 0;
     flgComplex = 1;
   end

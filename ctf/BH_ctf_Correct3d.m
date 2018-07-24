@@ -20,6 +20,12 @@ catch
 end
 
 try
+  applyExposureFilter = pBH.('applyExposureFilter');
+catch
+  applyExposureFilter = 1;
+end
+
+try
   % Shift the defocus origin from the sample origin in the microscope, to
   % the plane defined by the center of mass of subtomograms (in Z);
   shiftDefocusOrigin = pBH.('shiftDefocusToSubTomoCOM');
@@ -401,7 +407,7 @@ parfor iGPU = 1:nGPUs
       [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixelSize,maskedStack,...
                                             maxZ*10/pixelSize,flgDampenAliasedFrequencies,...
-                                            preCombDefocus,samplingRate);  
+                                            preCombDefocus,samplingRate,applyExposureFilter);  
       end
       % Write out the stack to the cache directory as a tmp file
 
@@ -460,7 +466,7 @@ parfor iGPU = 1:nGPUs
           
           
 
-          nTiltWorkers = 4;
+          nTiltWorkers = 2;
           nTotalSlices = (iCoords(iTomo,3)-iCoords(iTomo,2)+1)
           tiltChunkSize = ceil(nTotalSlices/nTiltWorkers)
           tiltChunks = iCoords(iTomo,2):tiltChunkSize:iCoords(iTomo,3)
@@ -640,10 +646,6 @@ nPrjs = d3;
 useableArea = [d1-128,d2-128,maxZpix];
   
 
-  % Keeping all on the GPU won't fit if a full 4k4k is reconstucted. run and then pull.
-   % This should be double checked because it is annoying.
-  %[exposureFilter] = gather((BH_exposureFilter([d1,d2], TLT,'GPU',samplingRate,0)));
-
   
   [evalMask, deltaZ ] = BH_multi_projectionMask( [d1,d2,d3;useableArea], TLT, 'cpu' );
   
@@ -661,7 +663,7 @@ useableArea = [d1-128,d2-128,maxZpix];
 
 
     iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)));
-    %iExpFilter = gpuArray(exposureFilter(:,:,TLT(iPrj,1)));
+    fprintf('iPrj %d size %d, %d\n',iPrj,size(STACK,3),TLT(iPrj,1));
     iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
     
 %     iMask = convn(single(iEvalMask),taperMask,'same');
@@ -714,9 +716,7 @@ useableArea = [d1-128,d2-128,maxZpix];
 
 
   clear bandNyquist iMask exposureFilter  iProjection lowRMSMAsk
-% % Push to gpu when initializing workers
-% deltaZ = gather(deltaZ);
-% evalMask = gather(evalMask);
+
 
 end
 
@@ -857,7 +857,7 @@ end
 function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                               avgZ,TLT,pixelSize,maskedStack,...
                                               maxZ,flgDampenAliasedFrequencies,...
-                                              preCombDefocus,samplingRate)
+                                              preCombDefocus,samplingRate,applyExposureFilter)
 % Correct in strips which is more expensive but (hopefully) more accurate.  
 
 
@@ -910,18 +910,19 @@ end
 radialGrid = {radialGrid./PIXEL_SIZE,0,phi};
 phi = [];
 
-%[exposureFilter] = ((BH_exposureFilter([d1,d2], TLT,'GPU',samplingRate,0)));
 
 for iPrj = 1:nPrjs
 
   maxEval = cosd(TLT(iPrj,4)).*(d1/2) + maxZ./2*abs(sind(TLT(iPrj,4)));
   oX = ceil((d1+1)./2);
   iEvalMask = floor(oX-maxEval):ceil(oX+maxEval);
-  iExposureFilter = BH_exposureFilter(fastFTSize,TLT(iPrj,:),'GPU',samplingRate,0);
-% % %    iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)) );
-% % %    iDeltaZ = gpuArray(deltaZ(:,:,TLT(iPrj,1)));
+  if ( applyExposureFilter )
+    iExposureFilter = BH_exposureFilter(fastFTSize,TLT(iPrj,:),'GPU',samplingRate,0);
+  else
+    iExposureFilter = 1;
+  end
+
   
-%   STRIPWIDTH = 2*floor(((tileSize/pixelSize)*abs(cosd(TLT(iPrj,4))).^1.5/2));
   STRIPWIDTH = min(floor((0.5*ctf3dDepth/PIXEL_SIZE)/abs(tand(TLT(iPrj,4)))),512);
   STRIPWIDTH = STRIPWIDTH + mod(STRIPWIDTH,2);
   % take at least 1200 Ang & include the taper if equal to STRIPWIDTH
@@ -972,7 +973,6 @@ for iPrj = 1:nPrjs
     
     % The eval mask condition can be replaced once the per tomo condition
     % is trusted.
-% % %     if any( iEvalMask(i:endIDX,floor(d2/2)) )
     if any(ismember(i:endIDX,iEvalMask))
       %tile = iProjection(i:endIDX,:);
 

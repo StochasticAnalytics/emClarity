@@ -1,4 +1,4 @@
-function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
+ function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
                                                                
 %Extract and align class averages and references from 4D montages derived.
 %
@@ -103,11 +103,11 @@ className    = pBH.('Raw_className');
 try 
   loadTomo = pBH.('loadTomo')
 catch
-  loadTomo = 0
+  loadTomo = 0;
 end
 try 
-  eraseMaskType = pBH.('Tmp_eraseMaskType');
-	eraseMaskRadius = pBH.('Tmp_eraseMaskRadius')./pixelSize;
+  eraseMaskType = pBH.('peak_mType');
+	eraseMaskRadius = pBH.('peak_mRadius')./pixelSize;
   fprintf('Further restricting peak search to radius %f %f %f\n',...
           eraseMaskRadius);
   eraseMask = 1;
@@ -214,12 +214,25 @@ ctfGroupList = masterTM.('ctfGroupSize');
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
                                        BH_multi_validArea( maskSize, maskRadius, scaleCalcSize  )
-                                     
+
+
+try 
+  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
+catch
+  flgLimitToOneProcess = 0;
+end
+
 if ( loadTomo )
   limitToOne = loadTomo;
+  if (flgLimitToOneProcess)
+    limitToOne = min(limitToOne, flgLimitToOneProcess);
+  end
+elseif (flgLimitToOneProcess)
+  limitToOne = flgLimitToOneProcess;
 else
-  limitToOne = loadTomo;
+  limitToOne = pBH.('nCpuCores');
 end
+
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
 if ( flgReverseOrder )
   % Flip the order for reverse processing on a second machine. This will also disable saving of 
@@ -556,7 +569,6 @@ geometryResults   = cell(nParProcesses,1);
    parpool(nParProcesses)
  end
 
-size(ref_FT1{2})
 size(ref_FT2)
 
 system('mkdir -p alignResume');

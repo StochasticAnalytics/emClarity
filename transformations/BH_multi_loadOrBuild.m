@@ -31,6 +31,7 @@ if nargin > 7
   recon = varargin{2};
 end
 
+
 !mkdir -p cache
 
 nameSplit = strsplit(tomoName,'_');
@@ -55,7 +56,7 @@ if SAMPLING > 1
   
     stack = sprintf('cache/%s_ali%d_bin%d.fixed',tomoName,mapBackIter+1,SAMPLING);
     if ~exist(stack, 'file')
-        BH_multi_loadOrBin(checkStack,SAMPLING, 2);
+        BH_multi_loadOrBin(checkStack,SAMPLING, 2); %%%%% med filt flag
 
     end
   
