@@ -38,9 +38,10 @@ startTime = clock ;
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 try
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-  mapBackIter = subTomoMeta.currentTomoCPR; clear subTomoMeta
+  mapBackIter = subTomoMeta.currentTomoCPR
+%   clear subTomoMeta
   % Make sure we get a CTF corrected stack
-  shouldBeCTF = 1;
+  shouldBeCTF = 1
 catch
   mapBackIter = 0;
   shouldBeCTF = -1;
@@ -105,11 +106,7 @@ catch
   lowResCut = 40;
 end
 
-try
-  useCtfCorrected = pBH.('useCtfCorrected');
-catch
-  useCtfCorrected = 0;
-end
+
 
 mapPath = './cache';
 mapName = sprintf('%s_%d_bin%d',tomoName,tomoNumber,samplingRate);
@@ -410,9 +407,12 @@ for  iX = 1:nIters(1)
                          cutY:cutY+sizeChunk(2)-1,...
                          cutZ:cutZ+sizeChunk(3)-1);
                                        
-   
-    tomoChunk = real(ifftn(fftn(tomoChunk).*wedgeMask));
-              
+    if ( shouldBeCTF ~= 1 )
+      % The CTF corrected image is already multiplied by the exposure
+      % filter and the CTF, so only do this if working on a non-CTF
+      % corrected tomo.
+      tomoChunk = real(ifftn(fftn(tomoChunk).*wedgeMask));
+    end
                                   
     if ( statLoop < 2 )             
       % Calc stats on something smoothed      
@@ -467,7 +467,7 @@ for  iX = 1:nIters(1)
       maskStack(:,:,:,tomoIDX) = ( maskStack(:,:,:,tomoIDX) | rmsMask > highRms | rmsMask < lowRms);
     end     
 
-    if ( useCtfCorrected )
+    if ( shouldBeCTF == 1 )
       tomoChunk = tomoChunk ./ rmsMask;
     else 
       % Using the non-ctf corrected stack since we limit toA all practical
