@@ -141,8 +141,8 @@ clear recGeom
                             
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
-fprintf('size of provided template %d %d %d\n',size(template{1}));
-trimTemp = BH_multi_padVal(size(template{1}),ceil(2*sqrt(2)*pBH.('Ali_mRadius')./pixelSizeFULL));
+fprintf('size of provided template %d %d %d\n',size(template));
+trimTemp = BH_multi_padVal(size(template),ceil(2*sqrt(2)*pBH.('Ali_mRadius')./pixelSizeFULL));
 template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
 SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
