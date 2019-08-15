@@ -74,6 +74,18 @@ if (nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
 end
 
+try
+  CUTPADDING = subTomoMeta.('CUTPADDING')
+catch
+  CUTPADDING=20
+end
+
+global bh_global_ML_compressByFactor;
+global bh_global_ML_angleTolerance;
+
+compressByFactor = bh_global_ML_compressByFactor;
+angleTolerance = bh_global_ML_angleTolerance;
+
 % Explicit reference to location of variables in main memory, or on the GPU.
 cpu = struct();
 GPU = struct();
@@ -117,6 +129,25 @@ try
 catch
   flgFilterDefocus = 0;
 end
+
+try
+  flgCutOutVolumes = pBH.('flgCutOutVolumes');
+catch
+  flgCutOutVolumes = 0;
+end
+
+doCut = 0
+if (flgCutOutVolumes)
+  if isfield(subTomoMeta,'volumesAreCutOut')
+    if ~(subTomoMeta.volumesAreCutOut)
+      doCut = 1
+    end
+  else
+    doCut = 1
+  end
+end
+
+
 flgClassify= pBH.('flgClassify');
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
@@ -155,6 +186,17 @@ catch
   scaleCalcSize = 1.5;
 end
 
+% The default is to use all volumes, by ignoring col 8 which is for the
+% random subset (true false);
+useRandom = [0,1];
+try 
+  randomSubset = pBH.('Ali_randSubset');
+  if (randomSubset)
+    useRandom = 1;
+  end
+catch
+end
+
 % for now only turn on (optionally) in reference generation.
 
 classVector = cell(2,1);
@@ -175,27 +217,30 @@ switch STAGEofALIGNMENT
     
     if (flgClassify)
       fieldPrefix = 'Raw'
-    elseif (flgMultiRefAlignment)
-      fieldPrefix = 'Ref'
+
     else
       fieldPrefix = 'REF'
     end
 
-    if flgMultiRefAlignment && ~flgClassify
-      classVector{1}  = pBH.(sprintf('%s_classes_odd','Ref'));
-      classVector{2}  = pBH.(sprintf('%s_classes_eve','Ref'));
-      samplingRate = pBH.('Ali_samplingRate');
-      className    = pBH.(sprintf('Ref_className'));
-      saveClassSum = pBH.(sprintf('Raw_className'))
-    else
-    
+
       classVector{1}  = pBH.(sprintf('%s_classes_odd','Raw'));
       classVector{2}  = pBH.(sprintf('%s_classes_eve','Raw'));
 
       className    = pBH.(sprintf('%s_className','Raw'));
-      samplingRate = pBH.('Ali_samplingRate');
-    end
-    
+      samplingRate = pBH.('Ali_samplingRate'); 
+      
+     if (flgMultiRefAlignment && ~flgClassify)
+       className    = pBH.(sprintf('Raw_className'))
+       saveClassSum = pBH.(sprintf('Raw_className'))
+     elseif (flgMultiRefAlignment && flgClassify)
+       fprintf('\n\nMutliRef and Classify enabled.\n');
+       fprintf('Only creating the global class average for PCA\n\n.');
+       className = 0;
+       saveClassSum = 0;
+       classVector{1} = [0;1];
+       classVector{2} = [0;1];
+     end
+       
     
     
   case 'ClassAlignment'
@@ -349,27 +394,32 @@ try
 catch
   interpOrder = 1;
 end
+
 try 
   flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
 catch
   flgLimitToOneProcess = 0;
 end
 
-if ( flgLimitToOneProcess )
-  % For sinc memory is limiting, use same flag to multi_parallel_jobs for large SV
-  limitToOneProcess = 1;
-  interpOrder = abs(interpOrder);
-elseif loadTomo
-  limitToOneProcess = loadTomo;
+if ( loadTomo )
+  limitToOne = loadTomo;
+    if (flgLimitToOneProcess)
+    limitToOne = min(limitToOne, flgLimitToOneProcess);
+  end
 elseif interpOrder == 4
-  limitToOneProcess = 1;
+  limitToOne = 1;
+elseif (flgLimitToOneProcess)
+  limitToOne = flgLimitToOneProcess;
 else
-  limitToOneProcess = 0; 
+  limitToOne = pBH.('nCpuCores'); 
   interpOrder = 1;
 end
 
 
-fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOneProcess);
+
+
+
+fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOne);
 
 if ~(ismember(interpOrder,[1,4]))
   error('interpolationOrder must be 1,,4 - linear,sinc');
@@ -439,7 +489,7 @@ end
         geometry = subTomoMeta.(cycleRead).RawAlign;
       else
         geometry = subTomoMeta.(cycleRead).geometry;
-        eachTomo = true;
+        eachTomo = false;%true;
       end
       if ~(flgClassify)
         doNotTrim = true;
@@ -539,12 +589,12 @@ end
                                        BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
 padREF = [0,0,0;0,0,0];                                     
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOneProcess);
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);
 
 origMaskSize = sizeMask;
 %%%%% Considering removing doNotTrim and making this the default. Temporarily
 %%%%% override here.
-doNotTrim = true; 
+% % % %doNotTrim = true; 
 % This should be moved into BH_multi_validAra                                    
 % if (doNotTrim)
 %   
@@ -597,7 +647,8 @@ wgtTomoResults=cell(nParProcesses);
 extResults=cell(nParProcesses);
 geoResults=cell(nParProcesses);
 cntResults=cell(nParProcesses);
-maxClasses = max(size(classVector{1},2),size(classVector{2},2)) ;                                      
+maxClasses = max(size(classVector{1},2),size(classVector{2},2));
+
 
 minDIM = 64;
 padDIM = max([minDIM,minDIM,minDIM], sizeMask);
@@ -609,7 +660,7 @@ delete(gcp('nocreate'));
 parpool(nGPUs);
 
 parfor iGPU = 1:nGPUs
-
+% for iGPU = 1:nGPUs
   for iParProc = iGPU:nGPUs:nParProcesses
     % Caclulating weights takes up a lot of memory, so do all that are necessary
     % prior to the main loop
@@ -628,7 +679,7 @@ end
 try
   parpool(nParProcesses)
 catch
-  delete(gcp)
+  delete(gcp('nocreate'))
   parpool(nParProcesses)
 end
 
@@ -640,8 +691,14 @@ if (flgQualityWeight)
     for iParProc = 1:nParProcesses
       for iTomo = iterList{iParProc}              
         positionList = geometry.(tomoList{iTomo});
-        cccVect = [cccVect ; positionList(positionList(:,26)~=-9999 & ...
-                                          positionList(:,1) >= cccCutOff,1)];
+        if (useRandom)
+          cccVect = [cccVect ; positionList(positionList(:,26)~=-9999 & ...
+                                            positionList(:,1) >= cccCutOff & ...
+                                            positionList(:,8) == 1,1)];
+        else
+           cccVect = [cccVect ; positionList(positionList(:,26)~=-9999 & ...
+                                            positionList(:,1) >= cccCutOff,1)];         
+        end
       end
     end
     
@@ -666,7 +723,7 @@ end
 
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
-%for iParProc = parVect
+% for iParProc = parVect
 
     % Get the gpuIDX assigned to this process
     gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;
@@ -746,12 +803,17 @@ parfor iParProc = parVect
 
           
     tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
+    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName   = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    coords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    [ binShift ] = [0,0,0];%BH_multi_calcBinShift( coords, samplingRate);
 
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry_tmp.(tomoList{iTomo});
     nSubTomos = sum(any(positionList(:,26:26:26*nPeaks) ~= -9999,2));
+    
     nSubTomosTotal = nSubTomosTotal + nSubTomos;
-    tomoName
+
    volumeData = [];
    %fprintf('loading tomo %d\n',iTomo);
 
@@ -759,7 +821,12 @@ parfor iParProc = parVect
    tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
    fprintf('Loading tomo %d from tilt %s \n',tomoNumber,tiltName);
    reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-   [ volumeData ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+
+   if (flgCutOutVolumes && ~doCut)
+     volumeData = [];
+   else
+
+    [ volumeData ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
                                      reconCoords, mapBackIter, ...
                                      samplingRate,iGPUidx,reconScaling,loadTomo); 
     
@@ -771,7 +838,7 @@ parfor iParProc = parVect
      else
        volHeader = getHeader(volumeData);
      end
-
+    end
 
                             
 
@@ -813,12 +880,14 @@ parfor iParProc = parVect
             % When the class is for estimating SNR
             includeList = ( any(abs(positionList(:,1:26:26*nPeaks))  >= cccCutOff,2) & ...
                                 positionList(:,10) ==  iClassIDX & ...
-                                positionList(:,7)  == iGold );
+                                positionList(:,7)  == iGold & ...
+                                ismember(positionList(:,8), useRandom));
           else
             % When the class is from statistical analysis
             includeList = ( any(abs(positionList(:,1:26:26*nPeaks)) >= cccCutOff,2)  & ...
                                 positionList(:,26) ==  iClassIDX & ...
-                                positionList(:,7)  == iGold );
+                                positionList(:,7)  == iGold & ...
+                                ismember(positionList(:,8), useRandom));
           end
 
         else
@@ -826,7 +895,8 @@ parfor iParProc = parVect
 
           includeList = ( any(abs(positionList(:,1:26:26*nPeaks))  >= cccCutOff,2)  & ...
                               any(positionList(:,26:26:26*nPeaks) ~= -9999,2)  & ...
-                              positionList(:,7)  == iGold );
+                              positionList(:,7)  == iGold  & ...
+                              ismember(positionList(:,8), useRandom));
  
         end
         % Get the position index for each included particle.
@@ -837,7 +907,7 @@ parfor iParProc = parVect
 
 
         for iSubTomo = particleIndex'
-         iParticele = [];
+         iParticle = [];
          iCCCweight = [];
          iWedgeMask = [];
          % symmetry = classVector{iGold}(2, iClassPos);
@@ -856,7 +926,8 @@ parfor iParProc = parVect
             [ peakWgt, sortedList ] = BH_weightAngCheckPeaks( ...
                                                positionList(iSubTomo,:),...
                                                nPeaks, symmetry,...
-                                               iSubTomo, tomoList{iTomo});
+                                               iSubTomo, tomoList{iTomo},...
+                                               compressByFactor,angleTolerance);
             % Update any re-ordering or elimination                                 
             positionList(iSubTomo,:) = sortedList;                                 
           else
@@ -876,7 +947,7 @@ parfor iParProc = parVect
             % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
             % and PEET. This also makes inplane shifts easier to see.
 
-          center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate;
+          center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
           angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
           wdgIDX = positionList(iSubTomo,9);
           
@@ -910,43 +981,65 @@ parfor iParProc = parVect
           end
 
           % Find range to extract, and check for domain error.
-
-          [ indVAL, padVAL, shiftVAL ] = ...
+	  if (flgCutOutVolumes && ~doCut)
+            [ indVAL, padVAL, shiftVAL ] = ...
+                          BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
+                                            sizeWindow, maskRadius, center);
+          else
+            [ indVAL, padVAL, shiftVAL ] = ...
                           BH_isWindowValid([volHeader.nX,volHeader.nY,volHeader.nZ], ...
                                             sizeWindow, maskRadius, center);
+          end
           
 
           if ~ischar(indVAL)
 
-        if ( loadTomo )
-          iParticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
-                                          indVAL(1,2):indVAL(2,2), ...
-                                          indVAL(1,3):indVAL(2,3)));
+            
+          if (flgCutOutVolumes && ~doCut)
+            try
+	            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
+              iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
+                                                        [indVAL(1,1),indVAL(2,1)], ...
+                                                        [indVAL(1,2),indVAL(2,2)], ...
+                                                        [indVAL(1,3),indVAL(2,3)],'keep'));
+            catch
+              fprintf('\n\nDid not load cut out volume subTomo %d\n\n',iSubTomo);
+              continue;
+            end
+	  else
+    
+            if ( loadTomo )
+              iParticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
+                                              indVAL(1,2):indVAL(2,2), ...
+                                              indVAL(1,3):indVAL(2,3)));
 
-        else
-          iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                                                    [indVAL(1,2),indVAL(2,2)], ...
-                                                    [indVAL(1,3),indVAL(2,3)]));
-        end
+            else
+              iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+                                                        [indVAL(1,2),indVAL(2,2)], ...
+                                                        [indVAL(1,3),indVAL(2,3)],'keep'));
+            end
 
-       %    iParticle = getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-       %                                     [indVAL(1,2),indVAL(2,2)], ...
-       %                                     [indVAL(1,3),indVAL(2,3)]);
-
+          end
+  
 
             
             [ iParticle ] = BH_padZeros3d(iParticle,  padVAL(1,1:3), ...
                                           padVAL(2,1:3), 'GPU', cutPrecision);
           
        
-
-
-          % Pre-allocate particle
-
-%           iTrimParticle = zeros(sizeMask, cutPrecision, 'gpuArray');
-%           
-%             iWedgeMask = zeros(sizeCalc, cutPrecision, 'gpuArray');
           
+          if (flgCutOutVolumes && doCut)
+            % Test with some generic padding , only to be used on bin 1 at
+            % first!!! TODO add a flag to check this.
+            
+            particleOUT = BH_padZeros3d(gather(iParticle), CUTPADDING.*[1,1,1], ...
+                                          CUTPADDING.*[1,1,1], 'cpu', cutPrecision);
+            
+            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
+            positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
+            SAVE_IMG(MRCImage(particleOUT),particleOUT_name,pixelSize);
+            particleOUT =[];
+          end
 
 
           % Each particle in the average is rotate about it's origin and then
@@ -961,7 +1054,7 @@ parfor iParProc = parVect
             
             iRefIMG = BH_resample3d(refIMG{1},angles', iShift,'Bah', 'GPU', 'forward');
             iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],'Bah', 'GPU', 'forward');
-          
+            
             [ ref_FT ] = BH_bandLimitCenterNormalize(iRefIMG.*peakMask_tmp, ...
                                                     fftshift(wedgeMask{wdgIDX}), ...
                                                      peakBinary_tmp,padCalc,...
@@ -1049,9 +1142,10 @@ parfor iParProc = parVect
               [ iParticle ] = BH_padZeros3d(iParticle, ...
                                         -1.*padWindow(1,:),-1.*padWindow(2,:),...
                                         'GPU',cutPrecision);  
-                                    
+                         
             end
             % For now just leave linear interp, but test with spline
+       
             [ iWedgeMask ] = BH_resample3d(wedgeMask{wdgIDX}, ...
                                            angles, [0,0,0], ...
                                            {'Bah',symmetry,'linear', ...
@@ -1076,7 +1170,7 @@ parfor iParProc = parVect
               iParticle = iParticle(padCalc(1,1)+1 : end - padCalc(2,1), ...
                                             padCalc(1,2)+1 : end - padCalc(2,2), ...
                                             padCalc(1,3)+1 : end - padCalc(2,3) );
-              iWedgeMask = iWedgeMask .* fftshift(iCCCweight);
+               iWedgeMask = iWedgeMask .* fftshift(iCCCweight);
             end
            
         
@@ -1132,7 +1226,7 @@ parfor iParProc = parVect
 
            fprintf('SubTomo %d from tomogram %s only sampled at %f\n',...
            iSubTomo, tomoList{iTomo}, 1-padVAL);
-           iParticle(:,:,:) = 0;
+           
            % Flag the particle as ignored
            positionList(iSubTomo, 26) = -9999;
            nIgnored = nIgnored + 1;
@@ -1177,35 +1271,45 @@ parfor iParProc = parVect
       nTomos = nTomos +1;
     end
     
+
+    
   end % end of the loop over Tomograms
+   
+
+  avgResults{iParProc} = avgVolume_tmp;
+  extResults{iParProc} = nExtracted_tmp;
+  geoResults{iParProc} = geometry_tmp;
+  cntResults{iParProc} = [nSubTomosTotal, nIgnored];
+  wgtResults{iParProc} = avgWedge_tmp;
   
 
-avgResults{iParProc} = avgVolume_tmp;
-extResults{iParProc} = nExtracted_tmp;
-geoResults{iParProc} = geometry_tmp;
-cntResults{iParProc} = [nSubTomosTotal, nIgnored];
-wgtResults{iParProc} = avgWedge_tmp;
   
-if (eachTomo)
-  avgTomoResults{iParProc} = tomoAvgStack;
-  wgtTomoResults{iParProc} = tomoWgtStack;
-end
+  if (eachTomo)
+    avgTomoResults{iParProc} = tomoAvgStack;
+    wgtTomoResults{iParProc} = tomoWgtStack;
+  end
   
 end % end parfor loop on gpus
 
+
+      
 nExtracted = zeros(maxClasses,2);
 avgVolume = cell(maxClasses,2);
 avgWedge  = cell(maxClasses,4); 
 nSubTomosTotal = 0;
 nIgnored = 0;
-    
+ 
+
 for iParProc = 1:nParProcesses  
-  nExtracted = nExtracted + gather(extResults{iParProc});
+
+  nExtracted = nExtracted + gather(extResults{iParProc}./nPeaks);
   nSubTomosTotal = nSubTomosTotal + cntResults{iParProc}(1,1);
   nIgnored  = nIgnored  + cntResults{iParProc}(1,2);
   
   for iVol = 1:maxClasses
+    iVol
     for iHalf = 1:2-flgFinalAvg
+      iHalf
       if iParProc == 1
        avgVolume{iVol, iHalf} = avgResults{iParProc}{iVol, iHalf};
        avgWedge{iVol, iHalf} = wgtResults{iParProc}{iVol, iHalf};
@@ -1242,7 +1346,7 @@ classStorage = cell(maxClasses,2);
 if (doNotTrim) && (flgClassify)
   filteredClass= cell(maxClasses,2);
   % low-pass to see class averages more clearly.
-  [ bandpassFilt ] = BH_bandpass3d( sizeMask, 0.2, 300, 30, 'GPU',pixelSize);
+% %   [ bandpassFilt ] = BH_bandpass3d( sizeMask, 0.2, 300, 30, 'GPU',pixelSize);
 end
 
 
@@ -1387,6 +1491,7 @@ end
 
 
 
+
 % Using the filtered class average, calc real space CCC to reorder the even
 % class to [most likely] match the corresponding odd class.
 classListOut = 0;
@@ -1436,6 +1541,7 @@ for iGold = 1:2-flgFinalAvg
 
       
       [montOUT, imgLocations] = BH_montage4d(avgVolume(:,iGold), '');
+      
       
       imout = sprintf('%s_class%d_%s_%s_NoWgt.mrc',outputPrefix, ...
                                          className, fieldPrefix, halfSet);
@@ -1582,7 +1688,9 @@ if ~( flgEstSNR )
 
   % This is slow ass when using cones and class averages and wouldn't be too
   % hard to put into parallel. Do that once the next manuscript is finished.
-    if (flgMultiRefAlignment && ~flgClassify && ~strcmpi(STAGEofALIGNMENT, 'RefAlignment'))
+% % % %     if (flgMultiRefAlignment && ~flgClassify && ~strcmpi(STAGEofALIGNMENT, 'RefAlignment'))
+    if (~flgMultiRefAlignment && ~flgClassify && ~strcmpi(STAGEofALIGNMENT, 'RefAlignment'))
+
 	      nClassesReWgt = 1;
     else
         nClassesReWgt = maxClasses;
@@ -1705,7 +1813,12 @@ if ~( flgEstSNR )
       %%%%%%%
     end
 
+
   subTomoMeta = masterTM;
+  subTomoMeta.('CUTPADDING') = CUTPADDING;
+  if (flgCutOutVolumes && doCut)
+    subTomoMeta.('volumesAreCutOut') = 1;
+  end
   save(pBH.('subTomoMeta'), 'subTomoMeta');
   
 end

@@ -18,7 +18,12 @@ end
 if nargin == 10
   gpuDevice(varargin{1})
 end
-                                        
+
+if nargin == 11
+  highPassFilter = varargin{2};
+else
+  highPassFilter = [0,0];
+end                                        
 
 [ padVal ] = BH_multi_padVal(size(imgs{1}), size(weights{1}));       
         
@@ -50,17 +55,8 @@ for iWgt = 1:2
 % 
   imgs{iWgt} = imgs{iWgt} - mean(imgs{iWgt}(:));
   imgs{iWgt} = gpuArray(imgs{iWgt} ./rms(imgs{iWgt}(:)));
-  
-  valAtZero = 50; % ~ value at zero sampling (a bit less after the subtraction to keep the
-                   % value at minNumSampled unchanged with a smooth transition.
-  minNumSampled = 0.2.*median(weights{iWgt}(weights{iWgt}(:)>10)) % value below where a penalty is add (very little until low numbers)
-  minFactor = 75/minNumSampled
-  minWeight = 10; % decreasing this increase the downweighting as you move from 0 to minNumSampled
-  
-  m = (weights{iWgt} < minNumSampled);
-  weights{iWgt}(m) = (weights{iWgt}(m)+1) + valAtZero.^(minWeight.^((minFactor.*weights{iWgt}(m)+1).^-1));
-  weights{iWgt}(m) = weights{iWgt}(m)-valAtZero.^(minWeight.^(minFactor*minNumSampled+1).^-1)+1;
- 
+
+  [weights{iWgt}, ~] = BH_multi_cRef_wgtCritical(gpuArray(weights{iWgt}));
 
 end
 
@@ -93,15 +89,12 @@ radialGrid = BH_multi_gridCoordinates(size(weights{1}),'Cartesian','GPU', ...
                                       {'none'},1,0,1);
 radialGrid = radialGrid ./ pixelSize;  
 
-for iWgt = 1:2
-  weights{iWgt} = gpuArray(weights{iWgt});
-end
 [ anisoFSC, avgCTF ] = calc_anisoFSC(fscParams, radialGrid,weights, bFactor, pixelSize);
 
 
 
 if any(bFactor)  
-  [ bFactor, bandFilter ] = calc_bfact(fscParams, radialGrid,flgReference, bFactor, noForceMask);
+  [ bFactor, bandFilter ] = calc_bfact(fscParams, radialGrid,flgReference, bFactor, noForceMask,highPassFilter,pixelSize);
 else
   bFactor = {1};
 end
@@ -318,7 +311,7 @@ clear mShape2
                                          
 end
 
-function [ bFactorFilter, bandFilter ] = calc_bfact(fscParams, radialGrid, flgReference, bFactor,noForceMask)
+function [ bFactorFilter, bandFilter ] = calc_bfact(fscParams, radialGrid, flgReference, bFactor,noForceMask,highPassFilter,pixelSize)
 % First check to see if any cones were calculated in addition to spherical
 % shells
 
@@ -338,7 +331,7 @@ coneList = fscParams{8};
 halfAngle= fscParams{9};
 
 bFactorFilter = cell(nBfactors,1);
-bandFilter = zeros(size(radialGrid),'single');
+bandFilter = 0;%zeros(size(radialGrid),'single');
 for iBfact = 1:nBfactors
   bFactorFilter{iBfact} = zeros(size(radialGrid),'single');
 end
@@ -350,7 +343,7 @@ end
 
 flgPrintUsage = 1;
 for iFilter = 1+coneOffset:1+nCones
- iFilter
+ iFilter;
 
   if (flgReference)
     forceMask = fscParams{5}{iFilter};
@@ -377,7 +370,12 @@ for iFilter = 1+coneOffset:1+nCones
   else
     iConeMask = 1;
 
-  end  
+  end
+  
+if any(highPassFilter)
+  bandPassFilter = (BH_bandpass3d(size(radialGrid),highPassFilter(1),highPassFilter(2),pixelSize,'GPU',pixelSize));
+end
+
  for iBfact = 1:nBfactors
 %     bFit  =  fit(osX, exp(bFactor(iBfact).*osX.^2) .* ...
 %                  ((exp(-10.*mtfX'.^1.25)+0.06)./1.06).^-1 .* ...
@@ -402,8 +400,8 @@ for iFilter = 1+coneOffset:1+nCones
           flgPrintUsage = 0;
         end     
       case 2
-        detector = -25;
-        capVal = .06;
+        detector = -20;
+        capVal = .13;
         adHocMTF = ((exp(detector.*osX.^1.25)+capVal)./capVal).^-1;
         
         if flgPrintUsage 
@@ -435,14 +433,22 @@ for iFilter = 1+coneOffset:1+nCones
 
     bFactorFilter{iBfact} = bFactorFilter{iBfact} + ...
                       iConeMask .* reshape(bFit(radialGrid),size(radialGrid));
-   
-    if iBfact ==1 
-      bLimit = fit(osX, forceMask, 'cubicSpline'); 
-      bandFilter = bandFilter + iConeMask .* reshape(bLimit(radialGrid),size(radialGrid));
+  
+    if any(highPassFilter)
+      bFactorFilter{iBfact} = bFactorFilter{iBfact} .* bandPassFilter;
     end
+ 
+   % if iBfact ==1 
+   %   bLimit = fit(osX, forceMask, 'cubicSpline'); 
+   %   bandFilter = bandFilter + iConeMask .* reshape(bLimit(radialGrid),size(radialGrid));
+   % end
 
  end
 end
+
+%if any(highPassFilt)
+%  bandFilter = bandFilter .* BH_bandpass3d(size(bandFilter),highPassFilter(1),highPassFilter(2),pixelSize,'GPU',pixelSize);
+%end
 
 if (nCones)
   coneOverlap = single(coneOverlap);
@@ -452,10 +458,10 @@ if (nCones)
   for iBfact = 1:nBfactors
     bFactorFilter{iBfact}(divZeroMask)  = bFactorFilter{iBfact}(divZeroMask) ./coneOverlap(divZeroMask);
     bFactorFilter{iBfact} = ifftshift(gather(convn(fftshift(bFactorFilter{iBfact}), gaussKernel, 'same')));
-    if iBfact == 1
-      bandFilter(divZeroMask)  =bandFilter(divZeroMask) ./coneOverlap(divZeroMask);
-      bandFilter = ifftshift(gather(convn(fftshift(bandFilter), gaussKernel, 'same')));
-    end
+   % if iBfact == 1
+   %   bandFilter(divZeroMask)  =bandFilter(divZeroMask) ./coneOverlap(divZeroMask);
+   %   bandFilter = ifftshift(gather(convn(fftshift(bandFilter), gaussKernel, 'same')));
+   % end
   end
  
 end

@@ -1,4 +1,4 @@
-function [ GEOMETRY_UPDATED, nTOTAL, nSUBSET ] = ...
+function [ GEOMETRY_UPDATED, nTOTAL, nSUBSET, randomSubset ] = ...
                                          BH_randomSubset( GEOMETRY, PCAorSNR, nPARTICLES, halfSET )
 %Count the particles to be used in PCA, optionally making a random subset.
 %   
@@ -95,7 +95,7 @@ if ( nPARTICLES > 0 || flgSNR )
                                                             nPARTICLES,nIncluded)
   end
   
-  rng('shuffle');
+  rng('shuffle','simdTwister');
   
   if ( flgSNR )
     if nTOTAL < 1500

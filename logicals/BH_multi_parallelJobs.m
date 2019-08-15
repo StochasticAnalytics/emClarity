@@ -18,9 +18,11 @@ if totMem > 7.9e9 && totMem < 10.8e9
 elseif totMem > 10.9e9 && totMem < 12.2e9
   % 1080Ti or Tesla or Titan Xp
   scaleMem = 1.0;
-elseif totMem > 12.8e9 
+elseif totMem > 12.8e9 && totMem < 17.2e9 
   % TitanV V/p100 % seems to crash when it shouldn't, figure out later.
   scaleMem = 1.3;
+else
+  scaleMem = 2.2;
 end
 fprintf('found totalMem on GPU1 %3.3e, nWorkers %d, so scaling nProcs by %2.2f\n',totMem,pInfo.NumWorkers,scaleMem);
 % need to add restrainst on parpool size, and also try to balance based on number of tomograms.
@@ -37,7 +39,7 @@ if ( flgAvg )
     nParProcesses = min(nParProcesses,3*nGPUs);
   else
     % Fourier interp, requires more mem. Unoptimized
-     nParProcesses = flgAvg;
+     nParProcesses = min(flgAvg,nParProcesses);
   end
 end
 
@@ -46,7 +48,7 @@ end
 maxLen = length(1:nParProcesses:nTomograms);
 newLen = maxLen;
 while newLen == maxLen
-  newLen = length(1:nParProcesses-1:nTomograms);
+  newLen = length(1:nParProcesses-2:nTomograms);
   if newLen == maxLen
     nParProcesses = nParProcesses - 1;
   else
@@ -56,18 +58,23 @@ end
 
 
 nParProcesses = nParProcesses - mod(nParProcesses - nGPUs,2);
-if (nParProcesses == 0)
-  nParProcesses = 2*nGPUs;
+if (nParProcesses < nGPUs*2+1)
+  nParProcesses = 2*nGPUs+1;
 end
-fprintf('Using %d workers in %d batches\n',nParProcesses,nTomograms./nParProcesses);
+nParProcesses = min(nParProcesses,nTomograms);
+if (flgAvg > 0)
+  nParProcesses = min(nParProcesses,flgAvg);
+end
+
+nIters = min(nParProcesses,nTomograms);
+
+% fprintf('Using %d workers in %d batches\n',nParProcesses,(1+nTomograms)./nParProcesses);
 % Divide the tomograms up over each gpu
-iterList = cell(nParProcesses,1);
-for iParProc = 1:nParProcesses
-  iterList{iParProc} = iParProc:nParProcesses:nTomograms;
-%   if (flgReverseOrder)
-%     iterList{iParProc} = flip(iterList{iParProc});
-%   end    
-  iterList{iParProc} 
+iterList = cell(nIters,1);
+for iParProc = 1:nIters
+  iterList{iParProc} = iParProc:nIters:nTomograms;
+  iterList{iParProc}
 end
+
 end
 

@@ -15,11 +15,18 @@ else
   % necessarily going to be enough. Later try to add explicit checks.
   mostMem = zeros(nGpus,2);
   for iGpu = 1:nGpus
-    gpuDev = gpuDevice(iGpu);
-    mostMem(iGpu,:) = [iGpu, gpuDev.AvailableMemory/gpuDev.TotalMemory];
+    try
+      gpuDev = gpuDevice(iGpu);
+      mostMem(iGpu,:) = [iGpu, gpuDev.AvailableMemory/gpuDev.TotalMemory];
+    catch
+      fprintf('\n\nWarning: matlab failed to instantiate a gpuDevice for iGPU %d\n\n');
+      mostMem(iGpu,:) = [iGpu, 0];
+    end
   end
   [val,ind] = max(mostMem(:,2));
-  fprintf('There are %d gpus, you selected %d which is not valid.\n', nGpus,gpuIDX);
+  if (gpuIDX ~= -1)
+    fprintf('There are %d gpus, you selected %d which is not valid.\n', nGpus,gpuIDX);
+  end
   fprintf('Sending to gpu with the most available memory %d with %0.2f%%\n', ind, 100.*val);
   useGPU = ind;
 end

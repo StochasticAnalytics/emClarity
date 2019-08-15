@@ -3,13 +3,13 @@
 
 
 % String to name the structure that contains all of the metadata, projectName
-subTomoMeta=rln_tutorial_1
+subTomoMeta=emClarity_tutorial
 
-fastScratchDisk=
+fastScratchDisk=/scratch/himesb
 
 % Number of GPUS
 nGPUs=2
-nCpuCores=12
+nCpuCores=7
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%    Mask parameters    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -26,6 +26,11 @@ particleMass=4
 Ali_mType=sphere
 Cls_mType=sphere
 
+% For special cases where repeated motifs are present which might cause one
+% subtomo to drift to a neighbor. This allows a larger alignment mask to be used
+% for the rotational search (Ali_m...) but limits the translational peak search.
+%Peak_mType=sphere
+%Peak_mRadius=[100,100,100]
 
 % mask radius and center - and center in Angstrom. Mask size is determined 
 % large enough to contain delocalized signal, proper apodization, and to 
@@ -46,8 +51,8 @@ Cls_samplingRate=1
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-
-tomoCprDefocusRefine=1
+% I advise to avoid using this experimental feature for now.
+tomoCprDefocusRefine=0
 tomoCprDefocusRange=500e-9; 
 tomoCprDefocusStep=20e-9;
 
@@ -57,6 +62,7 @@ tomoCprDefocusStep=20e-9;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 Raw_className=0
+% Second row specifies C1 symmetry
 Raw_classes_odd=[0;1.*ones(2,1)]
 Raw_classes_eve=[0;1.*ones(2,1)]
 
@@ -67,9 +73,9 @@ Raw_angleSearch=[3.75,1.25,0,0]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-Tmp_samplingRate=5
+Tmp_samplingRate=6
 Tmp_threshold=400
-Tmp_angleSearch=[180,9,28,7,0]
+Tmp_angleSearch=[180,15,180,15,0]
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -175,6 +181,15 @@ CUM_e_DOSE=60
 % Gold fiducial diameter
 beadDiameter=10e-9
 
-
+% Boolean: If a graduated dose scheme is used, where applied dose is ~ Thickness (1/cos(tiltAngle))
+oneOverCosineDose=0
+% Degrees: first tilt collected
+startingAngle=30
+% String: Direction after first tilt (pos or neg)
+startingDirection=neg
+% Boolean: Group size on either side of zero, e.g. 2 (with pos) would give, 0, 3, 6, -3, -6, 9, ...
+doseSymmetricIncrement=0
+% Float: Dose applied per tilt (at zero degrees)
+doseAtMinTilt=1.46
 
 

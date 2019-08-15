@@ -64,8 +64,16 @@ else
 end
 
 inputVectors = 0;
+doHalfGrid = 0;
 if nargin == 7
   inputVectors = 1;
+elseif nargin == 8
+  inputVectors = varargin{1};
+  bhF = varargin{2};
+  doHalfGrid = 1;
+  if ~isa(bhF,'fourierTransformer')
+    error('The eigth arg needs to be a fourierTransformer object for half grids');
+  end
 end
 
 
@@ -131,6 +139,7 @@ if (useGPU)
   IMAGE  = gpuArray(IMAGE);
 end
 
+
 flgSymmetry = 0;
 symmetry = 1;
 mag = 1;
@@ -194,6 +203,7 @@ if (inputVectors)
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
                                                     {'single',R(:),SHIFTS',DIRECTION,symmetry,mag,volBinary},...
                                                     0, 1, 0, varargin{1} );
+
   else
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
                                                     {'single',R(:),SHIFTS',DIRECTION,1,mag,volBinary},...
@@ -205,6 +215,7 @@ else
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
                                                     {'single',R(:),SHIFTS',DIRECTION,symmetry,mag,volBinary},...
                                                     0, 1, 0 );
+
   else
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
                                                     {'single',R(:),SHIFTS',DIRECTION,1,mag,volBinary},...
@@ -224,7 +235,7 @@ if (flgSymmetry)
      TRANS_IMAGE(isnan(TRANS_IMAGE)) = 0;
   else
      TRANS_IMAGE = interpn(x1,y1,z1,real(IMAGE),Xnew{1},Ynew{1},Znew{1},'linear',0);
-     
+
   end
 else
   

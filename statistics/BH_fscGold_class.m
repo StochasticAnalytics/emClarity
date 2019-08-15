@@ -54,9 +54,9 @@ catch
 end
 
 try
-  flgFscShapeMask = pBH.('flgFscShapeMask')
+  flgFscShapeMask = pBH.('flgFscShapeMask');
 catch
-  flgFscShapeMask = 1
+  flgFscShapeMask = 1;
 end
 
 
@@ -114,14 +114,14 @@ refName    = pBH.('Cls_className');% pBH.('Ref_className');
 
 peakSearch   = floor(pBH.('particleRadius')./pixelSize);
 peakCOM      =3;
-adHocMTF      = 0; % deprecated
 
-% Keep available for experimenting, but override unless negative
-if adHocMTF < 0
-  adHocMTF = abs(adHocMTF);
-else
-  adHocMTF = 0;
+global bh_global_MTF
+if isempty(bh_global_MTF)
+  bh_global_MTF = 2;
 end
+
+
+
 
 
 % The default is fsc-Gold Standard so the two images should need some degree of
@@ -153,22 +153,32 @@ else
   switch STAGEofALIGNMENT
     case 'RawAlignment'
       savePrefix = 'Raw';
-      if (flgClassify || flgMultiRefAlignment)
-        
-        fieldPrefix = 'Raw';
-      else
+% % % %      if (flgClassify || flgMultiRefAlignment)
+       if (flgClassify) 
+          fieldPrefix = 'Raw';
+       
+         className = 0;
+         classVector = [0;1];
+       else
+        className    = pBH.(sprintf('Raw_className'));
+        classVector   = pBH.(sprintf('Raw_classes_odd'));
         fieldPrefix = 'REF';      
       end
       
-      imageName{1} = sprintf('class_0_Locations_%s_ODD_NoWgt', fieldPrefix)
-      imageName{2} =  sprintf('class_0_Locations_%s_EVE_NoWgt', fieldPrefix)
-      weightName{1} = sprintf('class_0_Locations_%s_ODD_Wgt', fieldPrefix);
-      weightName{2} = sprintf('class_0_Locations_%s_EVE_Wgt', fieldPrefix);
+
+
+      nReferences = length(classVector(1,:))
       
+% % % % 
+      imageName{1} =  sprintf('class_%d_Locations_%s_ODD_NoWgt', className,fieldPrefix);
+      imageName{2} =  sprintf('class_%d_Locations_%s_EVE_NoWgt', className,fieldPrefix);
+      weightName{1} = sprintf('class_%d_Locations_%s_ODD_Wgt', className,fieldPrefix);
+      weightName{2} = sprintf('class_%d_Locations_%s_EVE_Wgt', className,fieldPrefix);
+      imageName{1}
 
       refVector{1} =1;
       refVector{2}= 1;
-      nReferences = 1;
+% % % %       nReferences = 1;
       outputPrefix = sprintf('%s_Raw', outputPrefix);
 
      
@@ -271,8 +281,10 @@ if (flgAlignImages) && ~(flgJustFSC)
     for iLSQ = 1:nReferences
       padIMG = fftn(BH_padZeros3d(refIMG{iGold}{iLSQ},padLSQ(1,:),padLSQ(2,:),'GPU','single'));
       padWGT = ifftshift(gpuArray(refWGT{iGold}{iLSQ}));
-      wienerApprox = median(padWGT(padWGT(:)>5));
-      padIMG = real(ifftn(padIMG./(padWGT+wienerApprox)));
+
+      [padWGT, wienerThreshold] = BH_multi_cRef_wgtCritical(padWGT);
+ 
+      padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
       clear padWGT
       refIMG{iGold}{iLSQ} = BH_padZeros3d(gather(padIMG),trimLSQ(1,:),trimLSQ(2,:),'cpu','single');
       clear padIMG 
@@ -864,7 +876,7 @@ end
 % to work?
 if ~(flgJustFSC)
   masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRef)) = ...
-  {shellsFreq,shellsFSC,{cRef,cRefAli,adHocMTF},osX,forceMaskAlign,forceMask,nCones,coneList,halfAngle,samplingRate};
+  {shellsFreq,shellsFSC,{cRef,cRefAli,bh_global_MTF},osX,forceMaskAlign,forceMask,nCones,coneList,halfAngle,samplingRate};
 
   sprintf('Resample_%s%d',savePrefix,iRef)
 

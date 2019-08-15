@@ -12,7 +12,7 @@ function [ MASK, volCOM ] = BH_mask3d( SHAPE, SIZE, RADIUS, CENTER, varargin)
 %   Output variables:
 %
 %   MASK  = 3d MRC image file, single precision float.
-%
+%11^3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %   Goals & Restrictions:
@@ -33,14 +33,51 @@ volCOM = [0,0,0];
 volTight = 0;
 flgCOM = 0;
 flg3d = 1;
-if nargin > 4
+
+  global bh_global_binary_mask_low_pass
+  global bh_global_binary_mask_threshold
+  global bh_global_vol_est_scaling
+  if isempty(bh_global_binary_mask_low_pass)
+    bh_global_binary_mask_low_pass = 14;
+  end
+  if isempty(bh_global_binary_mask_threshold)
+    bh_global_binary_mask_threshold = 2.5;
+  end
+  if isempty(bh_global_vol_est_scaling)
+    % The low pass version of the map used for the estimate overestimates
+    % the molecular volume at the hydration radius of the underlying atoms.
+    % This flag will override the value I've calculated which depends on
+    % the masking resolution. TODO when the map resolution is lower than
+    % the masking resolution, this will again underestimate the scaling,
+    % artificialy *de*pressing the FSC
+    bh_global_vol_est_scaling = 0.0;
+  end
+  
+  fprintf('%f %f %f\n',bh_global_binary_mask_low_pass,bh_global_binary_mask_threshold,bh_global_vol_est_scaling);
+  if (bh_global_vol_est_scaling == 0)
+    localParticleScaling = (-2.8e-3) .* bh_global_binary_mask_low_pass.^2 + ...
+                            0.14 .*     bh_global_binary_mask_low_pass + 1.5;
+  else
+    localParticleScaling = bh_global_vol_est_scaling;
+  end
+    
+  
+asymmetricRestriction = 0;
+if nargin > 5
+  if strcmp(varargin{1},'2d')
+    flg3d = 0;
+  end
+  asymmetricRestriction = varargin{2};
+
+elseif nargin > 4
+  
   if strcmp(varargin{1},'2d')
     flg3d = 0;
   else
     flgCOM = 1; 
   end
+  
 end
-
 pixelFallOff = 6;
 
 % Make sure that the begining and end of the taper happens at a predictable
@@ -56,6 +93,9 @@ taper = 0.5+0.5.*cos((((1:pixelFallOff)).*pi)./(length((1:pixelFallOff+1))));
                               parseVariables( SHAPE, SIZE, RADIUS, CENTER, flg3d);
 
 
+if (asymmetricRestriction ~= 0 && ~strcmpi(mShape,'Cylinder'))
+  error('Experimental symmetry restricting mask is only available for cylinders right now.');
+end
 
   METHOD = 'GPU';
 
@@ -140,13 +180,42 @@ if strcmpi(mShape, 'cylinder')
                                                   0, 1, 0 );
   end
 
+
 ellipsoid = (G1./mRadius(1)).^2 + (G2./mRadius(2)).^2;
+
 if (flg3d)
   fullMask = (ellipsoid <= 1) & (G3 <= mRadius(3));
 else
   fullMask = (ellipsoid <= 1);
 end
-mWindow = mWindow .* fullMask; 
+
+if (asymmetricRestriction)
+  if (flg3d)
+    [ ~,angles,~,~,~,~ ] = BH_multi_gridCoordinates( mSize, 'Cylindrical',METHOD,...
+                                                  {'single',...
+                                                  [1,0,0;0,1,0;0,0,1],...
+                                                  mCenter','forward',1,1}, ...
+                                                  0, 1, 0 );
+    G3 = abs(G3);                                                
+  else
+    [ ~,angles,~,~,~,~ ] = BH_multi_gridCoordinates( mSize, 'Cylindrical',METHOD,...
+                                                  {'single',...
+                                                  [1,0,0;0,1,0;0,0,1],...
+                                                  mCenter','forward',1,1}, ...
+                                                  0, 1, 0 );
+  end
+  
+  sectorMax = 2*pi/asymmetricRestriction * 1.025;
+  angles = (angles > (2*pi-sectorMax/2) | angles < sectorMax/2);
+  gc = BH_multi_gaussian3d(-1.*size(angles),1.5);
+  mWindow = real(ifftn(fftn(angles.*fullMask).*gc));
+  clear gc
+  mWindow = mWindow ./ max(angles(:));
+  
+else
+   
+  mWindow = mWindow .* fullMask; 
+
 for iShell = 1:pixelFallOff
   ellipsoid = (G1./(mRadius(1)+iShell)).^2 + ...
               (G2./(mRadius(2)+iShell)).^2;
@@ -163,6 +232,7 @@ for iShell = 1:pixelFallOff
     % Set the edges at mRadius back to 1 after convolution
     mWindow(fullMask) = 1; 
     mWindow(mWindow < convCutLow)  = 0;
+end
 end
 clear borderMask  G1 G2 G3
 
@@ -223,21 +293,27 @@ if strcmpi(mShape, 'BINARY')
                                         (size(binaryMask)./2 - 7),[0,0,0],'2d');
   end
 
-% % %   if (flg3d)
-% % %     binaryVol = BH_bandLimitCenterNormalize(binaryMask.*rectMask, ...
-% % %                                           BH_bandpass3d(size(binaryMask), ...
-% % %                                                         0,0,16,'GPU',pixelSize),...
-% % %                                            (rectMask > .01),...
-% % %                                            [0,0,0;0,0,0], 'single');
-% % %   else
-% % %     binaryVol = BH_bandLimitCenterNormalize(binaryMask.*rectMask, ...
-% % %                                           BH_bandpass3d([size(binaryMask),1], ...
-% % %                                                         0,0,24,'GPU',pixelSize),...
-% % %                                            (rectMask > .01),...
-% % %                                            [0,0;0,0], 'single');
-% % %   end
-% % %                                         
-% % %   binaryVol = real(ifftn(binaryVol)).*rectMask;
+
+
+  if (flg3d)
+    binaryMask = BH_bandLimitCenterNormalize(medfilt3(gather(binaryMask),[3,3,3]).*rectMask, ...
+                                          BH_bandpass3d(size(binaryMask), ...
+                                                        0,0, ...
+                                                        bh_global_binary_mask_low_pass, ...
+                                                        'GPU',pixelSize),...
+                                           (rectMask > .01),...
+                                           [0,0,0;0,0,0], 'single');
+  else
+    binaryMask = BH_bandLimitCenterNormalize(medfilt2(gather(binaryMask),[3,3]).*rectMask, ...
+                                          BH_bandpass3d([size(binaryMask),1], ...
+                                                        0,0,...
+                                                        bh_global_binary_mask_low_pass, ...
+                                                        'GPU',pixelSize),...
+                                           (rectMask > .01),...
+                                           [0,0;0,0], 'single');
+  end
+                                        
+  binaryMask = real(ifftn(binaryMask)).*rectMask;
 % % %   
 % % %   binaryOutside = (binaryVol > 0.5);
 % % %   if (fscMask)
@@ -251,20 +327,20 @@ if strcmpi(mShape, 'BINARY')
 % % % %   maxThreshold = (kurtosis(binaryVol(:))-3).^0.5;
 % % %   binaryMask = (binaryVol > maxThreshold );
 
-  % Just to test a hunch
-  if (flg3d)
-    binarySmooth = (medfilt3(gather(binaryMask),[3,3,3]));
-  else
-    binarySmooth = (medfilt2(gather(binaryMask),[3,3]));
-  end
+%   % Just to test a hunch
+%   if (flg3d)
+%     binarySmooth = (medfilt3(gather(binaryMask),[3,3,3]));
+%   else
+%     binarySmooth = (medfilt2(gather(binaryMask),[3,3]));
+%   end
   
 
-  maxThreshold = 3.0*(std(binarySmooth(binarySmooth(:)>0)))
-  binaryVol = binarySmooth > maxThreshold;
+  maxThreshold = bh_global_binary_mask_threshold.*(std(binaryMask(binaryMask(:)>0)));
+  binaryVol = binaryMask > maxThreshold;
   clear binarySmooth
 
   if (fscMask)
-    dilationThresholds = [ 0.9 .85  0.75 0.7 0.65 0.5 0.35 0.2 0.1   ] ;
+    dilationThresholds = [ 0.9 0.85  0.75 0.7 0.65 0.5 0.35 0.2 0.1   ] ;
   else
     dilationThresholds =  [ 1.0000 0.9   ] ;
   end
@@ -348,6 +424,7 @@ if strcmpi(mShape, 'BINARY')
                      sum(abs(binaryMask(:)).^2.* currentMask(:));
     
     maskVolume = sum(currentMask(:)>0);
+    particleVolEstimate = particleVolEstimate ./ localParticleScaling;
     particleFraction = particleVolEstimate ./ maskVolume .* powerReduction;
     fprintf('Estimated partVol, %d voxels\nmaskVol %d voxels\npwrReduction %2.3f\npartFract %2.3f\n',...
              particleVolEstimate, maskVolume, powerReduction,particleFraction);
@@ -355,7 +432,7 @@ if strcmpi(mShape, 'BINARY')
     % Should probably use varargout, but for now, returning the center of
     % mass is not done at the same stage as a particle volume estimate.
 
-    volCOM(1) = 1.5/particleFraction;
+    volCOM(1) = 1/particleFraction;
    
   % figure, imshow3D(gather(b))  
     mWindow = gather(currentMask);
@@ -425,7 +502,7 @@ if isnumeric(SHAPE)
     fscMask = 0;
   end
   
-  mRadius = max(3,floor(10./pixelSize))
+  mRadius = max(3,floor(10./pixelSize));
 else
 
   if strcmpi(SHAPE, 'sphere') 
@@ -444,7 +521,7 @@ else
   end
 
   if ~isnumeric(SIZE) || ~((length(SIZE) == 3) || (length(SIZE) == 2))
-    SIZE
+  
     error('SIZE must be a vector in R3')
   else
     mSize = SIZE;

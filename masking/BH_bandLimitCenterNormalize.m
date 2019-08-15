@@ -55,6 +55,8 @@ if (applyBandpass)
   IMG = IMG .* BANDPASS;
 end
   % set rms to 1 extra parenthesis intentional to save numel(tmpIMG) divisions
+  % The factor of N * IMG is to deal with matlab scaling the FFT by 1/N on
+  % the inverse transform.
 %%%if ~(isnumeric(MASK) || islogical(MASK))
   IMG = IMG ./ ((sqrt(sum(sum(sum(abs(IMG).^2)))) ./ numel(IMG)));
 %%%end

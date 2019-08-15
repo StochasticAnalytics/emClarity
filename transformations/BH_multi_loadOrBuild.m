@@ -19,7 +19,6 @@ else
 end
 
 
-
 if nargin > 6
   flgLoad = varargin{1};
 else
@@ -30,6 +29,15 @@ recon = '';
 if nargin > 7
   recon = varargin{2};
 end
+
+ctf = '';
+ali = 'ali';
+if nargin > 8
+  ali = 'ctf';
+  ctf = '_ctf';
+end
+  
+
 
 !mkdir -p cache
 
@@ -43,7 +51,7 @@ rCoords(1:4) = fix(rCoords(1:4));
 
 
 
-checkStack = sprintf('aliStacks/%s_ali%d.fixed',tomoName,mapBackIter+1);
+checkStack = sprintf('%sStacks/%s_ali%d%s.fixed',ali,tomoName,mapBackIter+1,ctf);
 
 if isempty(recon)
   % Otherwise name is varargin 8 from mapBack
@@ -53,15 +61,14 @@ end
 
 if SAMPLING > 1
   
-    stack = sprintf('cache/%s_ali%d_bin%d.fixed',tomoName,mapBackIter+1,SAMPLING);
+    stack = sprintf('cache/%s_ali%d%s_bin%d.fixed',tomoName,mapBackIter+1,ctf,SAMPLING);
     if ~exist(stack, 'file')
-        BH_multi_loadOrBin(checkStack,SAMPLING, 2);
-
+        BH_multi_loadOrBin(checkStack,SAMPLING, 2); %%%%% med filt flag
     end
   
 else
 
-    stack = sprintf('aliStacks/%s_ali%d.fixed',tomoName,mapBackIter+1);
+    stack = sprintf('%sStacks/%s_ali%d%s.fixed',ali,tomoName,mapBackIter+1,ctf);
   
 end
   
@@ -69,9 +76,7 @@ end
 if exist(recon,'file')
   header = getHeader(MRCImage(stack,0));
   [ reconGeom ] = calc_rg(  header, rCoords );
-
 elseif (doRecon)
-
 
   if (mapBackIter)
     TLT = sprintf('mapBack%d/%s_ali%d_ctf.tlt',mapBackIter,tomoName,...

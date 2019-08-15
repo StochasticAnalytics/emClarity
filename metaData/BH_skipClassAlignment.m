@@ -51,7 +51,7 @@ if strcmpi(STAGEofALIGNMENT, 'ClassAlignment')
 
   elseif (flgMultiRefAlignment && flgClassify)
      subTomoMeta.(cycleNumber).('ClassAlignment') = ...
-                                subTomoMeta.(cycleNumber).('ClusterRefGeom');
+                                subTomoMeta.(cycleNumber).('ClusterClsGeom');
 
   else
 

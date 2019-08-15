@@ -1,4 +1,4 @@
-function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
+ function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
                                                                
 %Extract and align class averages and references from 4D montages derived.
 %
@@ -12,6 +12,16 @@ function [  ] = BH_alignRaw3d(PARAMETER_FILE, CYCLE, varargin)
 %   TODO
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+global bh_global_print_shifts_in_particle_basis;
+if isempty(bh_global_print_shifts_in_particle_basis)
+  bh_global_print_shifts_in_particle_basis = true;
+end
+
+global bh_global_zero_lag_score;
+if isempty(bh_global_zero_lag_score)
+  bh_global_zero_lag_score = false
+end
+
 if (nargin ~= 2 && nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, [1,abs(ccc),2,weighted,3,abs(weighted)]')
 else
@@ -19,13 +29,7 @@ else
   resumeVars = struct();
 end
 
-if nargin == 3
-  
-  flgWeightCCC = str2double(varargin{1});
-else
-  % default to linear ccc (which is actually weighted by the SNR though)
-  flgWeightCCC = 0;
-end
+
 
 % Explicit reference to location of variables in main memory, or on the GPU. As
 % in pcaPub, looking ahead to re-write in c++ for cuda, no cells allowed.
@@ -63,6 +67,19 @@ catch
   nPeaks = 1;
 end
 
+try
+  flgCutOutVolumes=pBH.('flgCutOutVolumes')
+catch
+  flgCutOutVolumes=0
+end
+
+% TODO decide on a "reasonable" padding based on expected shifts.
+try
+  CUTPADDING = subTomoMeta.('CUTPADDING')
+catch
+  CUTPADDING=20
+end
+
 maxGoldStandard = subTomoMeta.('maxGoldStandard');
 
 
@@ -86,6 +103,14 @@ try
 catch 
   flgSymmetrizeSubTomos = 0;
 end
+
+
+try 
+  randomSubset = pBH.('Ali_randSubset');
+catch
+  randomSubset = 0;
+end
+
 flgRaw_shapeMask =  0;%= pBH.('experimentalOpts')(3)
 samplingRate = pBH.('Ali_samplingRate');
 
@@ -103,25 +128,25 @@ className    = pBH.('Raw_className');
 try 
   loadTomo = pBH.('loadTomo')
 catch
-  loadTomo = 0
+  loadTomo = 0;
 end
 try 
-  eraseMaskType = pBH.('Tmp_eraseMaskType');
-	eraseMaskRadius = pBH.('Tmp_eraseMaskRadius')./pixelSize;
+  eraseMaskType = pBH.('Peak_mType');
+	eraseMaskRadius = pBH.('Peak_mRadius')./pixelSize;
   fprintf('Further restricting peak search to radius %f %f %f\n',...
           eraseMaskRadius);
   eraseMask = 1;
 catch
   eraseMask = 0;
-  fprintf('\n');
+  fprintf('Using particle radius for peak search\n');
 end
 
 rotConvention = 'Bah';
-if length(angleSearch) == 5
-  if ( angleSearch(5) )
-    rotConvention = 'Helical';
-  end
-end
+% % % if length(angleSearch) == 5
+% % %   if ( angleSearch(5) )
+% % %     rotConvention = 'Helical';
+% % %   end
+% % % end
 
 rotConvention
 
@@ -136,7 +161,8 @@ try
 catch
   scaleCalcSize = 1.5;
 end
-if (flgClassify || flgMultiRefAlignment)
+% % % % if (flgClassify || flgMultiRefAlignment)
+if (flgClassify)
   refName      = pBH.('Ref_className');
 else
   refName = pBH.('Raw_className');
@@ -144,7 +170,9 @@ end
  
 outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 
-classVector{1}  = pBH.('Raw_classes_odd');
+
+
+classVector{1}  = pBH.('Raw_classes_odd')(1,:);
 classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
 
 
@@ -152,20 +180,33 @@ classVector{2}  = pBH.('Raw_classes_eve')(1,:);
 classSymmetry{2}= pBH.('Raw_classes_eve')(2,:);
 
 
-if (flgClassify || flgMultiRefAlignment)
+% % % % if (flgClassify || flgMultiRefAlignment)
+if (flgClassify)
   geometry = subTomoMeta.(cycleNumber).ClassAlignment;
-  refVectorFull{1}= pBH.('Ref_references_odd');
-  refVectorFull{2}= pBH.('Ref_references_eve');  
+  refVectorFull{1}= [pBH.('Ref_references_odd');1]
+  refVectorFull{2}= [pBH.('Ref_references_eve');1]
+elseif (flgMultiRefAlignment)
+  geometry = subTomoMeta.(cycleNumber).ClusterRefGeom;
+  refVectorFull{1}= [pBH.('Raw_classes_odd');classVector{1} ]
+  refVectorFull{2}= [pBH.('Raw_classes_eve');classVector{2} ]
 else
   geometry = subTomoMeta.(cycleNumber).Avg_geometry;
   refVectorFull{1} = [pBH.('Raw_classes_odd');1];
   refVectorFull{2} = [pBH.('Raw_classes_eve');1];
 end
 
+system('mkdir -p alignResume');
+
+if (randomSubset)
+  [ geometry, nTOTAL, nSUBSET, randomIDX ] = BH_randomSubset( geometry,'pca', randomSubset, [1,2] );
+  save(sprintf('alignResume/%s_randomSubset.mat',cycleNumber),'randomIDX');
+  fprintf('\nUsing a random subset of %d of %d subtomos\n',nSUBSET,nTOTAL);
+end
 
 % % % pathList= subTomoMeta.mapPath;
 % % % extList = subTomoMeta.mapExt;
 masterTM = subTomoMeta; clear subTomoMeta
+
 
 
 
@@ -214,12 +255,25 @@ ctfGroupList = masterTM.('ctfGroupSize');
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
                                        BH_multi_validArea( maskSize, maskRadius, scaleCalcSize  )
-                                     
+
+
+try 
+  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
+catch
+  flgLimitToOneProcess = 0;
+end
+
 if ( loadTomo )
   limitToOne = loadTomo;
+  if (flgLimitToOneProcess)
+    limitToOne = min(limitToOne, flgLimitToOneProcess);
+  end
+elseif (flgLimitToOneProcess)
+  limitToOne = flgLimitToOneProcess;
 else
-  limitToOne = loadTomo;
+  limitToOne = pBH.('nCpuCores');
 end
+
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
 if ( flgReverseOrder )
   % Flip the order for reverse processing on a second machine. This will also disable saving of 
@@ -352,13 +406,27 @@ clear fftPlanner
   
   % make rotationally invariant
   [ peakMask] = gather(BH_mask3d('sphere', sizeWindow, [1,1,1].*max(peakSearch), maskCenter));
+  eraseMaskPad = zeros(4,6);
   if (eraseMask)
-    % Mask could be smaller than the normal taper would allow, so instead
-    % of thresholding a normal mask, take this alt route.
-    eraseMask = ones(ceil(2.*eraseMaskRadius),'single');
-    padEraseMask = BH_multi_padVal(size(eraseMask),sizeCalc);
-    eraseMask = BH_padZeros3d(eraseMask,padEraseMask(1,:),padEraseMask(2,:),'cpu','single');
-    eraseMask = single(find(eraseMask < 1));
+%     % Mask could be smaller than the normal taper would allow, so instead
+%     % of thresholding a normal mask, take this alt route.
+%     eraseMask = ones(ceil(2.*eraseMaskRadius),'single');
+%     padEraseMask = BH_multi_padVal(size(eraseMask),sizeCalc);
+%     eraseMask = BH_padZeros3d(eraseMask,padEraseMask(1,:),padEraseMask(2,:),'cpu','single');
+%     eraseMask = single(find(eraseMask < 1));
+    
+      % The mask is shifted by the negative of the current peak shift,
+      % which is done at the smaller size so that any values that are
+      % shifted out of the original radius are truncated.
+      sizeInit = floor(0.9.*eraseMaskRadius.*[2,2,2]);
+      padInit = BH_multi_padVal(sizeInit,ceil(sqrt(2).*max(sizeInit).*[1,1,1]));
+      eraseMask = ones(sizeInit,'single');
+      eraseMask = BH_padZeros3d(eraseMask,'fwd',padInit,'cpu','single');
+
+      eraseMaskPad = BH_multi_padVal(size(eraseMask),sizeCalc);
+            
+
+      
   else
     eraseMask = [];
   end
@@ -389,16 +457,21 @@ clear fftPlanner
   end
   if (flgClassify || flgMultiRefAlignment)
     for iRef = 1:nReferences(1)
-      fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('REF%d',iRef));
+      if (flgClassify)
+        fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('REF%d',iRef));
+      else
+        fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('Raw%d',iRef)); % % % %
+      end
+
       [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
                                                          'GPU', {'none'}, 1, 0, 1 );
       radialGrid = single(radialGrid./pixelSize);
       % returns a cpu array
-      if (flgWeightCCC)
-        [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1); 
-      else
+% % %       if (flgWeightCCC)
+% % %         [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1); 
+% % %       else
         [ bandpassFilt{iRef}, ~] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1); 
-      end
+% % %       end
       
 
       bandpassFiltREF{iRef} = 1;
@@ -414,11 +487,11 @@ clear fftPlanner
                                                          'GPU', {'none'}, 1, 0, 1 );
       radialGrid = single(radialGrid./pixelSize);
       % returns a cpu array
-      if (flgWeightCCC)
-        [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1 ); 
-      else
+% % %       if (flgWeightCCC)
+% % %         [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1 ); 
+% % %       else
         [ bandpassFilt{iRef},~ ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1 ); 
-      end
+% % %       end
 
       bandpassFiltREF{iRef} = 1;
 
@@ -470,7 +543,9 @@ for iGold = 1:2
 
 
     % if not using a weighted average (adapted SPW filter), apply an
-    % approximation the cRef from Rosenthal/Henderson.
+    % approximation the cRef from Rosenthal/Henderson. This is currently always set to one
+    % and is just doing the masking and normalization. It should be okay to just apply the mask
+    % and rely on the normalization during the CCC calc. TODO
       ref_FT1{iGold}{iRef} = gather(conj(BH_bandLimitCenterNormalize(...
                              refTMP.*volMask, bandpassFiltREF{iRef}, (volMask>0.01), padCalc, flgPrecision)));
 
@@ -523,7 +598,7 @@ clear refIMG refWDG refOUT iRef
 %%%%%%%%%%%%%%%%%%%%% search at all in that dimension.
 
 [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
-                                      = BH_multi_gridSearchAngles(angleSearch)
+                                      = BH_multi_gridSearchAngles(angleSearch(1:4))
 
 [masterTM] = BH_recordAngularSampling( masterTM, cycleNumber, angleStep, inPlaneSearch);                               
                                     
@@ -549,17 +624,16 @@ geometryResults   = cell(nParProcesses,1);
 
 
 
- try
-   parpool(nParProcesses)
- catch
-   delete(gcp)
-   parpool(nParProcesses)
- end
+try
+  parpool(nParProcesses+1)
+catch
+  delete(gcp('nocreate'))
+  parpool(nParProcesses+1)
+end
 
-size(ref_FT1{2})
 size(ref_FT2)
 
-system('mkdir -p alignResume');
+
 
 system(sprintf('mkdir -p alignResume/%s',outputPrefix));
 softenWeight = 1/sqrt(samplingRate);
@@ -568,6 +642,8 @@ for iParProc = 1:nParProcesses
   % Caclulating weights takes up a lot of memory, so do all that are necessary
   % prior to the main loop -- CHANGE THE CHECK TO JUST READ THE HEADER NOT LOAD
   % THE WEIGHT INTO GPU MEMORY
+  iParProc
+  iterList{iParProc}
   for iTomo = iterList{iParProc}
     
     BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,tomoList{iTomo},samplingRate ,...
@@ -586,7 +662,7 @@ end
 
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
-% % % % % for iParProc = 1:nParProcesses
+% % % for iParProc = parVect
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
@@ -605,7 +681,11 @@ parfor iParProc = parVect
   nCtfGroups = ctfGroupList.(tomoList{iTomo})(1);
   % Check for interupted alignment.
   previousAlignment = sprintf('alignResume/%s/%s.txt',outputPrefix,tomoList{iTomo});
-  if exist(previousAlignment,'file')
+  if ~(randomSubset) && exist(previousAlignment,'file') % With random subsets the alignment can't be resumed. I could set this up to save the random number stream or even simply the list of random idxs.
+    % Sometimes when multiple nodes are used, an extra line is added.
+    % TODO fix this workaround
+    system(sprintf('awk ''{if($10 != "") print $0 }'' %s > %s_clean; mv %s_clean %s',...
+          previousAlignment,previousAlignment,previousAlignment,previousAlignment));
     bestAngles_tmp.(tomoList{iTomo}) = load(previousAlignment);
     fprintf('Using existing alignment info for %s\n', tomoList{iTomo});
   else
@@ -620,7 +700,7 @@ parfor iParProc = parVect
     bandpassFilt_tmp = cell(nReferences(1),1);
     bandpassFiltREF_tmp = cell(nReferences(1),1);
     for iRef = 1:nReferences(1)
-      if flgMultiRefAlignment < 2
+      if flgMultiRefAlignment <= 2
       bandpassFilt_tmp{iRef} = gpuArray(bandpassFilt{iRef});
       bandpassFiltREF_tmp{iRef} = gpuArray(bandpassFiltREF{iRef});
       else
@@ -642,28 +722,34 @@ parfor iParProc = parVect
     peakMask_tmp = gpuArray(peakMask);
     peakBinary_tmp = single(find( peakMask_tmp > 0.01 )); 
     wdgBinary_tmp = gpuArray(wdgBinary);
-    eraseMask_tmp = gpuArray(eraseMask);
+    if isempty(eraseMask)
+      eraseMask_tmp = [];
+    else
+
+      eraseMask_tmp = gpuArray(eraseMask);
+     
+    end
     
     wCCC_tmp = cell(length(wCCC));
     
 
     
-    for iRef = 1:nReferences(1)
-      for iWccc = 1:length(wCCC{iRef})
-        if (flgWeightCCC)
-          wCCC_tmp{iRef}{iWccc} = gpuArray(wCCC{iRef}{iWccc});
-        else
-          % The check in xcf_rotational looks for a cell 
-          wCCC_tmp{iRef} = 0;
-        end
-      end
-    end
+% % %     for iRef = 1:nReferences(1)
+% % %       for iWccc = 1:length(wCCC{iRef})
+% % %         if (flgWeightCCC)
+% % %           wCCC_tmp{iRef}{iWccc} = gpuArray(wCCC{iRef}{iWccc});
+% % %         else
+% % %           % The check in xcf_rotational looks for a cell 
+% % %           wCCC_tmp{iRef} = 0;
+% % %         end
+% % %       end
+% % %     end
       
     
           
     for iGold = 1:2
       for iRef = 1:nReferences(iGold)
-        if flgMultiRefAlignment < 2
+        if flgMultiRefAlignment <= 2
         ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
         ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
         ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
@@ -689,6 +775,13 @@ parfor iParProc = parVect
       tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry_tmp.(tomoList{iTomo});
+    
+    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName   = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    coords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    
+%     [ binShift, ~ ] = BH_multi_calcBinShift( coords, samplingRate); 
+    binShift = [0,0,0];
     nSubTomos = size(positionList,1);
 
 
@@ -714,29 +807,27 @@ parfor iParProc = parVect
         
               % Can't clear inside the parfor, but make sure we don't have two tomograms
       % in memory at once.
-     volumeData =  [];
+     
      tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
      tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
      reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-     [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
-                                       reconCoords, mapBackIter, ...
-                                       samplingRate,iGPUidx,reconScaling,loadTomo);   
-%%%%%%%%%%%%%%%%% Sending to GPU 1 all of these, not a good fix
-     if ( loadTomo )
-       volHeader = struct();
-       volHeader.('nX') = size(volumeData,1);
-       volHeader.('nY') = size(volumeData,2);
-       volHeader.('nZ') = size(volumeData,3);
+     
+     if (flgCutOutVolumes)
+       volumeData = [];
      else
-       volHeader = getHeader(volumeData);  
+      [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+                                       reconCoords, mapBackIter, ...
+                                       samplingRate,iGPUidx,reconScaling,loadTomo);  
+       if ( loadTomo )
+         volHeader = struct();
+         volHeader.('nX') = size(volumeData,1);
+         volHeader.('nY') = size(volumeData,2);
+         volHeader.('nZ') = size(volumeData,3);
+       else
+         volHeader = getHeader(volumeData);  
+       end
      end
-% % %       [ volumeData, mapPath, mapName, mapExt ] = ...
-% % %                                  BH_multi_loadOrBin( tomoName, samplingRate, 3 );
-                               
-      %if (memoryLevel) == 1
-      %  fprintf('\nLoading tomogram onto the GPU.\n');
-      %  volumeData = gpuArray(volumeData);
-      %end
+
 
     % For now, set up for full grid-search only, as I intend to just do
     % translational and in-plane searches for now anyhow.
@@ -754,8 +845,9 @@ parfor iParProc = parVect
     end
     % reset for each tomogram
     wdgIDX = 0;
+    
     for iSubTomo = 1:nSubTomos
-        
+      breakPeak = 0; % for try catch on cut out vols    
       if (wdgIDX ~= positionList(iSubTomo,9))
         % Geometry is sorted on this value so that tranfers are minimized,
         % as these can take up a lot of mem. For 9 ctf Groups on an 80s
@@ -773,11 +865,16 @@ parfor iParProc = parVect
                               {'Bah',1,'linear',1,wdgBinary_tmp}, ...
                                                          'GPU', 'inv');  
         inputWgtVectors = {iw1,iw2,iw3};
-        iw1 = []; iw2 = []; iw3 = [];                                                       
+        iw1 = []; iw2 = []; iw3 = [];
+                                                       
       for iPeak = 1:nPeaks
+        if (breakPeak) 
+          continue;
+        end
         getInitialCCC = 1;
         cccInitial = zeros(nReferences(1),10,flgPrecision, 'gpuArray');
         cccStorage2= zeros(nAngles(1).*nReferences(1),10,'gpuArray');
+        powerOut = zeros(nAngles(1).*nReferences(1),1,'gpuArray');
       
     
     
@@ -788,6 +885,12 @@ parfor iParProc = parVect
         classIDX = positionList(iSubTomo, 26+26*(iPeak-1));
         particleIDX = positionList(iSubTomo, 4);
         iGold = positionList(iSubTomo, 7);
+        if (randomSubset)
+          useRandom = positionList(iSubTomo, 8);
+
+        else
+          useRandom = 1;
+        end
      
 
         if classVector{iGold}(1,:) == 0
@@ -799,19 +902,28 @@ parfor iParProc = parVect
         end
 
 
+        
 
         if (classIDX ~= -9999) && ... % All previously ignored particles
          ( flgAllClasses ||  ismember(classIDX, classVector{iGold}(1,:)) ) 
+         
 
-            
-        center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate;
+          
+        center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
         angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
         
         % Find range to extract, and check for domain error.
-
+       if (flgCutOutVolumes)
+         % Need some check that the windowsize has not changed! TODO TODO
+         
+        [ indVAL, padVAL, shiftVAL ] = ...
+                      BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
+                                       sizeWindow,maskRadius, center);
+       else
         [ indVAL, padVAL, shiftVAL ] = ...
                       BH_isWindowValid([volHeader.nX,volHeader.nY,volHeader.nZ], ...
-                                       sizeWindow,maskRadius, center);
+                                       sizeWindow,maskRadius, center);         
+       end
 
 
 
@@ -821,22 +933,45 @@ parfor iParProc = parVect
         nIgnored = nIgnored + 1;
         geometry_tmp.(tomoList{iTomo})(iSubTomo, 26) = -9999;     
       else
-
-        if ( loadTomo )
-          iparticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
-                                          indVAL(1,2):indVAL(2,2), ...
-                                          indVAL(1,3):indVAL(2,3)));
-
+        
+      if (useRandom)
+          % else skip right to the print statment. This is the easiest way
+          % to keep the bookkeeping straight for intial testing.
+        
+        
+        if (flgCutOutVolumes)
+          % Test with some generic padding , only to be used on bin 1 at
+          % first!!! TODO add a flag to check this.
+          try
+            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
+            iparticle = gpuArray(getVolume(MRCImage(particleOUT_name),[indVAL(1,1),indVAL(2,1)], ...
+                                                                    [indVAL(1,2),indVAL(2,2)], ...
+                                                                    [indVAL(1,3),indVAL(2,3)],'keep'));
+          catch
+            fprintf('\n\nDid not load cut out vol. on subTomo %d FixMEEEEEE\n\n',iSubTomo);
+            geometry_tmp.(tomoList{iTomo})(iSubTomo, 26) = -9999;
+            breakPeak = 1;
+            continue;
+          end
         else
-          iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                                                    [indVAL(1,2),indVAL(2,2)], ...
-                                                    [indVAL(1,3),indVAL(2,3)]));
+
+          if ( loadTomo )
+            iparticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
+                                            indVAL(1,2):indVAL(2,2), ...
+                                            indVAL(1,3):indVAL(2,3)));
+
+          else
+            iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+                                                      [indVAL(1,2),indVAL(2,2)], ...
+                                                      [indVAL(1,3),indVAL(2,3)],'keep'));
+          end
+          
         end
         [ iparticle ] = BH_padZeros3d(iparticle,  padVAL(1,1:3), ...
                                       padVAL(2,1:3), 'GPU', 'singleTaper');
          
 
-
+        
         for iAngle = 1:size(angleStep,1)
      
           theta    = angleStep(iAngle,1);
@@ -913,7 +1048,8 @@ parfor iParProc = parVect
 
                     
            
-
+% % %                      powerInitial =  sum(abs(iTrimInitial(volBinary_tmp))).^2;   
+% % % 
                 
                       iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
                                                {'Bah',symmetry,'linear',1,wdgBinary_tmp}, ...
@@ -942,9 +1078,10 @@ parfor iParProc = parVect
 
 
                   if (getInitialCCC)
+                     
                      iTrimInitial =  BH_resample3d(iparticle, reshape(angles,3,3),... 
                                            shiftVAL,{'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
-
+                                         
 
                                    
                      iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
@@ -953,9 +1090,12 @@ parfor iParProc = parVect
                   end
                 end % Symmetry or not + interpolation
                 
+                 
+% % %                  powerOut(angCount) =   sum(abs(iTrimParticle(volBinary_tmp))).^2;
+                 
               end
 
-
+                
               switch flgMultiRefAlignment
                 case 0
                   refToAlign = 1;
@@ -967,7 +1107,7 @@ parfor iParProc = parVect
                   error('flgMultiRefAlignment is not 0,1,2')
               end
 
-              for iRef = 1:max(nReferences(:)) %refToAlign
+              for iRef = refToAlign % 1:max(nReferences(:)) 
 
                 switch alignLoop
                   
@@ -975,11 +1115,21 @@ parfor iParProc = parVect
 
                   
                     % use transpose of RotMat
-           
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{iRef}, RotMat', ...
+                    Rtr = RotMat';
+                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{iRef}, Rtr, ...
                                             estPeakCoord, {'Bah',1,'linear',1,peakBinary_tmp}, 'GPU', 'forward',inputVectors);
+                                          
+                    % The eraseMask, if used, must be transformed into the
+                    % rotated coordinate system
+                   if isempty(eraseMask_tmp)     
+                     useVals = [];
+                   else
+                     useVals = BH_resample3d(eraseMask_tmp, Rtr, ...
+                                             -1.*estPeakCoord, {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward');
+                     useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+                   end
                     
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{iRef}, RotMat', ...
+                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{iRef}, Rtr, ...
                                             [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);
                                       
 %                     iRotRef = ...
@@ -1002,7 +1152,7 @@ parfor iParProc = parVect
                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                             rotPart_FT.*ifftshift(iRotWdg), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            peakMask_tmp, peakCOM,useVals);
 
 
                     cccStorageTrans(iRef,:) = [iRef, particleIDX, ...
@@ -1025,7 +1175,8 @@ parfor iParProc = parVect
                                                            ref_FT1_tmp{iGold}{iRef}, ...
                                                            ifftshift(iWedgeInitial),...
                                                            ref_WGT_tmp{iGold}{iRef}, ...
-                                                           wCCC_tmp{iRef});
+                                                           bh_global_zero_lag_score);
+% % %                                                            wCCC_tmp{iRef});
 
 
                           
@@ -1044,12 +1195,19 @@ parfor iParProc = parVect
                   rotPart_FT = BH_bandLimitCenterNormalize(...
                                             iTrimParticle.*volMask_tmp,...
                                             bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
+                                          
+                                          
+                     
+                      
                       [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( rotPart_FT, ...
                                                            ref_FT1_tmp{iGold}{iRef},...
                                                            ifftshift(iWedgeMask),...
                                                            ref_WGT_tmp{iGold}{iRef}, ...
-                                                           wCCC_tmp{iRef});
+                                                           bh_global_zero_lag_score);
+% %                                                            wCCC_tmp{iRef});
+                                                         
+
 
 
                                               
@@ -1081,10 +1239,31 @@ parfor iParProc = parVect
           end % azimuth
         end % polar
 
+% % %         fprintf('Power ratio is  %3.3f\n',powerOut./powerInitial);
 
         cccPreRefineSort =  sortrows(gather(cccStorage2),-6);
-        cccInitial = sortrows(gather(cccInitial), -6);
-
+     
+        if (length(refToAlign) > 1)
+          cccInitial = sortrows(gather(cccInitial), -6);
+          cccInitial = cccInitial(1,:);
+        else
+          cccInitial = gather(cccInitial(refToAlign,:));
+          
+        end
+        
+        if cccInitial(1,6 ) > cccPreRefineSort(1,6)
+          cccPreRefineSort(1,:) = cccInitial(1,:);
+        end
+        
+       
+        
+        % This only seems to be a problem with cut out volumes.
+        % Normalization maybe?
+        if ~any(cccPreRefineSort(1,:))
+          cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
+          fprintf('all Zeros in PreRefine search, revert on subtomo %d peak %d\n',iSubTomo,iPeak);
+          continue     
+        end
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%     
 
         if (flgRefine)
@@ -1219,13 +1398,26 @@ parfor iParProc = parVect
               if alignLoop == 1
 
                     % use transpose of RotMat
+                    Rtr = RotMat';
                     try
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{rRef}, RotMat', ...
+                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{rRef}, Rtr, ...
                                             rXYZ, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
                     catch
                     cccPreRefineSort(1,1)
-                    end                      
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{rRef}, RotMat', ...
+                    end        
+                    
+                    % The eraseMask, if used, must be transformed into the
+                    % rotated coordinate system
+                   if isempty(eraseMask_tmp)     
+                     useVals = [];
+                   else
+                     useVals = BH_resample3d(eraseMask_tmp, Rtr, ...
+                                            -1.*rXYZ, {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward');
+                     useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+                     
+                   end
+                    
+                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{rRef}, Rtr, ...
                                 [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);                                          
                                       
 
@@ -1242,7 +1434,7 @@ parfor iParProc = parVect
                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                             rotPart_FT.*ifftshift(iRotWdg), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            peakMask_tmp, peakCOM,useVals);
 
                                                           
                 % 2016-11-11 also took out (+ rXYZ) 
@@ -1261,7 +1453,8 @@ parfor iParProc = parVect
                                                            ref_FT1_tmp{iGold}{rRef},...
                                                            ifftshift(iWedgeMask),...
                                                            ref_WGT_tmp{iGold}{rRef}, ...
-                                                           wCCC_tmp{iRef});
+                                                           bh_global_zero_lag_score);
+% % %                                                            wCCC_tmp{iRef});
 
 
                 cccStorage3(iRefine,:) = [rRef, rPart, ...
@@ -1284,21 +1477,31 @@ parfor iParProc = parVect
         try
           if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
             bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
-            % Get the negative slope of the top ten CCC scores.
-            topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear');
-            bestRotPeak(1,7) = topTen(100)-topTen(101);
+% % %             % Get the negative slope of the top ten CCC scores.
+% % %             topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear');
+% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
 
           else
             bestRotPeak = cccPreRefineSort(1,:);
             bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
-            rowNum = min(size(cccPreRefineSort,1),10*nPeaks);
-            topX = 1- 0.1.*(10-rowNum);
-            % Get the negative slope of the top ten CCC scores.
-            topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear');
-            bestRotPeak(1,7) = topTen(100)-topTen(101);
+% % %             rowNum = min(size(cccPreRefineSort,1),10*nPeaks);
+% % %             topX = 1- 0.1.*(10-rowNum);
+% % %             % Get the negative slope of the top ten CCC scores.
+% % %             topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear');
+% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
+
           end
         catch
-          cccPreRefineSort
+          fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
+                cccStorageRefine{iPeak}(iSubTomo,:)
+          cccPreRefineSort(1,:)
+% % %                 rowNum = min(size(cccPreRefineSort,1),10*nPeaks)
+% % %                 topX = 1- 0.1.*(10-rowNum)
+% % %           fprintf('\nNow check the fits, first and second clause\n');
+% % %                 topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear')
+% % %           fprintf('\nSecond\n');
+% % %           topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear')
+% % %           error('Error in sorting the best peak in alignRaw');
         end
 
           finalRef  = bestRotPeak(1,1);
@@ -1324,10 +1527,31 @@ parfor iParProc = parVect
                     % use transpose of RotMat
                     %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
                     %%% the last writing, but now switching to zeros
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{finalRef}, RotMat', ...
+                    Rtr = RotMat';
+                    
+                    % The eraseMask, if used, must be transformed into the
+                    % rotated coordinate system
+                   if isempty(eraseMask_tmp)     
+                     useVals = [];
+                   else
+                     useVals = BH_resample3d(eraseMask_tmp, Rtr, ...
+                                  -1.*finalrXYZest, {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward');
+                     useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+
+                   end
+                
+                    try
+                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{finalRef}, Rtr, ...
                                             finalrXYZest, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{finalRef}, RotMat', ...
-                                            [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);                                           
+                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{finalRef}, Rtr, ...
+                                            [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);    
+                    catch
+                      fprintf('\n\nFinal ref,part,phi,theta,psi %f %f %f %f %f\n\n',...
+                        bestRotPeak(:,1:5));
+                       bestRotPeak(1,1:5)
+                       fprintf('BreakPeak %d\n',breakPeak);
+                      error('errrorsoedfsdf')
+                    end
                                         
 %                     iRotRef = ...
 %                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
@@ -1347,7 +1571,7 @@ parfor iParProc = parVect
                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                             rotPart_FT.*ifftshift(iRotWdg), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            peakMask_tmp, peakCOM,useVals);
 
 % % %           end
 
@@ -1359,35 +1583,66 @@ parfor iParProc = parVect
           cccStorageBest{iPeak}(iSubTomo,:) = gather([bestRotPeak(1,1:7), ...
                                         peakCoord + finalrXYZest - shiftVAL]) ;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
+        % It is probably more useful see the shifts in the particle
+        % reference frame vs. the avg which was the original
+        if (bh_global_print_shifts_in_particle_basis)
+          printShifts = zeros(3,3);
+          printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
+          printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
+          printShifts(3,:) = RotMat * reshape(cccStorageBest{iPeak}(iSubTomo,end-2:end),3,1);
+        else
+          printShifts = [cccInitial(1,end-2:end); ...
+                         cccPreRefineSort(1,end-2:end);...
+                         cccStorageBest{iPeak}(iSubTomo,end-2:end)];
+        end
+        
+        % Print out in Angstrom
+        printShifts = printShifts .* pixelSize;
+          
 
         deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
         if (deltaCCC < 0) && (abs(deltaCCC) > 0.15*cccInitial(1,6))
           fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
-          fprintf(['\n%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',cccInitial(1,:),'PreRefine',cccStorageBest{iPeak}(iSubTomo,:));          
+          fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreRefine', iPeak,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));          
           cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
           
         end
 
+      else
+         printShifts = zeros(3,3);
+        cccInitial(1,:) = [1,particleIDX,0,0,0,0,1,0,0,0];
+        cccPreRefineSort(1,:) = [1,particleIDX,0,0,0,0,1,0,0,0];
+        cccStorageBest{iPeak}(iSubTomo,:)  = [1,particleIDX,0,0,0,0,1,0,0,0];       
+  
+      end % end of if use random - this makes sure that the dummy coords are printed to resume txt files.
+      
+      if (useRandom)
+      
         if (flgRefine)
-          fprintf(['\n%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',cccInitial(1,:),'PreRefine', ...
-                   [cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
-                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:end)], ...
-                   'PostRefine',cccStorageBest{iPeak}(iSubTomo,:));
+          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:), ...
+                   'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
+                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
+                   'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         else
-          fprintf(['\n%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',cccInitial(1,:),'PreRefine',cccStorageBest{iPeak}(iSubTomo,:));
+          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         end
 
-    
+      end % only print the non-random values 
+      
       end % if condition on newly ignored particles
+      
       end
 
       if ~(rem(iSubTomo,100))
@@ -1398,15 +1653,15 @@ parfor iParProc = parVect
       end
 
 
-    iParticle = [];
-    iSymParti = [];
-    iTrimParticle = [];
-    iAsym = [];
-    iTrimAsym = [];
-    iWedgeMask = [];
-    rotPart_FT = [];
-    rotParticle = [];
-        end % end loop over possible peaks
+      iParticle = [];
+      iSymParti = [];
+      iTrimParticle = [];
+      iAsym = [];
+      iTrimAsym = [];
+      iWedgeMask = [];
+      rotPart_FT = [];
+      rotParticle = [];
+    end % end loop over possible peaks
     end % loop over subTomos
 
     
@@ -1469,7 +1724,7 @@ end
 %   save('bestAnglesTemp.mat', 'bestAngles');
  save('bestAngles.mat', 'bestAngles');
  
-  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks,rotConvention );
+  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks,rotConvention, randomSubset );
   masterTM.(cycleNumber).('RawAlign') = rawAlign;
   masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
 
@@ -1482,8 +1737,9 @@ else
   save(pBH.('subTomoMeta'), 'subTomoMeta');
 end
 
+delete(gcp('nocreate'))
 for iGPU = 1:nGPUs
   gpuDevice(iGPU);
 end
-delete(gcp)
+
 end % end of alignRaw3d

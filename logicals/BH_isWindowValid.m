@@ -39,6 +39,8 @@ function [ INDICES, PADVALUES, SHIFTS ] = ...
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+  
 minSizeMask = (max(MASK_RADIUS)+6).*[2,2,2];
 winLowCorner = ceil((WINDOW_SIZE-1) ./ 2);
 % if window size is odd then there should be as many pixels to the left and to
@@ -72,9 +74,10 @@ SHIFTS =   deltaWinCenter;
      % Should keep track of this and figure into the quality weight somehow.
 
      availableArea = WINDOW_SIZE - PADVALUES(1,:) - PADVALUES(2,:);
-     if any(availableArea - minSizeMask < -2) 
+  %   if any(availableArea - minSizeMask < -2) 
+     if any(availableArea ./ WINDOW_SIZE < 0.5) 
         fprintf(['\nvs %d %d %d\nws %d %d %d\nmr %2.1f %2.1f %2.1f\n',...
-                'minArea %d %d %d\navailArea %d %d %d\nc %2.1f %2.1f %2.1f\n'], ...
+                'minArea %d %d %d\navailArea %d %d %d\nc %2.1f %2.1f %2.1f\nwindowCutoff %f\n'], ...
                 VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, minSizeMask, availableArea, CENTER); 
         INDICES = 'noUse';
         PADVALUES = [availableArea];  
@@ -86,7 +89,7 @@ SHIFTS =   deltaWinCenter;
       fprintf('top %f %f %f\n',winTopCorner);
       fprintf('%f %f %f\n',winCenter);
       fprintf('del %f %f %f\n',deltaWinCenter);
-      fprintf('%f %f %f\n',LOW);
+
       fprintf('%f %f %f\n',TOP);
       error('\n\nFound a NaN in the pad values. But Why ben why?\n\n');
       INDICES='noUse';
