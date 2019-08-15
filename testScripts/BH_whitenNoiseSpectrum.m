@@ -29,6 +29,7 @@ end
 
 % Invert the mask and get power spectra
 % % % PS = abs(fftn(imgIN.*(1-maskIN)));
+% figure, imshow3D(gather(maskIN));
 if isreal(imgIN(1))
   PS = abs(fftn(imgIN.*(1-maskIN))).^2;
 else
@@ -52,15 +53,19 @@ radialVect = radialGrid(1:radialMax,1);
 minPixPerBin = ceil(nMax*2*pi*radialMax);
 
 i = 2;
-n = floor(0.005*oX);
+n = floor(0.05*oX);
 idxVect = n;
 while n < oX
-  idxVect = [idxVect (n+floor((idxVect(i-1).^.25)))];
+  idxVect = [idxVect (n+floor((idxVect(i-1).^.40)))];
   n = idxVect(i);
-  i = i + 1;
+  i = i + 1
 end
 
-whiteningCutoff = 1; % Ang
+if length(flgNorm) > 1
+  whiteningCutoff = flgNorm(2);
+else
+  whiteningCutoff = 1; % Ang
+end
 
 idxVect = idxVect(1:end-1);
 idxVect(end) = oX;
@@ -79,7 +84,7 @@ for iRing = 1:length(idxVect)-1
     nShrink = nShrink + 1;
   end
   radialSampledAt(nRing) = radialVect(idxVect(iRing+1));
-    nRing = nRing +1;
+    nRing = nRing +1
 end
 
 
@@ -87,14 +92,21 @@ end
 clear avgMask PS
 
 
- rFit = fit(gather(double(radialSampledAt)),gather(double(radialAvg).^0.5),'spline');
-%   figure, plot(radialVect,rFit(radialVect))
-%   figure, plot(radialVect,1./rFit(radialVect));
+
+%  rFit = fit(gather(double(radialSampledAt)),gather(double(radialAvg)),'spline');
+ rFit = csape(gather(double(radialSampledAt)),gather(double(radialAvg)),'clamped');
+  figure, plot(radialVect,fnval(rFit,radialVect))
+  r = fnval(rFit,radialGrid).^-1;
+  r = r ./ max(r(:));
+  r = r.^2;
+ 
+  
+figure, plot(radialVect,r(1,1:length(radialVect)));
 
 % radialAvg = radialAvg.^-.5 .* radialMask;
 % figure, imshow3D(gather(radialAvg))
-radialAvg = reshape(rFit(radialGrid),d1,d2);
-reWeight = real(ifftn(fftn(imgIN)./radialAvg));
+% radialAvg = reshape(rFit(radialGrid),d1,d2);
+reWeight = real(ifftn(fftn(imgIN).*r));
 % reWeight = reWeight ./ std(reWeight(maskIN < 0.01))^1;
 if (flgNorm(1))
   reWeight = reWeight - mean(reWeight(:));

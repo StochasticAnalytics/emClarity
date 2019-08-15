@@ -9,10 +9,20 @@ post="_${shortHead}"
 
 outName="$(basename ${mFile} .m)${post}"
 
-binaryOutName="1_0_0"
-scriptOutName=17b
-matlab -nosplash -nodisplay -nojvm -r "mcc -m  ${mFile} -a fitInMap.py  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+major=1
+minor=4
+bugss=5
+
+#commit=decdc7e
+#binaryOutName="testRevert_${commit}"
+#scriptOutName="19a_testRevert_${commit}"
+binaryOutName="${major}_${minor}_${bugss}"
+scriptOutName="mcr_v19a"
+
+
+matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind -a /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_autoAlign.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
+#I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
 wait
 	rm mccExcludedFiles.log
@@ -34,12 +44,12 @@ echo ''
 echo '#Please modify this line to point to the text file in your MCR root'
 echo '#where you pasted the lines suggested to add to LD_LIBRARY_PATH during install.'
 echo '#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"'
-echo 'MCR_BASH=""'
+echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MTL_MCR_17b/BH_mcr_internal19a.bashrc'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
 echo '#emClarity_ROOT=/work/emClarity'
-echo 'emClarity_ROOT=""'
+echo 'emClarity_ROOT=/groups/grigorieff/home/himesb/thirdParty/emClarity'
 echo ''
 echo ''
 echo ''
@@ -73,3 +83,20 @@ chmod a=wrx emClarity_${scriptOutName}
 mkdir -p ../bin
 mv emClarity_${scriptOutName} ../bin
 mv emClarity_${binaryOutName} ../bin
+
+#cp -rp /nrs/grigorieff/himesb/mayRevertBlank /nrs/grigorieff/himesb/mRevert_${binaryOutName}
+#awk -v ON="emClarity_${scriptOutName}" '{if(/^binaryName=/) print "binaryName=/groups/grigorieff/home/himesb/thirdParty/emClarity/"ON; else print $0}' /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh > /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp 
+#mv /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh
+#chmod a=wrx /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh 
+
+
+cp -rp ../docs ../bin
+cd ..
+zip -r emClarity_${major}.${minor}.${bugss}.zip bin
+mv emClarity_${major}.${minor}.${bugss}.zip ~/tmp
+#rm -r bin/*
+
+
+
+
+
