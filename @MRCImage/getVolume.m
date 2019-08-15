@@ -37,43 +37,101 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function vol = getVolume(mRCImage, iRange, jRange, kRange)
+function vol = getVolume(mRCImage, varargin)
 
-if nargin < 2 || isempty(iRange)
-  iIndex = 1:getNX(mRCImage);
-  iRange=1;
-else
-  if length(iRange) == 1 && iRange ~= -1
-    iIndex = iRange;
-  elseif iRange == -1
-    iIndex = 1:getNX(mRCImage);
-  else
-    iIndex = iRange(1):iRange(2);
+% TODO fix this cluster fck
+flgCloseFile = true;
+if nargin > 1
+
+  if length(varargin) >= 1
+    if strcmpi(varargin{1}, 'keep')
+      flgCloseFile = false;
+      iIndex = 1:getNX(mRCImage);
+      iRange=1;
+    else
+      iRange = varargin{1};
+      if isempty(iRange)
+        iIndex = 1:getNX(mRCImage);
+        iRange=1;
+      else
+        iRange = varargin{1};
+        if length(iRange) == 1 && iRange ~= -1
+          iIndex = iRange;
+        elseif iRange == -1
+          iIndex = 1:getNX(mRCImage);
+        else
+          iIndex = iRange(1):iRange(2);
+        end
+      end
+    end 
+  end   
+ 
+  if length(varargin) >= 2
+    if strcmpi(varargin{2}, 'keep')
+      flgCloseFile = false;
+      jIndex = 1:getNY(mRCImage);
+      jRange=1;
+    else
+      jRange = varargin{2};
+      if isempty(jRange)
+        jIndex = 1:getNY(mRCImage);
+        jRange=1;
+      else
+        jRange = varargin{2};
+        if length(jRange) == 1 && jRange ~= -1
+          jIndex = jRange;
+        elseif jRange == -1
+          jIndex = 1:getNY(mRCImage);
+        else
+          jIndex = jRange(1):jRange(2);
+        end
+      end
+    end
   end
+
+  if length(varargin) >= 3
+    if strcmpi(varargin{3}, 'keep')
+      flgCloseFile = false;
+      kIndex = 1:getNZ(mRCImage);
+      kRange = 1;
+    else
+      kRange = varargin{3};
+      if isempty(kRange)
+        kIndex = 1:getNZ(mRCImage);
+        kRange = 1;
+      else
+        if length(kRange) == 1
+          kIndex = kRange;
+        else
+          kIndex = kRange(1):kRange(2);
+        end
+      end
+    end
+  end
+
+
+  if length(varargin) == 4
+    if strcmpi(varargin{4}, 'keep')
+      flgCloseFile = false;
+    else
+      error('Fourth arg to getVolume must be "keep" to keep MRCobject or nothing.')
+    end
+  end
+
+else
+      iIndex = 1:getNX(mRCImage);
+      iRange=1;
+      jIndex = 1:getNY(mRCImage);
+      jRange=1;
+      kIndex = 1:getNZ(mRCImage);
+      kRange=1;
 end
 
-if nargin < 3 || isempty(jRange)
-  jIndex = 1:getNY(mRCImage);
-    jRange=1;
-else
-  if length(jRange) == 1 && jRange ~= -1
-    jIndex = jRange;
-  elseif jRange == -1
-    jIndex = 1:getNY(mRCImage);
-  else
-    jIndex = jRange(1):jRange(2);
-  end
-end
 
-if nargin < 4 || isempty(kRange)
-  kIndex = 1:getNZ(mRCImage);
-else
-  if length(kRange) == 1
-    kIndex = kRange;
-  else
-    kIndex = kRange(1):kRange(2);
-  end
-end
+
+
+
+
 
 % If the volume is already loaded return the selected indices
 if mRCImage.flgVolume
@@ -224,6 +282,13 @@ else
   if ( flgComplex )
     vol = complex(vol{1},vol{2});
   end
+end
+
+% When dealing with many subtomograms, too many files are open (OS dependent)
+% always close MRCImage object unless specified.
+if (flgCloseFile)
+  fclose(mRCImage.fid);
+  mRCImage.fid = [];
 end
 
 end

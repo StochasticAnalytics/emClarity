@@ -14,7 +14,8 @@ end
 if size(TILT_GEOMETRY,1) == 1
   TILT_GEOMETRY(1) = 1;
 end
-if nargin < 6
+doFullGrid = true;
+
   % The A-D are the defaults as published in the optimal exposure paper
   % optW controls the exponential fall-off when the current exposure
   % exceeds the optimal exposure. In unblur, this is "inf" as everything
@@ -25,12 +26,17 @@ if nargin < 6
   expC = 2.81410;
   optD = 2.51284;
   optW = 0.0;
-else
-  expA = varargin{1}(1);
-  expB = varargin{1}(2);
-  expC = varargin{1}(3);
-  optD = varargin{1}(4);
-  optW = varargin{1}(5);
+  
+if nargin > 5
+  if(length(varargin{1}) > 1)
+    expA = varargin{1}(1);
+    expB = varargin{1}(2);
+    expC = varargin{1}(3);
+    optD = varargin{1}(4);
+    optW = varargin{1}(5);
+  else
+    doFullGrid = false;
+  end
 end
 nPrjs = size(TILT_GEOMETRY,1);
 
@@ -54,6 +60,22 @@ elseif numel(SIZE) == 2
   SIZE = [SIZE,nPrjs];
 end
 
+d1 = SIZE(1);
+d2 = SIZE(2);
+d3 = nPrjs;
+% if numel(SIZE) == 2
+%   d2 = SIZE(2);
+% else 
+%   d2 = d1;
+% end
+
+if (doFullGrid)
+  h1 = d1;
+else
+  h1 = floor(d1/2)+1;
+end
+
+
 % This is from an "odd" behavior where zeros fails due to size being non-numeric.
 % iT turns out SIZE cannot be a gpu array for some reason. Note in development docs
 % and add check before removing.
@@ -63,18 +85,23 @@ clear exposureFilter
 
 
 if strcmp(METHOD,'GPU')
-  exposureFilter = zeros(SIZE, 'single', 'gpuArray');
+  exposureFilter = zeros([h1,d2,d3], 'single', 'gpuArray');
 elseif strcmp(METHOD, 'cpu')
-  exposureFilter = zeros(SIZE, 'single');
+  exposureFilter = zeros([h1,d2,d3], 'single');
 else
     error('METHOD must be GPU or %s\n','cpu');
 end
 
 
-[criticalDose,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
-                                              SIZE(1:2),'Cartesian',...
+if (doFullGrid)
+  [criticalDose,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
+                                              [d1,d2],'Cartesian',...
                                               METHOD,{'none'},1,SHIFT_ORIGIN,1);
-
+else
+    [criticalDose,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
+                                              [d1,d2],'Cartesian',...
+                                              METHOD,{'none'},1,SHIFT_ORIGIN,1,{'halfGrid'});
+end
 % Assuming the pixelSize is constant across projections, the only change is
 % the cummulative dose, so precompute everything
 pixelSize = TILT_GEOMETRY(1,16).*SAMPLING;

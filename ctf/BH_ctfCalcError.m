@@ -15,7 +15,7 @@ if resCutOff <= 2*pixelSize
 end
 
 [ rad ] = BH_multi_gridCoordinates([CTFSIZE,1],'Cylindrical','GPU',{'none'},1,0,1);
-rad = {rad./pixelSize,[0,1],rad.*0};
+rad = {rad./pixelSize,0,rad.*0};
 
 % ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus,CTFSIZE,AMPCONT,-1);
 
@@ -27,17 +27,19 @@ maxDiff = thicknessAng./2;
 % range to avoid this.
 nCtf = 0;
 ctf1 = [];
+length([-maxDiff:0.1*maxDiff:maxDiff].*10^-10)
 for jDelDef = [-maxDiff:0.1*maxDiff:maxDiff].*10^-10
   if isempty(ctf1)
-    ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1);    
+    ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1,1);    
   else
-    ctf1 = ctf1 + BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1);
+    ctf1 = ctf1 + BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1,1);
   end
   nCtf = nCtf + 1;
 end
 
 
 % Working along first dimension, so logical indexing ignoring 2d is okay.
+
 noErrorIDX = find( abs(ctf1(1:NYQ)./nCtf) > dampeningMax,1,'last');
 noErrorRes = gather(1 / rad{1}(noErrorIDX));
 
@@ -83,14 +85,14 @@ if (cycleNumber)
     fprintf('The optimal ctfDepth was not found\n');
     fprintf('Inputs %3.3e pix %3.3e cs %3.3e wl %3.3e def %3.3e resTarget %3.3e tomoDepth\n',...
              pixelSize*10^-10, Cs, Lambda, Defocus,resCutOff,thicknessAng);
-    ctfDepth = 20e-9;
+    ctfDepth = min(thicknessAng/30 * 10^-9,resCutOff(1) * 10 ^-8)
   elseif ctfDepth < 0.5*10e-9
     fprintf('\n\nCapping ctfDepth to 5 nm from a calc %3.3f nm\n\n',ctfDepth*10^9);
     ctfDepth = 10e-9;
   end
 else
   % Cap cycle zero to a max of 3 tilts
-  if ctfDepth < thicknessAng*10^-10/3
+  if ctfDepth < thicknessAng*10^-10/3 || ctfDepth == -1
     fprintf('Cycle 0, cap ctfDepth from %3.3e nm  to %3.3e nm \n',ctfDepth*10^9,thicknessAng/30);
     ctfDepth = (thicknessAng/30)*10^-9;
   end

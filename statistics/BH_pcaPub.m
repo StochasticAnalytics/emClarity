@@ -88,6 +88,8 @@ startTime =  clock;
 CYCLE = str2num(CYCLE);
 PREVIOUS_PCA = str2num(PREVIOUS_PCA);
 
+global bh_global_binary_pcaMask_threshold;
+
 % Previous_pca has two functions, when true and > 0 use the decomposition
 % calculated from a random subset of the data to project the full data set
 % onto each of the selected principle components. when true and < 0 run
@@ -124,7 +126,7 @@ switch PREVIOUS_PCA
     error('PREVIOUS_PCA should be 1,0,-1,-2,-3')
 end
     
-
+flgWMDs = 3;
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
@@ -158,9 +160,9 @@ outputPrefix   = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 %%%flgGold      = pBH.('flgGoldStandard');
 
 try
-  flgWMDs        = pBH.('flgWMDs');
+  nPeaks = pBH.('nPeaks');
 catch
-  flgWMDs = 3;
+  nPeaks = 1;
 end
 
 flgNorm = 0;% pBH.('flgNormalizeWMDs');
@@ -190,6 +192,17 @@ load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
 geometry = subTomoMeta.(cycleNumber).Avg_geometry;
 
+try
+  flgCutOutVolumes = pBH.('flgCutOutVolumes');
+catch
+  flgCutOutVolumes = 0;
+end
+
+try
+  CUTPADDING = subTomoMeta.('CUTPADDING')
+catch
+  CUTPADDING=20
+end
 
 % % 
 % % pathList= subTomoMeta.mapPath;
@@ -211,7 +224,8 @@ nTomograms = length(tomoList);
 [ preMaskType, preMaskSize, preMaskRadius, preMaskCenter ] = ...
                                   BH_multi_maskCheck(pBH, 'Ali', refPixelSize);
 
-
+% This is prob not a good way to make sure the mask size matches::w
+maskSize=preMaskSize;
 
 % Make sure everthing matches the extracted average and wedge
 cpuVols = struct;
@@ -261,30 +275,8 @@ for iGold = 1:2
 %   end
 
   try
-    if CYCLE == 0
-      if (flgWMDs)
-        sprintf('class_%d_Locations_NoA_%s', refName, halfSet);
-        imgNAME = sprintf('class_%d_Locations_NoA_%s', refName, halfSet);
-      else
-        sprintf('class_%d_Locations_NoA_%s_NoWgt', refName, halfSet);
-        imgNAME = sprintf('class_%d_Locations_NoA_%s_NoWgt', refName, halfSet);
-      end
-        
- 
 
-      [ averageMotif{iGold} ] = BH_unStackMontage4d(1, ...
-                                   masterTM.(cycleNumber).(imgNAME){1}, ...
-                                   masterTM.(cycleNumber).(imgNAME){2},...
-                                   preSizeMask);
-      
 
-%       sprintf('%s_%s_class0_NoA_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)
-%       averageMotif{iGold} = gpuArray(single(getVolume(MRCImage( ...
-%                  sprintf('%s_%s_class0_NoA_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)))));
-
-    else
-%       averageMotif{iGold} = gpuArray(double(getVolume(MRCImage( ...
-%                   sprintf('%s_%s_class0_Raw_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)))));    
         imgNAME = sprintf('class_%d_Locations_Raw_%s', refName, halfSet);
  
 
@@ -292,10 +284,9 @@ for iGold = 1:2
                                    masterTM.(cycleNumber).(imgNAME){1}, ...
                                    masterTM.(cycleNumber).(imgNAME){2},...
                                    preSizeMask);
-    end
+
   catch
-%       averageMotif{iGold} = gpuArray(double(getVolume(MRCImage( ...
-%                 sprintf('%s_%s_class0_REF_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)))));  
+
         imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
  
 
@@ -380,23 +371,24 @@ if (flgVarianceMap)
 end
 
 
-% padREF = [floor((size(averageMotif{1}-sizeMask)./2);ceil((size(averageMotif{1}-sizeMask)./2)]  
-
-% Presumably due to round off error in the convolution during creation of a
-% shape mask, the number of elements included when using such may differ by
-% a small numbe, 1-5, from run to run. When extracting from a previous PCA
-% on a random subset, first load the saved mask to avoid any differences.
 
 if (PREVIOUS_PCA) 
   volumeMask = gpuArray(getVolume(MRCImage( ...
                               sprintf('%s_pcaVolMask.mrc',outputPrefix))));
 else
-  [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+
+  try
+    pcaSymmetry = pBH.('Pca_symMask');
+    [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter,0,pcaSymmetry);
+  catch
+    [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+
+  end
 
   if ( flgPcaShapeMask )
       % when combining the addition is harmless, but is a convenient way to
       % include when sets are left 100% separate.
-      volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, maskRadius, maskCenter);  
+      volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '','');  
   end
   
   if (flgLoadMask)
@@ -405,7 +397,7 @@ size(externalMask)
     volumeMask = volumeMask .* externalMask;
   end
   
-  SAVE_IMG(MRCImage(gather(volumeMask)),sprintf('%s_pcaVolMask.mrc',outputPrefix));
+  SAVE_IMG(MRCImage(gather(volumeMask)),sprintf('%s_pcaVolMask.mrc',outputPrefix),pixelSize);
 end
 
 volMask = struct();
@@ -421,7 +413,7 @@ for iScale = 1:nScaleSpace
     end
     
     masks.('volMask').(stHALF).(stSCALE) = (volTMP);
-    masks.('binary').(stHALF).(stSCALE)  = (volTMP >= 0.5);
+    masks.('binary').(stHALF).(stSCALE)  = (volTMP >= bh_global_binary_pcaMask_threshold);
     masks.('binary').(stHALF).(stSCALE)  = ...
                                   masks.('binary').(stHALF).(stSCALE)(:);
     masks.('binaryApply').(stHALF).(stSCALE)  = (volTMP >= 0.01);
@@ -441,7 +433,6 @@ clear volumeMask
 %stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize - 1)  .* 3.0./log(pcaScaleSpace)
 stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize )  ./ log(pcaScaleSpace)
 for iScale = 1:nScaleSpace
-% % %   if (flgWMDs == 1 || flgWMDs == 2)
 
     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
                             gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
@@ -452,11 +443,10 @@ for iScale = 1:nScaleSpace
 %                                  2.25.*pixelSize, 'GPU', pixelSize )) .* ...
 %                            fftn(BH_multi_gaussian3d( ...
 %                                                 sizeMask, -1.*stdDev(iScale)));
-% % %   else
-% % %     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-% % %                             fftn(BH_multi_gaussian3d( ...
-% % %                                                  sizeMask, -1.*stdDev(iScale)));
-% % %   end
+
+%     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
+%                             fftn(ifftshift(BH_multi_gaussian3d(sizeMask, 1.*stdDev(iScale))));
+
 end
 
 avgMotif_FT = cell(1+flgGold,nScaleSpace);
@@ -474,26 +464,24 @@ for iGold = 1:1+flgGold
 % % % % %               masks.('scaleMask')
 % % % % %               masks.('binaryApply').(sprintf('h%d',iGold))
 % % % % %               masks.('volMask').(sprintf('h%d',iGold))
+
+    averageMotif{iGold} = averageMotif{iGold} - mean(averageMotif{iGold}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
+    averageMotif{iGold} = averageMotif{iGold} ./ rms(averageMotif{iGold}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
+    averageMotif{iGold} = averageMotif{iGold} .* masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale));
+    
     avgMotif_FT{iGold, iScale} = ...
-                            BH_bandLimitCenterNormalize(averageMotif{iGold}.*...
-                            masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
+                            BH_bandLimitCenterNormalize(averageMotif{iGold},...
                             masks.('scaleMask').(sprintf('s%d',iScale)), ...           
                             masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
                                                         [0,0,0;0,0,0],'single');
-    if (flgWMDs == 2) 
-      % This saves nParticles ffts
-      avgMotif_FT{iGold, iScale} = (fftn(fftshift(ifftn( avgMotif_FT{iGold, iScale}))));
-      avgFiltered{iGold, iScale} = (real(ifftn(avgMotif_FT{iGold, iScale})));
-    else
-      %%%%%avgMotif_FT{iGold, iScale} = fftshift(real(ifftn( avgMotif_FT{iGold, iScale})));
-      avgMotif_FT{iGold, iScale} = (real(ifftn( avgMotif_FT{iGold, iScale})));
-      avgFiltered{iGold, iScale} = avgMotif_FT{iGold, iScale};
-    end
-    
+
+% % %       avgMotif_FT{iGold, iScale} = (real(ifftn( avgMotif_FT{iGold, iScale})));
+      avgFiltered{iGold, iScale} = real(ifftn(avgMotif_FT{iGold, iScale}));
+
     avgFiltered{iGold, iScale} = avgFiltered{iGold, iScale} - mean(avgFiltered{iGold, iScale}(masks.('binary').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     avgFiltered{iGold, iScale} = gather(avgFiltered{iGold, iScale} ./rms(avgFiltered{iGold, iScale}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)))) .* ...
                                                                                                     masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)));
-    cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold,iScale)) = gather(avgMotif_FT{iGold, iScale});
+% % %     cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold,iScale)) = gather(avgMotif_FT{iGold, iScale});
   end
 end
 
@@ -501,13 +489,14 @@ end
 
 
 montOUT = BH_montage4d(avgFiltered(1,:),'');
-SAVE_IMG(MRCImage(montOUT), sprintf('test_filt.mrc'));
+SAVE_IMG(MRCImage(montOUT), sprintf('test_filt.mrc'),pixelSize);
 clear montOUT
 
 % If randomSubset is string with a previous matfile use this, without any 
 % decomposition. 
 
 for iGold = 1:1+flgGold
+  flgRefIsPadded = 0;
   if (flgGold)
     if iGold == 1;
       halfSet = 'ODD';
@@ -537,6 +526,17 @@ for iGold = 1:1+flgGold
       [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', -1 , randSet);
     end
   end
+  
+  % Extend the random subset to each peak if needed
+  if (nPeaks > 1)
+    for iTomo = 1:nTomograms
+      selectedList = geometry.(tomoList{iTomo})(:,8) > 0;
+      geometry.(tomoList{iTomo})(selectedList,8+26:26:nPeaks*26) = 1;
+      clear selectedList
+    end
+    nTOTAL = nTOTAL*nPeaks;
+    nSUBSET = nSUBSET*nPeaks;
+  end
 
   % Initialize array in main memory for pca
   clear dataMatrix tempDataMatrix 
@@ -557,60 +557,47 @@ for iGold = 1:1+flgGold
                             gpuArray(masks.('volMask').(stHALF).(stSCALE));
       gpuMasks.('binary').(stSCALE) = ...
                              gpuArray(masks.('binary').(stHALF).(stSCALE));
-      gpuMasks.('binary').(stSCALE)  = ...
-                             gpuArray(masks.('binary').(stHALF).(stSCALE));
       gpuMasks.('binaryApply').(stSCALE)  = ...
                         gpuArray(masks.('binaryApply').(stHALF).(stSCALE));
+      gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));                      
    
   end
   
-  for iGold_inner = 1:1+flgGold
-    for iScale = 1:nScaleSpace
-      avgMotif_FT{iGold_inner, iScale} = ...
-               gpuArray(cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold_inner,iScale)));
+% % %   for iGold_inner = 1:1+flgGold
+% % %     for iScale = 1:nScaleSpace
+% % %       avgMotif_FT{iGold_inner, iScale} = ...
+% % %                gpuArray(cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold_inner,iScale)));
+% % %     end
+% % %   end
 
-    end
-  end
-  for iScale = 1:nScaleSpace
-    stSCALE = sprintf('s%d',iScale);
-    gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));
-  end
 
   nExtracted = 1;
   nTemp = 1;
   nTempPrev = 0;
   idxList = zeros(1,nSUBSET);
+  peakList = zeros(1,nSUBSET);
 
   firstLoop = true;  sI = 1;
   nIgnored = 0;
   for iTomo = 1:nTomograms
 
 
-% % %     tomoName = sprintf('%s/%s%s',pathList.(tomoList{iTomo}),...
-% % %                                  tomoList{iTomo},...
-% % %                                  extList.(tomoList{iTomo}));
-
     tomoName = tomoList{iTomo};
     iGPU = 1;
    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
    tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
    reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-   
-   [ volumeData ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+ 
+    if (flgCutOutVolumes)
+     volumeData = [];
+    else
+      [ volumeData ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
                                     reconCoords, mapBackIter, ...
                                     samplingRate, iGPU, reconScaling,0); 
-    volHeader = getHeader(volumeData);                              
-
-% % %     % More class averages will require more data, so I am not sure where to
-% % %     % set this, but for now start with a guess of around 3G
-% % %     if ( gDev.TotalMemory -  4*numel(volumeData) > 6e9./(1+7*(samplingRate-1)) )
-% % %       fprintf('Pulling onto the GPU\n');
-% % %       volumeData = gpuArray(volumeData);
-% % %     else
-% % %       fprintf('Not enough memory anticipated to load Tomo onto the gpu\n');
-% % %     end
+        volHeader = getHeader(volumeData);                              
+    end
     
-    if (flgWMDs == 3)
+
       nCtfGroups = masterTM.('ctfGroupSize').(tomoList{iTomo})(1);
       iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
       wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);       
@@ -623,13 +610,18 @@ for iGold = 1:1+flgGold
                                                         'Cartesian',...
                                                         'GPU',{'none'},1,0,1);
       radialGrid = radialGrid ./ pixelSize;
-    else
-      padWdg = [0,0,0;0,0,0];
-      [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(sizeMask, ...
-                                                        'Cartesian',...
-                                                        'GPU',{'none'},1,0,1);
-      radialGrid = radialGrid ./ pixelSize;      
-    end
+
+
+      if ~(flgRefIsPadded)
+        for iScale = 1:nScaleSpace
+          avgMotif_FT{iGold, iScale} = BH_padZeros3d(avgMotif_FT{iGold, iScale},...
+                                                     padWdg(1,:),padWdg(2,:),...
+                                                     'GPU','single',0,1);
+        end
+        flgRefIsPadded = 1;
+      end
+    
+ 
 
         
     tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
@@ -637,24 +629,32 @@ for iGold = 1:1+flgGold
     sprintf('Working on %d/%d volumes %s\n',iTomo,nTomograms,tomoName)
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry.(tomoList{iTomo});
-    nSubTomos = size(positionList,1)
+    
+    % Loop over peaks inside each tomo to limit wedge mask xfer
+    nSubTomos = sum(positionList(:,26) ~= -9999);
+
 
     if (flgWMDs == 1)
       % Make a wedge mask that can be interpolated with no extrapolation for
       % calculating wedge weighting in class average alignment. 
 
+      % COMMMMMMENT
         
       % make a binary wedge
       [ wedgeMask ]= BH_weightMask3d(sizeMask, tiltGeometry, ...
                      'binaryWedgeGPU',2*maskRadius,1, 1, samplingRate);
-   
-    end
+            
+      SAVE_IMG(MRCImage(gather(wedgeMask)),'wdg.mrc');
+      error('do not do it man');
+    end    
+    
     
     % reset for each tomogram
     wdgIDX = 0;
+    
     for iSubTomo = 1:nSubTomos
       %%%%% %%%%%
-      if (flgWMDs == 3) && (wdgIDX ~= positionList(iSubTomo,9))
+      if (wdgIDX ~= positionList(iSubTomo,9))
         % Geometry is sorted on this value so that tranfers are minimized,
         % as these can take up a lot of mem. For 9 ctf Groups on an 80s
         % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
@@ -662,37 +662,46 @@ for iGold = 1:1+flgGold
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
         wedgeMask = gpuArray(iTomoCTFs{wdgIDX});        
         % Weights are ctf^2
-        wedgeMask = sqrt(wedgeMask + min(wedgeMask(:) + 10e-6));
+        wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 1e-6);
 % %         SAVE_IMG(MRCImage(gather(wedgeMask)),'tmpWdg.mrc')
       end
-      
-      
-      % Check that the given subTomo is not to be ignored
+            
+      % Check that the given subTomo is not to be ignored - for now, treat
+      % all peaks as included. The assumption is that using this will be
+      % for initializing the project to get a good starting model. "True"
+      % classification will be done at a later stage after reducing to some
+      % subset of peaks. FIXME
       includeParticle = positionList(iSubTomo, 8);
       
 
       if (includeParticle) 
 
+        for iPeak = 0:nPeaks-1
 
         % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
         % and PEET. This also makes inplane shifts easier to see.
 
-        center = positionList(iSubTomo,11:13)./samplingRate;
-        angles = positionList(iSubTomo,17:25);
+        center = positionList(iSubTomo,[11:13]+26*iPeak)./samplingRate;
+        angles = positionList(iSubTomo,[17:25]+26*iPeak);
         
         % If flgGold there is no change, otherwise temporarily resample the
         % eve halfset to minimize differences due to orientaiton
-        if positionList(iSubTomo,7) == 1 
+        if positionList(iSubTomo,7) == 1 % This is true for all peaks 
+          % TODO FIXME should this be the transpose of oddRot?
           angles = reshape(angles,3,3) * oddRot;
         end
 
 
         % Find range to extract, and check for domain error.
-% % %         [ indVAL, padVAL, shiftVAL ] = ...
-% % %                         BH_isWindowValid(size(volumeData), sizeWindow, maskRadius, center); 
+        if (flgCutOutVolumes)
+            [ indVAL, padVAL, shiftVAL ] = ...
+                          BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
+                                            sizeWindow, maskRadius, center);
+        else
           [ indVAL, padVAL, shiftVAL ] = ...
                           BH_isWindowValid([volHeader.nX,volHeader.nY,volHeader.nZ], ...
                                             sizeWindow, maskRadius, center);
+        end
 
         if ~(flgGold)
           shiftVAL = shiftVAL + aliParams(2,1:3)./samplingRate;
@@ -701,14 +710,23 @@ for iGold = 1:1+flgGold
         if ~ischar(indVAL)
           % Read in and interpolate at single precision as the local values
           % in the interpolant suffer from any significant round off errors.
-          particleIDX = positionList(iSubTomo, 4);
-%           iparticle = volumeData(indVAL(1,1):indVAL(2,1), ...
-%                                  indVAL(1,2):indVAL(2,2), ...
-%                                  indVAL(1,3):indVAL(2,3));
+          particleIDX = positionList(iSubTomo, 4); % Same for all peaks
 
+
+          if (flgCutOutVolumes)
+            
+            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak+1);
+            iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
+                                                      [indVAL(1,1),indVAL(2,1)], ...
+                                                      [indVAL(1,2),indVAL(2,2)], ...
+                                                      [indVAL(1,3),indVAL(2,3)],'keep'));
+
+          else
+            
            iParticle = getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
                                             [indVAL(1,2),indVAL(2,2)], ...
-                                            [indVAL(1,3),indVAL(2,3)]);
+                                            [indVAL(1,3),indVAL(2,3)],'keep');
+          end
 
 
         if any(padVAL(:))
@@ -721,13 +739,12 @@ for iGold = 1:1+flgGold
 
         [ iParticle ] = BH_resample3d(iParticle, angles, shiftVAL, ...
                                                         'Bah', 'GPU', 'inv');
-        if (flgWMDs == 1 || flgWMDs == 3)
 
           [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
                                     'Bah', 'GPU', 'inv');
 % % %           SAVE_IMG(MRCImage(gather(iWedge)),'tmpWdg2.mrc')
   
-        end
+     
 
 
         iTrimParticle = iParticle(padWindow(1,1)+1 : end - padWindow(2,1), ...
@@ -736,80 +753,41 @@ for iGold = 1:1+flgGold
 
 
 
-        if (flgWMDs)
-          for iScale = 1:nScaleSpace
-            iPrt = BH_bandLimitCenterNormalize( ...
-                              iTrimParticle .* ...
-                              gpuMasks.('volMask').(sprintf('s%d',iScale)), ...
-                              gpuMasks.('scaleMask').(sprintf('s%d',iScale)),...
-                              gpuMasks.('binary').(sprintf('s%d',iScale)),...
-                                                        [0,0,0;0,0,0],'single');
-            %%%%%iPrt = fftshift(real(ifftn(iPrt)));
-            iPrt = (real(ifftn(iPrt)));
-            % if flgWMDs = 2 this is complex already, if not it is real.
-            iAvg = avgMotif_FT{iGold, iScale};
-            if (flgWMDs == 1)
-%               iWmd = -1.*iPrt + real(ifftn(BH_bandLimitCenterNormalize( ...
-%                             iAvg,ifftshift(iWedge),...
-%                             gpuMasks.('binaryApply').(sprintf('s%d',iScale)),...
-%                                                      [0,0,0;0,0,0],'single')));
 
-              [iWmd,~] = BH_diffMap(iAvg,iPrt,ifftshift(iWedge),...
+        for iScale = 1:nScaleSpace
+          iPrt = BH_bandLimitCenterNormalize( ...
+                            iTrimParticle .* ...
+                            gpuMasks.('volMask').(sprintf('s%d',iScale)), ...
+                            gpuMasks.('scaleMask').(sprintf('s%d',iScale)),...
+                            gpuMasks.('binary').(sprintf('s%d',iScale)),...
+                                                      [0,0,0;0,0,0],'single');
+
+
+
+          
+                                      
+             
+              [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
                                     flgNorm,pixelSize,radialGrid, padWdg);
-            elseif (flgWMDs == 3)
-  
-% % %                iAvg =  real(ifftn(BH_bandLimitCenterNormalize( ...
-% % %                             iAvg, ifftshift(iWedge),...
-% % %                            '', padWdg,'singleTaper')));                                        
-               
-                [iWmd,~] = BH_diffMap(iAvg,iPrt,ifftshift(iWedge),...
-                                      flgNorm,pixelSize,radialGrid, padWdg);
-                                
-% % %                SAVE_IMG(MRCImage(gather(iWmd)),'tmpWdg3.mrc')
-  
-% % %                iWmd = iWmd - iPrt;
-% % %                SAVE_IMG(MRCImage(gather(iWmd)),'tmpWdg4.mrc')
-% % %                error('sdf')
-            else
-              iPrt = fftn(iPrt);
-              iWmd = abs(iPrt).^1.* ...
-                               (exp(1i.*angle(iAvg))-exp(1i.*angle(iPrt)));
-              iWmd = real(ifftn(iWmd));
-            end
+                            
 
-            if all(isfinite(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale)))))
-              keepTomo = 1;
-              tempDataMatrix{iScale}(:,nTemp) = single(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale))));
-            else
-              fprintf('inf or nan in subtomo %d scalePace %d',iSubTomo,iScale);
-              keepTomo = 0;
-            end
 
+          if all(isfinite(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale)))))
+            keepTomo = 1;
+            tempDataMatrix{iScale}(:,nTemp) = single(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale))));
+          else
+            fprintf('inf or nan in subtomo %d scalePace %d',iSubTomo,iScale);
+            keepTomo = 0;
           end
-          clear iAvg iWmd  iTrimParticle
-        else
-          for iScale = 1:nScaleSpace
-            iPrt = BH_bandLimitCenterNormalize(iTrimParticle.*gpuMasks.('volMask').(sprintf('s%d',iScale)), ...
-                                                   gpuMasks.('scaleMask').(sprintf('s%d',iScale)),...
-                                                   gpuMasks.('binaryApply').(sprintf('s%d',iScale)),...
-                                                   [0,0,0;0,0,0],'single');
-            iPrt = (real(ifftn(iPrt)));
-            %%%%%iPrt = fftshift(real(ifftn(iPrt)));
-            if all(isfinite(iPrt(gpuMasks.('binaryApply').(sprintf('s%d',iScale)))))
-              keepTomo = 1;
-              tempDataMatrix{iScale}(:,nTemp) = single(iPrt(gpuMasks.('binary').(sprintf('s%d',iScale))));
-            else
-              keepTomo = 0;             
-              fprintf('inf or nan in subtomo %d scalePace %d',iSubTomo,iScale);
-            end
-            
-          end
+
         end
+        clear iAvg iWmd  iTrimParticle
+
 
 
         if (keepTomo)
           idxList(1, nExtracted) = particleIDX;
-
+          peakList(1,nExtracted) = iPeak+1; % This probably is not necessary - it should be 1:nPEaks,1:nPeaks,1:nPeaks...
           nExtracted = nExtracted +1;
           nTemp = nTemp + 1;
 
@@ -825,20 +803,22 @@ for iGold = 1:1+flgGold
           end
         else
           nIgnored = nIgnored + 1;
-          masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26) = -9999;
+          masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
         end
 
 
       else
         nIgnored = nIgnored + 1;
-        masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26) = -9999;
+        masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
 
       end % end of ignore new particles
 
+        end % end of loop over peaks
+        
       end % end of ignore if statment
       if ~rem(iSubTomo,100)
-        fprintf('\nworking on %d/%d subTomo from %d/%d Tomo\n', ...
-                                           iSubTomo, nSubTomos, iTomo,nTomograms);
+        fprintf('\nworking on %d/%d subTomo peak %d/%d from %d/%d Tomo\n', ...
+                                           iSubTomo, nSubTomos,iPeak+1,nPeaks, iTomo,nTomograms);
 
         fprintf('Total nExtracted = %d\n', nExtracted-1);
       end
@@ -868,8 +848,10 @@ for iGold = 1:1+flgGold
   % Get rid of any zero vals from newly ignored particles which are there due to
   % pre-allocation. Assuming no zeros have found their way in anywhere else which
   % would be a major problem.
-
-  idxList = idxList((idxList~=0)');
+  cleanIDX = (idxList~=0)';
+  idxList = idxList(cleanIDX);
+  peakList = peakList(cleanIDX);
+  
   for iScale = 1:nScaleSpace
     dataMatrix{iScale} = dataMatrix{iScale}(:,1:size(idxList,2));
     % Center the rows
@@ -885,7 +867,7 @@ for iGold = 1:1+flgGold
   try
     parpool(nCores);
   catch
-    delete(gcp);
+    delete(gcp('nocreate'));
     parpool(nCores);
   end
 
@@ -938,7 +920,7 @@ for iGold = 1:1+flgGold
       tmpReshape(masks.('binary').(stHALF).(sprintf('s%d',iScale)) ) = varianceMap(:);
      
       fname = sprintf('%s_varianceMap%d-%s-%d.mrc',outputPrefix, eigsFound, halfSet, iScale);     
-      SAVE_IMG(MRCImage(single(gather(reshape(tmpReshape, sizeMask)))), fname);
+      SAVE_IMG(MRCImage(single(gather(reshape(tmpReshape, sizeMask)))), fname,pixelSize);
 
 
         
@@ -960,8 +942,8 @@ for iGold = 1:1+flgGold
       [ eigMont_SUM ] = BH_montage4d(eigList_SUM, 'eigMont_SUM');
         fname = sprintf('%s_eigenImage%d-%s-mont_%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
         fname_SUM = sprintf('%s_eigenImage%d-SUM-%s-mont_%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
-        SAVE_IMG(MRCImage(single(gather(eigMont))), fname);
-        SAVE_IMG(MRCImage(single(gather(eigMont_SUM))), fname_SUM);
+        SAVE_IMG(MRCImage(single(gather(eigMont))), fname,pixelSize);
+        SAVE_IMG(MRCImage(single(gather(eigMont_SUM))), fname_SUM,pixelSize);
 
 
       % If requested, limit the number of principal components and coeffs saved
@@ -995,12 +977,12 @@ for iGold = 1:1+flgGold
       end
       
     end
-    save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList');
+    save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList');
   else
     if (randomSubset)
-      save(sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet),'U', 'idxList');
+      save(sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet),'U', 'idxList','peakList');
     else
-      save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList');
+      save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList');
     end
   end
   
@@ -1010,14 +992,15 @@ for iGold = 1:1+flgGold
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear dataMatrix U S V coeffs eigMont eigMontSum
-gpuDevice(1);
-delete(gcp);
+
+delete(gcp('nocreate'));
 
 % after resetting the device, bring back masks etc.
 
 
 end % end of loop over halfsets
-
+gpuDevice(1);
+delete(gcp('nocreate'));
 end % end of pca function
 
 

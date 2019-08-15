@@ -1,4 +1,4 @@
-efunction [  ] = BH_alignReferences3d( PARAMETER_FILE, CYCLE)
+edefunction [  ] = BH_alignReferences3d( PARAMETER_FILE, CYCLE)
 %Align an symmetrize references
 %   
 

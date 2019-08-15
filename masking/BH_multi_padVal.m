@@ -4,13 +4,22 @@ function [ padVal ] = BH_multi_padVal( size1, size2 )
 %   "extra" position should preced the origin for an odd dimension and follow
 %   the origin for an even volume.
 
-
+  % Forward padding
   sizeDiff = size2 - size1;
   oddDiff = mod(sizeDiff, 2);
   oddInput= mod(size1, 2);
   
   padVal = [ floor(sizeDiff./2) +  (oddInput) .* oddDiff ; ... 
              floor(sizeDiff./2) + ~(oddInput) .* oddDiff];
+        
+  % InversePadding
+  sizeDiff = size1 - size2;
+  oddDiff = mod(sizeDiff, 2);
+  oddInput= mod(size2, 2);
+  
+  padVal = [padVal ;
+            floor(sizeDiff./2) +  (oddInput) .* oddDiff ; ... 
+            floor(sizeDiff./2) + ~(oddInput) .* oddDiff];
   
 end
 

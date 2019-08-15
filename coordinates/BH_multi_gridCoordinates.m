@@ -6,26 +6,44 @@ function [ Gc1,Gc2,Gc3,g1,g2,g3 ] = BH_multi_gridCoordinates( SIZE, SYSTEM, METH
 %Return grid vectors in R3 for various coordinate systems.
 %   Create grid vectors of dimension SIZE, that are either Cartesian,
 %   Cylindrical, or Spherical. Optionally only return a matrix with radial
-%   values. Grids are centered with the origin at ceil(N+1/2). 
+%   values. Grids are centered with the origin at ceil((N+1)/2). 
 if strcmpi(METHOD,'GPU')
   SIZE = gpuArray(single(SIZE));
 else
   SIZE = single(SIZE);
 end
 
+
 % Option to use pre-created vectors which is surprisingly expensive to
 % create.
 makeVectors = 1;
-if nargin == 8
-  makeVectors = 0;
-  x1 = varargin{1}{1};
-  y1 = varargin{1}{2};
-  z1 = varargin{1}{3};
+doFullGrid  = 1;
+if nargin > 7
+  if isnumeric(varargin{1}{1})
+    makeVectors = 0;
+    x1 = varargin{1}{1};
+    y1 = varargin{1}{2};
+    z1 = varargin{1}{3};
+    if length(varargin{1}) > 3
+      if strcmpi(varargin{1}{4},'halfGrid')
+        doFullGrid = 0;
+      elseif nargin == 8 && strcmpi(varargin{2},'halfGrid')
+        doFullGrid = 0;
+      else
+        error('4th varargin to grid coords (halfGrid bool) not understood');
+      end
+    end
+  else
+      if strcmpi(varargin{1}{1},'halfGrid')
+        doFullGrid = 0;
+      else
+        error('1st varargin to grid coords is not numeric or (halfGrid bool) not understood');
+      end    
+  end
 end
   
 if numel(SIZE) == 3
-  sX = SIZE(1) ; sY = SIZE(2) ; sZ = SIZE(3);
-  
+  sX = SIZE(1) ; sY = SIZE(2) ; sZ = SIZE(3);  
   flg3D = 1;
 elseif numel(SIZE) == 2
   sX = SIZE(1) ; sY = SIZE(2) ; 
@@ -160,49 +178,47 @@ end
 
 
 if ( makeVectors )
-  if strcmpi(METHOD, 'GPU')
    % sX = gpuArray(sX) ; sY = gpuArray(sY) ; sZ = gpuArray(sZ);
      if flgShiftOrigin == 1
-  %      x1 = [-1*floor((sX)/2):0,1:floor((sX-1)/2)];
-  %      y1 = [-1*floor((sY)/2):0,1:floor((sY-1)/2)];
-       x1 = [-1*floor((sX)/2):floor((sX-1)/2)];
+       if (doFullGrid)
+         x1 = [-1*floor((sX)/2):floor((sX-1)/2)];
+       else
+        x1 = [0:floor((sX)/2)];
+       end      
        y1 = [-1*floor((sY)/2):floor((sY-1)/2)];
        if (flg3D); z1 = [-1*floor((sZ)/2):floor((sZ-1)/2)]; end
 
-  %      if (flg3D); z1 = [-1*floor((sZ)/2):0,1:floor((sZ-1)/2)]; end
      elseif flgShiftOrigin == -1
-       x1 = [1:sX];
+       if (doFullGrid)
+        x1 = [1:sX];
+       else
+        x1 = 1:ceil((sX+1)/2);
+       end
        y1 = [1:sY];
        if (flg3D); z1 = [1:sZ]; end
+       
      elseif flgShiftOrigin == -2
-       x1 = fftshift([1:sX]);
+       if (doFullGrid)
+        x1 = fftshift([1:sX]);
+       else
+        x1 = fftshift([1:ceil((sX+1)/2);]);
+       end
        y1 = fftshift([1:sY]);
        if (flg3D); z1 = fftshift([1:sZ]); end     
-     else
-       x1 = [0:floor(sX/2),-1*floor((sX-1)/2):-1];      
+    else
+       if (doFullGrid)
+         x1 = [0:floor(sX/2),-1*floor((sX-1)/2):-1]; 
+       else
+         x1 = [0:floor(sX/2)];
+       end
        y1 = [0:floor(sY/2),-1*floor((sY-1)/2):-1];  
        if (flg3D); z1 = [0:floor(sZ/2),-1*floor((sZ-1)/2):-1]; end     
      end
-  elseif strcmpi(METHOD, 'cpu')
-     if flgShiftOrigin == 1
-       x1 = [-1*floor((sX)/2):0,1:floor((sX-1)/2)];
-       y1 = [-1*floor((sY)/2):0,1:floor((sY-1)/2)];
-       if (flg3D); z1 = [-1*floor((sZ)/2):0,1:floor((sZ-1)/2)]; end
-     elseif flgShiftOrigin == -1
-       x1 = [1:sX];
-       y1 = [1:sY];
-       if (flg3D); z1 = [1:sZ]; end  
-     elseif flgShiftOrigin == -2
-       x1 = fftshift([1:sX]);
-       y1 = fftshift([1:sY]);
-       if (flg3D); z1 = fftshift([1:sZ]); end       
-     else
-       x1 = [0:floor(sX/2),-1*floor((sX-1)/2):-1];      
-       y1 = [0:floor(sY/2),-1*floor((sY-1)/2):-1];  
-       if (flg3D); z1 = [0:floor(sZ/2),-1*floor((sZ-1)/2):-1]; end   
-     end
-  else
-    error('METHOD should be cpu or GPU')
+     
+  if strcmpi(METHOD, 'GPU')
+    x1 = gpuArray(x1);
+    y1 = gpuArray(y1);
+    if (flg3D); z1 = gpuArray(z1); end
   end
 end
   

@@ -281,7 +281,7 @@ bestAnglesResults = cell(2,1);
 try
   parpool(2)
 catch
-  delete(gcp)
+  delete(gcp('nocreate'))
   parpool(2)
 end
 
@@ -662,7 +662,7 @@ fprintf('Total execution time : %f seconds\n', etime(clock, startTime));
 gpuDevice(1);
 
 try
-  delete(gcp)
+  delete(gcp('nocreate'))
 catch
 end
 end % end of average3d function

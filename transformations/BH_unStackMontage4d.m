@@ -41,8 +41,8 @@ ind = LOCATIONS;
 % keep original montage size even if a subset of images is selected
 if isa(ind, 'cell')
   nVolumes = length(ind);
-  sizeRef = ind{1}(2:2:6)'
-sizeWINDOW
+  sizeRef = ind{1}(2:2:6)';
+
   if any(sizeRef - sizeWINDOW < 0)
     fprintf('SIZE_REF %d %d %d\nSIZE_WINDOW %d %d %d', sizeRef, sizeWINDOW);
     error(['The stored reference is too small to be masked appopriately,' , ...

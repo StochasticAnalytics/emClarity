@@ -4,41 +4,83 @@
 if [[ ${1} -eq -1 ]] ; then
   mkdir -p bin10
 
-  ls aliStacks/*.fixed | 
+  echo -e "\nIf you flagged SuperResolution, please type yes to bin by 2\n"
+  echo "Otherwise strike any key to continue"
+  read SuperRes 
+    if [[ ${SuperRes} == "yes" ]] ; then
+      binBy=2
+    else
+      binBy=1
+      echo -e "You have not typed 'yes' so not considering super res binning\n"
+    fi
+ 
+  
+
+  ls fixedStacks/*.fixed | 
+
     while read iTiltSeries ; do
     
-      bN=$(basename $iTiltSeries _ali1.fixed)
+     bN=$(basename $iTiltSeries .fixed)
+
+     if [[ -f aliStacks/${bN}_ali1.fixed ]] ; then
+        echo "Using the aliStack for ${bN}"
+        iStack="aliStacks/${bN}_ali1.fixed"
+        xFormCmd=""
+     else
+        echo "Using the fixedStack for ${bN}"
+        iStack="fixedStacks/${bN}.fixed"
+        xFormCmd="-xf fixedStacks/${bN}.xf"
+     fi
+
+     if [[ -f fixedStacks/${bN}.local ]] ; then
+      echo "using fixedStacks/${bN}.local"
       # bin the aligned stack prior to reconstruction
-      newstack -bin 10 $iTiltSeries bin10/${bN}_bin10.fixed
+      newstack ${xFormCmd} -bin $((10*${binBy})) $iStack  bin10/${bN}_bin10.fixed
+      tilt -input bin10/${bN}_bin10.fixed \
+           -output bin10/${bN}_bin10.rec \
+           -TILTFILE fixedStacks/${bN}.tlt \
+           -LOCALFILE fixedStacks/${bN}.local \
+           -RADIAL 0.15,0.05 \
+           -UseGPU 0 \
+           -THICKNESS 300 \
+           -FakeSIRTiterations 30 \
+           -RotateBy90
+    else
+      # bin the aligned stack prior to reconstruction
+      newstack ${xFormCmd} -bin $((10*${binBy})) $iStack bin10/${bN}_bin10.fixed
       tilt -input bin10/${bN}_bin10.fixed \
            -output bin10/${bN}_bin10.rec \
            -TILTFILE fixedStacks/${bN}.tlt \
            -RADIAL 0.15,0.05 \
            -UseGPU 0 \
+           -FakeSIRTiterations 30 \
            -THICKNESS 300 \
            -RotateBy90
+    fi
 
-    done
+   done
 
 exit 0
 fi
 
 baseName=${1}
+
+
 modFile="bin10/${1}_bin10.mod"
 modBin=10 # this could be changed, but works well in most cases and is ill advised.
 modThick=300 # this could be changed, particularly if your sample is thicker
              # than 3000 pixels. But then it is probably a bad candidate for
              # high resolution tomography anyhow ( assuming your pixel size > 1Ang) 
-
+echo "$modThick"
 wrkDir=$(pwd)
 
-if [[  ! -f aliStacks/${baseName}_ali1.fixed ]] ; then
+if [[  ! -f fixedStacks/${baseName}.fixed ]] ; then
   echo -e "\n\nDid not find the aligned, fixed stack at ${baseName}_ali1.fixed\n\n"
   exit 1
 fi
 
 # Get the size of the stack
-sizeSt=($(header -size aliStacks/${baseName}_ali1.fixed))
+sizeSt=($(header -size fixedStacks/${baseName}.fixed))
 
 #optional
 if [[ -f fixedStacks/${baseName}.local ]] ; then
@@ -87,7 +129,7 @@ for iPart in $(seq 1 ${numParticles[0]}) ; do
 
   unset xLt xHt yLt yHt zLt zHt WIDTH Height yLow yTop oX THICKNESS oZ
   
-  pN=$(echo "print (($iPart-1)*6)+1" | python)
+  pN=$(echo "print (($iPart-1)*6)+1" | python2)
   xLt=$(awk -v T=$(($pN + 0)) -v B=${modBin} '{if(FNR==T) print $2*B }' ${modFile}.txt)
   xHt=$(awk -v T=$(($pN + 1)) -v B=${modBin} '{if(FNR==T) print $2*B  }' ${modFile}.txt)
   yLt=$(awk -v T=$(($pN + 2)) -v B=${modBin} '{if(FNR==T) print $3*B }' ${modFile}.txt)
@@ -96,28 +138,28 @@ for iPart in $(seq 1 ${numParticles[0]}) ; do
   zHt=$(awk -v T=$(($pN + 5)) -v B=${modBin} '{if(FNR==T) print $4*B  }' ${modFile}.txt)
 
   # Explicitly check min and max
-  xL=$(echo "print min($xLt,$xHt)" | python)
-  xH=$(echo "print max($xLt,$xHt)" | python)
-  yL=$(echo "print min($yLt,$yHt)" | python)
-  yH=$(echo "print max($yLt,$yHt)" | python)
-  zL=$(echo "print min($zLt,$zHt)" | python)
-  zH=$(echo "print max($zLt,$zHt)" | python)
+  xL=$(echo "print min($xLt,$xHt)" | python2)
+  xH=$(echo "print max($xLt,$xHt)" | python2)
+  yL=$(echo "print min($yLt,$yHt)" | python2)
+  yH=$(echo "print max($yLt,$yHt)" | python2)
+  zL=$(echo "print min($zLt,$zHt)" | python2)
+  zH=$(echo "print max($zLt,$zHt)" | python2)
 
 
   echo "xl $xL xh $xH yl $yL yh $yH zl $zL zh $zH"
-  WIDTH=$(echo "print int((${padFact}*($xH-$xL)))" | python)
-  Height=$(echo "print int((${padFact}*($yH-$yL)))" | python)
+  WIDTH=$(echo "print int((${padFact}*($xH-$xL)))" | python2)
+  Height=$(echo "print int((${padFact}*($yH-$yL)))" | python2)
   echo "$WIDTH $Height"
-  yLow=$(echo "print int($yL)" | python)
-  yTop=$(echo "print int(($yLow + $Height - 1 ))" | python)
+  yLow=$(echo "print int($yL)" | python2)
+  yTop=$(echo "print int(($yLow + $Height - 1 ))" | python2)
   echo "$yLow $yTop"
-  oX=$(echo "print int((${sizeSt[0]}/2.0 - (${xL}+(${WIDTH}/2.0))))" | python)
+  oX=$(echo "print int((${sizeSt[0]}/2.0 - (${xL}+(${WIDTH}/2.0))))" | python2)
   echo "$oX"
-  THICKNESS=$(echo "print int((${padFact}*(($zH - $zL)**2)**0.5))" | python)
+  THICKNESS=$(echo "print int((${padFact}*(($zH - $zL)**2)**0.5))" | python2)
   echo "$THICKNESS"
-  oZ=$(echo "print -1*int((($modThick*$modBin)/2.0- ($zL+$THICKNESS/2.0)))" | python)
+  oZ=$(echo "print -1*int((($modThick*$modBin)/2.0- ($zL+$THICKNESS/2.0)))" | python2)
   echo "$oZ"
-  oY=$(echo "print int(0.5*(${yLow} + ${yTop} - 1) - ${sizeSt[1]}/2.0 ) " | python)
+  oY=$(echo "print int(0.5*(${yLow} + ${yTop} - 1) - ${sizeSt[1]}/2.0 ) " | python2)
   
 # THICKNESS=$(($THICKNESS+140))
 

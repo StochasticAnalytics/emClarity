@@ -49,7 +49,7 @@ iCCCmap = iCCCmap - min(iCCCmap(:));
 if nargin > 4 
   if ~isempty(varargin{1})
     % Zero out tighter zone for cases of repeating lattice
-    iCCCmap(varargin{1}) = 0;
+    iCCCmap = iCCCmap .* varargin{1};
   end
 end
 peakCOM = PEAK_COM;
@@ -110,7 +110,10 @@ if (~isnan(gather(maxVal)) && (maxVal ~= 0))
   end
 else
    fprintf('maxVal in iCCCmap is %f\n', maxVal);
-   
+%    figure, imshow3D(gather(iCCCmap));
+%    figure, imshow3D(gather(varargin{1}));
+%    error('sdf')
+%    
    PEAK_COORD = [0,0,0];
 end
 PEAK_COORD = PEAK_COORD - ceil((size(iCCCmap)+1)./2);

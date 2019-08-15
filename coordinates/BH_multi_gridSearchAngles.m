@@ -44,9 +44,9 @@ end
 
 
 if (length(ANGLE_SEARCH) == 5)
-  symmetryConstrainedSearch = ANGLE_SEARCH(5);
+  helical = ANGLE_SEARCH(5);
 else
-  symmetryConstrainedSearch = 0;
+  helical = 0;
 end
 
   
@@ -60,21 +60,21 @@ if all(IN_PLANE)
     IN_PLANE_SEARCH(end+1) = 0;
   end
   
-  if (symmetryConstrainedSearch)
-    for iSym = 1:symmetryConstrainedSearch-1
-      IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
-    end
-  end
+%   if (symmetryConstrainedSearch)
+%     for iSym = 1:symmetryConstrainedSearch-1
+%       IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
+%     end
+%   end
   nIN_PLANE = length(IN_PLANE_SEARCH);
   angleStep(1,:) = [0,0,0,0,psiStep];
 else
 IN_PLANE_SEARCH = 0;
-  if (symmetryConstrainedSearch)
-    for iSym = 1:symmetryConstrainedSearch-1
-      IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
-    end
-  
-  end
+%   if (symmetryConstrainedSearch)
+%     for iSym = 1:symmetryConstrainedSearch-1
+%       IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
+%     end
+%   
+%   end
 
   psiStep = 0;
   nIN_PLANE = 1; % Always search the unrotated sample
@@ -105,7 +105,7 @@ if all(OUT_OF_PLANE)
       nAzimuthal = 0;
       phiStep = 0.5.* sind(thetaStep)^-1.0 .* thetaStep;
     else
-      phiStep = sind(theta)^-1.0 .* thetaStep;
+      phiStep = sind(theta/1)^-1.0 .* thetaStep;
       if (theta - thetaStep == 0) || (theta + thetaStep == 180)
         % strict even spacing leaves the first out of plane undersampled
         phiStep = 0.5 * phiStep;
@@ -130,6 +130,13 @@ else
   % Setting top polar limits the angular search to at most the in plane angles,
   % as the azimuth is also zero for iPolarAngle = 1.
   topPolar = 0;
+end
+
+% Override the search for  helical
+if (helical)
+  fprintf('WARNING: overriding the azimuthal search for helical to -pi:out_of_plane_step:pi\n');
+  azimuthalSearch = -180:OUT_OF_PLANE(2):180;
+  angleStep(:,[2,3]) = repmat([length(azimuthalSearch),OUT_OF_PLANE(2)],size(angleStep,1),1);
 end
 
 % number of angles in the

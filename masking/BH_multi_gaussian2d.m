@@ -9,6 +9,9 @@ Kx = '';
 Ky = '';
 Kxy = '';
 
+if numel(StdDev) == 1
+  StdDev = StdDev.*[1,1];
+end
 flgFourier = 0;
 if any(SIZE < 0)
   SIZE = abs(SIZE);
@@ -40,11 +43,12 @@ end
 
 if (flgFourier)
   % Zeroth order gaussian derivative
-  gfunc = @(x,y,s)(exp(-0.5*(x.^2+y.^2).*(s.*2.*pi).^(2)));
+  % Have not set up variable sigmas for Fourier case yet
+  gfunc = @(x,y,s)(exp(-0.5*(x.^2+y.^2).*(s(1).*2.*pi).^(2)));
   normFactor = @(x,y,r,Ord)((2i.*pi).^Ord);
 else
-  gfunc = @(x,y,s)(exp(-0.5*(x.^2+y.^2)./s.^2));  
-  normFactor = @(x,y,s,Ord)((2.*pi).^-1.*(s^2).^(-(Ord+1)));
+  gfunc = @(x,y,s)(exp(-0.5*((x./s(1)).^2+(y./s(2)).^2)));  
+  normFactor = @(x,y,s,Ord)((2.*pi).^-1.*(prod(s)^2).^(-(Ord+1)));
 end
 
                                                           

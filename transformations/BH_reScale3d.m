@@ -1,4 +1,4 @@
-function [ outputVol ] = BH_reScale3d( inputVol, nameOUT, MAG, METHOD )
+function [ outputVol ] = BH_reScale3d( inputVol, nameOUT, MAG, METHOD, varargin )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -6,6 +6,12 @@ if (isnumeric(MAG))
   mag = MAG; 
 else
   mag = str2num(MAG);
+end
+
+if nargin > 4
+  xyzShift = varargin{1};
+else
+  xyzShift = [0,0,0];
 end
 
 pixelSize = 1.0;
@@ -29,12 +35,12 @@ elseif ischar(inputVol)
   header = getHeader(mrcImage);
   pixelSizeX = header.cellDimensionX / header.nX;
   pixelSizeY = header.cellDimensionY / header.nY;
-  if pixelSizeX ~= pixelSizeY
+  if abs((pixelSizeX - pixelSizeY)./pixelSizeX) > 0.01
     fprintf('\npixel size in X (%2.2f), Y (%2.2f) inconsistent, leaving unset\n',pixelSizeX,pixelSizeY);
   else
     pixelSize = pixelSizeX;
   end
-  inputVol = {getVolume(mrcImage)};
+  inputVol = {getVolume(mrcImage')};
   writeOut = true;
   outPutArray = false;
 
@@ -69,11 +75,11 @@ clear bandPass
 
 [~,~,~,x,y,z] = BH_multi_gridCoordinates(sizeVol,'Cartesian',METHOD,...
                                         {'single',[1,0,0;0,1,0;0,0,1],...
-                                        [0,0,0]','forward',1,mag},0,1,0);
+                                        xyzShift','forward',1,mag},0,1,0);
 
 [X,Y,Z,~,~,~] = BH_multi_gridCoordinates(sizeOut,'Cartesian',METHOD,...
                                         {'single',[1,0,0;0,1,0;0,0,1],...
-                                        [0,0,0]','forward',1,mag},0,1,0);
+                                        xyzShift','forward',1,mag},0,1,0);
 
 
   
@@ -84,7 +90,7 @@ for iVol = 1:nVols
     outputVol{iVol} = interpn(x,y,z, inputVol{iVol},X,Y,Z ,'spline',0);       
     outputVol{iVol}(isnan(outputVol{iVol})) = 0;
   end
-  clear inputVol{iVol}                                 
+  inputVol{iVol} = [];                               
 end
 
 clear x y z X Y Z

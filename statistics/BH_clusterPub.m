@@ -60,6 +60,11 @@ else
   flgGold = 1;
 end
 
+try
+  nPeaks = pBH.('nPeaks');
+catch
+  nPeaks = 1;
+end
 
 featureVector = cell(2,1);
 if flgGold
@@ -86,11 +91,15 @@ end
 
 nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
 
+% try
+%   relativeScale = pBH.('Pca_relativeScale')
+% catch
+%   relativeScale= ones(size(clusterVector,1),1);
+% end
+
 try
-  relativeScale = pBH.('Pca_relativeScale')
-  flgFlattenEigs = pBH.('Pca_flattenEigs')
+  flgFlattenEigs = pBH.('Pca_flattenEigs');
 catch
-  relativeScale=[1,1,1];
   flgFlattenEigs=0;
 end
 
@@ -105,7 +114,7 @@ end
 
 for iGold = 1:1+flgGold
   if (flgGold)
-    if iGold == 1;
+    if iGold == 1
       halfSet = 'ODD';
       randSet = 1;
     else
@@ -160,6 +169,12 @@ for iGold = 1:1+flgGold
     oldPca = load(coeffMatrix);
     coeffsUNTRIMMED = oldPca.coeffs
     idxList = oldPca.idxList;
+    if nPeaks > 1
+      peakList = oldPca.idxList;
+    else
+      peakList = [];
+    end
+    
     numParticles = oldPca.nTOTAL;
     clear oldPca;
   catch 
@@ -169,7 +184,7 @@ for iGold = 1:1+flgGold
   try
     parpool(nCores);
   catch
-    delete(gcp);
+    delete(gcp('nocreate'));
     pause(3)
     parpool(nCores);
   end
@@ -179,11 +194,11 @@ for iGold = 1:1+flgGold
   featureVector{1}
   nFeatures = zeros(1,nScaleSpace)
   
-  if length(relativeScale) ~= nScaleSpace
-    error('relativeScale has %d elements for %d scaleSpaces', ...
-          length(relativeScale), nScaleSpace);
-  end
-  
+%   if length(relativeScale) ~= nScaleSpace
+%     error('relativeScale has %d elements for %d scaleSpaces', ...
+%           length(relativeScale), nScaleSpace);
+%   end
+%   
   if isa(coeffsUNTRIMMED, 'cell')
     [nI,nJ] = size(coeffsUNTRIMMED{1});
     for iScale = 1:nScaleSpace
@@ -212,8 +227,8 @@ for iGold = 1:1+flgGold
       end
     % Instead, maintain option to weight the features from different scale
     % spaces relative to each other.
-      coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) = ...
-        coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) .* relativeScale(iScale);    
+%       coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) = ...
+%         coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) .* relativeScale(iScale);    
       
       nAdded = nAdded + nFeatures(iScale)
     end
@@ -224,16 +239,15 @@ for iGold = 1:1+flgGold
     nClusters = clusterVector(iCluster);
     
 
-size(coeffMat')
       if strcmpi(kAlgorithm, 'kMeans')
-        [class, classCenters, sumd] = kmeans(coeffMat', nClusters, ...
+        [class, classCenters, sumd, D] = kmeans(coeffMat', nClusters, ...
                                     'replicates', kReplicates, ...
                                     'Distance', kDistMeasure, ...
                                     'MaxIter', 50000, ... % Default was 100
                                     'Options', statset('UseParallel', 1) );
                                   
       elseif strcmpi(kAlgorithm, 'kMedoids')
-        [class, classCenters, sumd] = kmedoids(coeffMat', nClusters, ...
+        [class, classCenters, sumd, D] = kmedoids(coeffMat', nClusters, ...
                                     'replicates', kReplicates, ...
                                     'Distance', kDistMeasure, ...
                                      'Options', statset('UseParallel', 1, ...
@@ -252,7 +266,7 @@ size(coeffMat')
         [net, tr] = train(net, coeffMat);
         y = net(coeffMat)
         class = vec2ind(y)
-sumd=0
+
       else
         error('kAlgorithm must be kMeans, or kMedoids, not %s', kAlgorithm);
       end
@@ -300,14 +314,14 @@ sumd=0
 %                                     'MaxIter', 20000, ... % Default was 100
 %                                     'Options', statset('UseParallel', 1) );
         if strcmpi(kAlgorithm, 'kMeans')
-          [class, classCenters, sumd] = kmeans(coeffMat', nClusters, ...
+          [class, classCenters, sumd,D] = kmeans(coeffMat', nClusters, ...
                                       'replicates', kReplicates, ...
                                       'Distance', kDistMeasure, ...
                                       'MaxIter', 50000, ... % Default was 100
                                       'Options', statset('UseParallel', 1) );
 
         elseif strcmpi(kAlgorithm, 'kMedoids')
-          [class, classCenters, sumd] = kmedoids(coeffMat', nClusters, ...
+          [class, classCenters, sumd,D] = kmedoids(coeffMat', nClusters, ...
                                       'replicates', kReplicates, ...
                                       'Distance', kDistMeasure, ...
                                        'Options', statset('UseParallel', 1, ...
@@ -330,6 +344,9 @@ sumd=0
 
       end
 
+      % This leaves each cluster untouched, but changes the cluster label
+      % such that the cluster lablelled 1 is also the most populated
+      % cluster.
       classCount = zeros(nClusters,1);
       for i = 1:nClusters
         % counts of class numbers
@@ -358,24 +375,39 @@ sumd=0
       end
 
       % This isn't great, and maybe my brain is just tired.
-      save('clusterTrouble.mat', 'idxList', 'class')
+      save(sprintf('clusterTrouble_%d.mat',iCluster), 'idxList', 'class','classCenters','D');
 
       for iTomo = 1:nTomograms
         positionList = geometry_clean.(tomoList{iTomo});
         includedClass = ( positionList(:,26) ~= -9999 & ismember(positionList(:,7),randSet));
         positionList(:,8) = includedClass;
         particleIDX = positionList( includedClass, 4);
+  
+         % Returns the lowest index where this is true
         [~, lIndClass] = ismember(particleIDX, idxList);
         [~, lIndPart]  = ismember(particleIDX, positionList(:,4));
 
         % for trouble shooting
-        try
+%         try
+      
+        if (nPeaks > 1) 
+          for thisIDX = 1:length(lIndClass)
+            for iPeak = 0:nPeaks-1
+              positionList(lIndPart(thisIDX), 26 + 26*iPeak) = class(lIndClass(thisIDX)+iPeak);
+%               fprintf('iTomo %d iSubtomo %d iPeak %d Class %d\n',iTomo,lIndPart(thisIDX),iPeak+1,class(lIndClass(thisIDX)+iPeak));
+            end
+          end
+          geometry.(tomoList{iTomo}) = positionList;
+          fprintf('Size iTomo %d %d\n',size(positionList));
+        else
           positionList(lIndPart, 26) = class(lIndClass);
           geometry.(tomoList{iTomo}) = positionList;
-        catch
-          save('ClusterLine221Err.mat')
-          error('Caught error, saving workspace for evaluation.\n')
+          
         end
+%         catch
+%           save('ClusterLine391Err.mat')
+%           error('Caught error, saving workspace for evaluation.\n')
+%         end
       end
       fout = sprintf('%s_%d_%d_nClass_%d_%s', outputPrefix, featureVector{iGold}(1,1), ...
                                                featureVector{iGold}(1,end), nClusters, halfSet);
@@ -394,7 +426,7 @@ sumd=0
 
   %save(sprintf('%s_pca.mat',OUTPUT_PREFIX), 'nTOTAL','U', 'S', 'V', 'coeffs')
   fprintf('Total execution time on set %s: %f seconds\n', halfSet,etime(clock, startTime));
-  delete(gcp);
+  delete(gcp('nocreate'));
 end % end of Gold loop
 end % end of cluster function
 

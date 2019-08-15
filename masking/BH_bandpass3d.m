@@ -51,16 +51,20 @@ function [ BANDPASS ] = BH_bandpass3d( SIZE, HIGH_THRESH, HIGH_CUT, LOW_CUT, ...
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
        
+if numel(SIZE) == 2
+  SIZE = [SIZE,1];
+end
+
 % The following will adjust the apodization window, and is not intended for
 % regular users to adjust. The value of 2.0 makes for a nice (soft) fall
 % off over ~ 7 pixels. Larger value results in a steeper cutoff.
 % Corresponds to the standard deviation in the gaussian roll.
-if isnumeric(PIXEL_SIZE)
+if isnumeric(PIXEL_SIZE) 
   [bSize, highRoll, lowRoll, highCut, lowCut] = calc_frequencies( ...
                         SIZE, HIGH_THRESH, HIGH_CUT, LOW_CUT, PIXEL_SIZE );
 else
   bSize = SIZE;
-  if strcmp(PIXEL_SIZE,'nyquistHigh')
+  if strcmpi(PIXEL_SIZE,'nyquistHigh')
       highCut = 7/min(bSize(bSize>1));
       highThresh = 1e-6;
       highRoll = sqrt((-1.*highCut.^2)./(2.*log(highThresh)));
@@ -69,7 +73,8 @@ else
   end
   lowRoll = 1.5 .* (1.0./min(bSize(bSize>1)));
   lowCut = 0.485+LOW_CUT;
-end                      
+end   
+
 gaussian = @(x,m,s) exp( -1.*(x-m).^2 ./ (2.*s.^2) );
  
 
@@ -141,7 +146,7 @@ lowCut  = PIXEL_SIZE ./ LOW_CUT;
 % if lowCut is negative, indicates a "SIRT like" lowpass and filter rolls
 % from 1 at abs(lowCut) to 10^-8 at 20A
 
-if (lowCut > 0)
+if (gather(lowCut) > 0)
   if (bSize(3) == 1)
     lowRoll = 2.0 .* (1.0./min(bSize(1:2)));
   else

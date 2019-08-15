@@ -4,147 +4,11 @@ function [hAvg, hRms, avgRange, rmsRange]  = BH_templateSearch3d( PARAMETER_FILE
  
                                                        
 %3d template matching
-%
-%
-%   Input variables:
-%
-%   MAP = Tomogram to be searched for motifs. The final binned size is limited
-%         to roughly 5gb on a Tesla K40.
-%
-%   TEMPLATE = Reference volume containing the motif to search for.
-%
-%   RAWTLT = File containing the tilt angles as in IMOD convention (underfocus
-%            magnitude increases with the X-axis for a positive tilt. These will
-%            be used both to create a wedge mask to appropriately distort
-%            the
-%   
-%   SAMPLING = Integer sampling, values of 3 or 4 are generally good for the
-%              work I am doing, where the full sampling rate is <= 3A/pixel. For
-%              gold standard work, the template matching step must be low-pass
-%              filtered quite strongly to avoid biasing the data.
-%
-% 
-%   PEAK_THRESHOLD = minimum multiple of standard deviations above the mean of
-%                    cummulative covariance map that a peak needs to be in order
-%                    to be counted as valid. By default, the maximum number of
-%                    peaks to be accepted is 10,000- but this should only
-%                    happen when no real peaks are found (by my thoughts
-%                    anyhow!) Generally, it is advisable to test this with other
-%                    parameters on your own data, in order to accept just
-%                    slightly more (some false positives) than you expect, which
-%                    can be later ignored via CCC or classification (or both.)
-%
-%   ANGLE_SEARCH = [a1 a2 a3 a4 helical] the angular search is a grid searched
-%                  designed to exhaustively sample a unit sphere over the range
-%                  you specify. Out of plane +/- a1 in steps of size a2, in
-%                  plane +/- a3 in steps of a4. These together define a set of
-%                  "latitudes" if you will, and the in plane sampling at each
-%                  point sampled on that latitude, while the longitudinal
-%                  sampling is calculated to be evenly sampled at the same rate
-%                  as the latitude. The smaller the out of plane step size, the
-%                  more longitudinal sampling points, and also the larger the
-%                  absolute out of plane angle, the greater number of steps it
-%                  takes to make a full revolution.
-%     
-%                  helical = 0 or 1 to indicate a helical rather than spherical
-%                  grid search. I haven't actually tested this thoroughly so if
-%                  set to 1 should be used with some extra caution.
-%
-%   TARGET_SIZE = [256 256 256] is the dimension, ideally a power of 2, 
-%                  that we would like to pad each tomo chunk to, and this 
-%                  depends on the available memory. In the future, I should set 
-%                  this up as an automatic calculation. Minimal padding is size
-%                  chunk + size reference. Should also be smaller than the 
-%                  minimum dimenstion of you tomo.
-%
-%   LATTICE_RADIUS = [x,y,z] unbinned lattice dimension (i.e. particle radius)
-%                    that will be excluded after a given peak is picked. In
-%                    ANGSTROM
-%
-%
-%   
-%   Output variables:
-%
-%   None - saved to disk, .mat file with the geometry of best match found, as
-%          well as the sampled version of the cummulative correlation map, which
-%          can be viewed with the positions overlayed to asses the quality,
-%          which can depend on not only the reference, but also the bandpass and
-%          binning chosen as well as the angular search parameters.
-%
-%   
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   Goals & limitations:
-%
-%   3D template matching using a GPU. Developed on 4Gb card, consider this
-%   a minimum memory requirement.
-%
-%   Tomogram and reference are read into memory.
-%   Chunks of size ~ 384 x 384 x zDIM are processed at a time, which
-%   are padded to next power 2 (512), leaving a minimal zero padding
-%   buffer for the cross correlation. Ideally the padding would be twice
-%   the image size, but this is just too large a memory requirement. 
-%
-%   The references are calculated on the fly, which takes a significant
-%   portion of the computational effort, so larger chunks (fewer repeated
-%   calculations) are preferable. See note in TODO section. 
-%
-%   Missing wedge region and low pass are taken from the tomogram chunk and
-%   the rotated reference. They are then set to have mean 0 and std 1 in
-%   the image domain, and compared by xcf. It is assumed the template
-%   doesn't have a substantial amount of missing information itself.
-%   
-%   Each reference is given a reference that has an index between (0,pi)
-%   and this is stored as the phase in the ccmap (which is inherently
-%   real-valued.) Each iteration, the abs(ccmap) is compared to the new
-%   ccmap, and updated to include and higher values, such that the final
-%   peak search is performed on a "cummulative" ccmap which makes selecting
-%   a threshold much easier. The default is mean + 6*std which has worked
-%   well so far as judged by leaving only a few false positives (which are
-%   easly removed in later classification in subvolume analysis.)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   TODO
-%   1) Handle a list of multiple tomograms
-%   2) Handle GPU mempory more dynamically
-%   3) Handle variable missing wedge geometry
-%   4) Determine balance of number of references/ number of chunks, vs.
-%   memory requirements for storing the references in memory, and for large
-%   grid searches, the benefit of calculating the references ahead of time,
-%   even if the must be read into/out of memory onto scratch space. I think
-%   for anything but an in plane search, this might be worthwhile.
-%   Currently using MRC --> tif, reading in tif (individual images as
-%   reading/writing multipage tifs with MATLAB takes forever.) 
-%   5) Set-up to take low-pass cut off and pixel size as input
-%   6) Test the benefit of filling in the wedge with low amplitude random
-%   phase information as a way of decreasing the influence of the wedge.
-%   7) Perform a number of test cases for different size tomo/template and
-%   different step sizes in order to be able to more accurately estimate the
-%   time needed for a given search range. This can also be used to boost the
-%   usage on archer.3
-%   8) Tomogram padding with numbers other than zero, I can't rember why i did
-%   this initially, so ideally it should be figured out or changed.
-%
-%   - position - 0.5 for protomo display
-%   - add field "total number" to track subtomonuber + a check to see if
-%   geometry structure already exists
-%
-%
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MAP = 'gag2_sirt10.mrc';
-% PARAMETER_FILE = 'gagInitParam.m'
-% TEMPLATE = 'briggsDup_scaleTrim.mrc';
-% RAWTLT = './raw/GagSM4A_7.rawtlt';                                                                                               
-% if (nargin ~= 5) 
-%   if (nargin ~= 6 && nargin ~= 7)
-%     error('args = PARAMETER_FILE,MAP,TEMPLATE, RAWTLT, SYMMETRY, [gpuIDX(1,2)], wedgeType')
-%   end/fast_scratch/himesb/testRMS_45/cycle012_testRMS_15_class0_REF_ODD.mrc
-% end
+
 
 precision = 'single';
 precisionTaper = 'singleTaper';
@@ -174,9 +38,13 @@ startTime = clock ;
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 try
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-  mapBackIter = subTomoMeta.currentTomoCPR; clear subTomoMeta
+  mapBackIter = subTomoMeta.currentTomoCPR
+%   clear subTomoMeta
+  % Make sure we get a CTF corrected stack
+  shouldBeCTF = 1
 catch
   mapBackIter = 0;
+  shouldBeCTF = -1
 end
 samplingRate  = pBH.('Tmp_samplingRate');
 
@@ -195,7 +63,11 @@ else
 end
 
 latticeRadius = pBH.('particleRadius');
-targetSize    = [512,512,512];
+try
+  targetSize    = pBH.('Tmp_targetSize')
+catch
+  targetSize = [512,512,512];
+end
 angleSearch   = pBH.('Tmp_angleSearch');
 
 statsRadius = 1;
@@ -203,36 +75,19 @@ statsRadius = 1;
 convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 
 try 
-  eraseMaskType = pBH.('Tmp_eraseMaskType');
+  eraseMaskType = pBH.('Peak_mType');
 catch
   eraseMaskType = 'sphere';
 end
 try
-  eraseMaskRadius = pBH.('Tmp_eraseMaskRadius');
+  eraseMaskRadius = pBH.('Peak_mRadius');
 catch
   eraseMaskRadius = 0.75.*latticeRadius;
 end
 
-try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta')
-  % Make certain this is a new alignment
-  if length(fieldnames(subTomoMeta.cycle000)) > 1
-    error('It looks like this is not a new project, remove mat file.')
-  end
-  
-  % Make sure each subTomo has a unique idx
-  nPreviousSubTomos = 0;
-  fieldList = fieldnames(subTomoMeta.cycle000.geometry);
-  for iField = 1:size(fieldList,1)
-    nPreviousSubTomos = nPreviousSubTomos + ...
-        size(subTomoMeta.cycle000.geometry.(sprintf('%s',fieldList{iField})),1);
-  end
-  subTomoMeta.('nSubTomoTotal') = nPreviousSubTomos;
-catch 
-  fprintf('\n\nDid not eveRot geometry.\n\n')
-  subTomoMeta = struct();
-  nPreviousSubTomos = 0;
-end
+
+nPreviousSubTomos = 0;
+
 reconScaling = 1;
 try
   nPeaks = pBH.('nPeaks');
@@ -247,19 +102,35 @@ end
 
 pixelSize = pixelSizeFULL.*samplingRate;
 
-% For testing
-try 
-  lowResCut = pBH.('lowResCut');
-catch
-  % Current default, which may be too conservative.
-  lowResCut = 40;
+
+  
+if (shouldBeCTF == 1)
+  % Base resolution cutoff on the current map resolution
+  lowResCut = 1.5*mean(subTomoMeta.currentResForDefocusError);
+  fprintf('using %3.3f Ang [ 1.5*mean(currentResolution) ] for global search\n',lowResCut);
+else
+  try 
+    lowResCut = pBH.('lowResCut');
+    if pixelSize*2 > lowResCut
+      fprintf('\nLimiting to Nyquist (%f) instead of user requested lowResCut %f Angstrom\n',pixelSize*2,lowResCut);
+      lowResCut = pixelSize*2;
+    else
+      fprintf('\nUsing specified resolution cutoff of %f Angstrom\n',lowResCut);
+    end
+  catch
+    TLT = load(sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tomoName,mapBackIter+1));
+    def = mean(-1.*TLT(:,15))*10^6; %TODO if you switch to POSITIVEDEFOCUS this will be wrong
+    lowResCut = -0.2*def^2 +5.2*def +11;
+    if pixelSize*2 > lowResCut
+      fprintf('\nLimiting to Nyquist (%f) instead of the first zero of the CTF for lowResCut %f Angstrom\n',pixelSize*2,lowResCut);
+      lowResCut = pixelSize*2;
+    else
+      fprintf('\nUsing the first zero of the CTF for the resolution cutoff of %f Angstrom\n',lowResCut);
+    end
+  end
 end
 
-try
-  useCtfCorrected = pBH.('useCtfCorrected');
-catch
-  useCtfCorrected = 0;
-end
+
 
 mapPath = './cache';
 mapName = sprintf('%s_%d_bin%d',tomoName,tomoNumber,samplingRate);
@@ -271,30 +142,32 @@ sprintf('recon/%s_recon.coords',tomoName)
 reconCoords = recGeom(tomoNumber,:);
 clear recGeom
 
-% TODO in testing ctf flipped for using higher resolutions, there is no catch
-% to make sure that this isn't just builing a non-ctf corrected tomo.
-% If the idea pans out, deal with it. (Probably by just doing ctf corrected all 
-% the time)
+
 [ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
                                      reconCoords, mapBackIter, samplingRate,...
-                                     -1*gpuIDX, reconScaling,1); 
+                                     shouldBeCTF*gpuIDX, reconScaling,1); 
                                            
  
 % We'll handle image statistics locally, but first place the global environment
 % into a predictible range
 
-% Wait until after application of/distortion by tomo's ctf to downsample the template. 
+  
 
 [template, tempPath, tempName, tempExt] = ...
                               BH_multi_loadOrBin( TEMPLATE, 1, 3 ); 
                             
+
+                            
+                            
+                            
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
 fprintf('size of provided template %d %d %d\n',size(template));
-trimTemp = BH_multi_padVal(size(template),ceil(1.15.*latticeRadius./pixelSizeFULL));
+trimTemp = BH_multi_padVal(size(template),ceil(2.*max(pBH.('Ali_mRadius')./pixelSizeFULL)));
 template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
+SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
-fprintf('size after trim to 1.15x lattice radius %d %d %d\n',size(template));
+fprintf('size after trim to sqrt(2)*max(lattice radius) %d %d %d\n',size(template));
                             
 if isempty(mapPath) ; mapPath = '.' ; end
 if isempty(tempPath) ; tempPath = '.' ; end
@@ -310,19 +183,14 @@ template = padarray(template, mod(size(template),2),0, 'post');
 template = template - mean(template(:));
 
 templateBIN = BH_reScale3d(template,'',sprintf('%f',1/samplingRate),'cpu');
+templateBIN = templateBIN - mean(templateBIN(:));
+templateBIN = templateBIN  ./rms(templateBIN(:));
 
 
 sizeTemp = size(template)
 sizeTempBIN = size(templateBIN)
 
-% % borderMask =  gather(BH_mask3d('rectangle',sizeTemp,(sizeTemp./2)-6,[1,1,1])); 
 
-% % % interpMask = BH_mask3d_cpu('sphere',sizeTemp,max(latticeRadius./pixelSizeFULL).*[1,1,1],[0,0,0]);
-% % % interpMask = interpMask > 0.01;
-
-% Calculate exclusion area around chosen peaks.
-% Convert Ang to pixels
-maxSizeForHighPass = 2*max(latticeRadius);
 
 statsRadiusAng = statsRadius.*[2,2,2].*max(latticeRadius);
 statsRadius = ceil(statsRadiusAng./pixelSize);
@@ -372,9 +240,9 @@ validArea = OUTPUT(4,:);
 validCalc = OUTPUT(5,:);
 nIters    = OUTPUT(6,:);
 
-[ padVal ] = BH_multi_padVal( sizeTemp, sizeChunk );
-tempPre = padVal(1,:);
-tempPost = padVal(2,:);
+%[ padVal ] = BH_multi_padVal( sizeTemp, sizeChunk );
+%tempPre = padVal(1,:);
+%tempPost = padVal(2,:);
 
 [ padBIN ] = BH_multi_padVal( sizeTempBIN, sizeChunk );
 [ trimValid ] = BH_multi_padVal(sizeChunk, validArea);
@@ -384,10 +252,20 @@ if ( tmpDecoy )
   % the maximum rate of change in the ccc
   
   % the -1 searches for the next smallest fast fourier size
-  decoySize = BH_multi_iterator(-1.*floor(tmpDecoy.*sizeChunk),'fourier');
-  fprintf('\n\ndecoy size %d %d %d from chunkSize %d %d %d\n\n',decoySize,sizeChunk);  
-  padDecoy1 = BH_multi_padVal( sizeTempBIN, decoySize);
-  padDecoy2 = BH_multi_padVal( decoySize, sizeChunk );
+  templateBIN = gpuArray(templateBIN);
+
+
+  
+  decoyTest = BH_reScale3d(templateBIN,'',tmpDecoy,'GPU');
+  decoyTrim = BH_multi_padVal(size(decoyTest),size(templateBIN));
+  decoyTest = fftn(BH_padZeros3d(decoyTest,decoyTrim(1,:),decoyTrim(2,:),'GPU','single'));
+  decoyShift = -1.*gather(BH_multi_xcf_Translational(decoyTest,conj(fftn(templateBIN)),'',[3,3,3]));  
+  decoyNorm = gather(sum(abs(decoyTest(:)))./sum(abs(fftn(templateBIN(:)))));
+  padDecoy = BH_multi_padVal(size(decoyTest),sizeChunk) + decoyTrim;
+  clear decoyTest
+  templateBIN = gather(templateBIN);
+  fprintf('tmpDecoy %f normFactor %f and shift by %2.2f %2.2f %2.2f\n',tmpDecoy,decoyNorm,decoyShift);
+
 end
 
 
@@ -402,8 +280,10 @@ fprintf('-----\n');
 
 size(tomogram)
 
-[ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
-                                                     'cpu', 'singleTaper');
+% [ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
+%                                                      'cpu', 'singleTaper');
+tomogram = padarray(tomogram,tomoPre,'symmetric','pre');
+tomogram = padarray(tomogram,tomoPost,'symmetric','post');                                                   
 sizeTomo = size(tomogram);
 
 
@@ -429,219 +309,15 @@ fftw('planner','patient');
 fftn(opt);
 clear opt ans
 
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Preprocess the tomogram
-
-tomoIDX = 1;
-nTomograms = prod(nIters);
-
-
-tomoStack = zeros([sizeChunk,nTomograms], 'single');
-
-% backgroundVol = zeros(sizeChunk,'single');
-tomoCoords= zeros(nTomograms, 3, 'uint16');
-
-[ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 0,maxSizeForHighPass, ...
-                                              lowResCut,'cpu', pixelSize );
-         
-try
-  doMedFilt = pBH.('Tmp_medianFilter')
-catch
-  doMedFilt =0
-end
-
-calcStats = 0;
-if calcStats
-  maskStack = false([sizeChunk,nTomograms]);
-  calcMask = 0;
-else
-  calcMask = 1;
-end
-firstStats = 1;
-flgOOM = 0;
-
-for statLoop = 1:1+calcStats
-for  iX = 1:nIters(1)
-  cutX = 1 + (iX-1).*validArea(1);
-  for iY = 1:nIters(2)
-    cutY = 1 + (iY-1).*validArea(2);
-    for iZ = 1:nIters(3)
-      cutZ = 1 + (iZ-1).*validArea(3);
-
-    fprintf('preprocessing tomo_chunk %d/%d col %d/%d row %d/%d plane idx%d\n' , ...
-                                  iY,nIters(2),iX,nIters(1),iZ,nIters(3),tomoIDX)
-
-
-    % Cut out chunk and zero pad - double would be more accurate, but for
-    % template matching which is fairly crude anyhow, this should be okay, and
-    % allows much larger chunks to be processed.
-    
-    
-    tomoChunk = tomogram(cutX:cutX+sizeChunk(1)-1,...
-                         cutY:cutY+sizeChunk(2)-1,...
-                         cutZ:cutZ+sizeChunk(3)-1);
-                                       
-              
-                                  
-    if ( statLoop < 2 )             
-      % Calc stats on something smoothed      
-      nonZero = tomoChunk(:) ~= 0;
-    end
-    
-    
-    if doMedFilt
-      if ( flgOOM )
-        tomoChunk = (medfilt3(tomoChunk,doMedFilt.*[1,1,1]));
-      else
-        tomoChunk = gpuArray(medfilt3(tomoChunk,doMedFilt.*[1,1,1]));
-      end
-    else
-      if ( flgOOM )
-        % Leave on CPU
-      else        
-        tomoChunk = gpuArray(tomoChunk);
-        statsRadius = gather(statsRadius);
-      end
-    end
-
-    % Handle all mean centering and rms normalization in local window
-    
-    [ averageMask, flgOOM ] = BH_movingAverage(tomoChunk, statsRadius); 
-    
-    if isa(tomoChunk(1),'gpuArray') && flgOOM
-      tomoChunk = gather(tomoChunk);
-    end
-    
-    if ( calcStats )
-      if ( firstStats )      
-        minAvg = min(averageMask(nonZero));
-        minAvg = minAvg - 1.25*abs(minAvg);
-        maxAvg = max(averageMask(nonZero));
-        maxAvg = maxAvg + 1.25*abs(maxAvg);
-        avgRange = minAvg:(maxAvg-minAvg)/5000:maxAvg;
-        hAvg = hist(averageMask(nonZero),avgRange);
-      else
-        hAvg = hAvg + hist(averageMask(nonZero),avgRange);
-      end
-    else
-%       maskStack(:,:,:,tomoIDX) = ( averageMask < lowAvg | averageMask > highAvg );
-    end
-    
-    
-    tomoChunk= tomoChunk - averageMask; clear averageMask 
-
-    [ rmsMask ] = BH_movingRMS(tomoChunk, statsRadius);
-    
-    if ( statLoop > 1 )
-      maskStack(:,:,:,tomoIDX) = ( maskStack(:,:,:,tomoIDX) | rmsMask > highRms | rmsMask < lowRms);
-    end     
-
-    if ( useCtfCorrected )
-      tomoChunk = tomoChunk ./ rmsMask;
-    else 
-      % Using the non-ctf corrected stack since we limit toA all practical
-      % defocus (<8um) should be entirely negative, so just flip in real
-      % space
-    
-      tomoChunk = -1.*(tomoChunk ./ rmsMask);
-%       backgroundVol = backgroundVol + gather(tomoChunk.*maskStack(:,:,:,tomoIDX));
-    end
-
-    
-    if ( calcStats )
-      if ( firstStats )
-        minRms = min(rmsMask(nonZero));
-        minRms = minRms - 1.25*abs(minRms);
-        maxRms = max(rmsMask(nonZero));
-        maxRms = maxRms + 1.25*abs(maxRms);   
-        rmsRange = minRms:(maxRms-minRms)/5000:maxRms;
-        hRms = hist(rmsMask(nonZero),rmsRange);
-      else
-        hRms = hRms + hist(rmsMask(nonZero),rmsRange);
-      end
-      
-    end
-    clear rmsMask
-    firstStats = 0;
-    
-    if ~( calcStats )
-     % Even if single precision is set, pull to CPU and bandpass at double
-     % precision, reverting to single.
-      if strcmpi(precision, 'double')
-        tomoChunk = double(gather(tomoChunk));
-        tomoStack(:,:,:,tomoIDX) = single(real(ifftn(fftn(...
-                                          validAreaMask.*tomoChunk).* ...
-                                          tomoBandpass)));
-      else
-
-       tomoStack(:,:,:,tomoIDX) = gather(single(real(ifftn(fftn(...
-                                          validAreaMask.*tomoChunk).* ...
-                                          tomoBandpass))));
-      end
-    end
-     
-    if ~( calcStats )
-      tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
-      tomoIDX = tomoIDX + 1;
-    end
-  
-    end
-  end
-end
-
-if ( calcStats )
-  calcMask = 1;
-  calcStats = 0;
-  hRms = gather(hRms); hAvg = gather(hAvg);
-  rmsRange = gather(rmsRange); avgRange = gather(avgRange);
-
-  % Remove begining and end of range
-  hAvg(1) = 0; hAvg(end) = 0;
-  hRms(1) = 0; hRms(end) = 0;
-
-
-  [maxRms,maxRmsCoord] = max(hRms);
-  [maxAvg,maxAvgCoord] = max(hAvg);
-
-  rmsWin = find(hRms>0.6*maxRms,1,'last') - find(hRms>0.6*maxRms,1,'first');
-  avgWin = find(hAvg>0.3*maxAvg,1,'last') - find(hAvg>0.3*maxAvg,1,'first');
-
-  lowRms = rmsRange(maxRmsCoord-rmsWin);
-  highRms= rmsRange(maxRmsCoord+rmsWin);
-
-  lowAvg = avgRange(maxAvgCoord-avgWin);
-  highAvg= avgRange(maxAvgCoord+avgWin);
-
-  % figure, plot(rmsRange,hRms);
-  hRms(1:maxRmsCoord-rmsWin) = 0;hRms(maxRmsCoord+rmsWin:end) = 0;
-
-
-  hAvg(1:maxAvgCoord-avgWin) = 0;hAvg(maxAvgCoord+avgWin:end) = 0;
-
-  
-  maskStack = gather(maskStack);
-end
-
-
-end
-
-
-  
-clear tomoWedgeMask averagingMask rmsMask bandpassFilter statBinary validAreaMask tomoChunk
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 % Temp while testing new dose weighting
 TLT = tiltGeometry;
 nPrjs = size(TLT,1);
 
 
 kVal = 0;
-[ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' )
 
-
+% % [ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' );
+[ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' );
 
 
 
@@ -670,52 +346,236 @@ switch wedgeType
     error('wedgeType must be 1-4');
 end
 
-wedgeMask = gather(ifftshift(wedgeMask));
-                                     
-      
-        
- 
-        
+wedgeMask = (ifftshift(wedgeMask));
+%                                      
+% % Now just using the mask to calculate the power remaining in the template,
+% % without actually applying.
+% wedgeMask = gather(find(ifftshift(wedgeMask)));
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%   Preprocess the tomogram
+
+tomoIDX = 1;
+nTomograms = prod(nIters);
+
+
+tomoStack = zeros([sizeChunk,nTomograms], 'single');
+
+% backgroundVol = zeros(sizeChunk,'single');
+tomoCoords= zeros(nTomograms, 3, 'uint16');
+
+% % % [ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 0,maxSizeForHighPass, ...
+% % %                                               lowResCut,'cpu', pixelSize );
+% In switching to the full 3D-sampling function the high pass is
+% already incorporated in the CTF. Still include one for very low
+% resolution to deal with gradients in the tomos.
+[ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 10e-4,800, ...
+                                              lowResCut,'cpu', pixelSize );
+                                          
+% if ~(shouldBeCTF)
+%   tomoBandpass = wedgeMask .* tomoBandpass;
+% end
+
+clear wedgeMask
+
+try
+  doMedFilt = pBH.('Tmp_medianFilter');
+  if ~ismember(doMedFilt,[3,5,7])
+    error('Tmp_medianFilter can only be 3,5, or 7');
+  else
+    fprintf('Using median filter, size %d',doMedFilt);
+  end
+catch
+  doMedFilt =0
+end
+
+calcStats = 0;
+if calcStats
+  maskStack = false([sizeChunk,nTomograms]);
+  calcMask = 0;
+else
+  calcMask = 1;
+end
+firstStats = 1;
+flgOOM = 0;
+
+fullX = 0;
+fullX2 = 0;
+fullnX = 0;
+
+for  iX = 1:nIters(1)
+  cutX = 1 + (iX-1).*validArea(1);
+  for iY = 1:nIters(2)
+    cutY = 1 + (iY-1).*validArea(2);
+    for iZ = 1:nIters(3)
+      cutZ = 1 + (iZ-1).*validArea(3);
+
+    fprintf('preprocessing tomo_chunk %d/%d col %d/%d row %d/%d plane idx%d\n' , ...
+                                  iY,nIters(2),iX,nIters(1),iZ,nIters(3),tomoIDX)
+
+
+    % Cut out chunk and zero pad - double would be more accurate, but for
+    % template matching which is fairly crude anyhow, this should be okay, and
+    % allows much larger chunks to be processed.
     
- 
+    
+    tomoChunk = tomogram(cutX:cutX+sizeChunk(1)-1,...
+                         cutY:cutY+sizeChunk(2)-1,...
+                         cutZ:cutZ+sizeChunk(3)-1);
+                                       
+
+    tomoChunk = real(ifftn(fftn(tomoChunk).*tomoBandpass));
+
+
+      
+    if doMedFilt
+      if ( flgOOM )
+        tomoChunk = (medfilt3(tomoChunk,doMedFilt.*[1,1,1]));
+      else
+        tomoChunk = gpuArray(medfilt3(tomoChunk,doMedFilt.*[1,1,1]));
+      end
+    else
+      if ( flgOOM )
+        % Leave on CPU
+      else        
+        tomoChunk = gpuArray(tomoChunk);
+        statsRadius = gather(statsRadius);
+      end
+    end
+
+    % Handle all mean centering and rms normalization in local window
+    
+    [ averageMask, flgOOM ] = BH_movingAverage(tomoChunk, statsRadius); 
+   
+    if isa(tomoChunk(1),'gpuArray') && flgOOM
+      tomoChunk = gather(tomoChunk);
+    end
+
+    
+    
+    tomoChunk= tomoChunk - averageMask; clear averageMask 
+
+    [ rmsMask ] = BH_movingRMS(tomoChunk, statsRadius);
+    
   
+
+    if ( shouldBeCTF == 1 )
+      tomoStack(:,:,:,tomoIDX) = gather((tomoChunk ./ rmsMask).*validAreaMask);
+    else 
+      % Using the non-ctf corrected stack since we limit toA all practical
+      % defocus (<8um) should be entirely negative, so just flip in real
+      % space
+    
+      tomoStack(:,:,:,tomoIDX) = gather(-1.*(tomoChunk ./ rmsMask).*validAreaMask);
+%       backgroundVol = backgroundVol + gather(tomoChunk.*maskStack(:,:,:,tomoIDX));
+    end
+
+    clear rmsMask
+
+
+    fullX = fullX + sum(sum(sum(tomoStack(:,:,:,tomoIDX))));
+    fullX2 = fullX2 + sum(sum(sum(tomoStack(:,:,:,tomoIDX).^2)));
+    fullnX = fullnX + prod(sizeChunk);
+
+    tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
+    tomoIDX = tomoIDX + 1;
+
+      
+    end % end of loop over Z chunks
+  end % end of loop over Y chunks
+end % end of loop over X chunks
+
+% Normalize the global variance
+globalVariance = (fullX2 - fullX)/fullnX;
+fprintf('After local normalization, scaling also the global variance\n');
+
+for iChunk = 1:tomoIDX-1
+  tomoStack(:,:,:,iChunk) = tomoStack(:,:,:,iChunk) ./ globalVariance;
+end
+
+
   
+clear tomoWedgeMask averagingMask rmsMask bandpassFilter statBinary validAreaMask tomoChunk
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+kVal = 0;
+
+[ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' );
+
+
+switch wedgeType
+  case 1
+    % make a binary wedge
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'binaryWedgeGPU',particleThickness,...
+                                                 1, 1, samplingRate);
+  case 2
+    % make a non-CTF wedge
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 2, 1, samplingRate);   
+  case 3
+    % make a CTF without exposure weight
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 3, 1, samplingRate);   
+  case 4
+    % make a wedge with full-ctf
+    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+                   'applyMask',particleThickness,...
+                                                 4, 1, samplingRate);  
+  otherwise
+    error('wedgeType must be 1-4');
+end
+
+
+            
+
+%                                      
+% % Now just using the mask to calculate the power remaining in the template,
+% % without actually applying.
+% wedgeMask = gather(find(ifftshift(wedgeMask)));
+        
+
+        
+
+
     
 
 currentGlobalAngle = 1;
 ANGLE_LIST = zeros(nAngles(1),3, 'single');
+
+highThr=sqrt(2).*erfcinv(ceil(peakThreshold.*0.025).*2./(numel(tomogram).*nAngles(1)))
+
 nComplete = 0;
 totalTime = 0;
 firstLoopOverTomo = true;
 for iAngle = 1:size(angleStep,1)
   
   theta = angleStep(iAngle,1);
+  
+  if (helical)
+    theta = theta + 90;
+  end
 
   % Calculate the increment in phi so that the azimuthal sampling is
   % consistent and equal to the out of plane increment.
-  if (helical)
-     phi_step = 360;
-  else
-     phiStep = angleStep(iAngle,3);
-  end
+
+  phiStep = angleStep(iAngle,3);
   
   gpuDevice(useGPU);
 
   %numRefIter = nAngles(1);
   numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
-  tempImg = gpuArray(template);
-
-% % %   interpMaskGPU = gpuArray(interpMask);
+  tempImg = gpuArray(templateBIN); %%%%% NEW switch to bin
+%   tempWdg = gpuArray(wedgeMask);
+%   tempBnd = gpuArray(tempBandpass);
+  tempBandpass = gpuArray(tomoBandpass);
   
+  interpolationNormFactor = sum(abs(tempImg(:)).^2);
 
-% % %   tempWedgeMask = tempWedgeMask .^ (0.25./tempWedgeMask);    
 
-  % SAVE_IMG(MRCImage(gather(fftshift(tempWedgeMask))), 'tmpWedge.mrc') ;
-
-  [ tempFilter ] = BH_bandpass3d(sizeChunk,0.1, maxSizeForHighPass, ...
-                                          lowResCut,'GPU', pixelSizeFULL );
-
-  tempWedgeMask = gpuArray(wedgeMask) .* tempFilter; 
 
   clear referenceStack tempFilter
   % Calculate all references for each out of plane tilt only once
@@ -752,13 +612,11 @@ for iAngle = 1:size(angleStep,1)
      end
     for iAzimuth = 0:angleStep(iAngle,2)
 
-      if helical == 1
-          phi = 90 ;
-      else
-         phi = phiStep * iAzimuth;
-      end
+
+      phi = phiStep * iAzimuth;
 
       for iInPlane = inPlaneSearch
+        
         psi = iInPlane;
 
         %calc references only on first chunk
@@ -772,33 +630,53 @@ for iAngle = 1:size(angleStep,1)
 % % % % %           tempRot = BH_resample3d(tempImg, [phi, theta, psi - phi], [1,1,1], ...
 % % % % %                                   {'Bah', 1,'linear',1,interpMaskGPU},...
 % % % % %                                   'GPU','forward');
+
+
           tempRot = BH_resample3d(tempImg, [phi, theta, psi - phi], [1,1,1], ...
                                   {'Bah', 1,'linear',1},...
                                   'GPU','forward');
 
 
 
-          tempFou = BH_bandLimitCenterNormalize(tempRot,tempWedgeMask,'',[tempPre;tempPost],precisionTaper);
+          %%%%%tempFou = BH_bandLimitCenterNormalize(tempRot,tempWedgeMask,'',[tempPre;tempPost],precisionTaper);
 
-          tempRot = BH_padZeros3d(real(ifftn(tempFou)),-1.*tempPre,-1.*tempPost,'GPU',precision); 
+          %%%%%tempRot = BH_padZeros3d(real(ifftn(tempFou)),-1.*tempPre,-1.*tempPost,'GPU',precision); 
           
-          tempRot = gather(BH_reScale3d(tempRot,'',sprintf('%f',1/samplingRate),'GPU'));
+          %%%%%tempRot = gather(BH_reScale3d(tempRot,'',sprintf('%f',1/samplingRate),'GPU'));
 
-          if (firstLoopOverTomo)
-            SAVE_IMG(MRCImage(tempRot), sprintf('temp_%s.mrc',convTMPNAME),pixelSize);
-          end
+         % if (firstLoopOverTomo)
+         %   SAVE_IMG(MRCImage(tempRot), sprintf('temp_%s.mrc',convTMPNAME),pixelSize);
+         % end
+          
+         % First correct for any change in power due to
+         % rotation/interpolation
+         tempRot = tempRot .* (interpolationNormFactor./sum(abs(tempRot(:)).^2));
+         % Then correct for any change in power due to the wedge. These can be combined 
+%           normFT = abs(fftn(tempRot).*tempBnd).^2;
+% %        
+% %          
+%            normScore = sum(normFT(:)) ./ sum(normFT(:).*tempWdg(:));
+%            clear normFT;
+%            tempRot = tempRot .* normScore;
+          %clear normScore 
+          
           referenceStack(:,:,:,intraLoopAngle) = tempRot;
          
-          tempFou = fftn(BH_padZeros3d(tempRot,padBIN(1,:),padBIN(2,:),'GPU',precision));
+% % % % %           tempFou = fftn(BH_padZeros3d(tempRot,padBIN(1,:),padBIN(2,:),'GPU',precision));
  
-          
+          tempFou = BH_bandLimitCenterNormalize( tempRot, tempBandpass, '', ...
+                                                  padBIN, 'single' );
           
           
         else
 
-          tempFou = (fftn(BH_padZeros3d( ...
-                              referenceStack(:,:,:,intraLoopAngle), ...
-                              padBIN(1,:), padBIN(2,:),'GPU', precision)));
+% % % % %           tempFou = (fftn(BH_padZeros3d( ...
+% % % % %                               referenceStack(:,:,:,intraLoopAngle), ...
+% % % % %                               padBIN(1,:), padBIN(2,:),'GPU', precision)));
+                            
+                             
+          tempFou = BH_bandLimitCenterNormalize( referenceStack(:,:,:,intraLoopAngle), tempBandpass, '', ...
+                                                  padBIN, 'single' );
 
         end
 
@@ -813,36 +691,39 @@ for iAngle = 1:size(angleStep,1)
         % Even with local normalization, test with all padding and
         % goodness.
 %         tomoNorm = ((sqrt(sum(sum(sum(abs(tomoFou).^2)))) ./ numel(tomoFou)));
-        tempNorm = ((sqrt(sum(sum(sum(abs(tempFou).^2)))) ./ numel(tempFou)));
+%        tempNorm = ((sqrt(sum(sum(sum(abs(tempFou).^2)))) ./ numel(tempFou)));
         
+% ./(sum(sum(sum((abs(tomoFou).*abs(tempFou)).^2))))
         ccfmap = BH_padZeros3d(fftshift(real(single(...
-                               ifftn(tomoFou.*conj(tempFou))./tempNorm))),...%./(tomoNorm.*tempNorm))))),...
+                               ifftn(tomoFou.*conj(tempFou) )))),...%./(tomoNorm.*tempNorm))))),...
                                trimValid(1,:),trimValid(2,:),'GPU',precision);
+%                              
+%         Since the vast majority of ccf values are known to not be due to
+%         the target, they are noise. Try just normalizing the StdDev of
+%         everything assuming this is the noise.
+        ccfmap = ccfmap ./ std(ccfmap(:));
         
         if ( tmpDecoy > 0 )
            tempFou = [];
            if (firstLoopOverAngle)
-             decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d(tempRot, ...
-                                padDecoy1(1,:),padDecoy1(2,:), ...
-                                'GPU',precision))), ...
-                                padDecoy2(1,:),padDecoy2(2,:),...
-                                'GPU',precision,0,1);
+
+             decoy = BH_padZeros3d(BH_reScale3d(tempRot./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
+                                   padDecoy(1,:),padDecoy(2,:),'GPU','single');
            else
-             decoy = BH_padZeros3d(conj(fftn(BH_padZeros3d( ...
-                                referenceStack(:,:,:,intraLoopAngle), ...
-                                padDecoy1(1,:),padDecoy1(2,:), ...
-                                'GPU',precision))), ...
-                                padDecoy2(1,:),padDecoy2(2,:),...
-                                'GPU',precision,0,1);             
+              % Probably just make a second decoy stack to avoid
+              % re-interpolating. If it works, then do this.
+             decoy = BH_padZeros3d(BH_reScale3d(referenceStack(:,:,:,intraLoopAngle)./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
+                                   padDecoy(1,:),padDecoy(2,:),'GPU','single');                              
            end
            
-           
 
-           
+         
            decoy = BH_padZeros3d(fftshift(real(single( ...
-                                 ifftn(tomoFou.*decoy)))),..../(decoyNorm.*tomoNorm))))),
+                                 ifftn(tomoFou.*conj(fftn(decoy)))))),..../(decoyNorm.*tomoNorm))))),
                                  trimValid(1,:), ...
                                  trimValid(2,:),'GPU',precision);
+                               
+
         elseif ( tmpDecoy < 0 )
           
           % Just use the mirror image of the template, i.e. take the conj
@@ -999,8 +880,8 @@ if ( tmpDecoy )
   RESULTS_decoy = RESULTS_decoy(1+tomoPre(1):end-tomoPost(1),...
                             1+tomoPre(2):end-tomoPost(2),...
                             1+tomoPre(3):end-tomoPost(3));
-  RESULTS_decoy = RESULTS_decoy ./ std(RESULTS_decoy(:));
-  RESULTS_decoy(RESULTS_decoy < 0) = 0; 
+%   RESULTS_decoy = RESULTS_decoy ./ std(RESULTS_decoy(:));
+  RESULTS_decoy(RESULTS_decoy < 1) = 1; 
   
 end
 gpuDevice(useGPU);
@@ -1008,12 +889,12 @@ gpuDevice(useGPU);
 
 % scale the magnitude of the results to be 0 : 1
 szK = latticeRadius;%floor(0.8.*szM);
-rmDim = max(szK).*[1,1,1];
+rmDim = max(max(eraseMaskRadius),max(szK)).*[1,1,1];
 mag = RESULTS_peak; clear RESULTS_peak
 % Normalize so the difference if using a decoy makes sense. The input decoy
 % should have the same power, so I'm not sure why this is needed, but it is
 % an easy fix and a problem for future Ben to figure out.
-mag = mag ./ std(mag(:));
+% mag = mag ./ std(mag(:));
 
 system(sprintf('mkdir -p %s',convTMPNAME));
 system(sprintf('mv temp_%s.mrc %s',convTMPNAME,convTMPNAME));
@@ -1027,7 +908,9 @@ if ( tmpDecoy )
   decoyOUT = sprintf('./%s/%s_decoy.mrc',convTMPNAME,mapName);
   SAVE_IMG(MRCImage((RESULTS_decoy)),decoyOUT);
   diffOUT = sprintf('./%s/%s_convmap-decoy.mrc',convTMPNAME,mapName);
-  mag = mag - RESULTS_decoy; clear RESULTS_decoy
+  decoyLogical = mag < RESULTS_decoy;
+  mag(decoyLogical) = 0;
+  mag(~decoyLogical) = mag(~decoyLogical) - RESULTS_decoy(~decoyLogical); clear RESULTS_decoy
   SAVE_IMG(MRCImage((mag)),diffOUT);
 end
 angleFILE = fopen(angleListOUT,'w');
@@ -1035,7 +918,7 @@ fprintf(angleFILE,'%2.2f\t%2.2f\t%2.2f\n', ANGLE_LIST');
 fclose(angleFILE);
 
 
-mag =  mag - min(mag(:)); mag = mag ./ max(mag(:));
+% mag =  mag - min(mag(:)); mag = mag ./ max(mag(:));
 
 % Zero out one lattice width from the edges to reduce edge effect (but cutting
 % out and padding back in.) Also pad by size of removal mask (subtract this from
@@ -1071,8 +954,28 @@ n = 1;
 
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
-%%%removalMask = (removalMask < 1);
-while  n <= peakThreshold
+
+maskCutOff = 0.999;
+nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
+nTries = 0;
+if strcmpi(eraseMaskType,'rectangle')
+  areaPreFactor = 0;
+else
+  areaPreFactor = (4/3*pi);
+end
+
+while nIncluded < areaPreFactor*prod(eraseMaskRadius)
+  maskCutOff = 0.99*maskCutOff;
+  nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
+  nTries = nTries + 1;
+  if (nTries > 1000)
+    error('Did not find an appropriate erase mask');
+  end
+
+end
+
+while  n <= peakThreshold % && MAX > highThr
+
 
 %
 % Some indicies come back as an error, even when they seem like the
@@ -1086,7 +989,12 @@ while  n <= peakThreshold
         
         
 [i,j,k] = ind2sub(sizeTomo,coord);
-c = gather([i,j,k]);
+try
+  c = gather([i,j,k]);
+catch
+  print('Ran into some trouble gathering the i,j,k. Breaking out\n');
+  break
+end
 
   if Ang(gather(coord)) > 0
 
@@ -1167,7 +1075,7 @@ c = gather([i,j,k]);
         c(3)-rmDim:c(3)+rmDim) = ...
     mag(c(1)-rmDim:c(1)+rmDim,...
         c(2)-rmDim:c(2)+rmDim,...
-        c(3)-rmDim:c(3)+rmDim) .* ~(rmMask>0.95);
+        c(3)-rmDim:c(3)+rmDim) .* (rmMask< maskCutOff);
 
     peakMat(n,10) = (gather(MAX) - Tmean)./Tstd; % record stds above mean
     n = n + 1;
