@@ -140,10 +140,6 @@ if samplingRate > 1
     end
   end
 else
-  % So you could pass a -1 as sampling which would indicate to not load but that
-  % syntax is only intended when resampling is required, so ignore the flag here
-  % but throw a warning.
-  fprintf('\n\nYou requested a sampling of -1 Nonsense!! loading anyway.\n\n');
  
   IMG_OUT = single(getVolume(MRCImage(IMG)));
 end
