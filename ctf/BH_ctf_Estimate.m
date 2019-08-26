@@ -385,7 +385,7 @@ mbEST = load(sprintf('%s.xf',mapBackPrfx));
 mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 
 outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
-if exist(sprintf('fixedStacks/%s.erase',mapBackPrfx),'file')
+if exist(sprintf('%s.erase',mapBackPrfx),'file')
   flgEraseBeads = 1;
 else
   flgEraseBeads = 0;
