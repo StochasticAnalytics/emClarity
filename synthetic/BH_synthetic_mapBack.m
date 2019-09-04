@@ -1298,6 +1298,12 @@ end
     end
 
     fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
+    foundNans = sum(isnan(fidList(:,3)));
+    if (foundNans)
+      fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);
+      fprintf('The only confirmed case that produced this were NaNs in the fixedStacks/tiltN.local file.\n');
+      error("Exiting");
+    end
 %     defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
         defList = load(sprintf('%smapBack%d/%s.defAng',mbOUT{1:3}));
 

@@ -53,7 +53,6 @@ flg3d = 1;
     bh_global_vol_est_scaling = 0.0;
   end
   
-  fprintf('%f %f %f\n',bh_global_binary_mask_low_pass,bh_global_binary_mask_threshold,bh_global_vol_est_scaling);
   if (bh_global_vol_est_scaling == 0)
     localParticleScaling = (-2.8e-3) .* bh_global_binary_mask_low_pass.^2 + ...
                             0.14 .*     bh_global_binary_mask_low_pass + 1.5;
