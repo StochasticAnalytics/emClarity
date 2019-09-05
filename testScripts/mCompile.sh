@@ -1,26 +1,40 @@
 #!/bin/bash
 
+# NOTE: You will also need to modify your emClarity/mexFiles/mexCompile.m
+#   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
+#   TODO set up a little configure script to do this and check other deps described below.
 
+# This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
 
+# The is the program you want to compile. Most BH_* can be compiled as standalones, but
+# you probably just want the wrapper to then emClarity.m
 mFile=${1}
 
 post="_${shortHead}"
 
 outName="$(basename ${mFile} .m)${post}"
 
+# For naming. If you are compiling your own version, use something descriptive in teh
+# bugss line. e.g. buggs=5testingFeature
 major=1
 minor=4
 bugss=5
 
-#commit=decdc7e
-#binaryOutName="testRevert_${commit}"
-#scriptOutName="19a_testRevert_${commit}"
+# The final binary, run script and docs folder will be zipped and put in this location
+# unless it is NONE then it will be left in the bin dir.
+#zip_location="~/tmp"
+zip_location="NONE"
+
+
 binaryOutName="${major}_${minor}_${bugss}"
 scriptOutName="mcr_v19a"
 
+# You may need to modify this line. 
+#     I have "matlab19a" on my path to point to the specific matlab install I want to use.
+#     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 
-matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind -a /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_autoAlign.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ../mexFiles/compiled/emC_ctfFind -a ../mexFiles/compiled/emC_autoAlign.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
@@ -92,9 +106,11 @@ mv emClarity_${binaryOutName} ../bin
 
 cp -rp ../docs ../bin
 cd ..
-zip -r emClarity_${major}.${minor}.${bugss}.zip bin
-mv emClarity_${major}.${minor}.${bugss}.zip ~/tmp
-#rm -r bin/*
+if [[ ${zip_location} != "NONE" ]]; then
+  zip -r emClarity_${major}.${minor}.${bugss}.zip bin
+  mv emClarity_${major}.${minor}.${bugss}.zip ${zip_location}
+  rm -r bin/*
+fi
 
 
 
