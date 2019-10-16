@@ -24,13 +24,14 @@
 
 
 
-const float PI = 3.14159265358979323;
+const float PI = 3.14159265358979323f;
 const float PI_sq = PI * PI;
 const float PI_half = 0.5f*PI;
 
 inline float deg_2_rad(float input_angle) { return input_angle * PI / 180.0f ;}
 inline float rad_2_deg(float input_angle) { return input_angle * 180.0f / PI ;}
 
+inline bool IsEven(int N) { if(N % 2 == 0) return true ; else return false; } 
 
 // A drop in for debugging call with c++ macro __LINE__ as the argument
 inline void mexit(int line_number){ mexPrintf("\n\tAt line %d\n\n", line_number); mexErrMsgIdAndTxt("MATLAB:mexSF3D", "Dropping out per mexit") ; }

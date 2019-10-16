@@ -77,10 +77,11 @@ classdef fourierTransformer < handle
 
     function [ft] = fwdFFT(obj, inputVol, varargin)
       % Vararginr = 
-      % 1 - Bandpass filter ( or a 1 )
+      % 1 - normalize scaling, 0 for none, 1 if only fourier comp, 2 for
+      % complete. I.e. unlike FFTW or MATLAB, cufft scales by 1/root(n) on the fwd
+      % and 1/root(n) on the inverse (the other two are 1/n on the forward)    
       % 2 - bool center and standardize to 1
-      % 3 - normalize scaling, 0 for none, 1 if only fourier comp, 2 for
-      % complete.
+      % 3 - Bandpass filter ( or a 1 )
       doBandpass = false;
       doCenter = false;
       if nargin > 2
