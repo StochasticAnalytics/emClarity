@@ -29,6 +29,7 @@ if (testInterp3d)
     rotMat = [10,-20,-30];
     direction = {'forward','inv'};
     firstRun = true;
+    symmetry = 'C3';
     
     for iDir = 1:2
       for iShift = [-1,1]
@@ -39,10 +40,10 @@ if (testInterp3d)
                                          iShift.*shift1,'Bah','GPU',dir);
     
      if (firstRun)
-        [resampler, MEX_out] = interpolator(testImg, iRot.*rotMat, iShift.*shift1, 'Bah', dir);
+        [resampler, MEX_out] = interpolator(testImg, iRot.*rotMat, iShift.*shift1, 'Bah', dir,symmetry);
         firstRun = false;
      else
-      MEX_out = resampler.interp3d(testImg, iRot.*rotMat, iShift.*shift1, 'Bah', dir);
+      MEX_out = resampler.interp3d(testImg, iRot.*rotMat, iShift.*shift1, 'Bah', dir, symmetry);
      end
      
     diff = BH_returnImage2ImageRMSD(BH_out, MEX_out);
