@@ -67,7 +67,6 @@ end
 % For some reason matlab was geeking out about calling this in the parfor
 % loop, getting confused about whether it is a variable or a function.
 recGeomForThickness = subTomoMeta.reconGeometry;
-
 parfor iGPU = 1:nGPUs
   for iTilt = 1:length(ITER_LIST{iGPU})
     
@@ -591,9 +590,9 @@ system('mkdir -p aliStacks');
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
                THICKNESS, STACK_PRFX);
              
-      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,samplingMaskStack);
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
-      SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName));
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
+      SAVE_IMG(STACK,outputStackName,iPixelHeader,iOriginHeader);
+      SAVE_IMG(samplingMaskStack,sprintf('%s.samplingMask',outputStackName));
       
      xShift= []; yShift = []; scale = []; angleShift = [];
      dZ = [];  recZ= []; rotMat = []; angX = []; angY = [];             
@@ -610,9 +609,9 @@ system('mkdir -p aliStacks');
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
                THICKNESS, STACK_PRFX);
              
-      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,samplingMaskStack);
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
-      SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
+      SAVE_IMG(STACK,outputStackName,iPixelHeader,iOriginHeader);
+      SAVE_IMG(samplingMaskStack,sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
 
   end
   if (mapBackIter && conserveDiskSpace)

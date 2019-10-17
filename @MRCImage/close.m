@@ -26,11 +26,9 @@
 
 function mRCImage = close(mRCImage)
 
-if ~ isempty(mRCImage.fid)
-  try 
-    fclose(mRCImage.fid);
-	catch me %#ok<NASGU>
-		% do nothing
-	end
-	mRCImage.fid = [ ];
+if ~isempty(mRCImage.fid)
+  fclose(mRCImage.fid);
 end
+
+mRCImage.fid = [ ];
+

@@ -11,7 +11,7 @@ end
 if nargin > 0
   mexFILE = varargin;
 else
-%  mexFILE = {'mexCTF','mexFFT','mexXform3d','mexXform2d'};
+% mexFILE = {'mexCTF','mexFFT','mexXform3d','mexXform2d'};
   mexFILE = {'mexXform3d'};
 end
 
