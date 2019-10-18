@@ -722,8 +722,8 @@ for iGPU = 1:nGPUs
 end
 
 parVect = 1:nParProcesses;
-% parfor iParProc = parVect
-for iParProc = parVect
+parfor iParProc = parVect
+% for iParProc = parVect
 
     % Initialize to -1, so the class is instantiazed, then check isa class
     % interpolator to actually reuse.
@@ -912,7 +912,6 @@ for iParProc = parVect
 
         for iSubTomo = particleIndex'
          
-          fprintf('Working on subTomo %d\n',iSubTomo);
          iCCCweight = [];
          iWedgeMask = [];
          
@@ -960,7 +959,7 @@ for iParProc = parVect
             % and PEET. This also makes inplane shifts easier to see.
 
           center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
-          angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
+          angles = reshape(positionList(iSubTomo,[17:25]+26*(iPeak-1)),3,3);
           wdgIDX = positionList(iSubTomo,9);
           
           if (lastWdgIDX ~= wdgIDX)
@@ -973,7 +972,7 @@ for iParProc = parVect
           end
           
           if (flgFinalAvg)
-            angles = reshape(angles,3,3)*oddRot;
+            angles = angles*oddRot;
           end
           
           if (flgQualityWeight)
@@ -1142,13 +1141,11 @@ for iParProc = parVect
             else                        
                
               if isa(particleResampler, 'interpolator')
-                fprintf("re using on particle %d\n", isa(gpuWedgeMask, 'gpuArray'));
 
                 [ iParticle ] = particleResampler.interp3d( ...
                                                  iParticle, angles, iShift, ...
                                                  'Bah', 'inv', sprintf('C%d',symmetry));
               else
-                fprintf("making on particle %d\n", isa(gpuWedgeMask, 'gpuArray'));
 
                 [particleResampler, iParticle] = interpolator( ...
                                                  iParticle, angles, iShift, ...
@@ -1171,13 +1168,11 @@ for iParProc = parVect
       
             
               if isa(wedgeResampler, 'interpolator')
-                 fprintf("reusing on wedge %d\n", isa(gpuWedgeMask, 'gpuArray'));
 
                 [ iWedgeMask ] = wedgeResampler.interp3d( ...
                                                  gpuWedgeMask, angles, [0,0,0], ...
                                                  'Bah', 'inv', sprintf('C%d',symmetry));
               else
-                fprintf("creating on wedge %d\n", isa(gpuWedgeMask, 'gpuArray'));
                 [wedgeResampler, iWedgeMask] = interpolator( ...
                                                  gpuWedgeMask, angles, [0,0,0], ...
                                                  'Bah', 'inv', sprintf('C%d',symmetry));

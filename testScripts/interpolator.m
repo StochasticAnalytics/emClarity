@@ -57,7 +57,7 @@ classdef interpolator < handle
     end
 
     
-    function [ obj, resampledVol ] = interp3d(obj, inputVol, angles, shifts, convention, direction, symmetry)
+    function [ resampledVol ] = interp3d(obj, inputVol, angles, shifts, convention, direction, symmetry)
       %METHOD1 Summary of this method goes here
       %   Detailed explanation goes here
       

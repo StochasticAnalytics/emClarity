@@ -134,8 +134,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
     if ( nrhs > 4 )
     {
-
-        mexPrintf("Re-using the tex object\n");
         tex    = (cudaTextureObject_t *) mxGetData(prhs[4]);   
         make_texture_obj = false; 
 
@@ -165,16 +163,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
   if (*doFwdXform)
   {
-    mexPrintf("Doing the forward xform\n");
     // transpose matrix
     shifts = make_float3(-ts[0],-ts[1],-ts[2]);
-    
   }
   else
   {
-    mexPrintf("Doing the inverse xform\n");
     shifts = make_float3(ts[0],ts[1],ts[2]);
-
   }
 
     rm_1   = make_float3(angles[0],angles[3],angles[6]);
@@ -328,10 +322,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 //  cudaFreeArray(cuArray);
 //  cudaDestroyTextureObject(tex3d);
-  if (make_texture_obj)
-  {
-    checkCudaErrors(cudaFree(d_input_img));
-  }
+
 //  checkCudaErrors(cudaFree(d_output_img));
 
 
