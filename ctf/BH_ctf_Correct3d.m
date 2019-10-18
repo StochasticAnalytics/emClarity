@@ -1027,12 +1027,16 @@ for iPrj = 1:nPrjs
   samplingMask = zeros([d1,d2],'single','gpuArray');
   
 
-
-  for iDefocus = minDefocus-ctf3dDepth/1:ctf3dDepth/1:maxDefocus+ctf3dDepth/1
-% % %     fprintf('correcting for iDefocus %3.3e\n',iDefocus);
+  defStep = ctf3dDepth / 5;
+  if (defStep < 50e-10) 
+    defStep = 50e-10;
+  end
+  for iDefocus = minDefocus-defStep:defStep:maxDefocus+defStep
+%     fprintf('correcting for iDefocus %3.3e\n',iDefocus);
     %search tz take those xy and add to the prj and mask
 
       defVect = [iDefocus - ddF, iDefocus + ddF, dPhi];
+%       fprintf('def vals %3.3e %3.3e %3.3e\n', defVect);
    
       if (phakePhasePlate(1) ~= 0)
          if numel(phakePhasePlate) == 2
@@ -1052,30 +1056,22 @@ for iPrj = 1:nPrjs
 
          modHqz = [];
       else
-       if PIXEL_SIZE < 2.0e-10
-         % use double precision - this is not enabled, but needs to be -
-         % requires changes to radial grid as well.
-         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
-       else
+%        if PIXEL_SIZE < 2.0e-10
+%          % use double precision - this is not enabled, but needs to be -
+%          % requires changes to radial grid as well.
+%          Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
+%        else
          Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1);
-       end  
+%        end  
       end
       
      
      tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz)),trimVal(1,:),trimVal(2,:),'GPU','single');
      tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
    
-%      try
+
      linearIDX =  unique(sub2ind([d1,d2],tX(tmpMask),tY(tmpMask)));
-%      catch
-% 
-%        
-%        ferr=fopen('err.txt','w');
-%        fprintf(ferr,'%f %f\n',[tX(tmpMask),tY(tmpMask)]);
-%        fclose(ferr);
-%      error('sdf')
-%      end
-     
+   
      correctedPrj(linearIDX) = correctedPrj(linearIDX) + tmpCorrection(linearIDX);
      samplingMask(linearIDX) = samplingMask(linearIDX) + 1;
      

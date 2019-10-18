@@ -620,19 +620,19 @@ geometryResults   = cell(nParProcesses,1);
 
 
 
-% % % % % try
-% % % % %   parpool(nParProcesses+1)
-% % % % % catch
-% % % % %   delete(gcp('nocreate'))
-% % % % %   parpool(nParProcesses+1)
-% % % % % end
+try
+  parpool(nParProcesses+1)
+catch
+  delete(gcp('nocreate'))
+  parpool(nParProcesses+1)
+end
 
 size(ref_FT2)
 
 
 
 system(sprintf('mkdir -p alignResume/%s',outputPrefix));
-softenWeight = 1/sqrt(samplingRate);
+softenWeight = 1; %/sqrt(samplingRate);
 for iParProc = 1:nParProcesses
 
   % Caclulating weights takes up a lot of memory, so do all that are necessary
@@ -657,8 +657,8 @@ for iGPU = 1:nGPUs
 end 
 
 parVect = 1:nParProcesses;
-% % % % % parfor iParProc = parVect
-for iParProc = parVect
+parfor iParProc = parVect
+% for iParProc = parVect
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
@@ -792,10 +792,8 @@ for iParProc = parVect
         maxWedgeIfft = maxWedgeMask;
 
         for iWdg = 1:length(maxWedgeMask)
-          if ~isempty(maxWedgeMask{iWdg})           
-            maxWedgeIfft{iWdg} = ifftshift(maxWedgeIfft{iWdg}.^softenWeight);
-            maxWedgeMask{iWdg} = maxWedgeMask{iWdg}.^softenWeight;
-          end
+%           maxWedgeMask{iWdg} = maxWedgeMask{iWdg}.^softenWeight;
+          maxWedgeIfft{iWdg} = ifftshift(maxWedgeIfft{iWdg});
         end
 
       
@@ -852,15 +850,13 @@ for iParProc = parVect
         % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
         wdgIDX = positionList(iSubTomo,9);
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
-        % Avoid temporar
-        iMaxWedgeMask = []; iMaxWedgeIfft = [];
+
         % New wedge mask so reset the interpolator
         if isa(wedgeResampler, 'interpolator')
           wedgeResampler.deallocate();
           delete(wedgeResampler);
           wedgeResampler = -1;
         end
-
         iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
         iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});       
       end
@@ -1150,7 +1146,9 @@ for iParProc = parVect
                     cccStorageTrans(iRef,:) = [iRef, particleIDX, ...
                                                phi, theta, psi - phi, ...
                                                0, 0, ...
-                                               peakCoord + estPeakCoord];                                      
+                                               peakCoord + estPeakCoord];        
+                                             
+                                             
                   case 2
                     
                     % get starting point

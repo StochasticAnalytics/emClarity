@@ -32,7 +32,7 @@ function [  ] = BH_average3d(PARAMETER_FILE, CYCLE, STAGEofALIGNMENT)
 %              information in a 26 columSn array.
 %              Additionally, a field called 'source_path' has a value with the
 %              absolute path to the location of the tomograms.
-%
+%fi
 %              The input is a string 'Geometry_templatematching.mat' for
 %              example, and it is expected that the structure is saved as the
 %              variable named geometry.
@@ -114,7 +114,7 @@ if (CYCLE)
   try
     flgQualityWeight = pBH.('flgQualityWeight');
   catch
-    flgQualityWeight = 4;
+    flgQualityWeight = 1;
   end
 else
   fprintf('No quality weighting in the initial cycle after template matching\n');
@@ -636,10 +636,10 @@ if (flgFinalAvg)
 end
 
 
-interpMask = gather(BH_mask3d('sphere',sizeWindow,(sizeWindow./2)-6, maskCenter));
-interpMaskWdg = gather(BH_mask3d('sphere',sizeCalc,(sizeCalc./2), maskCenter));
+interpMask = gather(BH_mask3d('sphere',sizeWindow,(sizeWindow./2)- 14, maskCenter));
+interpMaskWdg = gather(BH_mask3d('sphere',sizeCalc,(sizeCalc./2) - 7, maskCenter));
 % interpMask = (interpMask > 0.9);
-interpMaskWdg = single(find(interpMaskWdg > 0.9));
+% interpMaskWdg = single(find(interpMaskWdg > 0.9));
 avgResults=cell(nParProcesses);
 avgTomoResults=cell(nParProcesses);
 wgtResults=cell(nParProcesses);
@@ -759,14 +759,19 @@ parfor iParProc = parVect
 
     
   if (flgQualityWeight)
-  [cccWeight,~,~,~,~,~] = BH_multi_gridCoordinates(sizeCalc, ...
+    [cccWeight,~,~,~,~,~] = BH_multi_gridCoordinates(sizeCalc, ...
                                                'Cartesian','GPU',...
-                                               {'none'},1,0,1,'halfGrid');
+                                               {'none'},1,1,1);
+                                             
+    [cccWeightHalf,~,~,~,~,~] = BH_multi_gridCoordinates(sizeCalc, ...
+                                               'Cartesian','GPU',...
+                                               {'none'},1,0,1,{'halfGrid'}); 
+                                             
    cccWeight = (cccWeight ./ pixelSize).^2;
+   cccWeightHalf = (cccWeightHalf ./ pixelSize) .^2;
    
-
-
   end
+  
     
   if (eachTomo)
     tomoAvgStack = cell(length(iterList{iParProc}),1);
@@ -913,6 +918,7 @@ parfor iParProc = parVect
         for iSubTomo = particleIndex'
          
          iCCCweight = [];
+         iCCCweightHalf = [];
          iWedgeMask = [];
          
           if isa(particleResampler, 'interpolator')
@@ -980,23 +986,28 @@ parfor iParProc = parVect
           
             if iCCC < avgCCC
               % Downweight higher frequency in all subTomos with iCCC below the mean
-              iBfactor = -1.*(flgQualityWeight.*(acosd(iCCC) - acosd(avgCCC)))^2;
-              iCCCweight = exp(iBfactor.*cccWeight);   
+              iBfactor = gpuArray(single((-1.*(flgQualityWeight.*(acosd(iCCC) - acosd(avgCCC)))^2)));
+              iCCCweight = exp(iBfactor.*cccWeight);  
+              iCCCweightHalf = exp(iBfactor.*cccWeightHalf);  
+              
              
             else
            
-              iCCCweight=1;
+              iCCCweight=[];
+              iCCCweightHalf= [];
              % iBfactor = -1.*flgQualityWeightAbove.*(acosd(iCCC) - acosd(avgCCC));
              % iCCCweight = exp(iBfactor.*cccWeight);
             end
             
             if ( any(flgFilterDefocus))
               iDef = abs(mean(tiltGeometry(:,15))*10^6);
-              iDef = -1.*(flgFilterDefocus(1)*max(iDef-1,0.5))^flgFilterDefocus(2);
+              iDef = single(gpuArray(-1.*(flgFilterDefocus(1)*max(iDef-1,0.5))^flgFilterDefocus(2)));
               fprintf('Using iDef %f\n',iDef);
               % Frequency is already squared so adjust to match iDef scale
               % factor.
               iCCCweight = iCCCweight.*exp(iDef.*cccWeight.^(flgFilterDefocus(2)/2));
+              iCCCweightHalf = iCCCweightHalf.*exp(iDef.*cccWeightHalf.^single(gpuArray((flgFilterDefocus(2)/2))));
+
             end
           end
 
@@ -1153,15 +1164,7 @@ parfor iParProc = parVect
                                         
                                                
               end
-% % %               
-% % %               [ iParticle ] = gpuArray( ...
-% % %                               BH_resample3d(iParticle, ...
-% % %                                   angles, iShift, ...             
-% % %                                   {'Bah',symmetry,interpM,1,interpMask_tmpBinary}, ...
-% % %                                   interpU,'inv'));
-% 
-% figure, imshow3D(gather(iParticle));
-%               [ iParticle ] = BH_padZeros3d(iParticle, 'inv',padWindow,'GPU',cutPrecision);  
+
                          
             end
             % For now just leave linear interp, but test with spline
@@ -1180,36 +1183,30 @@ parfor iParProc = parVect
                                                
               end
               
-%             [ iWedgeMask ] = BH_resample3d(gpuWedgeMask, ...
-%                                            angles, [0,0,0], ...
-%                                            {'Bah',symmetry,'linear', ...
-%                                            1,interpMaskWdg_tmp}, ...
-%                                            'GPU','inv');          
+       
 
 
             iParticle = iParticle -  mean(iParticle(interpMask_tmpBinary));
             iParticle = iParticle ./  rms(iParticle(interpMask_tmpBinary));            
             iParticle = iParticle .* interpMask_tmp;
             
-            if (flgQualityWeight)
+            iWedgeMask = iWedgeMask .* interpMaskWdg_tmp;
+            
+
+            if (flgQualityWeight && ~isempty(iCCCweight))
                          
+            
               iParticle = real(bhFT.invFFT(bhFT.fwdFFT(BH_padZeros3d(iParticle,...
-                               padCalc(1,:),padCalc(2,:),'GPU','singleTaper'),2,0).*iCCCweight));
+                               padCalc(1,:),padCalc(2,:),'GPU','singleTaper'),2,0).* iCCCweightHalf));
 %                 iParticle = real(ifftn(fftn(BH_padZeros3d(iParticle,...
 %                                  padCalc(1,:),padCalc(2,:),'GPU','singleTaper')).*iCCCweight));
                                
 
               iParticle = BH_padZeros3d(iParticle, 'inv', padCalc, 'GPU', 'single');
-% % %               iParticle = iParticle(padCalc(1,1)+1 : end - padCalc(2,1), ...
-% % %                                     padCalc(1,2)+1 : end - padCalc(2,2), ...
-% % %                                     padCalc(1,3)+1 : end - padCalc(2,3) );
-               iWedgeMask = iWedgeMask .* fftshift(iCCCweight);
             end
            
-        
-          
-         
-          trimAvg =  mean(double(iParticle(:)));
+
+          trimAvg =  mean(iParticle(:));
           if isnan(trimAvg)
            fprintf('SubTomo %d from tomogram %s as Nan mean\n',...
            iSubTomo, tomoList{iTomo});
