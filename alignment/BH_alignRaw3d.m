@@ -537,9 +537,7 @@ for iGold = 1:2
   for iRef = 1:nReferences(iGold)
     
     refTMP_2 = refIMG{iGold}{iRef}; refIMG{iGold}{iRef} = [];
-    refTMP = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
-                      padWindow(1,2) + 1: end - padWindow(2,2), ...
-                      padWindow(1,3) + 1: end - padWindow(2,3));
+    refTMP = BH_padZeros3d(refTMP_2,'inv',padWindow,'GPU','single');
 
 
     % if not using a weighted average (adapted SPW filter), apply an
@@ -554,10 +552,8 @@ for iGold = 1:2
 
     ref_FT2{iGold}{iRef} = gather(refTMP_2);
     % Trim for output reference
-        refTMP_2 = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
-                      padWindow(1,2) + 1: end - padWindow(2,2), ...
-                      padWindow(1,3) + 1: end - padWindow(2,3));
-    
+    refTMP_2 = BH_padZeros3d(refTMP_2,'inv',padWindow,'GPU','single');
+
     % Overwrite a copy of the filtered, bandpassed ref for output
     refOUT{nOut} = real(ifftn(conj(ref_FT1{iGold}{iRef})));
     refOUT{nOut} = gather(refOUT{nOut}(padCalc(1,1) + 1: end - padCalc(2,1), ...
@@ -624,12 +620,12 @@ geometryResults   = cell(nParProcesses,1);
 
 
 
-try
-  parpool(nParProcesses+1)
-catch
-  delete(gcp('nocreate'))
-  parpool(nParProcesses+1)
-end
+% % % % % try
+% % % % %   parpool(nParProcesses+1)
+% % % % % catch
+% % % % %   delete(gcp('nocreate'))
+% % % % %   parpool(nParProcesses+1)
+% % % % % end
 
 size(ref_FT2)
 
@@ -661,8 +657,8 @@ for iGPU = 1:nGPUs
 end 
 
 parVect = 1:nParProcesses;
-parfor iParProc = parVect
-% % % for iParProc = parVect
+% % % % % parfor iParProc = parVect
+for iParProc = parVect
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
@@ -674,6 +670,12 @@ parfor iParProc = parVect
     iGPUidx = gpuIDXList(iParProc);
     gpuDevice(iGPUidx);
     fprintf('parProc %d/%d assigned to GPU %d\n',iParProc,nParProcesses,iGPUidx);
+    
+  particleResampler = -1;
+  wedgeResampler = -1;
+  eraseResampler = -1;
+  refResampler = -1;
+  
   for iTomo = iterList{iParProc}
 
 
@@ -709,7 +711,18 @@ parfor iParProc = parVect
       end
     end
     
+ 
+    if isa(eraseResampler, 'interplator')
+      eraseResampler.deallocate();
+      delete(eraseReasampler);
+      eraseResampler = -1;
+    end
     
+    if isa(refResampler, 'interpolator')
+      refResampler.deallocate();
+      delete(refResampler);
+      refResampler = -1;
+    end
     
     ref_FT1_tmp = cell(2,1);
     ref_FT2_tmp = cell(2,1);
@@ -725,27 +738,11 @@ parfor iParProc = parVect
     if isempty(eraseMask)
       eraseMask_tmp = [];
     else
-
-      eraseMask_tmp = gpuArray(eraseMask);
-     
+      eraseMask_tmp = gpuArray(eraseMask);  
     end
     
     wCCC_tmp = cell(length(wCCC));
-    
 
-    
-% % %     for iRef = 1:nReferences(1)
-% % %       for iWccc = 1:length(wCCC{iRef})
-% % %         if (flgWeightCCC)
-% % %           wCCC_tmp{iRef}{iWccc} = gpuArray(wCCC{iRef}{iWccc});
-% % %         else
-% % %           % The check in xcf_rotational looks for a cell 
-% % %           wCCC_tmp{iRef} = 0;
-% % %         end
-% % %       end
-% % %     end
-      
-    
           
     for iGold = 1:2
       for iRef = 1:nReferences(iGold)
@@ -847,6 +844,7 @@ parfor iParProc = parVect
     wdgIDX = 0;
     
     for iSubTomo = 1:nSubTomos
+      
       breakPeak = 0; % for try catch on cut out vols    
       if (wdgIDX ~= positionList(iSubTomo,9))
         % Geometry is sorted on this value so that tranfers are minimized,
@@ -856,16 +854,18 @@ parfor iParProc = parVect
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
         % Avoid temporar
         iMaxWedgeMask = []; iMaxWedgeIfft = [];
+        % New wedge mask so reset the interpolator
+        if isa(wedgeResampler, 'interpolator')
+          wedgeResampler.deallocate();
+          delete(wedgeResampler);
+          wedgeResampler = -1;
+        end
+
         iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
         iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});       
       end
       
 
-        [~,iw1,iw2,iw3] = BH_resample3d(iMaxWedgeMask, eye(3), [0,0,0], ...
-                              {'Bah',1,'linear',1,wdgBinary_tmp}, ...
-                                                         'GPU', 'inv');  
-        inputWgtVectors = {iw1,iw2,iw3};
-        iw1 = []; iw2 = []; iw3 = [];
                                                        
       for iPeak = 1:nPeaks
         if (breakPeak) 
@@ -876,7 +876,13 @@ parfor iParProc = parVect
         cccStorage2= zeros(nAngles(1).*nReferences(1),10,'gpuArray');
         powerOut = zeros(nAngles(1).*nReferences(1),1,'gpuArray');
       
-    
+        % New particle so reset the interpolator
+        if isa(particleResampler, 'interpolator')
+          particleResampler.deallocate();
+          delete(particleResampler);
+          particleResampler = -1;
+        end
+
     
         % Used in refinment loop
         angCount = 1;
@@ -910,7 +916,7 @@ parfor iParProc = parVect
 
           
         center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
-        angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
+        angles = reshape(positionList(iSubTomo,[17:25]+26*(iPeak-1)),3,3);
         
         % Find range to extract, and check for domain error.
        if (flgCutOutVolumes)
@@ -944,7 +950,7 @@ parfor iParProc = parVect
           % first!!! TODO add a flag to check this.
           try
             particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
-            iparticle = gpuArray(getVolume(MRCImage(particleOUT_name),[indVAL(1,1),indVAL(2,1)], ...
+            iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),[indVAL(1,1),indVAL(2,1)], ...
                                                                     [indVAL(1,2),indVAL(2,2)], ...
                                                                     [indVAL(1,3),indVAL(2,3)],'keep'));
           catch
@@ -956,20 +962,19 @@ parfor iParProc = parVect
         else
 
           if ( loadTomo )
-            iparticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
+            iParticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
                                             indVAL(1,2):indVAL(2,2), ...
                                             indVAL(1,3):indVAL(2,3)));
 
           else
-            iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+            iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
                                                       [indVAL(1,2),indVAL(2,2)], ...
                                                       [indVAL(1,3),indVAL(2,3)],'keep'));
           end
           
         end
-        [ iparticle ] = BH_padZeros3d(iparticle,  padVAL(1,1:3), ...
-                                      padVAL(2,1:3), 'GPU', 'singleTaper');
-         
+        [ iParticle ] = BH_padZeros3d(iParticle,'fwd',padVAL,'GPU','singleTaper');
+        
 
         
         for iAngle = 1:size(angleStep,1)
@@ -1011,10 +1016,8 @@ parfor iParProc = parVect
                   % ignored during the windowing of the particle.
                   estPeakCoord = shiftVAL;
                   % Estimate the peakshift by rotating the ref not the particle.
-                  iTrimParticle = ...
-                         iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                                   padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                                   padWindow(1,3) + 1:end - padWindow(2,3) );
+                iTrimParticle = BH_padZeros3d(iParticle,'inv',padWindow,'GPU','single');
+
                                
 
                 case 2
@@ -1027,72 +1030,51 @@ parfor iParProc = parVect
                  
 
              
-
-                % Assuming if class specific symmetry, then some not just 1
-                if (flgSymmetry) 
                   symmetry = classSymmetry{iGold}(1, classPosition);
                   %fprintf('Symmetry confirmation %d\n',symmetry);
-                    [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
-                                                  estPeakCoord,...
-                                                  {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                                                  'GPU', 'inv',inputVectors);
+                          % New particle so reset the interpolator
+                  if isa(particleResampler, 'interpolator')
+
+                    [ iTrimParticle ] = particleResampler.interp3d( ...
+                                                     iParticle, RotMat, estPeakCoord, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                  else
+
+                    [particleResampler, iTrimParticle] = interpolator( ...
+                                                     iParticle, RotMat, estPeakCoord, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
 
 
+                  end
+
+                  if isa(wedgeResampler, 'interpolator')
+
+                    [ iWedgeMask ] = wedgeResampler.interp3d( ...
+                                                     iMaxWedgeMask, RotMat, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                  else
+
+                    [wedgeResampler, iWedgeMask] = interpolator( ...
+                                                     iMaxWedgeMask, RotMat, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+
+
+                  end
+                  
 
                      if (getInitialCCC)
-                     [ iTrimInitial ] =  BH_resample3d(iparticle, ...
-                                                    reshape(angles,3,3),... 
-                                                    shiftVAL,...
-                                                    {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                                                    'GPU', 'inv',inputVectors);
-
-                    
-           
-% % %                      powerInitial =  sum(abs(iTrimInitial(volBinary_tmp))).^2;   
-% % % 
-                
-                      iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
-                                               {'Bah',symmetry,'linear',1,wdgBinary_tmp}, ...
-                                               'GPU', 'inv',inputWgtVectors);
-                      
-                                 
+                       
+                     [ iTrimInitial ] = particleResampler.interp3d( ...
+                                                     iParticle, angles, shiftVAL, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                                                   
+                    [ iWedgeInitial ] = wedgeResampler.interp3d( ...
+                                                     iMaxWedgeMask, angles, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                                                   
+                                                   
                      end           
 
-                        iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                                 {'Bah',symmetry,'linear',1,wdgBinary_tmp}, ...
-                                                 'GPU', 'inv',inputWgtVectors);
-                    
-
-
-
-
-                else
-                  symmetry = 1;
-                  % Transform the particle, and then trim to motif size
-
-                  [ iTrimParticle ] = BH_resample3d(iparticle, RotMat, ...
-                                            estPeakCoord, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
-                       iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                       {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'inv',inputWgtVectors);
-
-
-
-                  if (getInitialCCC)
-                     
-                     iTrimInitial =  BH_resample3d(iparticle, reshape(angles,3,3),... 
-                                           shiftVAL,{'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
-                                         
-
-                                   
-                     iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
-                                                  {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'inv',inputWgtVectors);         
-                                                                          
-                  end
-                end % Symmetry or not + interpolation
-                
-                 
-% % %                  powerOut(angCount) =   sum(abs(iTrimParticle(volBinary_tmp))).^2;
-                 
               end
 
                 
@@ -1116,27 +1098,37 @@ parfor iParProc = parVect
                   
                     % use transpose of RotMat
                     Rtr = RotMat';
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{iRef}, Rtr, ...
-                                            estPeakCoord, {'Bah',1,'linear',1,peakBinary_tmp}, 'GPU', 'forward',inputVectors);
-                                          
+
+                    [ ~, iRotRef ] = interpolator(ref_FT2_tmp{iGold}{iRef}, Rtr, estPeakCoord, ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true);                
+            
+              
                     % The eraseMask, if used, must be transformed into the
                     % rotated coordinate system
                    if isempty(eraseMask_tmp)     
                      useVals = [];
                    else
-                     useVals = BH_resample3d(eraseMask_tmp, Rtr, ...
-                                             -1.*estPeakCoord, {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward');
+                     if isa(eraseResampler, 'interpolator')
+
+                      [ useVals ] = eraseResampler.interp3d( ...
+                                                       eraseMask_tmp, Rtr, -1.*estPeakCoord, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+                    else
+
+                      [eraseResampler, useVals] = interpolator( ...
+                                                       eraseMask_tmp, Rtr, -1.*estPeakCoord, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+
+
+                     end
+                     
                      useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
                    end
                     
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{iRef}, Rtr, ...
-                                            [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);
+                    [ ~, iRotWdg ] = interpolator(ref_WGT_rot{iGold}{iRef}, Rtr, [0,0,0], ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
+         
                                       
-%                     iRotRef = ...
-%                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                       padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                       padWindow(1,3) + 1:end - padWindow(2,3) );                                          
-
                     % maybe I should be rotating peak mask here in case it has
                     % an odd shape, since we are leaving the proper frame
                         
@@ -1340,57 +1332,24 @@ parfor iParProc = parVect
               case 1
                
                 % Estimate the peakshift by rotating the ref not the particle.
-                iTrimParticle = ...
-                       iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                                 padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                                 padWindow(1,3) + 1:end - padWindow(2,3) );
-                               
+                iTrimParticle = BH_padZeros3d(iParticle,'inv',padWindow,'GPU','single');
+                
               case 2
             
-               % Assuming if class specific symmetry, then some not just 1
-                if (flgSymmetry)
-                  symmetry = classSymmetry{iGold}(1, classPosition);
+                
+                % Assuming that the interpolator class is set in the first
+                % loop.
+                
+                [ iTrimParticle ] = particleResampler.interp3d( ...
+                                                     iParticle, RotMat, rXYZ, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
 
-                    [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
-                                                  rXYZ,...
-                                                  {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                                                  'GPU', 'inv',inputVectors);
-
-
-%                     iTrimParticle =  iTrimParticle(...
-%                                      padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                      padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                      padWindow(1,3) + 1:end - padWindow(2,3) );
-                    
-                         iWedgeMask =  BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                                         {'Bah',symmetry,'linear',1,wdgBinary_tmp},...
-                                                         'GPU', 'inv',inputWgtVectors);
-                      
-
-                else
-                  symmetry = 1;
-                  % Transform the particle, and then trim to motif size
-
-                  [ iTrimParticle ] = BH_resample3d(iparticle, RotMat, ...
-                                            rXYZ, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
+                [ iWedgeMask ] = wedgeResampler.interp3d( ...
+                                                     iMaxWedgeMask, RotMat, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
 
 
-                         iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                           {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'inv');
-                     
-                          
-%                     iTrimParticle = ...
-%                          iTrimParticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                      padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                      padWindow(1,3) + 1:end - padWindow(2,3) );
-
-
-                end % Symmetry or not + interpolation
-
-
-
-
-              
+                        
             end
 
 
@@ -1399,26 +1358,27 @@ parfor iParProc = parVect
 
                     % use transpose of RotMat
                     Rtr = RotMat';
-                    try
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{rRef}, Rtr, ...
-                                            rXYZ, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                    catch
-                    cccPreRefineSort(1,1)
-                    end        
+     
+                    [ ~, iRotRef ] = interpolator(ref_FT2_tmp{iGold}{iRef}, Rtr, rXYZ, ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
                     
                     % The eraseMask, if used, must be transformed into the
                     % rotated coordinate system
                    if isempty(eraseMask_tmp)     
                      useVals = [];
                    else
-                     useVals = BH_resample3d(eraseMask_tmp, Rtr, ...
-                                            -1.*rXYZ, {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward');
+                     
+                     [ useVals ] = eraseResampler.interp3d( ...
+                                                       eraseMask_tmp, Rtr, -1.*rXYZ, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+
                      useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
                      
                    end
                     
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{rRef}, Rtr, ...
-                                [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);                                          
+                   [ ~, iRotWdg ] = interpolator(ref_WGT_rot{iGold}{iRef}, Rtr, [0,0,0], ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
+                                                 
                                       
 
 
@@ -1477,31 +1437,17 @@ parfor iParProc = parVect
         try
           if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
             bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
-% % %             % Get the negative slope of the top ten CCC scores.
-% % %             topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear');
-% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
 
           else
             bestRotPeak = cccPreRefineSort(1,:);
             bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
-% % %             rowNum = min(size(cccPreRefineSort,1),10*nPeaks);
-% % %             topX = 1- 0.1.*(10-rowNum);
-% % %             % Get the negative slope of the top ten CCC scores.
-% % %             topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear');
-% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
 
           end
         catch
           fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
                 cccStorageRefine{iPeak}(iSubTomo,:)
           cccPreRefineSort(1,:)
-% % %                 rowNum = min(size(cccPreRefineSort,1),10*nPeaks)
-% % %                 topX = 1- 0.1.*(10-rowNum)
-% % %           fprintf('\nNow check the fits, first and second clause\n');
-% % %                 topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear')
-% % %           fprintf('\nSecond\n');
-% % %           topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear')
-% % %           error('Error in sorting the best peak in alignRaw');
+
         end
 
           finalRef  = bestRotPeak(1,1);
@@ -1517,61 +1463,49 @@ parfor iParProc = parVect
 
 
 
+          iTrimParticle = BH_padZeros3d(iParticle, 'inv', padWindow, 'GPU', 'single');
+     
+
+            % use transpose of RotMat
+            %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
+            %%% the last writing, but now switching to zeros
+            Rtr = RotMat';
+
+            % The eraseMask, if used, must be transformed into the
+            % rotated coordinate system
+           if isempty(eraseMask_tmp)     
+             useVals = [];
+           else
+            [ useVals ] = eraseResampler.interp3d( ...
+                                                       eraseMask_tmp, Rtr, -1.*finalrXYZest, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+      
+             useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+
+           end
+
     
-                  iTrimParticle = ...
-                       iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                                   padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                                   padWindow(1,3) + 1:end - padWindow(2,3) );
-                                 
+           
+          [ ~, iRotRef ] = interpolator(ref_FT2_tmp{iGold}{iRef}, Rtr, finalrXYZest, ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true);             
+          [ ~, iRotWdg ] = interpolator(ref_WGT_rot{iGold}{iRef}, Rtr, [0,0,0], ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
  
-                    % use transpose of RotMat
-                    %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
-                    %%% the last writing, but now switching to zeros
-                    Rtr = RotMat';
-                    
-                    % The eraseMask, if used, must be transformed into the
-                    % rotated coordinate system
-                   if isempty(eraseMask_tmp)     
-                     useVals = [];
-                   else
-                     useVals = BH_resample3d(eraseMask_tmp, Rtr, ...
-                                  -1.*finalrXYZest, {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward');
-                     useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
 
-                   end
-                
-                    try
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{finalRef}, Rtr, ...
-                                            finalrXYZest, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{finalRef}, Rtr, ...
-                                            [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);    
-                    catch
-                      fprintf('\n\nFinal ref,part,phi,theta,psi %f %f %f %f %f\n\n',...
-                        bestRotPeak(:,1:5));
-                       bestRotPeak(1,1:5)
-                       fprintf('BreakPeak %d\n',breakPeak);
-                      error('errrorsoedfsdf')
-                    end
-                                        
-%                     iRotRef = ...
-%                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                       padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                       padWindow(1,3) + 1:end - padWindow(2,3) );                                          
+                                     
+          iRotRef = BH_bandLimitCenterNormalize(...
+                                               iRotRef.*peakMask_tmp,...
+                                               bandpassFiltREF_tmp{finalRef} ,peakBinary_tmp,...
+                                               padCalc,flgPrecision);
 
+          rotPart_FT = BH_bandLimitCenterNormalize(...
+                       iTrimParticle.*peakMask_tmp,...
+                       bandpassFilt_tmp{finalRef} ,peakBinary_tmp,padCalc,flgPrecision ); 
 
-                    iRotRef = BH_bandLimitCenterNormalize(...
-                                                         iRotRef.*peakMask_tmp,...
-                                                         bandpassFiltREF_tmp{finalRef} ,peakBinary_tmp,...
-                                                         padCalc,flgPrecision);
-                                                       
-                    rotPart_FT = BH_bandLimitCenterNormalize(...
-                                 iTrimParticle.*peakMask_tmp,...
-                                 bandpassFilt_tmp{finalRef} ,peakBinary_tmp,padCalc,flgPrecision ); 
-                               
-                    [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                                                            rotPart_FT.*ifftshift(iRotWdg), ...
-                                                            conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,useVals);
+          [ peakCoord ] =  BH_multi_xcf_Translational( ...
+                                                  rotPart_FT.*ifftshift(iRotWdg), ...
+                                                  conj(iRotRef).*iMaxWedgeIfft,...
+                                                  peakMask_tmp, peakCOM,useVals);
 
 % % %           end
 

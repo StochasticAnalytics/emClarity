@@ -14,9 +14,15 @@ classdef interpolator < handle
   end
   
   methods
-    function [ obj, resampledVol ] = interpolator(inputVol, angles, shifts, convention, direction, symmetry)
+    function [ obj, resampledVol ] = interpolator(inputVol, angles, shifts, convention, direction, symmetry, varargin)
       %UNTITLED Construct an instance of this class
       %   Detailed explanation goes here
+      
+      if (nargin == 7)
+        useOnlyOnce = varargin{1};
+      else
+        useOnlyOnce = false;
+      end
       
       check_symmetry(obj, symmetry);
       [angles, shifts] = check_anglesAndShifts(obj,angles, shifts, convention, direction);
@@ -40,6 +46,11 @@ classdef interpolator < handle
       if (obj.nSymMats > 1)
         resampledVol = resampledVol ./ obj.nSymMats;
       end
+      
+      if (useOnlyOnce)
+        obj.deallocate();
+      end
+    
 
     end
     
@@ -145,7 +156,7 @@ classdef interpolator < handle
      
    end
    
-   function [ ] = deallocate(obj)
+   function [ obj ] = deallocate(obj)
      mexXform3d(obj.texObject, obj.cuArray);
      obj.symmetry_matrices = [];
      obj.nSymMats = [];
