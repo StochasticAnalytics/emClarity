@@ -1,5 +1,5 @@
 function [ BANDPASS ] = BH_bandpass3d( SIZE, HIGH_THRESH, HIGH_CUT, LOW_CUT, ...
-                                       METHOD, PIXEL_SIZE )
+                                       METHOD, PIXEL_SIZE, varargin )
 %Create a bandpass filter, to apply to fft of real space 3d images.
 %   
 %   Input variables:
@@ -55,6 +55,11 @@ if numel(SIZE) == 2
   SIZE = [SIZE,1];
 end
 
+if (nargin == 7)
+  doHalfGrid = true;
+else
+  doHalfGrid = false;
+end
 % The following will adjust the apodization window, and is not intended for
 % regular users to adjust. The value of 2.0 makes for a nice (soft) fall
 % off over ~ 7 pixels. Larger value results in a steeper cutoff.
@@ -90,12 +95,19 @@ mWindow = mWindow + 1;
 %%%% This is ~ 120x faster than = gpuArray(ones(bSize, 'single'));
 % initialize nd grids of appropriate size
 
-
-[ radius,~,~,~,~,~] = BH_multi_gridCoordinates( bSize, 'Cartesian', METHOD, ...
+if (doHalfGrid)
+  [ radius,~,~,~,~,~] = BH_multi_gridCoordinates( bSize, 'Cartesian', METHOD, ...
+                                                  {'single',...
+                                                  [1,0,0;0,1,0;0,0,1],...
+                                                  [0,0,0]','forward',1,1}, ...
+                                                  1, 0, 1,{'halfGrid'} );
+else
+  [ radius,~,~,~,~,~] = BH_multi_gridCoordinates( bSize, 'Cartesian', METHOD, ...
                                                   {'single',...
                                                   [1,0,0;0,1,0;0,0,1],...
                                                   [0,0,0]','forward',1,1}, ...
                                                   1, 0, 1 );
+end
 
 
 % Calc lowpass filter
