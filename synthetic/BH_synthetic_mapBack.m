@@ -822,7 +822,7 @@ end
         iAvgResamp = gather(iMaskResamp.*iAvgResamp);
 
         if iSubTomo == 1
-          SAVE_IMG(MRCImage(gather(iAvgResamp)),'testResampleMasked.mrc');
+          SAVE_IMG(iAvgResamp,'testResampleMasked.mrc');
         end
         if (flgColorMap || flgClassAvg)
           if (flgColorMap)
@@ -967,7 +967,7 @@ end
       elseif (iSave ==4)
         avgTomo{4} = single(1 - avgTomo{4});
       end
-      SAVE_IMG(MRCImage(avgTomo{iSave}),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixelSize);
+      SAVE_IMG((avgTomo{iSave}),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixelSize);
       avgTomo{iSave} = [];
 
 
@@ -976,7 +976,7 @@ end
     clear avgTomo
     
     if (flgColorMap || flgClassAvg)
-      SAVE_IMG(MRCImage(avgColor),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
+      SAVE_IMG(avgColor,sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
       clear avgColor    
     end
     % If not planning on visualization, save only a binned copy of the synthetic
@@ -1439,7 +1439,7 @@ end
       errStack = scaleStack .* (refStack - getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},1))));
       subStack = refStack - errStack - getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},2)));
       clear refStack errStack
-      SAVE_IMG(MRCImage(subStack),sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),pixelSize);
+      SAVE_IMG(subStack,sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),pixelSize);
       clear subStack)
       
 
@@ -1466,11 +1466,11 @@ parfor iPrj = 1:nPrjs
 	    % to know what is going on here.
 
       if (testSubtraction)
-        iMrcObj = MRCImage(sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}));
-        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_3_mapBack.st',mbOUT{1:3}));
+        iMrcObj = MRCImage(sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),0);
+        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_3_mapBack.st',mbOUT{1:3}),0);
       else
-        iMrcObj = MRCImage(tiltSeries);
-        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}));
+        iMrcObj = MRCImage(tiltSeries,0);
+        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}),0);
       end
       % Matching the "natural" or sequential order 
       iTLT = find(TLT(:,1) == iPrj);
@@ -1603,7 +1603,7 @@ parfor iPrj = 1:nPrjs
         mRx
         mRy
         COM
-        SAVE_IMG(MRCImage(gather(cccPrj)),'err.mrc');
+        SAVE_IMG(cccPrj,'err.mrc');
         error('sdf')
       end
       cccPRJ = cccPRJ - min(cccPRJ(:));
@@ -1999,8 +1999,8 @@ parfor iPrj = 1:nPrjs
     
     clear diagnosticCell evalMaskCell
     if ~(conserveDiskSpace) && bh_global_save_tomoCPR_diagnostics
-      SAVE_IMG(MRCImage(diagnosticStack),sprintf('%smapBack%d/%s_diagnostic.mrc',mbOUT{1:3}));
-      SAVE_IMG(MRCImage(evalMaskStack),sprintf('%smapBack%d/%s_evalMask.mrc',mbOUT{1:3}));
+      SAVE_IMG(diagnosticStack,sprintf('%smapBack%d/%s_diagnostic.mrc',mbOUT{1:3}));
+      SAVE_IMG(evalMaskStack,sprintf('%smapBack%d/%s_evalMask.mrc',mbOUT{1:3}));
     end
     system(sprintf('cat %smapBack%d/%s_???.coordFIT | sort -k 1 -g > %smapBack%d/%s.coordFIT',mbOUT{1:3},mbOUT{1:3}));
     system(sprintf('rm %smapBack%d/%s_???.coordFIT',mbOUT{1:3}));
