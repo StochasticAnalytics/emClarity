@@ -4,10 +4,10 @@ function [ ] = SAVE_IMG( vol, varargin)
 %   (using the MRCImage.SAVE_IMG). This also permits passing in a gpuArray
 %   which in turn allows much faster calcs on the stats.
 
-  imgMin = min(vol(:));
-  imgMax = max(vol(:));
-  imgMean = mean(vol(:));
-  imgRMS = rms(vol(:));
+  imgMin = gather(min(vol(:)));
+  imgMax = gather(max(vol(:)));
+  imgMean = gather(mean(vol(:)));
+  imgRMS = gather(rms(vol(:)));
   
   mRCImage = MRCImage(gather(vol));
    

@@ -143,15 +143,25 @@ if ( 0 > HIGH_THRESH || HIGH_THRESH >= 1)
   error('HIGH_THRESH must be between 0 and 1, not %f', HIGH_THRESH)
 end
 
+% Set min val for High thresh
+HIGH_THRESH = max(HIGH_THRESH, 1e-4);
 
 
 % Translate boundries from A^-1 to cycles/pixel. A value of zero means no 
 % high pass filter.
 if HIGH_CUT ~= 0
   highCut = PIXEL_SIZE ./ HIGH_CUT;
+  % Make sure the highcut allows for at least a 7 pixel taper
+  highCut = max([highCut,highCut,highCut], [7 ./ (bSize .* PIXEL_SIZE)]);
+  if (bSize(3) > 1)
+    highCut = max(highCut);
+  else
+    highCut = max(highCut(1:2));
+  end
 else
   highCut = 0;
 end
+
 lowCut  = PIXEL_SIZE ./ LOW_CUT;
 
 % fixed lowpass roll off, cycles/pix depends on dimension of image

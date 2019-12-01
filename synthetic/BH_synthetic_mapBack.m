@@ -51,9 +51,9 @@ molMass = MOL_MASS.*(25/samplingRate);
 % in projection due to the sub-tomo. Project just the subTomos. Hopefully
 % this can improve CTF refinement.
 try
-  testSubtraction = pBH.('bgSubtraction')
+  testSubtraction = pBH.('bgSubtraction');
 catch
-  testSubtraction = 0
+  testSubtraction = 0;
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018
@@ -1339,8 +1339,10 @@ end
     tileSize = (2.*tileRadius + 1).*[1,1];
     padTile = floor(PARTICLE_RADIUS./1 .*[1,1]);
 %     padCTF = 3.*padTile; 
-    CTFSIZE = BH_multi_iterator([1 + 2* tileRadius + 6.*padTile,1], 'fourier')
-    CTFSIZE = CTFSIZE(1:2)
+%     CTFSIZE = BH_multi_iterator([1 + 2* tileRadius + 6.*padTile,1], 'fourier')
+    CTFSIZE = BH_multi_iterator([2.*tileSize,1], 'fourier');
+
+    CTFSIZE = CTFSIZE(1:2);
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
    
@@ -1659,7 +1661,7 @@ parfor iPrj = 1:nPrjs
         ctfMask = BH_bandpass3d([CTFSIZE,1],10^-5,40,max(5,2*pixelSize),METHOD,pixelSize);
         % Testing an additional translational step which requires full fft
         % band mask for just the hermitian symmetry
-        ctfMask(:,ceil((CTFSIZE(1)+1)/2):end) = 0;
+        ctfMask = ctfMask(1:floor(CTFSIZE(1)/2)+1,:)
         ctfMask = (ctfMask > 10^-2 );
         
         % find range of defocus for this projection.
@@ -1891,8 +1893,10 @@ parfor iPrj = 1:nPrjs
               iDataCTF = iData.*ctfStack(:,meanIDX+iCTF);
             end
             
-            iRefNorm  = sum(abs(iRefCTF(:)).^2);
-            iDataNorm = sum(abs(iDataCTF(:)).^2);
+            % Mask the normalization. Assuming that the meanIDX should be
+            % very close to what was applied during reconstruction.
+            iRefNorm  = sum(abs(iRefCTF(:).*ctfStack(:,meanIDX+iCTF)).^2);
+            iDataNorm = sum(abs(iDataCTF(:).*ctfStack(:,meanIDX)).^2);
 
 
             iCCC = real(sum(iRefCTF.*iData))./sqrt(iDataNorm.*iRefNorm);
@@ -1976,6 +1980,8 @@ parfor iPrj = 1:nPrjs
  end % end of the parfor loop
     
     if ( calcCTF )
+     
+      save(sprintf('%smapBack%d/%s%s.defShiftsMat',mbOUT{1:3},outCTF),'defocusShifts');
       defShifts = fopen(sprintf('%smapBack%d/%s%s.defShifts',mbOUT{1:3},outCTF),'w');
       defCCC = sprintf('%smapBack%d/%s%s_defCCC.mat',mbOUT{1:3},outCTF);
       save(defCCC,'defocusCCC','expectedDefocusPerFiducial');

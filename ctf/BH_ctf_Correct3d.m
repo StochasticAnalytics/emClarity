@@ -193,7 +193,7 @@ if (reconstructionParameters(1))
   samplingRate = reconstructionParameters(2);
 else
   samplingRate = pBH.('Ali_samplingRate');
-  resTarget = mean(masterTM.('currentResForDefocusError')*.5) 
+  resTarget = mean(masterTM.('currentResForDefocusError'));
   if (flgWhitenPS(1))
     flgWhitenPS(2) = resTarget;
   end
@@ -454,6 +454,9 @@ parfor iGPU = 1:nGPUs
                                               2048, TLT(1,19), ...
                                               resTarget,maxZ*10, ...
                                               dampeningMax,CYCLE);
+      % The above function has not been performing well. For now, just use
+      % a simpler model.
+      ctf3dDepth = max(2,( resTarget ./ 5 )) .* 10e-9;
       fprintf('\n\nUsing a ctfDepth of %2.2f nm for %s\n\n',ctf3dDepth*10^9,tiltList{iTilt});
       % sections centered at 0, which for now is also supposed to coincide with
       % the mean defocus determination, although this could be corrected using

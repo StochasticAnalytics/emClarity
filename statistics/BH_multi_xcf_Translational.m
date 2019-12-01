@@ -63,6 +63,8 @@ if nargin > 4
     iCCCmap = iCCCmap .* varargin{1};
   end
 end
+
+
 peakCOM = PEAK_COM;
 
 
