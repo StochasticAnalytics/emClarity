@@ -28,11 +28,11 @@ function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, SHIFT, ORIGIN,
 % 1) For Ben, to check:
 %       Are you sure about the vector coordinates when flgOrigin == 0?
 %       Here is what you do:
-%       flgOrigin == 1: 6pixels(0, 1, 2, 3, -2, -1) but shouldn't it be 6pixels(0, 1, 2, -3, -2, -1)?
+%       flgOrigin = 0: 6pixels(0, 1, 2, 3, -2, -1) but shouldn't it be 6pixels(0, 1, 2, -3, -2, -1)?
 %       For now, I did as I think is correct. I'll wait for your answer.
 %
 % 2) For Ben, to check:
-%       flgOrigin == -1 and -2: I don't understand the vectors in that case. Could you explain?
+%       flgOrigin = -1 and -2: I don't understand the vectors in that case. Could you explain?
 %
 % 3) Mask - use less memory:
 %       flgHalf: Keep the option for rfft.
