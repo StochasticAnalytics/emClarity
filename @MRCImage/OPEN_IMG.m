@@ -41,9 +41,10 @@ if nargin < 4
 end
 
 % Check to see a the file is already open
-if ~ isempty(mRCImage.fid)
+if ~isempty(mRCImage.fid)
   PEETError('An MRC file is already open!');
 end
+
 % Open the file read-only, save the fid for future access and the filename
 % if we need to reopen it r+ 
 [fid, msg]= fopen(filename, 'r');

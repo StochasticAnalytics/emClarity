@@ -50,7 +50,7 @@ __global__ void sf3dKernel(float *outputData,
   if (tw >= -slice_thickness_pixel_radius & tw <= slice_thickness_pixel_radius)
   {
     // FIXME this should approximate a sinc
-    zWeight = 0.5 + 0.5*cosf(tw*PI/(float)(slice_thickness_pixel_radius+1.0f));
+    zWeight = 0.5 + 0.5*cosf(tw*PIf/(float)(slice_thickness_pixel_radius+1.0f));
 
     tu =  u*sinAcosA.y + w*sinAcosA.x; 
     tu /= (float)dims.x; // Normalized coords

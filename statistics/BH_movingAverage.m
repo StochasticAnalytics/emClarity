@@ -2,7 +2,10 @@ function [ img, flgOOM ] = BH_movingAverage( img, featureSize )
 %Calculate a moving average using circular convolution.
 %   Detailed explanation goes here
 flgOOM = 0;
-if ndims(img) ~= numel(featureSize)
+
+
+if ((numel(featureSize) == 2 || featureSize(3) == 1) && ...
+    (size(img,3) > 1))
   error('image must have same dimension as number of dims given in feature size.')
 end
 

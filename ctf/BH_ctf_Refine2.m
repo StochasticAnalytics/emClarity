@@ -49,7 +49,7 @@ end
 % Sanity check
 if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
   error('pixel size should be [0,20e-10]');
-elseif (Cs > 10e-3 || Cs < 1e-3)
+elseif (Cs > 5*10^-3 || Cs < 0)
   error('Cs should be[1e-3,10e-3]');
 elseif(VOLTAGE > 1000e3 || VOLTAGE < 20e3)
   error ('VOLTAGE should be [20e3,1000e3]');
@@ -59,6 +59,10 @@ else
   WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
 end
 
+if Cs == 0
+  fprintf('You set Cs to zero, over-riding to 5 micron\n');
+  Cs = 5e-6;
+end
 
 % Assuming that the first CTF zero is always less than this value 
 FIXED_FIRSTZERO =  PIXEL_SIZE / 40*10^-10 ;

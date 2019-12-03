@@ -1,11 +1,11 @@
-function [ subTomoMeta ] = BH_updateAli(subTomoMeta,cycle,mapBackIter, pixelSize,...
-                                        samplingRate,particleRadius)
+% % % % % function [ subTomoMeta ] = BH_updateAli(subTomoMeta,cycle,mapBackIter, pixelSize,...
+% % % % %                                         samplingRate,particleRadius)
 
-% % % mapBackIter =0;
-% % % pixelSize = 2.17;
-% % % samplingRate = 4;
-% % % particleRadius = [160,160,160];
-
+mapBackIter = 1;
+pixelSize = 2.17;
+samplingRate = 3;
+particleRadius = [160];
+cycle=5
 % Build a list of very large local shifts
 
 % % % % % maskRadius = max(particleRadius)./(pixelSize*samplingRate);
@@ -29,30 +29,49 @@ cycleNumber = sprintf('cycle%0.3u',cycle);
 tiltNameList = fieldnames(subTomoMeta.mapBackGeometry);
 tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
 nTiltSeries = length(tiltNameList);
- % TODO run this in parallel
-for iTilt = 1:nTiltSeries
+
+delete(gcp('nocreate'));
+parpool(nTiltSeries);
+parResults = cell(nTiltSeries,1);
+
+  try
+    geometry = subTomoMeta.(cycleNumber).RawAlign;
+    geometry = 'RawAlign';
+    fprintf('Using Alignment geometry %s\n',cycleNumber);
+  catch
+    fprintf('Using Average geometry %s\n',cycleNumber);
+    geometry = 'Avg_geometry';
+  end
+  
+for i = 1:nTiltSeries
+  parResults{i} = struct();
+  parResults{i}.('RawAlign') = subTomoMeta.(cycleNumber).(geometry);
+  parResults{i}.('fName') = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
+  parResults{i}.('tomoName') = subTomoMeta.mapBackGeometry.tomoName;
+  parResults{i}.('coords') = subTomoMeta.mapBackGeometry.(tiltNameList{i}).coords;
+end
+
+  
+parfor iTilt = 1:nTiltSeries
   
   fprintf('Estimating subtomogram shifts after tomoCPR for tilt %d/ %d\n',iTilt,nTiltSeries);
   tiltName = tiltNameList{iTilt};  
   fullName = sprintf('%s_ali%d_ctf',tiltName,mapBackIter+1);
   
-% % % 
-% % %   if (doMedianFilter)
-% % %     fprintf('Applying median filter to stack\n'); %#ok<*UNRCH>
-% % %     medFiltStack = getVolume(MRCImage(sprintf('%s_ali%d_shifted.st',tiltName,mapBackIter+1)));
-% % %     for iPrj = 1:size(medFiltStack,3)
-% % %       medFiltStack(:,:,iPrj) = medfilt2(medFiltStack(:,:,iPrj),[3,3]);
-% % %     end
-% % %     SAVE_IMG(MRCImage(medFiltStack),sprintf('%s_MedFilt.st',fullName),pixelSize.*samplingRate);
-% % %     medFiltStack = [];
-% % % 
-% % %     % Resample the synthetic stack - alignments need to be binned first
-% % %     fprintf('resampling the tomoCPR ref to new globalAli\n');
-% % %     system(sprintf('awk -v B=%d ''{print $1,$2,$3,$4,$5/B,$6/B}'' %s.tltxf > %s_bin.xf',tmpTomoBin*samplingRate, fullName, fullName));
-% % %     system(sprintf('newstack -meansd 0,3 -float 2 -xf %s_bin.xf -bin %d %s_MedFilt.st %s_resamp.st >> ./.tomoCPR_log.txt', ...
-% % %                     fullName,tmpTomoBin,fullName,fullName));
-% % %   else
-    
+  [~, reconThickness]=system(sprintf('awk ''{if(/^THICKNESS/) print $2}'' %s_ali%d_1_reMod.sh', tiltName, mapBackIter+1));
+  reconThickness = str2double(reconThickness);
+  [~, reconTiltFile]=system(sprintf('awk ''{if(/^TILTFILE/) print $2}'' %s_ali%d_1_reMod.sh', tiltName, mapBackIter+1));
+  [~,baseName,extension]=fileparts(reconTiltFile);
+  [~, reconLocalFile]=system(sprintf('awk ''{if(/^LOCALFILE/) print $2}'' %s_ali%d_1_reMod.sh', tiltName, mapBackIter+1));
+  
+  if (isempty(reconLocalFile))
+    reconLocalFile = ' ';
+  else
+    reconLocalFile = sprintf('-LOCALFILE %s ',reconLocalFile);
+  end
+
+  
+  
      % Resample the synthetic stack - alignments need to be binned first,
      % TODO just do this in mem prior to saving in tomoCPR
     fprintf('resampling the tomoCPR ref to new globalAli\n');
@@ -65,22 +84,30 @@ for iTilt = 1:nTiltSeries
               
               
   % Get size info (TODO get the bin number from tomoCPR)
-  iMrcObj = MRCImage(sprintf('%s_ali%d.tmpTomo1',tiltName,mapBackIter + 1));
-  iHeader = getHeader(iMrcObj);
 
-  % Reconstruct the warped synthetic vol
-  fprintf('Reconstructing the new positions\n');
+  % Reconstruct the original and warped synthetic vol
+  fprintf('Reconstructing the synthetic tomos positions\n');
   recCmd = sprintf(['tilt -input %s_resamp.st -output %s_resamp.rec ', ...
                     '-TILTFILE %s.tlt -RADIAL 0.5,0.05 -UseGPU 0 ', ...
                     '-THICKNESS %d -COSINTERP 0 -RotateBy90 ', ...
                     '-LOCALFILE %s.local -FakeSIRTiterations 30 >> ./.tomoCPR_log.txt'], ...
-                    fullName, fullName, fullName, iHeader.nZ ,fullName);
+                    fullName, fullName, fullName, reconThickness ,fullName);
                  
   system(recCmd);
   
+  recCmd = sprintf(['tilt -input %s_ali%d_1_mapBack.st -output %s_orig.rec ', ...
+                    '-TILTFILE %s.rawtlt -RADIAL 0.5,0.05 -UseGPU 0 ', ...
+                    '-THICKNESS %d -COSINTERP 0 -RotateBy90 ', ...
+                    '%s -FakeSIRTiterations 30 >> ./.tomoCPR_log.txt'], ...
+                    tiltName,mapBackIter+1, fullName, baseName, reconThickness , reconLocalFile);
+                 
+  system(recCmd);
+  
+  
+
   % Load the tomos into main mem
   fprintf('Loading the reference and target tomos\n');
-  tomoPre = getVolume(MRCImage(sprintf('%s_ali%d.tmpTomo1',tiltName,mapBackIter+1)));
+  tomoPre = getVolume(MRCImage(sprintf('%s_orig.rec',fullName)));
   tomoPost= getVolume(MRCImage(sprintf('%s_resamp.rec',fullName)));
 
   if (size(tomoPre) ~= size(tomoPost))
@@ -106,37 +133,10 @@ for iTilt = 1:nTiltSeries
   
   
 
-% % % % %   % % Get the estimated shifts due to the global alignment
-% % % % %   % % tomoNumber, subTomoIDX, xOUT,yOUT,zOUT,xIN,yIN,zIN ( Some positions
-% % % % %   % may be entirely ignored
-% % % % %   awkCmd=sprintf('awk ''FNR==NR{x[$6]=$2; y[$6]=$3; z[$6]=$4; next}{if(x[$1]) {print $2,$3,x[$1],y[$1],z[$1],$4,$5,$6} else {print $2,$3,-9999,-9999,-9999,$4,$5,$6}}'' ');
-% % % % %   awkCmd=sprintf('%s %s.xyz %s_ali%d.coord_start  > %s.globalDeltaXYZ', awkCmd,fullName, tiltName, mapBackIter+1, fullName); 
-% % % % %   system(awkCmd);
-% % % % %   dXYZ = load(sprintf('%s.globalDeltaXYZ',fullName));
-% % % % %   nonSampledMask = (dXYZ(:,3) == -9999 & dXYZ(:,4) == -9999 & dXYZ(:,5) == -9999);
-% % % % %   dXYZ(~nonSampledMask,5) = dXYZ(~nonSampledMask,5) + (floor(((d3+samplingRate)*samplingRate)/2)+1);
-% % % % %   dXYZ(nonSampledMask,3:5) = dXYZ(nonSampledMask,6:8);
-% % % % %   % Z is in centered coordinates, and also inverted due to IMOD recon geom
-% % % % %   dXYZ(:,3:8) = dXYZ(:,3:8) ./ (tmpTomoBin * samplingRate);
-% % % % % 
-% % % % %   % dXYZ(:,[5,8]) = (d3 - (dXYZ(:,[5,8]) + (floor(d3/2)+1)));
-% % % % %   nSubTomos = size(dXYZ,1);
-% % % % %   shiftsOUT = zeros(nSubTomos,5,'gpuArray');
-% % % % % 
-% % % % %   shiftsOUT(:,1:2) = dXYZ(:,1:2);
-% % % % % 
-% % % % %   for iSubTomo = 1:nSubTomos
-% % % % % 
-% % % % % 
-% % % % %     img_XYZ = dXYZ(iSubTomo,3:5);
-% % % % %     ref_XYZ = dXYZ(iSubTomo,6:8);
-    
-% % % % %     
-% % % % %     if (abs(sum(img_XYZ - ref_XYZ))>1e-6)
 iSubRegion = 1;
 for iY = 1:nY
   for iX = 1:nX
-    
+      iSubRegion
       rXYZ = [oX + incX*(iX-1), oY + incY*(iY-1), oZ];
       shiftsOUT(iSubRegion,1:2) = rXYZ(1:2) .* samplingRate;
      
@@ -198,20 +198,12 @@ for iY = 1:nY
 
       totalShift = peakShift ;
       if (checkResults)
-        peakShift
-% 
-%         refShiftVAL - imgShiftVAL
-%         ref_XYZ - img_XYZ
-%         totalShift = peakShift + (imgShiftVAL - refShiftVAL) + ( (img_XYZ - ref_XYZ))
         iImg = BH_resample3d(iRef,[0,0,0], peakShift ,'Bah','GPU','forward');    
         figure, imshow3D(gather(iImg));
-        error('sdf')
 
       end
-% % % % %     else
-% % % % %       totalShift = [0,0,0];
-% % % % %     end
-    totalShift
+
+    totalShift;
     shiftsOUT(iSubRegion,3:5) = totalShift; % (samplingRate*tmpTomoBin).*totalShift;
     iSubRegion = iSubRegion + 1;
   end
@@ -219,50 +211,171 @@ for iY = 1:nY
 end
 
 
+boxSize = gather(ceil(3.*max(particleRadius)./(pixelSize.*samplingRate)).*[1,1,1]);
+iMask = gather(BH_mask3d('sphere',boxSize, boxSize.*0.33, [0,0,0]));
 
-  fName = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
   n = 0;
-    for iTomo = 1:length(fName)
-      fName{iTomo};
-      tomoNum = subTomoMeta.mapBackGeometry.tomoName.(fName{iTomo}).tomoNumber;
-      nSubTomos = size(subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo}),1);
+
+  for iTomo = 1:length(parResults{iTilt}.fName)
+    randName = randi([1000,9999],1);
+    if strcmp(parResults{iTilt}.tomoName.(parResults{iTilt}.fName{iTomo}).tiltName, tiltNameList{iTilt})
+      
+      writeOutPyAli(randName);
+      
+      tomoNum = parResults{iTilt}.tomoName.(parResults{iTilt}.fName{iTomo}).tomoNumber;
+      rCoords = parResults{iTilt}.coords(tomoNum,:);
+      tomoReconGeom = BH_offsets(rCoords, sprintf('%s_ali%d_1_mapBack.st',tiltName,mapBackIter+1), samplingRate);
+      
+      originRealTomo = floor(tomoReconGeom(1,:)./2) + 1;
+      originFakeTomo = floor([d1,d2,d3]./2) + 1;
+      reconShift = tomoReconGeom(2,1:3);
+
+      lowerLeftVol = originFakeTomo + reconShift - originRealTomo + 1;
+
+      nSubTomos = size(parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo}),1);
         for iSubTomo = 1:nSubTomos
   
-          subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(iSubTomo,11:12);
-          minDist = shiftsOUT(:,1:2) - subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(iSubTomo,11:12);
+          minDist = shiftsOUT(:,1:2) - parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo})(iSubTomo,11:12);
           minDist = sqrt(sum(minDist.*minDist,2));
           [~,minCoord] = min(minDist);
-              subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(iSubTomo,11:13) = ...
-                          subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(iSubTomo,11:13) + ...
-                          gather(shiftsOUT(minCoord,3:5));   
+          
+          center =  parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo})(iSubTomo,11:13) ./ samplingRate + lowerLeftVol;
+          angles =  reshape(parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo})(iSubTomo,17:25),3,3) ;
+          
+ 
+                % get the reference, i.e. the model in the original position
+          [ indVAL, refPadVAL, refShiftVAL ] = ...
+                              BH_isWindowValid([d1,d2,d3], ...
+                                                boxSize, boxSize.*0.3, ...
+                                                center);
+
+          iRef = (tomoPre(indVAL(1,1):indVAL(2,1), ...
+                         indVAL(1,2):indVAL(2,2), ...
+                         indVAL(1,3):indVAL(2,3)));
+
+          if any(refPadVAL(:))
+            [ iRef ] = BH_padZeros3d(iRef,  refPadVAL(1,1:3), ...
+                                            refPadVAL(2,1:3), 'cpu', 'single');
+          end
+                                              
+          [ indVAL, imgPadVAL, imgShiftVAL ] = ...
+                              BH_isWindowValid([d1,d2,d3], ...
+                                                boxSize, boxSize.*0.3, ...
+                                                center+gather(shiftsOUT(minCoord,3:5)));
+                                              
+           
+          iImg =  (tomoPost(indVAL(1,1):indVAL(2,1), ...
+                               indVAL(1,2):indVAL(2,2), ...
+                               indVAL(1,3):indVAL(2,3)));      
+
+          if any(imgPadVAL(:))
+            [ iImg ] = BH_padZeros3d(iImg,  imgPadVAL(1,1:3), ...
+                                            imgPadVAL(2,1:3), 'cpu', 'single');
+          end  
+          
+
+          % For now, we'll assum there is a writable /tmp dir and that the
+          % python script to run chimera already exists in the FSC dir.
+
+          
+          refName = sprintf('/tmp/ref%d.mrc', randName);
+          imgName = sprintf('/tmp/img%d.mrc', randName);
+          SAVE_IMG(iRef.*iMask, refName, pixelSize.*samplingRate);
+          SAVE_IMG(iImg.*iMask, imgName, pixelSize.*samplingRate);
+          
+          
+        system(sprintf('chimera --nogui --script "/tmp/fitInMap_%d.py %s %s /tmp/fitInMap_%d.txt > /dev/null" ',...
+                      randName, refName,imgName,randName));
+
+      % Read in the results
+      % 1:9 rotation matrix 10:12 = dXYZ
+      bestAnglesAndShifts = load(sprintf('/tmp/fitInMap_%d.txt',randName));
+      % The results from fit in map are the transpose of Bah, forward rotmat
+      bestAngles = reshape(bestAnglesAndShifts([1,4,7,2,5,8,3,6,9]),3,3);
+      
+      % The results are in Angstrom, convert to unbinned pixels
+      bestShifts = bestAnglesAndShifts(10:12)'./pixelSize;
+
+%       resampleCheck = (BH_resample3d(iRef, ...
+%                                   bestAngles, ...
+%                                   1.*bestShifts'./samplingRate, ...
+%                                   'Bah', 'GPU', 'forward'));
+%                                 
+%                 SAVE_IMG(resampleCheck, '/tmp/check.mrc', pixelSize.*samplingRate);
+%                 error('sdf');
+
+%       system(sprintf(' rm %s %s /tmp/fitInMap_%d.txt',refName,imgName,randName));%s %s 
+      
+
+      iShift = (gather(shiftsOUT(minCoord,3:5)).*samplingRate + bestShifts);
+      
+      parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo})(iSubTomo,11:13) = ...
+                          parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo})(iSubTomo,11:13) + ...
+                          gather(iShift);   
                         
-                        shiftsOUT(minCoord,3:5);
         end
-    end
+    end % if clause on tomo in this tilt
 
-% % % %   for iTomo = 1:length(fName)
-% % % %     fName{iTomo}
-% % % %     if strcmp(subTomoMeta.mapBackGeometry.tomoName.(fName{iTomo}).tiltName, tiltName)
-% % % %       tomoNum = subTomoMeta.mapBackGeometry.tomoName.(fName{iTomo}).tomoNumber
-% % % %         for iSubTomo = 1:nSubTomos
-% % % %           if (shiftsOUT(iSubTomo,1) == tomoNum)
-% % % %             idx=find(subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(:,4) == shiftsOUT(iSubTomo,2),1,'first');
-% % % %             idx
-% % % %             if (shiftsOUT(iSubTomo,3) == -9999)
-% % % %               subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(idx,26) = -9999; % TODO add a counter   
-% % % %               n = n + 1;
-% % % %             else
-% % % %               subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(idx,11:13) = ...
-% % % %                           subTomoMeta.(cycleNumber).RawAlign.(fName{iTomo})(idx,11:13) + ...
-% % % %                           gather(shiftsOUT(iSubTomo,3:5));
-% % % %             end
-% % % %           end
-% % % %         end
-% % % %     end
-% % % %   end
-
-  % Remove the binned tomo
-%   system(sprintf('rm %s_resamp.rec',fullName));
+  system(sprintf(' rm /tmp/fitInMap_%d.py', randName));
+  
+  end % end of loop over tomos
 end % end loop over tilts
+
+
+% Gather up the results
+for iTilt = 1:nTiltSeries
+  for iTomo = 1:length(parResults{iTilt}.fName)
+     if strcmp(parResults{iTilt}.tomoName.(parResults{iTilt}.fName{iTomo}).tiltName, tiltNameList{iTilt})
+       subTomoMeta.(cycleNumber).(geometry).(parResults{iTilt}.fName{iTomo}) = ...
+                          parResults{iTilt}.RawAlign.(parResults{iTilt}.fName{iTomo});
+                            
+       
+     end
+    
+  end
+end
+% % % % % end
+
+function writeOutPyAli(randName)
+
+fOUT = fopen(sprintf('/tmp/fitInMap_%d.py', randName),'w');
+
+fprintf(fOUT,['\n'...
+'from sys import argv\n\n',...
+'def fit_map_in_map(map1_path, map2_path, xformName,\n',...
+'                   initial_map1_transform = None,\n',...
+'                   map1_threshold = 1.5,\n',...
+'                   ijk_step_size_min = 0.01,\n',...    
+'                   ijk_step_size_max = 1.5,\n',...     
+'                   max_steps = 5000,\n',...
+'                   optimize_translation = True,\n',...
+'                   optimize_rotation = False):\n',...
+'  from VolumeViewer import open_volume_file\n',...
+'  map1 = open_volume_file(map1_path)[0]\n',... 
+'  map2 = open_volume_file(map2_path)[0]\n\n',...
+'  if initial_map1_transform:\n',...
+'    from Matrix import chimera_xform\n',...
+'    xf = chimera_xform(initial_map1_transform)\n',...
+'    map1.surface_model().openState.globalXform(xf)\n\n',...    
+'  use_threshold = (map1_threshold != None)\n\n',...  
+'  from FitMap.fitmap import map_points_and_weights, motion_to_maximum\n',...
+'  points, point_weights = map_points_and_weights(map1, use_threshold)\n\n',...
+'  move_tf, stats = motion_to_maximum(points, point_weights, map2, max_steps,\n',...
+'                                     ijk_step_size_min, ijk_step_size_max,\n',...
+'                                     optimize_translation, optimize_rotation)\n\n',...
+'  import Matrix\n',...
+'  if initial_map1_transform:\n',...
+'    move_tf = Matrix.multiply_matrices(move_tf, initial_map1_transform)\n\n',...
+'  f = open(xformName,''w'')\n',...
+'  for i in range(4):\n',...
+'    for j in range(3):\n',...
+'      f.write(''{:f}''.format(move_tf[j][i]))\n',...
+'      f.write("\\n")\n\n',...
+'  f.close()\n',...
+'  tfs = Matrix.transformation_description(move_tf)\n',...
+'t = fit_map_in_map(argv[1],argv[2],argv[3])\n']);
+
+fclose(fOUT);
+
 
 end

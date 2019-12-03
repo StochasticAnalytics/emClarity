@@ -77,10 +77,11 @@ classdef fourierTransformer < handle
 
     function [ft] = fwdFFT(obj, inputVol, varargin)
       % Vararginr = 
-      % 1 - Bandpass filter ( or a 1 )
+      % 1 - normalize scaling, 0 for none, 1 if only fourier comp, 2 for
+      % complete. I.e. unlike FFTW or MATLAB, cufft scales by 1/root(n) on the fwd
+      % and 1/root(n) on the inverse (the other two are 1/n on the forward)    
       % 2 - bool center and standardize to 1
-      % 3 - normalize scaling, 0 for none, 1 if only fourier comp, 2 for
-      % complete.
+      % 3 - Bandpass filter ( or a 1 )
       doBandpass = false;
       doCenter = false;
       if nargin > 2
@@ -173,7 +174,7 @@ classdef fourierTransformer < handle
       if isempty(obj.phaseCenter) 
         if obj.is2d
           [ obj.phaseCenter, dV ] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
-                                    {'none'},1,1,0,{'halfgrid'});
+                                    {'none'},1,0,0,{'halfgrid'});
           if (obj.inputSize(1) == obj.inputSize(2))
             obj.phaseCenter = exp(-2i.*pi.*obj.halfDimSize.*(obj.phaseCenter+dV));
             clear dU dV
@@ -184,15 +185,15 @@ classdef fourierTransformer < handle
           end
         else
           [ obj.phaseCenter, dV, dW] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
-                                    {'none'},1,1,0,{'halfgrid'});
+                                    {'none'},1,0,0,{'halfgrid'});
                                   obj.inputSize
           if (obj.inputSize(1) == obj.inputSize(2) == obj.inputSize(3))
             obj.phaseCenter = exp(-2i.*pi.*obj.halfDimSize.*(obj.phaseCenter+dV+dW));
             clear dU dV dW        
           else
-            hX = floor(obj.inputSize(1)/2) + 1;
-            hY = floor(obj.inputSize(2)/2) + 1;
-            hZ = floor(obj.inputSize(3)/2) + 1;
+            hX = floor(obj.inputSize(1)/2);% + 1;
+            hY = floor(obj.inputSize(2)/2);% + 1;
+            hZ = floor(obj.inputSize(3)/2);% + 1;
             obj.phaseCenter = exp(-2i.*pi.*(hX.*obj.phaseCenter+hY.*dV+hZ.*dW));
             clear dU dV dW
           end

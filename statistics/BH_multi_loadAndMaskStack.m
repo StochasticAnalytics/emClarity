@@ -99,12 +99,7 @@ for iPrj = 1:d3
       iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
     end
   end
-  
-% % %   % Remove any residual outliers
-% % %   mask = (abs(iProjection(:)) > mean(iProjection(:))+5*std(iProjection(:)));
-% % %   
-% % %   iProjection(mask) = randn([sum(mask(:)),1],'single','gpuArray').*(0.5*std(std(iProjection(~mask))));
-% % %  
+
   if (useMask)
     iProjection = iProjection - mean2(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0));
     iProjection = iProjection ./ rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
@@ -142,10 +137,7 @@ for iPrj = 1:d3
   
 end % end loop over projections
 
-% if ~(justHighPass)
-%   meanVariance = meanVariance ./ sqrt(d3);
-%   STACK = STACK ./ gather( meanVariance);
-% end
+
 
 end % end of function
 

@@ -92,6 +92,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   // This is only used in the inverse xform. Probably a better way. is this safe?
   // This also should probably be calculated just once in the fftTransformer class and passed in.
  
+  // All transforms are done out of place, so no FFTW pafft_dimsing is assumed.
   mwSize  output_size[input_dims];
   if (input_dims > 2)
   {
@@ -132,26 +133,26 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
   int xFormRank;
-  int dd[input_dims];
+  int fft_dims[input_dims];
   int batchSize;
   if (input_dims > 2) 
-  { dd[2] = (int) input_size[0];
-    dd[1] = (int) input_size[1];
-    dd[0] = (int) input_size[2];
+  { fft_dims[2] = (int) input_size[0];
+    fft_dims[1] = (int) input_size[1];
+    fft_dims[0] = (int) input_size[2];
   }
   else
   {
-    dd[1] = (int) input_size[0];
-    dd[0] = (int) input_size[1];
+    fft_dims[1] = (int) input_size[0];
+    fft_dims[0] = (int) input_size[1];
   }
 
   if (input_dims > 2) 
   {
-    if (dd[2] > 1) { xFormRank = 3; batchSize = dd[2]; } else { xFormRank = 2; batchSize = dd[1]; }
+    if (fft_dims[2] > 1) { xFormRank = 3; batchSize = fft_dims[2]; } else { xFormRank = 2; batchSize = fft_dims[1]; }
   }
   else
   {
-    if (dd[1] > 1) { xFormRank = 2; batchSize = dd[1]; } else { xFormRank = 1; batchSize = 1;}
+    if (fft_dims[1] > 1) { xFormRank = 2; batchSize = fft_dims[1]; } else { xFormRank = 1; batchSize = 1;}
   }
 
   outputArray = mxGPUCreateGPUArray(input_dims,
@@ -172,11 +173,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
   mwSize const numel_output = mxGPUGetNumberOfElements(outputArray);
 
-
-  // Now make the plan. This handle should just be a pointer of type int
-  // (FROM cufft.h) "cufftHandle is a handle type used to store and access CUFFT plans 
-  //                 typedef int cufftHandle;"
-  
 
 
   if (make_plan)
@@ -206,10 +202,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     mexMakeArrayPersistent(plhs[2]);
   
 
-    cufftPlanMany(plan,    xFormRank, dd, 
+    cufftPlanMany(plan,    xFormRank, fft_dims, 
                   NULL, NULL, NULL, NULL, NULL, NULL,
                   CUFFT_R2C, 1);
-    cufftPlanMany(planInv, xFormRank, dd, 
+    cufftPlanMany(planInv, xFormRank, fft_dims, 
                   NULL, NULL, NULL, NULL, NULL, NULL,
                   CUFFT_C2R, 1);
 
@@ -235,8 +231,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
   plhs[0] = mxGPUCreateMxArrayOnGPU(outputArray);
 
-//  mexPrintf("Address of plan is %d\n", *plan);
-//  mexPrintf("Address of planInv is %d\n", *planInv);
+//  mexPrintf("Afft_dimsress of plan is %d\n", *plan);
+//  mexPrintf("Afft_dimsress of planInv is %d\n", *planInv);
   mxGPUDestroyGPUArray(inputArray);
   mxGPUDestroyGPUArray(outputArray);
 //  mxGPUDestroyGPUArray(mex_EO);

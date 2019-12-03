@@ -30,13 +30,24 @@ function [ PEAK_COORD ] =  BH_multi_xcf_Translational(  rotPART_FT, REF_FT, ...
 % Option for different correlation functions, for now switching from Xcf to Mcf
 % fixed, but only here (not rotational
 
-if strcmpi(peakMask,'noShift')
-  % regular cross-correlation, but with fourier interp vol so no need for
-  % final fftshift.
-  iCCCmap = real(ifftn(rotPART_FT.*REF_FT));
+if isa(peakMask, 'fourierTransformer')
+  iCCCmap = real(peakMask.invFFT(...
+                 peakMask.swapPhase(rotPART_FT.*REF_FT,'fwd')));
+%   iCCCmap = fftshift(real(peakMask.invFFT(...
+%                  rotPART_FT.*REF_FT)));
+%                figure, imshow3D(gather(iCCCmap));
+%                figure,imshow3D(gather(real(peakMask.invFFT(...
+%                  peakMask.swapPhase(rotPART_FT.*REF_FT,'fwd')))));
+
 else
-    % regular cross-correlation
-  iCCCmap = fftshift(real(ifftn(rotPART_FT.*REF_FT)));
+  if strcmpi(peakMask,'noShift')
+    % regular cross-correlation, but with fourier interp vol so no need for
+    % final fftshift.
+    iCCCmap = real(ifftn(rotPART_FT.*REF_FT));
+  else
+      % regular cross-correlation
+    iCCCmap = fftshift(real(ifftn(rotPART_FT.*REF_FT)));
+  end
 end
 
 
@@ -52,6 +63,8 @@ if nargin > 4
     iCCCmap = iCCCmap .* varargin{1};
   end
 end
+
+
 peakCOM = PEAK_COM;
 
 

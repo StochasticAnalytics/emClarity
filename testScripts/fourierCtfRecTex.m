@@ -158,7 +158,7 @@ for iPrj = 1:size(TLT,1)
 
   % TODO add an option to check and oversample the CTF, then crop in real space, to fix aliasing probs.
 
-  iCTF = (BH_ctfCalc(rad,TLT(iPrj,17),TLT(iPrj,18),iDefocus,[oX,d2],TLT(iPrj,19),-1)).^2;
+  iCTF = (BH_ctfCalc(rad,TLT(iPrj,17),TLT(iPrj,18),iDefocus,[oX,d2],TLT(iPrj,19),-0.5)).^2;
   
   % In some cases we may be before the first zero. TODO fixme
   if (mean(iCTF(:)) < 0.25 )

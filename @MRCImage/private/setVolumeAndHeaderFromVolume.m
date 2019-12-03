@@ -64,14 +64,14 @@ mRCImage.header.mZ = size(mRCImage.volume, 3);
 mRCImage.header.cellDimensionX = size(mRCImage.volume, 1);
 mRCImage.header.cellDimensionY = size(mRCImage.volume, 2);
 mRCImage.header.cellDimensionZ = size(mRCImage.volume, 3);
-mRCImage.header.cellAngleX = 0;
-mRCImage.header.cellAngleY = 0;
-mRCImage.header.cellAngleZ = 0;
+mRCImage.header.cellAngleX = 90;
+mRCImage.header.cellAngleY = 90;
+mRCImage.header.cellAngleZ = 90;
 
 mRCImage = setStatisticsFromVolume(mRCImage);
 
 mRCImage.type = 'BL3DFS';
-mRCImage.header.spaceGroup = 0;
+mRCImage.header.spaceGroup = 1;
 mRCImage.header.nSymmetryBytes = 0;
 
 mRCImage.header.imodStamp = defaultIMODStamp();

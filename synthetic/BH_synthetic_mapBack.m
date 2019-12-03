@@ -51,9 +51,9 @@ molMass = MOL_MASS.*(25/samplingRate);
 % in projection due to the sub-tomo. Project just the subTomos. Hopefully
 % this can improve CTF refinement.
 try
-  testSubtraction = pBH.('bgSubtraction')
+  testSubtraction = pBH.('bgSubtraction');
 catch
-  testSubtraction = 0
+  testSubtraction = 0;
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018
@@ -822,7 +822,7 @@ end
         iAvgResamp = gather(iMaskResamp.*iAvgResamp);
 
         if iSubTomo == 1
-          SAVE_IMG(MRCImage(gather(iAvgResamp)),'testResampleMasked.mrc');
+          SAVE_IMG(iAvgResamp,'testResampleMasked.mrc');
         end
         if (flgColorMap || flgClassAvg)
           if (flgColorMap)
@@ -967,7 +967,7 @@ end
       elseif (iSave ==4)
         avgTomo{4} = single(1 - avgTomo{4});
       end
-      SAVE_IMG(MRCImage(avgTomo{iSave}),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixelSize);
+      SAVE_IMG((avgTomo{iSave}),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixelSize);
       avgTomo{iSave} = [];
 
 
@@ -976,7 +976,7 @@ end
     clear avgTomo
     
     if (flgColorMap || flgClassAvg)
-      SAVE_IMG(MRCImage(avgColor),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
+      SAVE_IMG(avgColor,sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
       clear avgColor    
     end
     % If not planning on visualization, save only a binned copy of the synthetic
@@ -1339,8 +1339,10 @@ end
     tileSize = (2.*tileRadius + 1).*[1,1];
     padTile = floor(PARTICLE_RADIUS./1 .*[1,1]);
 %     padCTF = 3.*padTile; 
-    CTFSIZE = BH_multi_iterator([1 + 2* tileRadius + 6.*padTile,1], 'fourier')
-    CTFSIZE = CTFSIZE(1:2)
+%     CTFSIZE = BH_multi_iterator([1 + 2* tileRadius + 6.*padTile,1], 'fourier')
+    CTFSIZE = BH_multi_iterator([2.*tileSize,1], 'fourier');
+
+    CTFSIZE = CTFSIZE(1:2);
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
    
@@ -1439,7 +1441,7 @@ end
       errStack = scaleStack .* (refStack - getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},1))));
       subStack = refStack - errStack - getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},2)));
       clear refStack errStack
-      SAVE_IMG(MRCImage(subStack),sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),pixelSize);
+      SAVE_IMG(subStack,sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),pixelSize);
       clear subStack)
       
 
@@ -1466,11 +1468,11 @@ parfor iPrj = 1:nPrjs
 	    % to know what is going on here.
 
       if (testSubtraction)
-        iMrcObj = MRCImage(sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}));
-        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_3_mapBack.st',mbOUT{1:3}));
+        iMrcObj = MRCImage(sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),0);
+        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_3_mapBack.st',mbOUT{1:3}),0);
       else
-        iMrcObj = MRCImage(tiltSeries);
-        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}));
+        iMrcObj = MRCImage(tiltSeries,0);
+        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}),0);
       end
       % Matching the "natural" or sequential order 
       iTLT = find(TLT(:,1) == iPrj);
@@ -1603,7 +1605,7 @@ parfor iPrj = 1:nPrjs
         mRx
         mRy
         COM
-        SAVE_IMG(MRCImage(gather(cccPrj)),'err.mrc');
+        SAVE_IMG(cccPrj,'err.mrc');
         error('sdf')
       end
       cccPRJ = cccPRJ - min(cccPRJ(:));
@@ -1659,7 +1661,7 @@ parfor iPrj = 1:nPrjs
         ctfMask = BH_bandpass3d([CTFSIZE,1],10^-5,40,max(5,2*pixelSize),METHOD,pixelSize);
         % Testing an additional translational step which requires full fft
         % band mask for just the hermitian symmetry
-        ctfMask(:,ceil((CTFSIZE(1)+1)/2):end) = 0;
+        ctfMask = ctfMask(1:floor(CTFSIZE(1)/2)+1,:)
         ctfMask = (ctfMask > 10^-2 );
         
         % find range of defocus for this projection.
@@ -1891,8 +1893,10 @@ parfor iPrj = 1:nPrjs
               iDataCTF = iData.*ctfStack(:,meanIDX+iCTF);
             end
             
-            iRefNorm  = sum(abs(iRefCTF(:)).^2);
-            iDataNorm = sum(abs(iDataCTF(:)).^2);
+            % Mask the normalization. Assuming that the meanIDX should be
+            % very close to what was applied during reconstruction.
+            iRefNorm  = sum(abs(iRefCTF(:).*ctfStack(:,meanIDX+iCTF)).^2);
+            iDataNorm = sum(abs(iDataCTF(:).*ctfStack(:,meanIDX)).^2);
 
 
             iCCC = real(sum(iRefCTF.*iData))./sqrt(iDataNorm.*iRefNorm);
@@ -1976,6 +1980,8 @@ parfor iPrj = 1:nPrjs
  end % end of the parfor loop
     
     if ( calcCTF )
+     
+      save(sprintf('%smapBack%d/%s%s.defShiftsMat',mbOUT{1:3},outCTF),'defocusShifts');
       defShifts = fopen(sprintf('%smapBack%d/%s%s.defShifts',mbOUT{1:3},outCTF),'w');
       defCCC = sprintf('%smapBack%d/%s%s_defCCC.mat',mbOUT{1:3},outCTF);
       save(defCCC,'defocusCCC','expectedDefocusPerFiducial');
@@ -1999,8 +2005,8 @@ parfor iPrj = 1:nPrjs
     
     clear diagnosticCell evalMaskCell
     if ~(conserveDiskSpace) && bh_global_save_tomoCPR_diagnostics
-      SAVE_IMG(MRCImage(diagnosticStack),sprintf('%smapBack%d/%s_diagnostic.mrc',mbOUT{1:3}));
-      SAVE_IMG(MRCImage(evalMaskStack),sprintf('%smapBack%d/%s_evalMask.mrc',mbOUT{1:3}));
+      SAVE_IMG(diagnosticStack,sprintf('%smapBack%d/%s_diagnostic.mrc',mbOUT{1:3}));
+      SAVE_IMG(evalMaskStack,sprintf('%smapBack%d/%s_evalMask.mrc',mbOUT{1:3}));
     end
     system(sprintf('cat %smapBack%d/%s_???.coordFIT | sort -k 1 -g > %smapBack%d/%s.coordFIT',mbOUT{1:3},mbOUT{1:3}));
     system(sprintf('rm %smapBack%d/%s_???.coordFIT',mbOUT{1:3}));

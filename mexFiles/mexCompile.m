@@ -11,16 +11,17 @@ end
 if nargin > 0
   mexFILE = varargin;
 else
-  mexFILE = {'mexCTF','mexFFT','mexXform2d'};
+ mexFILE = {'mexCTF','mexFFT','mexXform3d','mexXform2d'};
+%  mexFILE = {'mexXform3d'};
 end
 
 mexcuda_opts = { ...
 '-lcublas'          ...            % Link to cuBLAS
 '-lmwlapack'        ...            % Link to LAPACK
 '-lcufft'           ...            % Link to cuFFT
-['NVCCFLAGS= -Wno-deprecated-gpu-targets --use_fast_math'] ...% the optimizations are default anyway when I checked 
-'-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64'   ...    % Location of CUDA libraries
-'-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/nvvm/lib64'};
+['NVCCFLAGS= -Wno-deprecated-gpu-targets --use_fast_math --default-stream per-thread -m64 --gpu-architecture=compute_70 --gpu-code=sm_70,sm_75'] ...% the optimizations are default anyway when I checked 
+'-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.1.2/cuda-toolkit/lib64'   ...    % Location of CUDA libraries
+'-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.1.2/cuda-toolkit/lib64'};
 
 % '-L/usr/local/cuda-9.1/lib64'   ...    % Location of CUDA libraries
 % '-L/usr/local/cuda-9.1/nvvm/lib64'};
