@@ -8,12 +8,14 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRAN
 % WARNING: To compute gridVectors, use EMC_multi_gridVectors.
 %
 % SIZE (vector):                Size of the grid to compute (x, y, z) or (x, y).
-%                               Sould be a 2d/3d row vector of integers.
+%                               Sould be a 2d/3d vector of integers.
+%                               If z=1, it is ignored and processed as a 2d image.
 %
 % METHOD (str):                 Device to use; 'gpu' or 'cpu'.
 %
-% TRANS (cell | str):           Transformation directives.
-%   Syntax:
+% TRANS (cell | struct):        Transformation directives.
+%                               NOTE: Unknown fields will raise an error.
+%   Syntax if cell:
 %       -> {}:                  no rotation, no shifts, no scaling
 %       -> {field, value; ...}: Any optional fields. Fields that are not specified are set
 %                               to their default value. Note the ';' between parameters.
@@ -226,10 +228,16 @@ function [SIZE, METHOD, TRANS, flg, ndim] = ...
 % Sanity checks of BH_multi_gridCoordinates inputs.
 
 if numel(SIZE) == 3
-    flg.is3d = 1;
-    ndim = 3;
+    % z=1 is still considered as 2d.
+    if SIZE(3) == 1
+        flg.is3d = false;
+        ndim = 2;
+    else
+        flg.is3d = true;
+        ndim = 3;
+    end
 elseif numel(SIZE) == 2
-    flg.is3d = 0;
+    flg.is3d = false;
     ndim = 2;
 else
     error('Only 2D or 3D grid vectors are supported, got %sD', numel(SIZE));
@@ -252,10 +260,12 @@ flg.sym = false;
 flg.binary = false;
 
 % sanity checks and default value assignment (rotm, shift, mag, sym, direction, origin, offset)
-if ~isempty(TRANS)
-    TRANS = cell2struct(TRANS(:, 2), TRANS(:, 1), 1);
-else
-    TRANS = struct();
+if ~isstruct(TRANS)
+    if ~isempty(TRANS)
+        TRANS = cell2struct(TRANS(:, 2), TRANS(:, 1), 1);
+    else
+        TRANS = struct();
+    end
 end
 
 if isfield(TRANS, 'rotm')
@@ -301,7 +311,7 @@ if isfield(TRANS, 'direction')
     elseif ~contains([ 'forward', 'fwd'], TRANS.direction)
         TRANS.direction = 'forward';
     else
-        error("DIRECTION should be 'forward' or 'inverse', got %s", TRANS.direction)
+        error("direction should be 'forward' or 'inverse', got %s", TRANS.direction)
     end
 else
     TRANS.direction = 'inverse';  % default
@@ -309,7 +319,7 @@ end
 
 if isfield(TRANS, 'origin')
     if ~contains([-1, 0, 1, 2], TRANS.origin)
-        error("center should be 0, 1, 2, or -1, got %s", num2str(TRANS.origin))
+        error("origin should be 0, 1, 2, or -1, got %s", num2str(TRANS.origin))
     end
 else
     TRANS.origin = 1;  % default
