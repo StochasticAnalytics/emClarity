@@ -6,14 +6,12 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRAN
 % WARNING: To compute gridVectors, use EMC_multi_gridVectors.
 %
 % SIZE (vector):                Size of the grid to compute (x, y, z) or (x, y).
-%                               Sould be a 2d/3d vector of integers.
-%                               If z=1, it is ignored and processed as a 2d image.
+%                               Sould be a 2d/3d row vector of integers.
 %
 % METHOD (str):                 Device to use; 'gpu' or 'cpu'.
 %
-% TRANS (cell | struct):        Transformation directives.
-%                               NOTE: Unknown fields will raise an error.
-%   Syntax if cell:
+% TRANS (cell | str):           Transformation directives.
+%   Syntax:
 %       -> {}:                  no rotation, no shifts, no scaling
 %       -> {field, value; ...}: Any optional fields. Fields that are not specified are set
 %                               to their default value. Note the ';' between parameters.
@@ -223,26 +221,7 @@ end  % EMC_multi_gridCoordinates
 function [SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS)
 %% checkIN
 % Sanity checks of BH_multi_gridCoordinates inputs.
-<<<<<<< HEAD
-
-if numel(SIZE) == 3
-    % z=1 is still considered as 2d.
-    if SIZE(3) == 1
-        flg.is3d = false;
-        ndim = 2;
-    else
-        flg.is3d = true;
-        ndim = 3;
-    end
-elseif numel(SIZE) == 2
-    flg.is3d = false;
-    ndim = 2;
-else
-    error('Only 2D or 3D grid vectors are supported, got %sD', numel(SIZE));
-end
-=======
 [flg.is3d, ndim] = EMC_is3d(SIZE);
->>>>>>> mask3d
 validateattributes(SIZE, {'numeric'}, {'row', 'nonnegative', 'integer'}, 'checkIN', 'SIZE');
 
 if ~(strcmpi(METHOD, 'gpu') || strcmpi(METHOD, 'cpu'))
@@ -255,20 +234,9 @@ flg.transform = false;
 flg.sym = false;
 flg.binary = false;
 
-<<<<<<< HEAD
-% sanity checks and default value assignment (rotm, shift, mag, sym, direction, origin, offset)
-if ~isstruct(TRANS)
-    if ~isempty(TRANS)
-        TRANS = cell2struct(TRANS(:, 2), TRANS(:, 1), 1);
-    else
-        TRANS = struct();
-    end
-end
-=======
 % Extract optional parameters
 TRANS = EMC_extract_optional(TRANS, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
                                      'origin', 'offset', 'binary', 'normalize'});
->>>>>>> mask3d
 
 if isfield(TRANS, 'rotm')
     validateattributes(TRANS.rotm, {'numeric'}, {'numel', ndim.^2, 'square'}, 'checkIN', 'rotm')
@@ -313,20 +281,15 @@ if isfield(TRANS, 'direction')
     elseif ~contains([ 'forward', 'fwd'], TRANS.direction)
         TRANS.direction = 'forward';
     else
-        error("direction should be 'forward' or 'inverse', got %s", TRANS.direction)
+        error("DIRECTION should be 'forward' or 'inverse', got %s", TRANS.direction)
     end
 else
     TRANS.direction = 'inverse';  % default
 end
 
 if isfield(TRANS, 'origin')
-<<<<<<< HEAD
-    if ~contains([-1, 0, 1, 2], TRANS.origin)
-        error("origin should be 0, 1, 2, or -1, got %s", num2str(TRANS.origin))
-=======
     if ~(TRANS.origin == -1 || TRANS.origin == 0 || TRANS.origin == 1 || TRANS.origin == 2)
         error("center should be 0, 1, 2, or -1, got %d", TRANS.origin)
->>>>>>> mask3d
     end
 else
     TRANS.origin = 1;  % default
