@@ -281,7 +281,7 @@ if isfield(TRANS, 'direction')
     elseif ~contains([ 'forward', 'fwd'], TRANS.direction)
         TRANS.direction = 'forward';
     else
-        error("DIRECTION should be 'forward' or 'inverse', got %s", TRANS.direction)
+        error("direction should be 'forward' or 'inverse', got %s", TRANS.direction)
     end
 else
     TRANS.direction = 'inverse';  % default
