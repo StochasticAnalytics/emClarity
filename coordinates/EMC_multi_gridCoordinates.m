@@ -1,7 +1,5 @@
-function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRANS, ...
-                                                              flgNormalize, ...
-                                                              varargin)
-% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRANS, flgNormalize, varargin)
+function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRANS, varargin)
+% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRANS, varargin)
 %
 % Compute flow-field grids (gridCoordinates), for interpolations.
 % WARNING: To compute grid masks, use EMC_multi_gridMasks.
@@ -17,6 +15,7 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRAN
 %       -> {}:                  no rotation, no shifts, no scaling
 %       -> {field, value; ...}: Any optional fields. Fields that are not specified are set
 %                               to their default value. Note the ';' between parameters.
+%                               NOTE: unknown fields will raise an error.
 %
 %   Optional fields:
 %       -> 'direction' (str):   direction convention (see BH_defineMatrix.m for more details),
@@ -59,13 +58,14 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRAN
 %                                     on the final interpolated image.
 %                               default = no offset
 %
-%       -> binary (array):      Binary mask indicating the gridCoordinate pixels to ignore during
+%       -> 'binary' (array):    Binary mask indicating the gridCoordinate pixels to ignore during
 %                               transformation.
 %
-% flgNormalize (bool):          Normalize the vectors and the grids between 0 and 1.
+%       -> 'normalize' (bool):  Normalize the vectors and the grids between 0 and 1.
+%                               default = false
 %
-% varagin (vector):             Use 3 pre-created gridVectors corresponding to vX, vY, vZ.
-%                               Half vectors are not accepted.
+% varagin (1x3 | 1x2 cell):     Use 3 pre-created gridVectors corresponding to vX, vY, vZ.
+%                               NOTE: Half vectors are not accepted.
 %
 %---------
 % RETURN:                       gX, gY, gZ are the gridCoordinates, vx, vY, vZ are the gridVectors.
@@ -73,7 +73,7 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRAN
 %
 %---------
 % EXAMPLE: [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates([10,9], 'cpu', ...
-%                                       {'rotm', [0,-1; 1,0]; 'shift', [0, 2]}, false);
+%                                       {'rotm', [0,-1; 1,0]; 'shift', [0, 2]});
 %
 % See also EMC_multi_vectorCoordinates, EMC_multi_gridMasks
 
@@ -89,7 +89,7 @@ else
   SIZE = single(SIZE);
 end
 
-[SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS, flgNormalize);
+[SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS);
 
 % Scale the rotation matrix.
 % By default, the rotation is CCW, so the rotm must be transposed (it is not, but behaves like it).
@@ -127,7 +127,7 @@ if ~isempty(varargin)
         end
         
         % normalize
-        if (flg.normalize)
+        if (TRANS.normalize)
             vX = vX ./ SIZE(1);
             vY = vY ./ SIZE(2);
             if (flg.is3d); vZ = vZ ./ SIZE(3); end
@@ -138,7 +138,7 @@ if ~isempty(varargin)
 else
     % Shift the vectors with the given offsets.
     [vX, vY, vZ] = EMC_multi_vectorCoordinates(...
-        SIZE, METHOD, TRANS.offset, TRANS.origin, flg.normalize, false);
+        SIZE, METHOD, TRANS.offset, TRANS.origin, TRANS.normalize, false);
 end
 
 % The vectors are now generated, centered, and normalized if wished.
@@ -214,26 +214,14 @@ for iSym = 1:TRANS.sym
     end
 end % loop over symmetry units
 
-% Is it really necessary to manually delete variables here? The garbage collector should
-% take of it. It might also prevent the MATLAB engine to apply memory optimization?
-clear X Y Z Xnew Ynew Znew x1 y1 z1
+clear X Y Z XTrans YTrans ZTrans
 end  % EMC_multi_gridCoordinates
 
 
-function [SIZE, METHOD, TRANS, flg, ndim] = ...
-    checkIN(SIZE, METHOD, TRANS, flgNormalize)
+function [SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS)
 %% checkIN
 % Sanity checks of BH_multi_gridCoordinates inputs.
-
-if numel(SIZE) == 3
-    flg.is3d = 1;
-    ndim = 3;
-elseif numel(SIZE) == 2
-    flg.is3d = 0;
-    ndim = 2;
-else
-    error('Only 2D or 3D grid vectors are supported, got %sD', numel(SIZE));
-end
+[flg.is3d, ndim] = EMC_is3d(SIZE);
 validateattributes(SIZE, {'numeric'}, {'row', 'nonnegative', 'integer'}, 'checkIN', 'SIZE');
 
 if ~(strcmpi(METHOD, 'gpu') || strcmpi(METHOD, 'cpu'))
@@ -241,22 +229,14 @@ if ~(strcmpi(METHOD, 'gpu') || strcmpi(METHOD, 'cpu'))
 end
 
 % flags
-if ~islogical(flgNormalize)
-    error('flgNormalize should be a boolean, got %s', class(flgNormalize))
-end
-flg.normalize = flgNormalize;
-
 flg.shift = false;
 flg.transform = false;
 flg.sym = false;
 flg.binary = false;
 
-% sanity checks and default value assignment (rotm, shift, mag, sym, direction, origin, offset)
-if ~isempty(TRANS)
-    TRANS = cell2struct(TRANS(:, 2), TRANS(:, 1), 1);
-else
-    TRANS = struct();
-end
+% Extract optional parameters
+TRANS = EMC_extract_optional(TRANS, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
+                                     'origin', 'offset', 'binary', 'normalize'});
 
 if isfield(TRANS, 'rotm')
     validateattributes(TRANS.rotm, {'numeric'}, {'numel', ndim.^2, 'square'}, 'checkIN', 'rotm')
@@ -308,8 +288,8 @@ else
 end
 
 if isfield(TRANS, 'origin')
-    if ~contains([-1, 0, 1, 2], TRANS.origin)
-        error("center should be 0, 1, 2, or -1, got %s", num2str(TRANS.origin))
+    if ~(TRANS.origin == -1 || TRANS.origin == 0 || TRANS.origin == 1 || TRANS.origin == 2)
+        error("center should be 0, 1, 2, or -1, got %d", TRANS.origin)
     end
 else
     TRANS.origin = 1;  % default
@@ -327,11 +307,12 @@ if isfield(TRANS, 'binary')
     flg.binary = true;
 end
 
-% To make sure there are no unknown field.
-fields = fieldnames(TRANS);
-for i=length(TRANS)
-    if ~contains(['rotm', 'shift', 'mag', 'sym', 'direction', 'origin', 'offset'], fields(i))
-        error('Unknown transformation directives: %s', string(fields(i)))
+if isfield(TRANS, 'normalize')
+    if ~islogical(TRANS.normalize)
+        error('normalize should be a boolean, got %s', class(TRANS.normalize))
     end
+else
+    TRANS.normalize = false;  % default
 end
+
 end  % checkIN
