@@ -293,7 +293,7 @@ if isfield(OPTIONAL, 'taper')
     % bool
     if islogical(OPTIONAL.taper)
         if OPTIONAL.taper
-            OPTIONAL.taper = EMC_taper('cosine', 1, 0, 7);  % default
+            OPTIONAL.taper = EMC_multi_taper('cosine', 1, 0, 7);  % default
             flg.taper = true;
         else
             flg.taper = false;
@@ -303,7 +303,7 @@ if isfield(OPTIONAL, 'taper')
         if numel(OPTIONAL.taper) ~= 2
             error('taper not recognized.')
         else
-            OPTIONAL.taper = EMC_taper(OPTIONAL.taper{1}, 1, 0, OPTIONAL.taper{2});
+            OPTIONAL.taper = EMC_multi_taper(OPTIONAL.taper{1}, 1, 0, OPTIONAL.taper{2});
             flg.taper = true;
         end
     % vector: own taper
@@ -312,7 +312,7 @@ if isfield(OPTIONAL, 'taper')
         flg.taper = true;
     end
 else
-     OPTIONAL.taper = EMC_taper('cosine', 1, 0, 7);  % default
+     OPTIONAL.taper = EMC_multi_taper('cosine', 1, 0, 7);  % default
      flg.taper = true;
 end
 
