@@ -38,12 +38,18 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTIONAL)
 %                                   If cell: {type, size} with type = 'linear' or 'cosine' and with 
 %                                   size = size of the taper (in pixel).
 %                                   If vector: ROW vector used as taper (left to right <-> center to edge).
-%                                   NOTE: Only the edges that are padded are tapered; this parameter is
-%                                         ignored if no padding is applied.
+%                                   NOTE: all IMAGE dimensions should be larger than the taper, with the
+%                                         exception of origin=-1 that requires the dimensions to be at
+%                                         least 2 times larger than the taper.
 %                                   default = {'cosine', 7}
 %
+%   -> 'force_taper' (bool):        By default, (force_taper=false) only the edges that are padded are
+%                                   tapered. If true, apply the taper to every edges even if they are not
+%                                   padded. If cropping is required, apply the taper AFTER cropping.
+%                                   NOTE: this has no effect if 'taper' = false.
+%                                   default = false
+%
 %   -> 'precision' (str):           Precision of the padded/cropped image; 'single' or 'double'.
-%                                   NOTE: this is ignored if ~any(LIMITS) <=> no cropping nor padding.
 %                                   default = same as IMAGE
 %
 %---------
@@ -56,9 +62,17 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTIONAL)
 %% MAIN
 [OPTIONAL, flg] = checkIN(IMAGE, LIMITS, OPTIONAL);
 
-% Short cut: nothing to pad|crop
-if ~flg.pad && ~flg.crop
-    OUT = IMAGE;
+% Short cut: nothing to do to the IMAGE.
+if ~flg.pad && ~flg.crop && ~(flg.taper && OPTIONAL.force_taper)
+    if (flg.change_precision)
+        if strcmp(OPTIONAL.precision, 'single')
+            OUT = single(IMAGE);
+        else  % double
+            OUT = double(IMAGE);
+        end
+    else
+        OUT = IMAGE;
+    end
     return
 end
 
@@ -100,27 +114,27 @@ x=1; y=2; z=3;
 if (flg.is3d)
     if (flg.fft)  % not-centered IMAGE: 'origin' = -1
         crop = reshape(LIMITS .* (LIMITS < 0), 2, []);
-        l = floor((IN_size+1) / 2) + crop(1);  % left side
-        r = floor((IN_size-2) / 2) + crop(2);  % right side
+        l = floor((IN_size+1) / 2) + crop(1, :);  % left side
+        r = floor((IN_size-2) / 2) + crop(2, :);  % right side
 
         % Taper
         if (flg.taper)
             s = numel(OPTIONAL.taper);
             pad = LIMITS > 0;
 
-            if any(pad(1:2) > 0)
+            if any(pad(1:2) > 0) || OPTIONAL.force_taper
                 t = OPTIONAL.taper';
                 tf = flip(t);
                 IMAGE(l(x)-s+1:l(x), :, :)         = IMAGE(l(x)-s+1:l(x), :, :)         .*t  +val.*(1-t);
                 IMAGE(end-r(x):end-r(x)+s-1, :, :) = IMAGE(end-r(x):end-r(x)+s-1, :, :) .*tf +val.*(1-tf);
             end
-            if any(pad(3:4) > 0)
+            if any(pad(3:4) > 0) || OPTIONAL.force_taper
                 t = OPTIONAL.taper;
                 tf = flip(t);
                 IMAGE(:, l(y)-s+1:l(y), :)         = IMAGE(:, l(y)-s+1:l(y), :)         .*t  +val.*(1-t);
                 IMAGE(:, end-r(y):end-r(y)+s-1, :) = IMAGE(:, end-r(y):end-r(y)+s-1, :) .*tf +val.*(1-tf);
             end
-            if any(pad(5:6) > 0)
+            if any(pad(5:6) > 0) || OPTIONAL.force_taper
                 t = reshape(OPTIONAL.taper, 1, 1, []);
                 tf = flip(t);
                 IMAGE(:, :, l(z)-s+1:l(z))         = IMAGE(:, :, l(z)-s+1:l(z))         .*t  +val.*(1-t);
@@ -129,33 +143,56 @@ if (flg.is3d)
         end
 
         % Pad/Crop
-        OUT(1:l(x),       1:l(y),       1:l(z))       = IMAGE(1:l(x),       1:l(y),       1:l(z));
-        OUT(end-r(x):end, 1:l(y),       1:l(z))       = IMAGE(end-r(x):end, 1:l(y),       1:l(z));
-        OUT(1:l(x),       end-r(y):end, 1:l(z))       = IMAGE(1:l(x),       end-r(y):end, 1:l(z));
-        OUT(end-r(x):end, end-r(y):end, 1:l(z))       = IMAGE(end-r(x):end, end-r(y):end, 1:l(z));
-        OUT(1:l(x),       1:l(y),       end-r(z):end) = IMAGE(1:l(x),       1:l(y),       end-r(z):end);
-        OUT(end-r(x):end, 1:l(y),       end-r(z):end) = IMAGE(end-r(x):end, 1:l(y),       end-r(z):end);
-        OUT(1:l(x),       end-r(y):end, end-r(z):end) = IMAGE(1:l(x),       end-r(y):end, end-r(z):end);
-        OUT(end-r(x):end, end-r(y):end, end-r(z):end) = IMAGE(end-r(x):end, end-r(y):end, end-r(z):end);
-
+        if (flg.pad || flg.crop)
+            OUT(1:l(x),       1:l(y),       1:l(z))       = IMAGE(1:l(x),       1:l(y),       1:l(z));
+            OUT(end-r(x):end, 1:l(y),       1:l(z))       = IMAGE(end-r(x):end, 1:l(y),       1:l(z));
+            OUT(1:l(x),       end-r(y):end, 1:l(z))       = IMAGE(1:l(x),       end-r(y):end, 1:l(z));
+            OUT(end-r(x):end, end-r(y):end, 1:l(z))       = IMAGE(end-r(x):end, end-r(y):end, 1:l(z));
+            OUT(1:l(x),       1:l(y),       end-r(z):end) = IMAGE(1:l(x),       1:l(y),       end-r(z):end);
+            OUT(end-r(x):end, 1:l(y),       end-r(z):end) = IMAGE(end-r(x):end, 1:l(y),       end-r(z):end);
+            OUT(1:l(x),       end-r(y):end, end-r(z):end) = IMAGE(1:l(x),       end-r(y):end, end-r(z):end);
+            OUT(end-r(x):end, end-r(y):end, end-r(z):end) = IMAGE(end-r(x):end, end-r(y):end, end-r(z):end);
+        else  % force_taper without pad or crop
+            if (flg.change_precision)
+                if strcmp(OPTIONAL.precision, 'single')
+                    OUT = single(IMAGE);
+                else  % double
+                    OUT = double(IMAGE);
+                end
+            else
+                OUT = IMAGE;
+            end
+        end
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
         pad  = LIMITS .* (LIMITS > 0);
 
-        if (flg.taper) && any(pad)
-            l = numel(OPTIONAL.taper);
+        if (flg.taper) && (any(pad) || OPTIONAL.force_taper)
+            l = numel(OPTIONAL.taper) + crop;  % broadcast
             ty = OPTIONAL.taper;
             tx = ty';
             tz = reshape(ty, 1, 1, []);
 
             % top, down, left, right, bottom, front
-            if pad(1); IMAGE(1:l,:,:)         = IMAGE(1:l,:,:)         .* flip(tx) + val.*(1-flip(tx)); end
-            if pad(2); IMAGE(end-l+1:end,:,:) = IMAGE(end-l+1:end,:,:) .* tx       + val.*(1-tx); end
-            if pad(3); IMAGE(:,1:l,:)         = IMAGE(:,1:l,:)         .* flip(ty) + val.*(1-flip(ty)); end
-            if pad(4); IMAGE(:,end-l+1:end,:) = IMAGE(:,end-l+1:end,:) .* ty       + val.*(1-ty); end
-            if pad(5); IMAGE(:,:,1:l)         = IMAGE(:,:,1:l)         .* flip(tz) + val.*(1-flip(tz)); end
-            if pad(6); IMAGE(:,:,end-l+1:end) = IMAGE(:,:,end-l+1:end) .* tz       + val.*(1-tz); end
-        end
+            if pad(1) || OPTIONAL.force_taper
+                IMAGE(1+crop(1):l(1),:,:)         = IMAGE(1+crop(1):l(1),:,:) .* flip(tx) + val.*(1-flip(tx));
+            end
+            if pad(2) || OPTIONAL.force_taper
+                IMAGE(end-l(2)+1:end-crop(2),:,:) = IMAGE(end-l(2)+1:end-crop(2),:,:) .* tx + val.*(1-tx);
+            end
+            if pad(3) || OPTIONAL.force_taper
+                IMAGE(:,1+crop(3):l(3),:)         = IMAGE(:,1+crop(3):l(3),:) .* flip(ty) + val.*(1-flip(ty));
+            end
+            if pad(4) || OPTIONAL.force_taper
+                IMAGE(:,end-l(4)+1:end-crop(4),:) = IMAGE(:,end-l(4)+1:end-crop(4),:) .* ty + val.*(1-ty);
+            end
+            if pad(5) || OPTIONAL.force_taper
+                IMAGE(:,:,1+crop(5):l(5))         = IMAGE(:,:,1+crop(5):l(5)) .* flip(tz) + val.*(1-flip(tz));
+            end
+            if pad(6) || OPTIONAL.force_taper
+                IMAGE(:,:,end-l(6)+1:end-crop(6)) = IMAGE(:,:,end-l(6)+1:end-crop(6)) .* tz + val.*(1-tz);
+            end
+        end  % end taper 3d
 
         % Pad/Crop
         if flg.pad && flg.crop
@@ -168,52 +205,81 @@ if (flg.is3d)
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4), 1+pad(5):end-pad(6)) = IMAGE;
         elseif flg.crop  % crop only
             OUT(:,:,:) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4), 1+crop(5):end-crop(6));
+        else  % force_taper without pad or crop
+            if (flg.change_precision)
+                if strcmp(OPTIONAL.precision, 'single')
+                    OUT = single(IMAGE);
+                else  % double
+                    OUT = double(IMAGE);
+                end
+            else
+                OUT = IMAGE;
+            end
         end
     end
 else  % 2d
     if (flg.fft)  % not-centered IMAGE: 'origin' = -1
         crop = reshape(LIMITS .* (LIMITS < 0), 2, []);
-        l = floor((IN_size+1) / 2) + crop(1);  % left side
-        r = floor((IN_size-2) / 2) + crop(2);  % right side
+        l = floor((IN_size+1) / 2) + crop(1, :);  % left side
+        r = floor((IN_size-2) / 2) + crop(2, :);  % right side
 
         % Taper.
         if (flg.taper)
             s = numel(OPTIONAL.taper);
             pad = LIMITS > 0;
-            if any(pad(1:2) > 0)
+            if any(pad(1:2) > 0) || OPTIONAL.force_taper
                 t = OPTIONAL.taper';
                 tf = flip(t);
                 IMAGE(l(x)-s+1:l(x), :)         = IMAGE(l(x)-s+1:l(x), :)         .*t  +val.*(1-t);
                 IMAGE(end-r(x):end-r(x)+s-1, :) = IMAGE(end-r(x):end-r(x)+s-1, :) .*tf +val.*(1-tf);
             end
-            if any(pad(3:4) > 0)
+            if any(pad(3:4) > 0) || OPTIONAL.force_taper
                 t = OPTIONAL.taper;
                 tf = flip(t);
                 IMAGE(:, l(y)-s+1:l(y))         = IMAGE(:, l(y)-s+1:l(y))         .*t  +val.*(1-t);
                 IMAGE(:, end-r(y):end-r(y)+s-1) = IMAGE(:, end-r(y):end-r(y)+s-1) .*tf +val.*(1-tf);
             end
-        end
-        
-        % Pad/Crop
-        OUT(1:l(x),       1:l(y))       = IMAGE(1:l(x),       1:l(y));
-        OUT(end-r(x):end, 1:l(y))       = IMAGE(end-r(x):end, 1:l(y));
-        OUT(1:l(x),       end-r(y):end) = IMAGE(1:l(x),       end-r(y):end);
-        OUT(end-r(x):end, end-r(y):end) = IMAGE(end-r(x):end, end-r(y):end);
+        end  % end taper 2d
 
+        % Pad/Crop
+        if (flg.pad || flg.crop)
+            OUT(1:l(x),       1:l(y))       = IMAGE(1:l(x),       1:l(y));
+            OUT(end-r(x):end, 1:l(y))       = IMAGE(end-r(x):end, 1:l(y));
+            OUT(1:l(x),       end-r(y):end) = IMAGE(1:l(x),       end-r(y):end);
+            OUT(end-r(x):end, end-r(y):end) = IMAGE(end-r(x):end, end-r(y):end);
+        else  % force_taper without pad or crop
+            if (flg.change_precision)
+                if strcmp(OPTIONAL.precision, 'single')
+                    OUT = single(IMAGE);
+                else  % double
+                    OUT = double(IMAGE);
+                end
+            else
+                OUT = IMAGE;
+            end
+        end
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
         pad  = LIMITS .* (LIMITS > 0);
 
-        if (flg.taper)
-            l = numel(OPTIONAL.taper);
+        if (flg.taper) && (any(pad) || OPTIONAL.force_taper)
+            l = numel(OPTIONAL.taper) + crop;  % broadcast
             ty = OPTIONAL.taper;
             tx = ty';
             % top, down, left, right
-            if pad(1); IMAGE(1:l, :)         = IMAGE(1:l, :)         .* flip(tx) + val.*(1-flip(tx)); end
-            if pad(2); IMAGE(end-l+1:end, :) = IMAGE(end-l+1:end, :) .* tx       + val.*(1-tx); end
-            if pad(3); IMAGE(:, 1:l)         = IMAGE(:, 1:l)         .* flip(ty) + val.*(1-flip(ty)); end
-            if pad(4); IMAGE(:, end-l+1:end) = IMAGE(:, end-l+1:end) .* ty       + val.*(1-ty); end
-        end
+            if pad(1) || OPTIONAL.force_taper
+                IMAGE(1+crop(1):l(1), :)        = IMAGE(1+crop(1):l(1), :) .* flip(tx) + val.*(1-flip(tx));
+            end
+            if pad(2) || OPTIONAL.force_taper
+                IMAGE(end-l(2)+1:end-crop(2),:) = IMAGE(end-l(2)+1:end-crop(2),:) .* tx + val.*(1-tx);
+            end
+            if pad(3) || OPTIONAL.force_taper
+                IMAGE(:, 1+crop(3):l(3))        = IMAGE(:, 1+crop(3):l(3)) .* flip(ty) + val.*(1-flip(ty));
+            end
+            if pad(4) || OPTIONAL.force_taper
+                IMAGE(:,end-l(4)+1:end-crop(4)) = IMAGE(:,end-l(4)+1:end-crop(4)) .* ty + val.*(1-ty);
+            end
+        end  % end taper
 
         if flg.pad && flg.crop  % pad and crop
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4)) = IMAGE(1+crop(1):end-crop(2), ...
@@ -222,6 +288,16 @@ else  % 2d
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4)) = IMAGE;
         elseif flg.crop  % crop only
             OUT(:,:) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4));
+        else  % force_taper without pad or crop
+            if (flg.change_precision)
+                if strcmp(OPTIONAL.precision, 'single')
+                    OUT = single(IMAGE);
+                else  % double
+                    OUT = double(IMAGE);
+                end
+            else
+                OUT = IMAGE;
+            end
         end
     end
 end
@@ -237,7 +313,7 @@ edges = numel(LIMITS);
 if edges == 6
     flg.is3d = true;
     ndim = 3;
-elseif edges ==4
+elseif edges == 4
     flg.is3d = false;
     ndim = 2;
 else
@@ -261,7 +337,7 @@ else
 end
 
 % Extract optional parameters
-OPTIONAL = EMC_extract_optional(OPTIONAL, {'origin', 'value', 'taper', 'precision'});
+OPTIONAL = EMC_extract_optional(OPTIONAL, {'origin', 'value', 'taper', 'force_taper', 'precision'});
 
 if isfield(OPTIONAL, 'origin')
     if OPTIONAL.origin == -1
@@ -316,24 +392,36 @@ else
      flg.taper = true;
 end
 
-% extract precision and method.
-if isfield(OPTIONAL, 'precision')
-    if ~contain(['single', 'double'], OPTIONAL.precision)
-        error("presision should be 'single' or 'double'")
-    end
-    if isa(IMAGE, 'gpuArray')
-        flg.gpu = true;
-    else
-        flg.gpu = false;
+% force_taper
+if isfield(OPTIONAL, 'force_taper')
+    if ~islogical(OPTIONAL.force_taper)
+        error('force_taper should be a boolean, got %s', class(OPTIONAL.force_taper))
     end
 else
-    OPTIONAL.precision = class(IMAGE);
-    if strcmp(OPTIONAL.precision, 'gpuArray')
-        flg.gpu = true;
-        OPTIONAL.precision = classUnderlying(IMAGE);
-    else
-        flg.gpu = false;
+    OPTIONAL.force_taper = false;  % default
+end
+
+% If no padding and no cropping, the EMC_resize needs to know
+% if the precision should be changed before returning output.
+current_precision = class(IMAGE);
+if isa(current_precision, 'gpuArray')
+    flg.gpu = true;
+    current_precision = classUnderlying(IMAGE);
+else
+    flg.gpu = false;
+end
+if isfield(OPTIONAL, 'precision')
+    if ~(strcmpi('single', OPTIONAL.precision) || strcmpi('double', OPTIONAL.precision))
+        error("presision should be 'single' or 'double', got %s", OPTIONAL.precision)
     end
+    if strcmpi(current_precision, OPTIONAL.precision)
+        flg.change_precision = false;
+    else
+        flg.change_precision = true;
+    end
+else
+    OPTIONAL.precision = current_precision;
+    flg.change_precision = false;
 end
 
 end  % checkIN
