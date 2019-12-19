@@ -35,6 +35,7 @@ classdef emcParameterMask
     particle_group;
     pre_exposure;
     total_exposure;
+    
   end
   
   methods

@@ -3,8 +3,7 @@ classdef emcParameters
   %   Detailed explanation goes here
   
   properties
-    header_comments = "";
-    all_parameters = {}; % array of parameter lines
+% array of parameter lines
     parameters_to_write; % binary mask 
     parameters_that_were_read; % binary mask
     
