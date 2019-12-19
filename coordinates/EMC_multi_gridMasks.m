@@ -1,89 +1,84 @@
-function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, SHIFT, ORIGIN, ...
-                                                        flgNormalize, flgHalf, flgIsotrope)
-% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, SHIFT, ORIGIN, ...
-%                                                flgNormalize, flgHalf, flgIsotrope)
-% Compute mesh grids of different size and different coordinate systems.
-% Mostly used to compute masks.
+function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTIONAL)
+% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTIONAL)
 %
-% TYPE (str):           'Cartesian', 'Spherical', 'Cylindrical' or 'Radial'.
+% Compute ndgrids of different size and different coordinate systems.
 %
-% SIZE (vector):        Size of the grid to compute (x, y, z) or (x, y).
-%                       Sould be a 2d/3d row vector of integers.
+% TYPE (str):                   'cartesian', 'spherical', 'cylindrical' or 'radial'.
 %
-% METHOD (str):         Device to use; 'gpu' or 'cpu'.
+% SIZE (vector):                Size of the grid to compute (x, y, z) or (x, y).
+%                               Sould be a 2d/3d row vector of integers.
 %
-% SHIFT (vector):       (x, y, z) or (x, y) translations to apply; should correspond to SIZE.
+% METHOD (str):                 Device to use; 'gpu' or 'cpu'.
 %
-% ORIGIN (int):         Origin convention
-%                       -1: zero frequency first (fft output)
-%                       0: real origin (if even nb of pixel, the center is in between 2 pixels)
-%                       1: right origin (extra pixel to the left; ceil((N+1)/2))
-%                       2: left origin (extra pixel to the right)
-%                       emClarity uses the right origin convention (ORIGIN=1).
+% OPTIONAL (cell | struct):     Optional parameters.
+%                               If cell: {field,value ; ...}, note the ';' between parameters.
+%                               NOTE: Can be empty.
+%                               NOTE: Unknown fields will raise an error.
 %
-% flgNormalize (bool): 	Normalize the gridVectors between 0 and 1.
-% flgHalf (bool):       Compute half of the grids (half of the x axis).
-% flgIsotrope (bool):   Stretch the grid values to the smallest dimensions.
-%                       NOTE: Useful with TYPE='Radial', for filtering.
+%   -> 'shift' (vector):        (x, y, z) or (x, y) translations to apply; should correspond to SIZE.
+%                               default = no shifts
 %
-% EXAMPLE: [X, Y, Z, x, y, z] =  EMC_multi_gridMasks('Radial', [100,90], 'cpu', [0,0], 1, false, false, 1);
+%   -> 'origin' (int):          Origin convention
+%                               -1: zero frequency first (fft output)
+%                               0: real origin (if even nb of pixel, the center is in between 2 pixels)
+%                               1: right origin (extra pixel to the left; ceil((N+1)/2))
+%                               2: left origin (extra pixel to the right)
+%                               default = 1
+%
+%   -> 'normalize' (bool):      Normalize the gridVectors between 0 and 1.
+%                               default = false
+%
+%   -> 'half' (bool):           Compute half of the grids (half of the x axis).
+%                               default = false
+%
+%   -> 'isotrope' (bool):       Stretch the grid values to the smallest dimensions.
+%                               NOTE: Useful with TYPE='Radial', for filters.
+%                               default = false
+%
+%--------
+% RETURN:                       gX, gY, gZ are the gridMasks.
+%                               vX, vY, vZ are the vectorCoordinates.
+%
+%--------
+% EXAMPLE: [X, Y, Z, x, y, z] =  EMC_multi_gridMasks('radial', [100,90], 'cpu', {'origin',-1});
+%          [X, Y, Z, x, y, z] =  EMC_multi_gridMasks('spherical', [100,90,100], 'cpu', {});
 
-%% 
-[vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, SHIFT, ORIGIN, flgNormalize, flgHalf);
+%% checkIN
+[vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL);  % all optional inputs are accepted.
+
 if numel(SIZE) == 3
-    flg3d = true;
-else
-    flg3d = false;
-end
-
-% This could be more efficient by doing it when creating the vectors directly, with linspace.
-if flgIsotrope
-    radius = floor((SIZE + 1) / 2);
-    radius_min = min(radius);
-    vX = vX .* (radius_min / radius(1));
-    vY = vY .* (radius_min / radius(2));
-    if (flg3d)
-        vZ = vZ .* (radius_min / radius(3));
+    if strcmpi(TYPE, 'cartesian')
+        [gX, gY, gZ] = ndgrid(vX, vY, vZ);
+    elseif strcmpi(TYPE, 'radial') || strcmpi(TYPE, 'radius')
+        gX = sqrt(vX'.^2 + vY.^2 + reshape(vZ, 1, 1, []).^2);
+        gY = nan; gZ = nan;
+    elseif strcmpi(TYPE, 'spherical')
+        [X, Y, Z] = ndgrid(vX, vY, vZ);
+        gX = sqrt(vX'.^2 + vY.^2 + reshape(vZ, 1, 1, []).^2);
+        gY = atan2(Y, X);
+        gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] --> [0,2pi]
+        gZ = acos(Z ./ gX);  % [0,pi]
+    elseif strcmpi(TYPE, 'cylindrical')
+        [X, Y, gZ] = ndgrid(vX, vY, vZ);
+        gX = sqrt(X.^2 + Y.^2);
+        gY = atan2(Y, X);
+        gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] --> [0,2pi]
     else
-        vZ = nan;
-    end
-end
-
-if (flg3d)
-    switch TYPE
-        case 'Cartesian'
-            [gX, gY, gZ] = ndgrid(vX, vY, vZ);
-        case 'Radial'
-            gX = vX'.^2 + vY.^2 + reshape(vZ, 1, 1, []).^2;
-            gY = nan; gZ = nan;
-        case 'Spherical'
-            [X, Y, Z] = ndgrid(vX, vY, vZ);
-            gX = sqrt(vX'.^2 + vY.^2 + reshape(vZ, 1, 1, []).^2);
-            gY = atan2(Y, X);
-            gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] --> [0,2pi]
-            gZ = acos(Z ./ gX);  % [0,pi]
-        case 'Cylindrical'
-            [X, Y, gZ] = ndgrid(vX, vY, vZ);
-            gX = sqrt(X.^2 + Y.^2);
-            gY = atan2(Y, X);
-            gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] --> [0,2pi]
-        otherwise
-            error("SYSTEM should be  'Cartesian', 'Spherical', 'Cylindrical' or 'Radial', got %s", SYSTEM)
+        error("SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", TYPE)
     end
 else % 2d
-    switch TYPE
-        case 'Cartesian'
-            [gX, gY] = ndgrid(vX, vY); gZ = nan;
-        case 'Radial'
-            gX = vX'.^2 + vY.^2;
-            gY = nan; gZ = nan;
-        case {'Spherical', 'Cylindrical'}
-            [X, Y] = ndgrid(vX, vY);
-            gX = sqrt(X.^2 + Y.^2);
-            gY = atan2(Y, X);
-            gZ = nan;
-        otherwise
-            error("SYSTEM should be  'Cartesian', 'Spherical', 'Cylindrical' or 'Radial', got %s", SYSTEM)
+    if strcmpi(TYPE, 'cartesian')
+        [gX, gY] = ndgrid(vX, vY); gZ = nan;
+    elseif strcmpi(TYPE, 'radial')
+        gX = sqrt(vX'.^2 + vY.^2);
+        gY = nan; gZ = nan;
+    elseif strcmpi(TYPE, 'spherical') || strcmpi(TYPE, 'cylindrical')
+        [X, Y] = ndgrid(vX, vY);
+        gX = sqrt(X.^2 + Y.^2);
+        gY = atan2(Y, X);
+        gZ = nan;
+    else
+        error("SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", TYPE)
     end
 end
 end

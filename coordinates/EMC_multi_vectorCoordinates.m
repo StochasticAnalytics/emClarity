@@ -1,123 +1,161 @@
-function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, SHIFT, ORIGIN, ...
-                                                    flgNormalize, ...
-                                                    flgHalf)
-% [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, SHIFT, ORIGIN, flgNormalize, flgHalf)
+function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL)
+% [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL)
 % Compute gridVectors.
 %
-% SIZE (int/float vector):      Size of the vectors to compute; [x, y, z] or [x, y]
-%                              	Values correspond to a number of pixels, as such, the decimal
-%                             	should be 0.
+% SIZE (vector):                Size of the vectors to compute; [x, y, z] or [x, y]
+%                              	Values correspond to a number of pixels, as such, it should be integers.
 %
-% METHOD (str):               	Device to use; 'gpu' or 'cpu'
+% METHOD (str):                 Device to use; 'gpu' or 'cpu'.
 %
-% SHIFT (int/float vector):     [x, y, z] or [x, y] translations to apply (should correspond to size)
+% OPTIONAL (cell | struct):     Optional parameters.
+%                               If cell: {field,value ; ...}, note the ';' between parameters.
+%                               NOTE: Can be empty.
+%                               NOTE: Unknown fields will raise an error.
 %
-% ORIGIN (int):                	Origin convention
+% -> 'shift' (vector):          [x, y, z] or [x, y] translations to apply (should correspond to SIZE)
+%                               default = no shifts
+%
+% -> 'origin' (int):            Origin convention
 %                               -1: zero frequency first (fft output)
 %                               0: real origin (if even nb of pixel, the center is in between 2 pixels)
 %                               1: right origin (extra pixel to the left; ceil((N+1)/2))
 %                               2: left origin (extra pixel to the right)
 %                               emClarity uses the right origin convention (ORIGIN=1).
+%                               default = 1
 %
-% flgNormalize (bool):        	Normalize the vectors between 0 and 1
-% flgHalf (bool)              	Compute half of the vectors (rfft)
+% -> 'normalize' (bool):        Normalize the vectors between -0.5 and 0.5.
+%                               default = false
 %
-% EXAMPLE: [x,y,z] = EMC_multi_vectorCoordinates([10,9,8], 'cpu', [0,0,0], 1, true, false)
+% -> 'half' (bool):             Compute half of the X vectors (useful for rfft)
+%                               default = false
+%
+% -> 'isotrope' (bool):         Stretch the vector values to the smallest dimensions.
+%                               default = false
+%
+%--------
+% TODO 1:                       Add an option (like flgHalf = -1) to compute only 1/4 (or 1/8 if 3d)
+%                               of the grids/vectors. This could be useful for masks and filters that
+%                               usually have a C4 symmetry. To regenerate the full grids, we can then
+%                               have a function that takes this 1/4|8 grid and the ORIGIN/flgShiftOrigin,
+%                               to compute the entire grid with the desired origin. It should be faster,
+%                               specially for sphere/cylinder masks and filters where computing the taper
+%                               can be expensive...
+%
+%--------
+% EXAMPLE: [x,y,z] = EMC_multi_vectorCoordinates([10,9,8], 'gpu', {})
+% EXAMPLE: [x, y]  = EMC_multi_vectorCoordinates([64,64], 'cpu', {'origin',-1 ; 'normalize',true})
 
-%% TODO
-% 1) For Ben, to check:
-%       Are you sure about the vector coordinates when flgOrigin == 0?
-%       Here is what you do:
-%       flgOrigin = 0: 6pixels(0, 1, 2, 3, -2, -1) but shouldn't it be 6pixels(0, 1, 2, -3, -2, -1)?
-%       For now, I did as I think is correct. I'll wait for your answer.
-%
-% 2) For Ben, to check:
-%       flgOrigin = -1 and -2: I don't understand the vectors in that case. Could you explain?
-%
-% 3) Mask - use less memory:
-%       flgHalf: Keep the option for rfft.
-%       Add an option (like flgHalf = -1) to compute only 1/4 (or 1/8 if 3d) of the grids/vectors. 
-%       This could be useful for masks and filters that usually have a C4 symmetry.
-%       To regenerate the full grids, we can then have a function that takes this 1/4|8 grid and
-%       the ORIGIN/flgShiftOrigin, to compute the entire grid with the desired origin. It should
-%       be faster, specially for sphere/cylinder masks and filters where computing the taper can
-%       be expensive...
-
-%% Check inputs
-if numel(SIZE) == 3
-  flg3d = 1;
-  ndim = 3;
-elseif numel(SIZE) == 2
-  flg3d = 0;
-  ndim = 2;
-else
-  error('Only 2D or 3D grid vectors are supported, got ' + str(numel(SIZE)) + 'D');
-end
+%% checkIN
+[flg3d, ndim] = EMC_is3d(SIZE);
 validateattributes(SIZE, {'numeric'}, {'vector', 'numel', ndim, 'nonnegative', 'integer'}, '', 'SIZE');
-validateattributes(SHIFT, {'numeric'}, {'vector', 'numel', ndim, 'finite', 'nonnan'}, '', 'SHIFT');
 
-if ~ismember(ORIGIN, [-1, 0, 1, 2])
-  error('ORIGIN should be -1, 0, 1, 2, got %s', num2str(ORIGIN))
-elseif ~islogical(flgNormalize)
-  error('flgNormalize should be a boolean, got %s', class(flgNormalize))
-elseif ~islogical(flgHalf)
-  error('flgHalf should be a boolean, got %s', class(flgHalf))
+if ~(strcmpi('gpu', METHOD) || strcmpi('cpu', METHOD))
+    error("method should be 'cpu' or 'gpu', got %s", METHOD)
+end
+
+% Extract optional parameters
+OPTIONAL = EMC_extract_optional(OPTIONAL, {'origin', 'shift', 'normalize', 'half', 'isotrope'});
+
+if isfield(OPTIONAL, 'origin')
+    if ~(OPTIONAL.origin == -1 || OPTIONAL.origin == 0 || OPTIONAL.origin == 1 || OPTIONAL.origin == 2)
+        error("origin should be 0, 1, 2, or -1, got %d", OPTIONAL.origin)
+    end
+else
+    OPTIONAL.origin = 1;  % default
+end
+
+if isfield(OPTIONAL, 'shift')
+    validateattributes(OPTIONAL.shift, {'numeric'}, {'vector', 'numel', ndim, 'finite', 'nonnan'}, ...
+                       '', 'shift');
+else
+    OPTIONAL.shift = zeros(1, ndim);  % default
+end
+
+if isfield(OPTIONAL, 'normalize')
+    if ~islogical(OPTIONAL.normalize)
+        error('normalize should be a boolean, got %s', class(OPTIONAL.normalize))
+    end
+else
+    OPTIONAL.normalize = false;  % default
+end
+
+if isfield(OPTIONAL, 'half')
+    if ~islogical(OPTIONAL.half)
+        error('half should be a boolean, got %s', class(OPTIONAL.half))
+    end
+else
+    OPTIONAL.half = false;  % default
+end
+
+if isfield(OPTIONAL, 'isotrope')
+    if ~islogical(OPTIONAL.isotrope)
+        error('half should be a boolean, got %s', class(OPTIONAL.isotrope))
+    end
+else
+    OPTIONAL.isotrope = false;  % default
 end
 
 %% Create vectors with defined origin and shifts.
 % For efficiency, shifts are applied to the boundaries and not to the vectors directly.
-% On the other hand, normalization is done on the vectors, as rounding errors on the 
+% On the other hand, normalization is done on the vectors, as rounding errors on the
 % boundaries might lead to significative errors on the vectors.
 
-offset = zeros(1, ndim);
-if ORIGIN > 0
-    if ORIGIN == 2
+% By default, the vectors are set to compute the real origin (origin = 0).
+% To adjust for origin = 1|2, compute an offset to add to the vectors limits.
+limits = zeros(2, ndim, 'single');
+if OPTIONAL.origin > 0 || OPTIONAL.origin == -1
+    if OPTIONAL.origin == 2
         direction = -1;
-    else
+    else  % origin = -1 or 1
         direction = 1;
     end
     for dim = 1:ndim
-        if ~mod(SIZE(dim), 2)  % even dimensions
-            offset(dim) = offset(dim) + direction * 0.5;  % shift half a pixel
+        if ~mod(SIZE(dim), 2)  % even dimensions: shift half a pixel
+            limits(1, dim) = -SIZE(dim)/2 + 0.5 - direction * 0.5;
+            limits(2, dim) =  SIZE(dim)/2 - 0.5 - direction * 0.5;
+        else  % odd dimensions
+            limits(1, dim) = -SIZE(dim)/2 + 0.5;
+            limits(2, dim) =  SIZE(dim)/2 - 0.5;
         end
     end
+else  % OPTIONAL.origin == 0
+    limits(1,:) = -SIZE./2 + 0.5;
+    limits(2,:) =  SIZE./2 - 0.5;
 end
 
 % centered
-if ORIGIN >= 0
-    if (flgHalf)
-        % there is probably a more elegant way, but I can't bother.
-        if ORIGIN == 0
-            vX = (rem((SIZE(1)-1)/2, 1)):((SIZE-1)/2);
+if OPTIONAL.origin >= 0
+    if (OPTIONAL.half)
+        if any(OPTIONAL.shift)
+            error('shifts are not allowed with half = true, got %s', mat2str(OPTIONAL.shift, 2))
+        end
+        if OPTIONAL.origin == 0 && ~mod(SIZE(1), 2)  % real center and even pixels
+            vX = 0.5:single((SIZE(1)/2));
         else
-            vX = SHIFT(1):(ceil((SIZE(1)-1)/2) - SHIFT(1));
+            vX = 0:single(floor(SIZE(1)/2));
         end
     else
-        vX = (-SIZE(1)/2 + 0.5 - offset(1) - SHIFT(1)):(SIZE(1)/2 - 0.5 - offset(1) - SHIFT(1));
+        vX = (limits(1, 1) - OPTIONAL.shift(1)):(limits(2, 1) - OPTIONAL.shift(1));
     end
-    vY = (-SIZE(2)/2 + 0.5 - offset(2) - SHIFT(2)):(SIZE(2)/2 - 0.5 - offset(2) - SHIFT(2));
+    vY = (limits(1, 2) - OPTIONAL.shift(2)):(limits(2, 2) - OPTIONAL.shift(2));
     if (flg3d)
-        vZ = (-SIZE(3)/2 + 0.5 - offset(3) - SHIFT(3)):(SIZE(3)/2 - 0.5 - offset(3) - SHIFT(3));
+        vZ = (limits(1, 3) - OPTIONAL.shift(3)):(limits(2, 3) - OPTIONAL.shift(3));
     else
         vZ = nan;
     end
 
-% fft output
+% not centered
 else
-    if any(SHIFT)
-        error('Shifts are not allowed with ORIGIN = -1 (fft output), got %s', mat2str(SHIFT, 2))
+    if any(OPTIONAL.shift)
+        error('shifts are not allowed with origin = -1, got %s', mat2str(OPTIONAL.shift, 2))
     end
-    if (flgHalf)
-        vX = 0:floor(SIZE(1)/2);
+    if (OPTIONAL.half)
+        vX = 0:single(floor(SIZE(1)/2));
     else
-        vX = [0:(floor((SIZE(1)-1)/2)), (-1*floor(SIZE(1)/2)):-1];
+        vX = [0:limits(2,1), limits(1,1):-1];
     end
-    vY = [0:floor((SIZE(2)-1)/2), (-1*floor(SIZE(2)/2)):-1];
-    if (flg3d)
-        vZ = [0:floor((SIZE(3)-1)/2), (-1*floor(SIZE(3)/2)):-1];
-    else
-        vZ = nan;
-    end
+    vY = [0:limits(2,2), limits(1,2):-1];
+    if (flg3d); vZ = [0:limits(2,3), limits(1,3):-1]; else; vZ = nan; end
 end
 
 if strcmpi(METHOD, 'gpu')
@@ -128,9 +166,22 @@ elseif ~strcmpi(METHOD, 'cpu')
     error("METHOD must be 'gpu' or 'cpu', got %s", METHOD);
 end
 
-if (flgNormalize)
+if (OPTIONAL.isotrope)
+    radius = min(abs(limits));
+    radius_min = min(radius);
+    vX = vX .* (radius_min / radius(1));
+    vY = vY .* (radius_min / radius(2));
+    if (flg3d); vZ = vZ .* (radius_min / radius(3)); else; vZ = nan; end
+    if (OPTIONAL.normalize)
+        size_min = min(SIZE);
+        vX = vX ./ size_min;
+        vY = vY ./ size_min;
+        if (flg3d); vZ = vZ ./ size_min; end
+    end
+elseif (OPTIONAL.normalize)
     vX = vX ./ SIZE(1);
     vY = vY ./ SIZE(2);
     if (flg3d); vZ = vZ ./ SIZE(3); end
 end
+
 end  % EMC_multi_vectorCoordinates
