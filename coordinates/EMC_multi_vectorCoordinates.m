@@ -1,5 +1,6 @@
-function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL)
-% [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL)
+function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTION)
+% [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTION)
+%
 % Compute gridVectors.
 %
 % SIZE (vector):                Size of the vectors to compute; [x, y, z] or [x, y]
@@ -7,7 +8,7 @@ function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL)
 %
 % METHOD (str):                 Device to use; 'gpu' or 'cpu'.
 %
-% OPTIONAL (cell | struct):     Optional parameters.
+% OPTION (cell | struct):       Optional parameters.
 %                               If cell: {field,value ; ...}, note the ';' between parameters.
 %                               NOTE: Can be empty.
 %                               NOTE: Unknown fields will raise an error.
@@ -26,27 +27,21 @@ function [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL)
 % -> 'normalize' (bool):        Normalize the vectors between -0.5 and 0.5.
 %                               default = false
 %
-% -> 'half' (bool):             Compute half of the X vectors (useful for rfft)
-%                               default = false
-%
 % -> 'isotrope' (bool):         Stretch the vector values to the smallest dimensions.
 %                               default = false
 %
-%--------
-% TODO 1:                       Add an option (like flgHalf = -1) to compute only 1/4 (or 1/8 if 3d)
-%                               of the grids/vectors. This could be useful for masks and filters that
-%                               usually have a C4 symmetry. To regenerate the full grids, we can then
-%                               have a function that takes this 1/4|8 grid and the ORIGIN/flgShiftOrigin,
-%                               to compute the entire grid with the desired origin. It should be faster,
-%                               specially for sphere/cylinder masks and filters where computing the taper
-%                               can be expensive...
+% -> 'half' (bool):             Compute half of the X vectors (useful for rfft)
+%                               default = false
+%
+% -> 'precision' (str):         Precision of the vectors; 'single' or 'double'.
+%                               default = 'single'
 %
 %--------
-% EXAMPLE: [x,y,z] = EMC_multi_vectorCoordinates([10,9,8], 'gpu', {})
-% EXAMPLE: [x, y]  = EMC_multi_vectorCoordinates([64,64], 'cpu', {'origin',-1 ; 'normalize',true})
+% EXAMPLE: [x,y,z] = EMC_multi_vectorCoordinates([10,9,8], 'gpu', {});
+% EXAMPLE: [x, y]  = EMC_multi_vectorCoordinates([64,64], 'cpu', {'origin',-1 ; 'normalize',true});
 
 %% checkIN
-[flg3d, ndim] = EMC_is3d(SIZE);
+[SIZE, flg3d, ndim] = EMC_is3d(SIZE);
 validateattributes(SIZE, {'numeric'}, {'vector', 'numel', ndim, 'nonnegative', 'integer'}, '', 'SIZE');
 
 if ~(strcmpi('gpu', METHOD) || strcmpi('cpu', METHOD))
@@ -54,45 +49,55 @@ if ~(strcmpi('gpu', METHOD) || strcmpi('cpu', METHOD))
 end
 
 % Extract optional parameters
-OPTIONAL = EMC_extract_optional(OPTIONAL, {'origin', 'shift', 'normalize', 'half', 'isotrope'});
+OPTION = EMC_extract_option(OPTION, ...
+                            {'origin', 'shift', 'normalize', 'isotrope', 'half', 'precision'}, ...
+                            false);
 
-if isfield(OPTIONAL, 'origin')
-    if ~(OPTIONAL.origin == -1 || OPTIONAL.origin == 0 || OPTIONAL.origin == 1 || OPTIONAL.origin == 2)
-        error("origin should be 0, 1, 2, or -1, got %d", OPTIONAL.origin)
+if isfield(OPTION, 'origin')
+    if ~(OPTION.origin == -1 || OPTION.origin == 0 || OPTION.origin == 1 || OPTION.origin == 2)
+        error("origin should be 0, 1, 2, or -1, got %d", OPTION.origin)
     end
 else
-    OPTIONAL.origin = 1;  % default
+    OPTION.origin = 1;  % default
 end
 
-if isfield(OPTIONAL, 'shift')
-    validateattributes(OPTIONAL.shift, {'numeric'}, {'vector', 'numel', ndim, 'finite', 'nonnan'}, ...
+if isfield(OPTION, 'shift')
+    validateattributes(OPTION.shift, {'numeric'}, {'vector', 'numel', ndim, 'finite', 'nonnan'}, ...
                        '', 'shift');
 else
-    OPTIONAL.shift = zeros(1, ndim);  % default
+    OPTION.shift = zeros(1, ndim);  % default
 end
 
-if isfield(OPTIONAL, 'normalize')
-    if ~islogical(OPTIONAL.normalize)
-        error('normalize should be a boolean, got %s', class(OPTIONAL.normalize))
+if isfield(OPTION, 'normalize')
+    if ~islogical(OPTION.normalize)
+        error('normalize should be a boolean, got %s', class(OPTION.normalize))
     end
 else
-    OPTIONAL.normalize = false;  % default
+    OPTION.normalize = false;  % default
 end
 
-if isfield(OPTIONAL, 'half')
-    if ~islogical(OPTIONAL.half)
-        error('half should be a boolean, got %s', class(OPTIONAL.half))
+if isfield(OPTION, 'half')
+    if ~islogical(OPTION.half)
+        error('half should be a boolean, got %s', class(OPTION.half))
     end
 else
-    OPTIONAL.half = false;  % default
+    OPTION.half = false;  % default
 end
 
-if isfield(OPTIONAL, 'isotrope')
-    if ~islogical(OPTIONAL.isotrope)
-        error('half should be a boolean, got %s', class(OPTIONAL.isotrope))
+if isfield(OPTION, 'isotrope')
+    if ~islogical(OPTION.isotrope)
+        error('isotrope should be a boolean, got %s', class(OPTION.isotrope))
     end
 else
-    OPTIONAL.isotrope = false;  % default
+    OPTION.isotrope = false;  % default
+end
+
+if isfield(OPTION, 'precision')
+    if ~(strcmpi(OPTION.precision, 'single') || strcmpi(OPTION.precision, 'double'))
+        error("precision should be 'single' or 'double', got %s", OPTION.precision)
+    end
+else
+    OPTION.precision = 'single';  % default
 end
 
 %% Create vectors with defined origin and shifts.
@@ -102,9 +107,9 @@ end
 
 % By default, the vectors are set to compute the real origin (origin = 0).
 % To adjust for origin = 1|2, compute an offset to add to the vectors limits.
-limits = zeros(2, ndim, 'single');
-if OPTIONAL.origin > 0 || OPTIONAL.origin == -1
-    if OPTIONAL.origin == 2
+limits = zeros(2, ndim, OPTION.precision);
+if OPTION.origin > 0 || OPTION.origin == -1
+    if OPTION.origin == 2
         direction = -1;
     else  % origin = -1 or 1
         direction = 1;
@@ -124,33 +129,45 @@ else  % OPTIONAL.origin == 0
 end
 
 % centered
-if OPTIONAL.origin >= 0
-    if (OPTIONAL.half)
-        if any(OPTIONAL.shift)
-            error('shifts are not allowed with half = true, got %s', mat2str(OPTIONAL.shift, 2))
+if OPTION.origin >= 0
+    if (OPTION.half)
+        if any(OPTION.shift)
+            error('shifts are not allowed with half = true, got %s', mat2str(OPTION.shift, 2))
         end
-        if OPTIONAL.origin == 0 && ~mod(SIZE(1), 2)  % real center and even pixels
-            vX = 0.5:single((SIZE(1)/2));
+        if OPTION.origin == 0 && ~mod(SIZE(1), 2)  % real center and even pixels
+            if strcmpi(OPTION.precision, 'single')
+                vX = 0.5:single((SIZE(1)/2));
+            else
+                vX = 0.5:(SIZE(1)/2);
+            end
         else
-            vX = 0:single(floor(SIZE(1)/2));
+            if strcmpi(OPTION.precision, 'single')
+                vX = 0:single(floor(SIZE(1)/2));
+            else
+                vX = 0:floor(SIZE(1)/2);
+            end
         end
     else
-        vX = (limits(1, 1) - OPTIONAL.shift(1)):(limits(2, 1) - OPTIONAL.shift(1));
+        vX = (limits(1, 1) - OPTION.shift(1)):(limits(2, 1) - OPTION.shift(1));
     end
-    vY = (limits(1, 2) - OPTIONAL.shift(2)):(limits(2, 2) - OPTIONAL.shift(2));
+    vY = (limits(1, 2) - OPTION.shift(2)):(limits(2, 2) - OPTION.shift(2));
     if (flg3d)
-        vZ = (limits(1, 3) - OPTIONAL.shift(3)):(limits(2, 3) - OPTIONAL.shift(3));
+        vZ = (limits(1, 3) - OPTION.shift(3)):(limits(2, 3) - OPTION.shift(3));
     else
         vZ = nan;
     end
 
 % not centered
 else
-    if any(OPTIONAL.shift)
-        error('shifts are not allowed with origin = -1, got %s', mat2str(OPTIONAL.shift, 2))
+    if any(OPTION.shift)
+        error('shifts are not allowed with origin = -1, got %s', mat2str(OPTION.shift, 2))
     end
-    if (OPTIONAL.half)
-        vX = 0:single(floor(SIZE(1)/2));
+    if (OPTION.half)
+        if strcmpi(OPTION.precision, 'single')
+            vX = 0:single(floor(SIZE(1)/2));
+        else
+            vX = 0:floor(SIZE(1)/2);
+        end
     else
         vX = [0:limits(2,1), limits(1,1):-1];
     end
@@ -166,19 +183,19 @@ elseif ~strcmpi(METHOD, 'cpu')
     error("METHOD must be 'gpu' or 'cpu', got %s", METHOD);
 end
 
-if (OPTIONAL.isotrope)
+if (OPTION.isotrope)
     radius = min(abs(limits));
     radius_min = min(radius);
     vX = vX .* (radius_min / radius(1));
     vY = vY .* (radius_min / radius(2));
     if (flg3d); vZ = vZ .* (radius_min / radius(3)); else; vZ = nan; end
-    if (OPTIONAL.normalize)
+    if (OPTION.normalize)
         size_min = min(SIZE);
         vX = vX ./ size_min;
         vY = vY ./ size_min;
         if (flg3d); vZ = vZ ./ size_min; end
     end
-elseif (OPTIONAL.normalize)
+elseif (OPTION.normalize)
     vX = vX ./ SIZE(1);
     vY = vY ./ SIZE(2);
     if (flg3d); vZ = vZ ./ SIZE(3); end

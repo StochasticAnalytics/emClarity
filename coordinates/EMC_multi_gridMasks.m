@@ -1,4 +1,4 @@
-function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTIONAL)
+function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTION)
 % [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTIONAL)
 %
 % Compute ndgrids of different size and different coordinate systems.
@@ -10,7 +10,7 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTI
 %
 % METHOD (str):                 Device to use; 'gpu' or 'cpu'.
 %
-% OPTIONAL (cell | struct):     Optional parameters.
+% OPTION (cell | struct):       Optional parameters.
 %                               If cell: {field,value ; ...}, note the ';' between parameters.
 %                               NOTE: Can be empty.
 %                               NOTE: Unknown fields will raise an error.
@@ -32,8 +32,10 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTI
 %                               default = false
 %
 %   -> 'isotrope' (bool):       Stretch the grid values to the smallest dimensions.
-%                               NOTE: Useful with TYPE='Radial', for filters.
 %                               default = false
+%
+%   -> 'precision' (str):       Precision of the grids and vectors; 'single' or 'double'
+%                               default = 'single'
 %
 %--------
 % RETURN:                       gX, gY, gZ are the gridMasks.
@@ -44,9 +46,9 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTI
 %          [X, Y, Z, x, y, z] =  EMC_multi_gridMasks('spherical', [100,90,100], 'cpu', {});
 
 %% checkIN
-[vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTIONAL);  % all optional inputs are accepted.
+[vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, OPTION);  % all optional inputs are accepted.
 
-if numel(SIZE) == 3
+if numel(SIZE) == 3 && SIZE(3) ~= 1
     if strcmpi(TYPE, 'cartesian')
         [gX, gY, gZ] = ndgrid(vX, vY, vZ);
     elseif strcmpi(TYPE, 'radial') || strcmpi(TYPE, 'radius')

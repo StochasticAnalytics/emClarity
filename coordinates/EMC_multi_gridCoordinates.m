@@ -221,7 +221,7 @@ end  % EMC_multi_gridCoordinates
 function [SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS)
 %% checkIN
 % Sanity checks of BH_multi_gridCoordinates inputs.
-[flg.is3d, ndim] = EMC_is3d(SIZE);
+[SIZE, flg.is3d, ndim] = EMC_is3d(SIZE);
 validateattributes(SIZE, {'numeric'}, {'row', 'nonnegative', 'integer'}, 'checkIN', 'SIZE');
 
 if ~(strcmpi(METHOD, 'gpu') || strcmpi(METHOD, 'cpu'))
@@ -235,8 +235,8 @@ flg.sym = false;
 flg.binary = false;
 
 % Extract optional parameters
-TRANS = EMC_extract_optional(TRANS, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
-                                     'origin', 'offset', 'binary', 'normalize'});
+TRANS = EMC_extract_option(TRANS, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
+                                   'origin', 'offset', 'binary', 'normalize'}, false);
 
 if isfield(TRANS, 'rotm')
     validateattributes(TRANS.rotm, {'numeric'}, {'numel', ndim.^2, 'square'}, 'checkIN', 'rotm')
