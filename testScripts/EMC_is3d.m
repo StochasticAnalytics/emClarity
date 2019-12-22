@@ -1,10 +1,11 @@
-function [flg3d, ndim] = EMC_is3d(SIZE)
+function [SIZE, flg3d, ndim] = EMC_is3d(SIZE)
 %
 % Check if the SIZE vector is describing a 2d or 3d IMAGE.
 % If the z dimension is 1, it is considered 2d.
 %
 if numel(SIZE) == 3
     if SIZE(3) == 1
+        SIZE = SIZE(1:2);
         flg3d = false;
         ndim = 2;
     else
