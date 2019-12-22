@@ -12,7 +12,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTIONAL)
 %                                   NOTE: Positive values indicate the number of pixels to pad, while
 %                                         negative values indicate the number of pixels to crop.
 %
-% OPTIONAL (cell | struct):         Optional parameters.
+% OPTION (cell | struct):           Optional parameters.
 %                                   If cell: {field,value ; ...}, note the ';' between parameters.
 %                                   NOTE: Can be empty.
 %                                   NOTE: Unknown fields will raise an error.
@@ -30,6 +30,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTIONAL)
 %
 %   -> 'value' (float | str):       If float: value to pad with.
 %                                   If 'uniform': pad with white gaussian noise.
+%                                   If 'mean': pad with the mean of the IMAGE.
 %                                   NOTE: this parameter is ignored if no padding is applied.
 %                                   default = 0
 %
@@ -41,6 +42,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTIONAL)
 %                                   NOTE: all IMAGE dimensions should be larger than the taper, with the
 %                                         exception of origin=-1 that requires the dimensions to be at
 %                                         least 2 times larger than the taper.
+%                                   NOTE: if the taper is a gpuArray, the IMAGE should also be a gpuArray.
 %                                   default = {'cosine', 7}
 %
 %   -> 'force_taper' (bool):        By default, (force_taper=false) only the edges that are padded are
@@ -337,7 +339,7 @@ else
 end
 
 % Extract optional parameters
-OPTIONAL = EMC_extract_optional(OPTIONAL, {'origin', 'value', 'taper', 'force_taper', 'precision'});
+OPTIONAL = EMC_extract_option(OPTIONAL, {'origin', 'value', 'taper', 'force_taper', 'precision'}, false);
 
 if isfield(OPTIONAL, 'origin')
     if OPTIONAL.origin == -1
@@ -355,6 +357,9 @@ end
 if isfield(OPTIONAL, 'value')
     if strcmpi(OPTIONAL.value, 'uniform')
         flg.uniform = true;
+    elseif strcmpi(OPTIONAL.value, 'mean')
+        OPTIONAL.value = mean(IMAGE(:));
+        flg.uniform = false;
     elseif isinteger(OPTIONAL.value) || isfloat(OPTIONAL.value)
         flg.uniform = false;
     else
@@ -369,7 +374,7 @@ if isfield(OPTIONAL, 'taper')
     % bool
     if islogical(OPTIONAL.taper)
         if OPTIONAL.taper
-            OPTIONAL.taper = EMC_multi_taper('cosine', 1, 0, 7);  % default
+            OPTIONAL.taper = EMC_taper('cosine', 1, 0, 7);  % default
             flg.taper = true;
         else
             flg.taper = false;
@@ -379,7 +384,7 @@ if isfield(OPTIONAL, 'taper')
         if numel(OPTIONAL.taper) ~= 2
             error('taper not recognized.')
         else
-            OPTIONAL.taper = EMC_multi_taper(OPTIONAL.taper{1}, 1, 0, OPTIONAL.taper{2});
+            OPTIONAL.taper = EMC_taper(OPTIONAL.taper{1}, 1, 0, OPTIONAL.taper{2});
             flg.taper = true;
         end
     % vector: own taper
@@ -388,7 +393,7 @@ if isfield(OPTIONAL, 'taper')
         flg.taper = true;
     end
 else
-     OPTIONAL.taper = EMC_multi_taper('cosine', 1, 0, 7);  % default
+     OPTIONAL.taper = EMC_taper('cosine', 1, 0, 7);  % default
      flg.taper = true;
 end
 
@@ -401,14 +406,14 @@ else
     OPTIONAL.force_taper = false;  % default
 end
 
-% If no padding and no cropping, the EMC_resize needs to know
+% If no padding, no cropping and no taper, EMC_resize needs to know
 % if the precision should be changed before returning output.
-current_precision = class(IMAGE);
-if isa(current_precision, 'gpuArray')
+if isa(IMAGE, 'gpuArray')
     flg.gpu = true;
     current_precision = classUnderlying(IMAGE);
 else
     flg.gpu = false;
+    current_precision = class(IMAGE);
 end
 if isfield(OPTIONAL, 'precision')
     if ~(strcmpi('single', OPTIONAL.precision) || strcmpi('double', OPTIONAL.precision))
