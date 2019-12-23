@@ -1,7 +1,7 @@
-function [MASK] = EMC_shapeMask(SHAPE, SIZE, RADIUS, METHOD, OPTIONAL)
+function [MASK] = EMC_shapeMask(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 %
-% EMC_maskMask(SHAPE, SIZE, RADIUS, METHOD, OPTIONAL)
-% Create a mask of a given shape.
+% EMC_maskMask(SHAPE, SIZE, RADIUS, METHOD, OPTION)
+% Create a real space mask of a given shape.
 %
 % SHAPE (str | numeric):            'sphere', 'cylinder' or 'rectangle'.
 %
@@ -11,9 +11,9 @@ function [MASK] = EMC_shapeMask(SHAPE, SIZE, RADIUS, METHOD, OPTIONAL)
 % RADIUS (vector):                  [x, y] or [x, y, z] radius in each dimension.
 %                                   Should correspond to SIZE.
 %
-% METHOD (str):                     Device to use; 'gpu' or 'cpu'.
+% METHOD (str):                     Device of the output MASK; 'gpu' or 'cpu'.
 %
-% OPTIONAL (cell | struct):         Optional parameters.
+% OPTION (cell | struct):           Optional parameters.
 %                                   If cell: {field,value ; ...}, note the ';' between parameters.
 %                                   NOTE: Can be empty.
 %                                   NOTE: Unknown fields will raise an error.
@@ -23,26 +23,39 @@ function [MASK] = EMC_shapeMask(SHAPE, SIZE, RADIUS, METHOD, OPTIONAL)
 %                                   default = no shifts
 %
 %  	-> 'origin' (int):              Origin convention - Center of rotation.
-%                                   -1, 0, 1 or 2; see EMC_multi_gridVectors for more details.
-%                                   NOTE: origin=0 is not allowed with SHAPE='rectangle'.
+%                                   0, 1 or 2; see EMC_multi_gridVectors for more details.
+%                                   NOTE: origin=-1 is not allowed as this function is only for real
+%                                         space masks.
+%                                   NOTE: origin=0 is currently not allowed for SHAPE = 'rectangle' and
+%                                         'cylinder'.
 %                                   default = 1
 %
-%   -> 'taper' (bool|float):        Strength of the taper to apply at the mask edge.
+%   -> 'taper' (bool|float|matrix): Gaussian taper to apply to the boolean mask.
 %                                   If bool: apply or not the default taper.
-%                                   If float: strength of the gaussian taper. Smaller values
-%                                   gives shaper egdes. 'taper'=0 is equivalent to 'taper'=false.
-%                                   NOTE: the size of the taper is scaled to the size of the
-%                                         smallest axis, with a minimum of 7 pixels.
-%                                   NOTE: the sigma of the gaussian is, sigma=taper*min(SIZE)/min(RADIUS).
-%                                         As such, the taper is scaled to the size of the image and
-%                                         invariant relative to the radius.
-%                                   default = 0.02
+%                                   If float: the size of the taper, in percentage (between 0 and 1) of
+%                                   pixels, relative to the smallest axis. The minimum size of the taper
+%                                   is automatically set to 8 pixels.
+%                                   If matrix: specify your own kernel (odd dimensions) to convolve
+%                                   with the boolean mask.
+%                                   NOTE: The variance of the gaussian is automatically adjusted to keep
+%                                         the gaussian at ~0.5 at the middle of the taper.
+%                                   default = 0.04
 %
-%  	-> 'asym_restrict' (bool):      Turn on the asymmetric restriction.
-%                                   Currently only for SHAPE = 'cylinder'.
+%  	-> 'sym' (int):                 Restrict the mask to the first asymmetric unit.
+%                                   Should correspond to the central symmetry (positive int).
+%                                   If 1, return the full mask.
+%                                   default = 1
+%
+%   -> 'precision' (str):           Precision of the output MASK; 'single' or 'double'.
+%                                   default = 'single'
 %
 %---------
 % RETURN:                           MASK: 2d/3d mask
+%
+%---------
+% NOTE:                             If taper, the function forces the edges of the mask to be blurred,
+%                                   which is equivalent to EMC_resize:force_taper option but with the
+%                                   desired roll off.
 %
 %---------
 % EXAMPLE:                          [MASK] = EMC_shapeMask('cylinder', [128,128], [30,30], 'cpu', {})
@@ -51,84 +64,129 @@ function [MASK] = EMC_shapeMask(SHAPE, SIZE, RADIUS, METHOD, OPTIONAL)
 %
 
 %% 
-[SIZE, RADIUS, OPTIONAL, flg] = checkIN(SIZE, RADIUS, METHOD, OPTIONAL);
-[vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, {'origin', OPTIONAL.origin; ...
-                                                          'shift', OPTIONAL.shift});
+[SIZE, RADIUS, OPTION, flg, ndim] = checkIN(SIZE, RADIUS, METHOD, OPTION);
 
-cutoffLow = 0.025;
-sigma = OPTIONAL.taper * min(SIZE) / min(RADIUS);
+cutoffLow = 0.001;  % everything below this value is set to 0.
+
+if (flg.taper)
+    if ~(flg.ownTaper)
+        % Compute the size of the kernel in pixel.
+        smallestDimension = min(SIZE);
+        kernelSize = round((smallestDimension * OPTION.taper - 1) / 2) * 2 + 1;  % closest odd int
+        if kernelSize < 9; kernelSize = 9; end  % at least 8 pixels.
+
+        % Keep the gaussian at ~0.5 at the middle of the taper.
+        middle = ceil(kernelSize / 2) / 2;
+        sigma = sqrt(-1 * middle^2 / (2 * log(0.5)));
+        kernel = EMC_multi_gaussianKernel(zeros(1,ndim) + kernelSize, sigma, ...
+                                          {'precision', OPTION.precision});
+    end
+end
 
 if strcmpi(SHAPE, 'sphere')
+    % Adjust the radius for the convolution.
+    RADIUS = RADIUS + ceil(kernelSize/2);
+    
+    [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, {'origin', OPTION.origin; ...
+                                                              'shift', OPTION.shift; ...
+                                                              'precision', OPTION.precision});
     if (flg.is3d)
-        MASK = sqrt((vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2 + reshape(vZ./RADIUS(3),1,1,[]).^2);
+        MASK = (vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2 + reshape(vZ./RADIUS(3),1,1,[]).^2;
     else
-        MASK = sqrt((vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2);
+        MASK = (vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2;
     end
-    solid = (MASK <= 1);
-    if (flg.taper)
-        MASK = exp(-1 .* ((MASK-1).^2) ./ (2*sigma^2));
-        MASK(solid) = 1;
-        MASK(MASK <= cutoffLow) = 0;
+
+    % Binary mask
+    if strcmpi(OPTION.precision, 'single')
+        MASK = single((MASK <= 1));
     else
-        MASK(solid) = 1;
-        MASK(~solid) = 0;
+        MASK = double((MASK <= 1));
     end
 
 elseif strcmpi(SHAPE, 'cylinder')
+    % Adjust the radius for the convolution.
+    RADIUS(1:2) = RADIUS(1:2) + ceil(kernelSize/2);
+
     if (flg.is3d)
-        error('not supported yet.')
-        vZ = reshape(abs(vZ), 1, 1, []);
+        % First compute the circle (the shifts are dealt afterwards)
+        [vX, vY, ~] = EMC_multi_vectorCoordinates(SIZE(1:2), METHOD, {'origin', OPTION.origin; ...
+                                                                      'precision', OPTION.precision});
+        % Invariant in Z
+        RADIUS(3) = RADIUS(3) + floor(kernelSize/2);  % adjust Z
         if (flg.gpu)
-            gZ = zeros(SIZE, 'single', 'gpuArray') + abs(vZ);
-            MASK = ones(SIZE, 'single', 'gpuArray');
+            vZ = zeros([1, 1, RADIUS(3) .*2 + 1], OPTION.precision, 'gpuArray');
         else
-            gZ = zeros(SIZE, 'single') + abs(vZ);
-            MASK = ones(SIZE, 'single');
+            vZ = zeros([1, 1, RADIUS(3) .*2 + 1], OPTION.precision);
         end
-      	MASK = MASK .* sqrt((vX' ./ RADIUS(1)).^2 + (vY ./ RADIUS(2)).^2);
-        solid = (MASK <= 1) & (gZ <= RADIUS(3));
-    else
-        MASK = sqrt((vX' ./ RADIUS(1)).^2 + (vY./RADIUS(2)).^2);
-        solid = (MASK <= 1) ;
-    end
-    if (flg.taper)
-        MASK = exp(-1 .* ((MASK-1).^2) ./ (2*sigma^2));
-        MASK(solid) = 1;
-        MASK(MASK <= cutoffLow) = 0;
-    else
-        MASK(solid) = 1;
-        MASK(~solid) = 0;
+      	MASK = (vX' ./ RADIUS(1)).^2 + (vY ./ RADIUS(2)).^2 + vZ;  % broadcast
+
+        % Binary mask
+        if strcmpi(OPTION.precision, 'single')
+            MASK = single((MASK <= 1));
+        else
+            MASK = double((MASK <= 1));
+        end
+
+        % Resize the cylinder to the desired SIZE in Z, taking into account the shifs.
+        limits = EMC_multi_limits(size(MASK), SIZE, {'origin', OPTION.origin; 'shift', OPTION.shift});
+        MASK = EMC_resize(MASK, limits, {'taper', false});
+
+    else  % cylinder 2d
+        [vX, vY] = EMC_multi_vectorCoordinates(SIZE, METHOD, {'origin', OPTION.origin; ...
+                                                              'precision', OPTION.precision; ...
+                                                              'shift', OPTION.shift});
+        MASK = (vX' ./ RADIUS(1)).^2 + (vY./RADIUS(2)).^2;
+
+        % Binary mask
+        if strcmpi(OPTION.precision, 'single')
+            MASK = single((MASK <= 1));
+        else
+            MASK = double((MASK <= 1));
+        end
     end
 
 elseif strcmpi(SHAPE, 'rectangle')
-    if (flg.taper)
-        % taper should be large enough to go to the cutoffLow.
-        taper = (1:ceil(min(RADIUS) * sqrt(-2 * log(cutoffLow) * sigma.^2))) ./ min(RADIUS);
-        taper = exp(-1 .* (taper.^2) ./ (2*sigma^2));
-        size_rectangle = (RADIUS + length(taper)) .* 2 + 1;
-    else
-        taper = false;
-        size_rectangle = RADIUS .* 2 + 1;
-    end
-    
+    % Adjust the radius for the convolution.
+    RADIUS = RADIUS + floor(kernelSize/2);
+
     if (flg.gpu)
-        MASK = ones(size_rectangle, 'single', 'gpuArray');
+        MASK = ones(RADIUS .*2 + 1, OPTION.precision, 'gpuArray');
     else
-        MASK = ones(size_rectangle, 'single');
+        MASK = ones(RADIUS .*2 + 1, OPTION.precision);
     end
-    limits = EMC_multi_limits(size_rectangle, SIZE, {'origin', OPTIONAL.origin ; 'shift', OPTIONAL.shift});
-    MASK = EMC_resize(MASK, limits, {'origin', OPTIONAL.origin; 'taper', taper});
-    MASK(MASK <= cutoffLow) = 0;
+    limits = EMC_multi_limits(size(MASK), SIZE, {'origin', OPTION.origin; 'shift', OPTION.shift});
+    MASK = EMC_resize(MASK, limits, {'taper', false});
 else
     error("SHAPE should be 'sphere', 'cylinder' or 'rectangle', got %s", SHAPE)
 end
 
+% Restrict the mask to the first symmetry pair.
+if (flg.sym)
+    [~, angles, ~] = EMC_multi_gridMasks('cylindrical', SIZE, METHOD, {'shift', OPTION.shift; ...
+                                                                       'origin', OPTION.origin; ...
+                                                                       'precision', OPTION.precision});
+    sectorMax = 2 * pi / OPTION.sym * 1.025;  % small overlap
+    angles = (angles > (2*pi-sectorMax/2) | angles < sectorMax/2);
+    MASK = MASK .* angles;
 end
 
+% Finally, apply the kernel to the binary mask.
+% I've tried doing the convolution in Fourier space,
+% but in most situations it is considerably slower...
+if (flg.taper)
+    % Force taper at the edges.
+    MASK = EMC_resize(MASK, zeros(1,ndim*2), {'force_taper', true; 'taper', zeros(1, ceil(kernelSize/2))});
+    MASK = convn(MASK, kernel, 'same');  % this is the most expensive part
+    MASK = MASK ./ max(MASK(:));  % rounding errors; max=1
+    MASK(MASK <= cutoffLow) = 0;  % predictable end of the pass
+end
 
-function [SIZE, RADIUS, OPTIONAL, flg] = checkIN(SIZE, RADIUS, METHOD, OPTIONAL)
+end  % end EMC_shapeMask
 
-[flg.is3d, ndim] = EMC_is3d(SIZE);
+
+function [SIZE, RADIUS, OPTION, flg, ndim] = checkIN(SIZE, RADIUS, METHOD, OPTION)
+
+[SIZE, flg.is3d, ndim] = EMC_is3d(SIZE);
 
 validateattributes(SIZE, {'numeric'}, {'vector', 'nonnegative', 'integer'}, 'checkIN', 'SIZE');
 validateattributes(RADIUS, {'numeric'}, {'vector', 'nonnegative', 'numel', ndim}, 'checkIN', 'RADIUS');
@@ -141,64 +199,85 @@ else
     error("METHOD should be 'gpu' or 'cpu', got %s", METHOD)
 end
 
-OPTIONAL = EMC_extract_optional(OPTIONAL, {'shift', 'origin', 'taper', 'asym_restrict'});
+OPTION = EMC_extract_option(OPTION, {'shift', 'origin', 'taper', 'sym', 'precision'}, false);
 
 % shift
-if isfield(OPTIONAL, 'shift')
-    validateattributes(OPTIONAL.shift, {'numeric'}, ...
+if isfield(OPTION, 'shift')
+    validateattributes(OPTION.shift, {'numeric'}, ...
                        {'row', 'numel', ndim, 'finite', 'nonnan'}, 'checkIN', 'shift')
 else
-    OPTIONAL.shift = zeros(1, ndim);  % default
+    OPTION.shift = zeros(1, ndim);  % default
 end
     
 % origin
-if isfield(OPTIONAL, 'origin')
-    if ~(OPTIONAL.origin == -1 || OPTIONAL.origin == 0 || OPTIONAL.origin == 1 || OPTIONAL.origin == 2)
-        error("origin should be 0, 1, 2, or -1, got %s", num2str(ORIGIN))
+if isfield(OPTION, 'origin')
+    if ~(OPTION.origin == 0 || OPTION.origin == 1 || OPTION.origin == 2)
+        % EMC_resize (used with 'rectangle' and 3d 'cylinders') will raise an error if origin=0
+        error("origin should be 0, 1, or 2, got %.04f", OPTION.origin)
     end
 else
-    OPTIONAL.origin = 1;  % default
+    OPTION.origin = 1;  % default
 end
 
 % taper
-if isfield(OPTIONAL, 'taper')
-    % bool
-    if islogical(OPTIONAL.taper)
-        if OPTIONAL.taper
+flg.ownTaper = false;
+if isfield(OPTION, 'taper')
+    if islogical(OPTION.taper)
+        if OPTION.taper
             flg.taper = true;
-            OPTIONAL.taper = 0.02;  % default
+            OPTION.taper = 0.04;  % default
         else
             flg.taper = false;
-            OPTIONAL.taper = 0;
+            OPTION.taper = 0;
         end
-    elseif isfloat(OPTIONAL.taper) || isint(OPTIONAL.taper)
-        if OPTIONAL.taper < 0
-            error('taper should be positive, got %f', OPTIONAL.taper)
+    elseif isfloat(OPTION.taper) || isinteger(OPTION.taper)
+        if ~(0 <= OPTION.taper <= 1)
+            error('taper should be between 0 and 1, got %.04f', OPTION.taper)
         end
-        if OPTIONAL.taper == 0 || isnan(OPTIONAL.taper)
+        if OPTION.taper == 0 || isnan(OPTION.taper)
             flg.taper = false;
         else
             flg.taper = true;
         end
+    elseif isnumeric(OPTION.taper)
+        taperSize = size(OPTION.taper);
+        if ~all(taperSize(1) == taperSize)
+            error('kernel should have the same number of elements in each dimension.')
+        elseif ~mod(taperSize(1), 2)
+            error('kernel size should be odd')
+        end
+        flg.taper = true;
+        flg.ownTaper = true;
     else
-        error('taper should be a boolean or a positive float, got %s', class(OPTIONAL.taper))
+        error('taper should be a boolean or a positive float, got %s', class(OPTION.taper))
     end
 else
-     OPTIONAL.taper = 0.02;  % default
+     OPTION.taper = 0.04;  % default
      flg.taper = true;
 end
 
-% asym_restrict
-if isfield(OPTIONAL, 'asym_restrict')
-    if ~islogical(OPTIONAL.asym_restrict)
-        error('asym_restrict should be a boolean, got %s', class(OPTIONAL.asym_restrict))
-    elseif OPTIONAL.asym_restrict && ~strcmpi(SHAPE, 'cylinder')
-        error("asym_restrict only available for SHAPE = 'cylinder'")
-    elseif OPTIONAL.asym_restrict
-        error('asym_restrict not supported yet.')
+% sym
+if isfield(OPTION, 'sym')
+    if (isfloat(OPTION.sym) || isinteger(OPTION.sym)) && OPTION.sym > 0
+        if OPTION.sym == 1
+            flg.sym = false;
+        else
+            flg.sym = true;
+        end
+    else
+        error('sym should be a positive, non zero integer')
     end
 else
-    OPTIONAL.asym_restrict = false;  % default
+    flg.sym = false;  % default
+end
+
+% precision
+if isfield(OPTION, 'precision')
+    if ~(strcmpi(OPTION.precision, 'single') || strcmpi(OPTION.precision, 'double'))
+        error("precision should be 'single' or 'double', got %s", OPTION.precision)
+    end
+else
+    OPTION.precision = 'single';
 end
 
 end  % checkIN

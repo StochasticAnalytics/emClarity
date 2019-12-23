@@ -1,5 +1,5 @@
-function [LIMITS] = EMC_multi_limits(CURRENT, DESIRED, OPTIONAL)
-% [LIMITS] = EMC_limits(CURRENT, DESIRED, OPTIONAL)
+function [LIMITS] = EMC_multi_limits(CURRENT, DESIRED, OPTION)
+% [LIMITS] = EMC_limits(CURRENT, DESIRED, OPTION)
 %
 % Compute the LIMITS: pixels to add/remove to the CURRENT size to
 % resize it to the DESIRED size while preserving the origin.
@@ -10,7 +10,7 @@ function [LIMITS] = EMC_multi_limits(CURRENT, DESIRED, OPTIONAL)
 % DESIRED (vector):         Desired size; [x, y(, z)]
 %                           Should correspond to CURRENT.
 %
-% OPTIONAL (cell|struct):   Optional parameters.
+% OPTION (cell|struct):     Optional parameters.
 %                           If cell: {field, value; ...}, note the ';' between parameters.
 %                           NOTE: Can be empty.
 %                           NOTE: Unknown fields will raise an error.
@@ -42,21 +42,21 @@ ndim = numel(CURRENT);
 validateattributes(CURRENT, {'numeric'}, {'vector', 'integer', 'positive'}, '', 'CURRENT');
 validateattributes(DESIRED, {'numeric'}, {'vector', 'integer', 'positive', 'numel', ndim}, '', 'DESIRED');
 
-OPTIONAL = EMC_extract_optional(OPTIONAL, {'shift', 'origin'});
+OPTION = EMC_extract_option(OPTION, {'shift', 'origin'}, false);
 
-if isfield(OPTIONAL, 'origin')
-    if ~(OPTIONAL.origin == -1 || OPTIONAL.origin == 1 || OPTIONAL.origin == 2)
-        error("origin should be 1, 2, or -1, got %d", OPTIONAL.origin)
+if isfield(OPTION, 'origin')
+    if ~(OPTION.origin == -1 || OPTION.origin == 1 || OPTION.origin == 2)
+        error("origin should be 1, 2, or -1, got %d", OPTION.origin)
     end
 else
-    OPTIONAL.origin = 1;  % default
+    OPTION.origin = 1;  % default
 end
 
-if isfield(OPTIONAL, 'shift')
-    validateattributes(OPTIONAL.shift, {'numeric'}, ...
+if isfield(OPTION, 'shift')
+    validateattributes(OPTION.shift, {'numeric'}, ...
                        {'row', 'numel', ndim, 'finite', 'nonnan'}, '', 'shift');
 else
-    OPTIONAL.shift = zeros(1, ndim);  % default
+    OPTION.shift = zeros(1, ndim);  % default
 end
 
 %% MAIN
@@ -65,17 +65,17 @@ remain = mod(size_difference, 2);
 odd_input = mod(CURRENT, 2);
 
 LIMITS = zeros(1, ndim .* 2);
-left = floor((size_difference ./ 2)) + odd_input .* remain + OPTIONAL.shift;
-right = floor((size_difference ./ 2)) + ~(odd_input) .* remain - OPTIONAL.shift;
+left = floor((size_difference ./ 2)) + odd_input .* remain + OPTION.shift;
+right = floor((size_difference ./ 2)) + ~(odd_input) .* remain - OPTION.shift;
 
-if OPTIONAL.origin == 1 || OPTIONAL.origin == -1
+if OPTION.origin == 1 || OPTION.origin == -1
     LIMITS(1:2:end) = left;
     LIMITS(2:2:end) = right;
-elseif OPTIONAL.origin == 2
+elseif OPTION.origin == 2
     LIMITS(1:2:end) = right;
     LIMITS(2:2:end) = left;
 else
-    error('origin should be -1, 1 or 2, got %d', OPTIONAL.origin)
+    error('origin should be -1, 1 or 2, got %d', OPTION.origin)
 end
 
 end  % EMC_limits
