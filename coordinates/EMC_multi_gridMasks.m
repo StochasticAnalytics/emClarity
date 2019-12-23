@@ -1,6 +1,6 @@
 function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTION)
-% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTIONAL)
 %
+% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridMasks(TYPE, SIZE, METHOD, OPTIONAL)
 % Compute ndgrids of different size and different coordinate systems.
 %
 % TYPE (str):                   'cartesian', 'spherical', 'cylindrical' or 'radial'.
@@ -62,7 +62,7 @@ if numel(SIZE) == 3 && SIZE(3) ~= 1
         gZ = acos(Z ./ gX);  % [0,pi]
     elseif strcmpi(TYPE, 'cylindrical')
         [X, Y, gZ] = ndgrid(vX, vY, vZ);
-        gX = sqrt(X.^2 + Y.^2);
+        gX = sqrt(vX'.^2 + vY.^2 + reshape(vZ, 1, 1, []).^2);
         gY = atan2(Y, X);
         gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] --> [0,2pi]
     else
@@ -76,8 +76,9 @@ else % 2d
         gY = nan; gZ = nan;
     elseif strcmpi(TYPE, 'spherical') || strcmpi(TYPE, 'cylindrical')
         [X, Y] = ndgrid(vX, vY);
-        gX = sqrt(X.^2 + Y.^2);
+        gX = sqrt(vX'.^2 + vY.^2);
         gY = atan2(Y, X);
+        gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] --> [0,2pi]
         gZ = nan;
     else
         error("SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", TYPE)
