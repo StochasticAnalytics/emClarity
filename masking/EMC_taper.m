@@ -18,10 +18,10 @@ function [TAPER] = EMC_taper(TYPE, FIRST, LAST, SIZE)
 %
 
 if strcmpi(TYPE, 'cosine')
-    TAPER = cos(((1:SIZE) * pi) ./ (SIZE+1)) .* (FIRST-LAST)/2 + abs(FIRST-LAST)/2 + min(FIRST, LAST);
+    TAPER = cos(((1:SIZE) * pi) ./ SIZE) .* (FIRST-LAST)/2 + abs(FIRST-LAST)/2 + min(FIRST, LAST);
 elseif strcmpi(TYPE, 'linear')
     TAPER = linspace(FIRST, LAST, SIZE);
-    TAPER = TAPER(2:end-1);
+    TAPER = TAPER(2:end);
 else
     error("TYPE should be 'cosine' or 'linear', got %s", TYPE)
 end
