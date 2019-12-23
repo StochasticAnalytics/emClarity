@@ -88,8 +88,8 @@ function [BANDPASS] = EMC_bandpass(SIZE, PIXEL, LOWCUT, HIGHCUT, METHOD, OPTION)
 default_lowRoll = 0.02;
 default_highRoll = 0.02;
 
-[OPTION, flg] = checkIN(SIZE, PIXEL, LOWCUT, HIGHCUT, METHOD, OPTION, ...
-                        default_lowRoll, default_highRoll);
+[SIZE, OPTION, flg] = checkIN(SIZE, PIXEL, LOWCUT, HIGHCUT, METHOD, OPTION, ...
+                              default_lowRoll, default_highRoll);
 
 [vX, vY, vZ] = EMC_multi_vectorCoordinates(SIZE, METHOD, {'origin', OPTION.origin; ...
                                                           'half', OPTION.half; ...
@@ -154,7 +154,8 @@ clear radius
 end  % EMC_bandpass
 
 
-function [OPTION, flg] = checkIN(SIZE, PIXEL, LOWCUT, HIGHCUT, METHOD, OPTION, def_lowRoll, def_highRoll)
+function [SIZE, OPTION, flg] = checkIN(SIZE, PIXEL, LOWCUT, HIGHCUT, METHOD, OPTION, ...
+                                       def_lowRoll, def_highRoll)
 
 [SIZE, flg.is3d, ndim] = EMC_is3d(SIZE);
 if strcmpi(METHOD, 'gpu')
