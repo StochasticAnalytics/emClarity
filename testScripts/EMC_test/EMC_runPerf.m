@@ -1,21 +1,16 @@
 function EMC_runPerf(testCase)
 %
-% Run perfomance tests (via timeit, gputimeit or your own function(s)).
+% Run perfomance tests (via timeit, gputimeit).
 %
-% Inputs: testCase.TestData should contains the following field:
-%   testName (string):          Name of the test function.
+% Inputs:
+% testCase.TestData should contains the following field:
 %
 %   functionToTest (handle):    Function to test.
 %                               Signature: [ouput1, ...] = example(input1, ...)
 %                               Functions without outputs and/or inputs are also accepted.
 %
-%   toTest (cell):            	Should correspond to functionToTest inputs (same order), plus 1 arguments:
-%                               - method (str|handle):
-%                                   If str:     'cpu' or 'gpu'.
-%                                   If handle:  function handle that will be called to perform the perfomance
-%                                               measurement. This is usually useful if one wants to compare
-%                                               gpu and cpu result.
-%                                               Signature: [executionTime[int|float]] = funcHandle(input1, ...)
+%   toTest (cell):            	Should correspond to functionToTest inputs (same order), plus 1 argument:
+%                               - method (str): 'cpu' or 'gpu'.
 %
 %                               dimension:      cell(nTests, (nInputs + 1))
 %                               format:         {input1A, input1B, input1C, ..., method;
@@ -23,14 +18,30 @@ function EMC_runPerf(testCase)
 %                                                ...
 %                                                inputNA, inputNB, inputNC, ..., method}
 %
-%   Optional field:
-%     -> fixture_* (handle):    Same as EMC_runTest.
+%   (optional)
+%   fixture_* (handle):         Same as EMC_runTest.
+%
+%   (optional)
+%   testName (string):          Same as EMC_runTest.
 %
 % Notes:
 %   -
 %
 % Examples:
-%   -
+%   One perfomance test with EMC_resize:
+%   testCase.TestData.functionToTest = @EMC_resize;
+%
+%   % Create inputs with one fixtures.
+%   method = 'gpu';  % test with gputimeit
+%   testCase.TestData.fixtureImg = @(Size, Precision) ones(Size, Precision);
+%   img = {'fixtureImg', method, 'single', [1280,1280]};  % the array will be created just before running the test.
+%   limits = [10,-10,10,-10];
+%   option = {};
+%   
+%   testCase.TestData.toTest = {img, limits, option, method};
+%
+%   % Run the test.
+%   EMC_runPerf(testCase);  % logfile: ./logPerf/EMC_resize/EMC_resize.mat
 %
 % Other m-files required:
 %
@@ -39,24 +50,44 @@ function EMC_runPerf(testCase)
 % See also EMC_runTest
 %
 
-functionName = func2str(testCase.TestData.toTest);
-logFileName = [pwd, '/logPerf/%s_%s', functionName, testCase.TestData.testName];
-save(testCase.TestData.toTest, logFileName);
+%% Save inputs as log.
+stack = dbstack;
+if length(stack) == 1  % EMC_runPerf is called from the cmd line.
+    error('This function should be called from a script, not from the command line.')
+end
+nameParentFunction = stack(2).name;
+nameFunctionToTest = ['log_', func2str(testCase.TestData.functionToTest)];
 
-toTest = testCase.TestData.toTest;
-executionTimes = cell(length(toTest), 1);
+folderName = [pwd, '/logPerf/', nameFunctionToTest];
+if ~exist(folderName, 'dir')
+    mkdir(folderName);
+end
 
-for iTest = 1:length(toTest)  % for every test
+nbTests = length(testCase.TestData.toTest(:, 1));
+
+if isfield(testCase.TestData, 'testName')
+    logFileName = [folderName, sprintf('/%s_%s', nameParentFunction, testCase.TestData.testName)];
+    fprintf('\t - %s:%s: %d tests\n', nameParentFunction, testCase.TestData.testName, nbTests)
+else
+    logFileName = [folderName, sprintf('/%s', nameParentFunction)];
+    fprintf('\t - %s: %d tests\n', nameParentFunction, nbTests)
+end
+
+save(logFileName, 'testCase');
+
+%% Performance test
+results = cell(nbTests, 1);  % execution times
+for iTest = 1:nbTests  % for every test
     
     % Extract fixture.
-    nbArgs = length(testCase.TestData.toTest(iTest, :)) - 1;  % method
+    nbArgs = length(testCase.TestData.toTest(iTest, :)) - 1;  % minus method
     cleanArg = cell(1, nbArgs);
     for iArg = 1:nbArgs  % for every input arguments
         currentArg = testCase.TestData.toTest{iTest, iArg};
         
         if (iscell(currentArg) && ~isempty(currentArg) && ...
             (isstring(currentArg{1}) || ischar(currentArg{1})) && ...
-            contains(currentArg{1}, 'fixture_'))
+            strncmpi(currentArg{1}, 'fixture', 7))
 
             cleanArg(iArg) = testCase.TestData.toTest(iTest, iArg);
             if numel(currentArg) == 1
@@ -68,20 +99,16 @@ for iTest = 1:length(toTest)  % for every test
     end
     
     % Run performation test.
-    if isstring(toTest{iTest, end})
-        if strcmpi(toTest{iTest, end}, 'cpu')
-            executionTimes(iTest, 1) = timeit(@()testCase.TestData.functionToTest(toTest{iTest, 1:end-1}));
-        elseif strcmpi(toTest{iTest, end}, 'gpu')
-            executionTimes(iTest, 1) = gputimeit(@()testCase.TestData.functionToTest(toTest{iTest, 1:end-1}));
+    if isstring(testCase.TestData.toTest{iTest, end}) || ischar(testCase.TestData.toTest{iTest, end})
+        if strcmpi(testCase.TestData.toTest{iTest, end}, 'cpu')
+            results{iTest, 1} = timeit(@()testCase.TestData.functionToTest(testCase.TestData.toTest{iTest, 1:end-1}));
+        elseif strcmpi(testCase.TestData.toTest{iTest, end}, 'gpu')
+            results{iTest, 1} = gputimeit(@()testCase.TestData.functionToTest(testCase.TestData.toTest{iTest, 1:end-1}));
         else
-            executionTimes(iTest, 1) = sprintf("method should be 'cpu', 'cpu' or function handle, got %s", ...
-                                               toTest{iTest, end});
+            results{iTest, 1} = "method should be 'cpu', 'cpu'";
         end
-    elseif isa(toTest{iTest, end}, 'function_handle')
-        executionTimes(iTest, 1) = timeit(@()toTest{iTest, end}(toTest{iTest, 1:end-1}));
     else
-        executionTimes(iTest, 1) = sprintf("method should be 'cpu', 'cpu' or function handle, got %s", ...
-                                           toTest{iTest, end});
+        results{iTest, 1} = "method should be 'cpu', 'cpu'";
     end
 
     % Clean fixture.
@@ -95,6 +122,7 @@ for iTest = 1:length(toTest)  % for every test
 end
 
 % Every tests were ran. Update the log with the results.
-save([testCase.TestData.toTest, executionTimes], logFileName);
+testCase.TestData.toTest = [testCase.TestData.toTest, results];
+save(logFileName, 'testCase');
 
-end  % EMC_runTest
+end  % EMC_runPerf
