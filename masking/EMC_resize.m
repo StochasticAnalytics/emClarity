@@ -1,151 +1,139 @@
 function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
-% [OUT] = EMC_resize(IMAGE, LIMITS, OPTIONAL)
 %
+% [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 % Pad and/or crop an IMAGE.
+% 
+% Inputs:
+%   IMAGE (single|double):          2d/3d IMAGE to pad and/or crop.
 %
-% IMAGE (single | double):          2d/3d image to pad an/or crop.
-%
-% LIMITS (vector):                  Number of pixels to pad or crop, for each axis.
+%   LIMITS (row vector):            Number of pixels to pad or crop, for each axis.
 %                                   If 2d IMAGE: [xleft, xright, yleft, yright].
 %                                   If 3d IMAGE: [xleft, xright, yleft, yright, zleft, zright].
 %                                   See EMC_multi_limits for more details.
 %                                   NOTE: Positive values indicate the number of pixels to pad, while
 %                                         negative values indicate the number of pixels to crop.
 %
-% OPTION (cell | struct):           Optional parameters.
-%                                   If cell: {field,value ; ...}, note the ';' between parameters.
+%   OPTION (cell|struct):           Optional parameters.
+%                                   If cell: {param, value ; ...}, note the ';' between parameters.
 %                                   NOTE: Can be empty.
 %                                   NOTE: Unknown fields will raise an error.
 %
-%   -> 'origin' (int):              Origin convention - Center of rotation.
+%     -> 'origin' (int):            Origin convention - Center of rotation.
 %                                   -1, 1 or 2; see EMC_multi_gridVectors for more details.
 %                                   NOTE: 1|2 produce identical results because LIMITS is not relative
 %                                         to the origin but to the edges of the IMAGE. On the other hand,
 %                                         'origin'=-1 is different as it specifies a not-centered IMAGE
-%                                         (zero frequency first). As such, the 'edges' of IMAGE are at
-%                                         the center of the array.
-%                                   NOTE: This function opperates in pixel space. As such, origin=0 is not
-%                                         allowed.
+%                                         (zero frequency first).
+%                                   NOTE: This function opperates in pixel space: origin=0 is not allowed.
 %                                   defaut = 1
 %
-%   -> 'value' (float | str):       If float: value to pad with.
+%     -> 'value' (float|int|str):   If float|int: value to pad with. Casted to desired 'precision'.
 %                                   If 'uniform': pad with white gaussian noise.
 %                                   If 'mean': pad with the mean of the IMAGE.
-%                                   NOTE: this parameter is ignored if no padding is applied.
 %                                   default = 0
 %
-%   -> 'taper' (bool|cell|vector):  Apply a taper to the IMAGE padded edges before padding.
-%                                   If bool: Apply or not the default taper; equivalent to {'cosine', 7}
-%                                   If cell: {type, size} with type = 'linear' or 'cosine' and with 
-%                                   size = size of the taper (in pixel).
-%                                   If vector: ROW vector used as taper (left to right <-> center to edge).
-%                                   NOTE: all IMAGE dimensions should be larger than the taper, with the
-%                                         exception of origin=-1 that requires the dimensions to be at
+%     -> 'taper' (bool|cell|vector|float|int):
+%                                   Apply a taper to the IMAGE before padding.
+%                                   If bool: Apply or not the default taper; equivalent to {'cosine', 7}.
+%                                   If cell: {type, size} with type = 'linear' or 'cosine'
+%                                            and with size = size of the taper (in pixel).
+%                                   If vector: column vector used as taper (left to right <-> center to edge).
+%                                   If float|int: equivalent to [float]; one pixel taper.
+%                                   NOTE: Every IMAGE dimension should be larger than the taper, with the
+%                                         exception of origin=-1, which requires the dimensions to be at
 %                                         least 2 times larger than the taper.
-%                                   NOTE: if the taper is a gpuArray, the IMAGE should also be a gpuArray.
 %                                   default = {'cosine', 7}
 %
-%   -> 'force_taper' (bool):        By default, (force_taper=false) only the edges that are padded are
+%     -> 'force_taper' (bool):      By default, (force_taper=false) only the edges that are padded are
 %                                   tapered. If true, apply the taper to every edges even if they are not
 %                                   padded. If cropping is required, apply the taper AFTER cropping.
 %                                   NOTE: this has no effect if 'taper' = false.
 %                                   default = false
 %
-%   -> 'precision' (str):           Precision of the padded/cropped image; 'single' or 'double'.
+%     -> 'precision' (str):         Precision of the padded/cropped IMAGE; 'single' or 'double'.
 %                                   default = same as IMAGE
 %
-%---------
-% EXAMPLE:                          [OUT] = EMC_resize(randn(64,64), [10,10,-5,0], {})
-%                                   [OUT] = EMC_resize(randn(64,64), [10,10,-5,0], ...
-%                                                      {'value', 2; 'origin', -1})
+% Output:
+%   OUT (single|double):            Output 2d/3d image.
 %
-% See also EMC_multi_limits.m
+% Examples:
+%   - [OUT] = EMC_resize(randn(64,64), [10,10,-5,0], {})
+%   - [OUT] = EMC_resize(randn(64,64), [10,10,-5,0], {'value', 2; 'origin', -1})
+%
+% Other EMC-files required:
+%   EMC_setPrecision.m, EMC_getClass.m, EMC_is3d.m, EMC_getOption.m, EMC_isOnGpu, EMC_taper
+%
+% See also EMC_multi_limits, EMC_multi_gridVectors
+%
+
+% Created:  18Jan2020, R2019a
+% Version:  v.1.0.1 better error message display (TF, 20Jan2020).
+%           v.1.1   unittest (TF, 21Jan2020).
+%           v.1.1.1 add isscalar when expecting a scalar (TF, 21Jan2020).
+%
 
 %% MAIN
 [OPTION, flg] = checkIN(IMAGE, LIMITS, OPTION);
 
-% Short cut: nothing to do to the IMAGE.
+% Short cut: nothing to do to the IMAGE, except maybe changing its precision.
 if ~flg.pad && ~flg.crop && ~(flg.taper && OPTION.force_taper)
-    if (flg.change_precision)
-        if strcmp(OPTION.precision, 'single')
-            OUT = single(IMAGE);
-        else  % double
-            OUT = double(IMAGE);
-        end
-    else
-        OUT = IMAGE;
-    end
+    OUT = EMC_setPrecision(IMAGE, OPTION.precision);
     return
 end
 
-% Cropping and padding are done simultaneously.
-IN_size = size(IMAGE);
-OUT_size = IN_size + sum(reshape(LIMITS, 2, []));
+inSize = size(IMAGE);
+outSize = inSize + sum(reshape(LIMITS, 2, []));
+if any(outSize < 1)
+    EMC_resize_raiseError('EMC_resize:outputImageTooSmall', IMAGE, LIMITS, OPTION);
+end
 
 % Option to pad with white gaussian noise.
-if (flg.uniform)
-    val = mean(IMAGE(:));
-    std_ = std(IMAGE(:));
+if flg.uniform
+    val = EMC_setPrecision(mean(IMAGE(:)), OPTION.precision);
+    std_ = EMC_setPrecision(std(IMAGE(:)), OPTION.precision);
 else
     val = OPTION.value;
     std_ = nan;
 end
 
 % Allocate memory for the output image.
-if (flg.gpu)
-    if (flg.uniform)
-       	OUT = randn(OUT_size, OPTION.precision, 'gpuArray') .* std_ + val;
-    else
-      	OUT = zeros(OUT_size, OPTION.precision, 'gpuArray');
-        if OPTION.value ~= 0
-            OUT = OUT + OPTION.value;
+% At this point, if nothing to pad or crop, it means the goal
+% is only to apply a taper and maybe also change the precision.
+% In this case, no need to allocate new memory.
+if flg.pad || flg.crop
+    if flg.gpu
+        if flg.uniform
+            OUT = randn(outSize, OPTION.precision, 'gpuArray') .* std_ + val;
+        else
+            OUT = zeros(outSize, OPTION.precision, 'gpuArray');
+            if OPTION.value ~= 0
+                OUT = OUT + OPTION.value;
+            end
         end
-   	end
-else
-  	if (flg.uniform)
-       	OUT = randn(OUT_size, OPTION.precision) .* std_ + val;
     else
-      	OUT = zeros(OUT_size, OPTION.precision);
-        if OPTION.value ~= 0
-            OUT = OUT + OPTION.value;
+        if flg.uniform
+            OUT = randn(outSize, OPTION.precision) .* std_ + val;
+        else
+            OUT = zeros(outSize, OPTION.precision);
+            if OPTION.value ~= 0
+                OUT = OUT + OPTION.value;
+            end
         end
-  	end
+    end
 end
 
 x=1; y=2; z=3;
-if (flg.is3d)
-    if (flg.fft)  % not-centered IMAGE: 'origin' = -1
+if flg.is3d
+    if flg.fft  % not-centered IMAGE: 'origin' = -1
         crop = reshape(LIMITS .* (LIMITS < 0), 2, []);
-        l = floor((IN_size+1) / 2) + crop(1, :);  % left side
-        r = floor((IN_size-2) / 2) + crop(2, :);  % right side
-
+        l = floor((inSize+1) / 2) + crop(1, :);  % left side
+        r = floor((inSize-2) / 2) + crop(2, :);  % right side
+        
         % Taper
-        if (flg.taper)
-            s = numel(OPTION.taper);
-            pad = LIMITS > 0;
-
-            if any(pad(1:2) > 0) || OPTION.force_taper
-                t = OPTION.taper';
-                tf = flip(t);
-                IMAGE(l(x)-s+1:l(x), :, :)         = IMAGE(l(x)-s+1:l(x), :, :)         .*t  +val.*(1-t);
-                IMAGE(end-r(x):end-r(x)+s-1, :, :) = IMAGE(end-r(x):end-r(x)+s-1, :, :) .*tf +val.*(1-tf);
-            end
-            if any(pad(3:4) > 0) || OPTION.force_taper
-                t = OPTION.taper;
-                tf = flip(t);
-                IMAGE(:, l(y)-s+1:l(y), :)         = IMAGE(:, l(y)-s+1:l(y), :)         .*t  +val.*(1-t);
-                IMAGE(:, end-r(y):end-r(y)+s-1, :) = IMAGE(:, end-r(y):end-r(y)+s-1, :) .*tf +val.*(1-tf);
-            end
-            if any(pad(5:6) > 0) || OPTION.force_taper
-                t = reshape(OPTION.taper, 1, 1, []);
-                tf = flip(t);
-                IMAGE(:, :, l(z)-s+1:l(z))         = IMAGE(:, :, l(z)-s+1:l(z))         .*t  +val.*(1-t);
-                IMAGE(:, :, end-r(z):end-r(z)+s-1) = IMAGE(:, :, end-r(z):end-r(z)+s-1) .*tf +val.*(1-tf);
-            end
-        end
-
+        if flg.taper; IMAGE = p_applyTaper_fft3d(IMAGE, LIMITS, OPTION, l, r, val); end
+        
         % Pad/Crop
-        if (flg.pad || flg.crop)
+        if flg.pad || flg.crop
             OUT(1:l(x),       1:l(y),       1:l(z))       = IMAGE(1:l(x),       1:l(y),       1:l(z));
             OUT(end-r(x):end, 1:l(y),       1:l(z))       = IMAGE(end-r(x):end, 1:l(y),       1:l(z));
             OUT(1:l(x),       end-r(y):end, 1:l(z))       = IMAGE(1:l(x),       end-r(y):end, 1:l(z));
@@ -154,47 +142,17 @@ if (flg.is3d)
             OUT(end-r(x):end, 1:l(y),       end-r(z):end) = IMAGE(end-r(x):end, 1:l(y),       end-r(z):end);
             OUT(1:l(x),       end-r(y):end, end-r(z):end) = IMAGE(1:l(x),       end-r(y):end, end-r(z):end);
             OUT(end-r(x):end, end-r(y):end, end-r(z):end) = IMAGE(end-r(x):end, end-r(y):end, end-r(z):end);
-        else  % force_taper without pad or crop
-            if (flg.change_precision)
-                if strcmp(OPTION.precision, 'single')
-                    OUT = single(IMAGE);
-                else  % double
-                    OUT = double(IMAGE);
-                end
-            else
-                OUT = IMAGE;
-            end
+        else
+            OUT = EMC_setPrecision(IMAGE, OPTION.precision); % force_taper without pad or crop
         end
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
         pad  = LIMITS .* (LIMITS > 0);
 
-        if (flg.taper) && (any(pad) || OPTION.force_taper)
-            l = numel(OPTION.taper) + crop;  % broadcast
-            ty = OPTION.taper;
-            tx = ty';
-            tz = reshape(ty, 1, 1, []);
-
-            % top, down, left, right, bottom, front
-            if pad(1) || OPTION.force_taper
-                IMAGE(1+crop(1):l(1),:,:)         = IMAGE(1+crop(1):l(1),:,:) .* flip(tx) + val.*(1-flip(tx));
-            end
-            if pad(2) || OPTION.force_taper
-                IMAGE(end-l(2)+1:end-crop(2),:,:) = IMAGE(end-l(2)+1:end-crop(2),:,:) .* tx + val.*(1-tx);
-            end
-            if pad(3) || OPTION.force_taper
-                IMAGE(:,1+crop(3):l(3),:)         = IMAGE(:,1+crop(3):l(3),:) .* flip(ty) + val.*(1-flip(ty));
-            end
-            if pad(4) || OPTION.force_taper
-                IMAGE(:,end-l(4)+1:end-crop(4),:) = IMAGE(:,end-l(4)+1:end-crop(4),:) .* ty + val.*(1-ty);
-            end
-            if pad(5) || OPTION.force_taper
-                IMAGE(:,:,1+crop(5):l(5))         = IMAGE(:,:,1+crop(5):l(5)) .* flip(tz) + val.*(1-flip(tz));
-            end
-            if pad(6) || OPTION.force_taper
-                IMAGE(:,:,end-l(6)+1:end-crop(6)) = IMAGE(:,:,end-l(6)+1:end-crop(6)) .* tz + val.*(1-tz);
-            end
-        end  % end taper 3d
+        % Taper
+        if flg.taper && (any(pad) || OPTION.force_taper)
+            IMAGE = p_applyTaper_real3d(IMAGE, LIMITS, OPTION, pad, crop, val);
+        end
 
         % Pad/Crop
         if flg.pad && flg.crop
@@ -203,103 +161,50 @@ if (flg.is3d)
                 1+pad(5):end-pad(6)) = IMAGE(1+crop(1):end-crop(2), ...
                                                    1+crop(3):end-crop(4), ...
                                                    1+crop(5):end-crop(6));
-        elseif flg.pad  % pad only
+        elseif flg.pad
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4), 1+pad(5):end-pad(6)) = IMAGE;
-        elseif flg.crop  % crop only
+        elseif flg.crop
             OUT(:,:,:) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4), 1+crop(5):end-crop(6));
-        else  % force_taper without pad or crop
-            if (flg.change_precision)
-                if strcmp(OPTION.precision, 'single')
-                    OUT = single(IMAGE);
-                else  % double
-                    OUT = double(IMAGE);
-                end
-            else
-                OUT = IMAGE;
-            end
+        else
+            OUT = EMC_setPrecision(IMAGE, OPTION.precision); % force_taper without pad or crop
         end
     end
 else  % 2d
-    if (flg.fft)  % not-centered IMAGE: 'origin' = -1
+    if flg.fft  % not-centered IMAGE: 'origin' = -1
         crop = reshape(LIMITS .* (LIMITS < 0), 2, []);
-        l = floor((IN_size+1) / 2) + crop(1, :);  % left side
-        r = floor((IN_size-2) / 2) + crop(2, :);  % right side
+        l = floor((inSize+1) / 2) + crop(1, :);  % left side
+        r = floor((inSize-2) / 2) + crop(2, :);  % right side
 
-        % Taper.
-        if (flg.taper)
-            s = numel(OPTION.taper);
-            pad = LIMITS > 0;
-            if any(pad(1:2) > 0) || OPTION.force_taper
-                t = OPTION.taper';
-                tf = flip(t);
-                IMAGE(l(x)-s+1:l(x), :)         = IMAGE(l(x)-s+1:l(x), :)         .*t  +val.*(1-t);
-                IMAGE(end-r(x):end-r(x)+s-1, :) = IMAGE(end-r(x):end-r(x)+s-1, :) .*tf +val.*(1-tf);
-            end
-            if any(pad(3:4) > 0) || OPTION.force_taper
-                t = OPTION.taper;
-                tf = flip(t);
-                IMAGE(:, l(y)-s+1:l(y))         = IMAGE(:, l(y)-s+1:l(y))         .*t  +val.*(1-t);
-                IMAGE(:, end-r(y):end-r(y)+s-1) = IMAGE(:, end-r(y):end-r(y)+s-1) .*tf +val.*(1-tf);
-            end
-        end  % end taper 2d
+        % Taper
+        if flg.taper; IMAGE = p_applyTaper_fft2d(IMAGE, LIMITS, OPTION, l, r, val); end
 
         % Pad/Crop
-        if (flg.pad || flg.crop)
+        if flg.pad || flg.crop
             OUT(1:l(x),       1:l(y))       = IMAGE(1:l(x),       1:l(y));
             OUT(end-r(x):end, 1:l(y))       = IMAGE(end-r(x):end, 1:l(y));
             OUT(1:l(x),       end-r(y):end) = IMAGE(1:l(x),       end-r(y):end);
             OUT(end-r(x):end, end-r(y):end) = IMAGE(end-r(x):end, end-r(y):end);
-        else  % force_taper without pad or crop
-            if (flg.change_precision)
-                if strcmp(OPTION.precision, 'single')
-                    OUT = single(IMAGE);
-                else  % double
-                    OUT = double(IMAGE);
-                end
-            else
-                OUT = IMAGE;
-            end
+        else
+            OUT = EMC_setPrecision(IMAGE, OPTION.precision); % force_taper without pad or crop
         end
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
         pad  = LIMITS .* (LIMITS > 0);
 
-        if (flg.taper) && (any(pad) || OPTION.force_taper)
-            l = numel(OPTION.taper) + crop;  % broadcast
-            ty = OPTION.taper;
-            tx = ty';
-            % top, down, left, right
-            if pad(1) || OPTION.force_taper
-                IMAGE(1+crop(1):l(1), :)        = IMAGE(1+crop(1):l(1), :) .* flip(tx) + val.*(1-flip(tx));
-            end
-            if pad(2) || OPTION.force_taper
-                IMAGE(end-l(2)+1:end-crop(2),:) = IMAGE(end-l(2)+1:end-crop(2),:) .* tx + val.*(1-tx);
-            end
-            if pad(3) || OPTION.force_taper
-                IMAGE(:, 1+crop(3):l(3))        = IMAGE(:, 1+crop(3):l(3)) .* flip(ty) + val.*(1-flip(ty));
-            end
-            if pad(4) || OPTION.force_taper
-                IMAGE(:,end-l(4)+1:end-crop(4)) = IMAGE(:,end-l(4)+1:end-crop(4)) .* ty + val.*(1-ty);
-            end
-        end  % end taper
+        % Taper
+        if flg.taper && (any(pad) || OPTION.force_taper)
+            IMAGE = p_applyTaper_real2d(IMAGE, LIMITS, OPTION, pad, crop, val);
+        end
 
-        if flg.pad && flg.crop  % pad and crop
-            OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4)) = IMAGE(1+crop(1):end-crop(2), ...
-                                                                  1+crop(3):end-crop(4));
-        elseif flg.pad  % pad only
+        % Pad/Crop
+        if flg.pad && flg.crop
+            OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4)) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4));
+        elseif flg.pad
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4)) = IMAGE;
-        elseif flg.crop  % crop only
+        elseif flg.crop
             OUT(:,:) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4));
-        else  % force_taper without pad or crop
-            if (flg.change_precision)
-                if strcmp(OPTION.precision, 'single')
-                    OUT = single(IMAGE);
-                else  % double
-                    OUT = double(IMAGE);
-                end
-            else
-                OUT = IMAGE;
-            end
+        else
+            OUT = EMC_setPrecision(IMAGE, OPTION.precision); % force_taper without pad or crop
         end
     end
 end
@@ -307,23 +212,146 @@ end
 end  % EMC_resize
 
 
-function [OPTION, flg, ndim] = checkIN(IMAGE, LIMITS, OPTION)
-% Standard sanity check.
-
-% LIMITS
-edges = numel(LIMITS);
-if edges == 6
-    flg.is3d = true;
-    ndim = 3;
-elseif edges == 4
-    flg.is3d = false;
-    ndim = 2;
-else
-    error('LIMITS should be of size 4 (2d) or 6 (3d), got %d', edges)
+function IMAGE = p_applyTaper_fft3d(IMAGE, LIMITS, OPTION, l, r, val)
+%
+% Apply the taper of a 3d fft IMAGE.
+%
+s = numel(OPTION.taper);
+pad = LIMITS > 0;
+try
+    if any(pad(1:2) > 0) || OPTION.force_taper
+        t = OPTION.taper';
+        tf = flip(t);
+        IMAGE(l(1)-s+1:l(1), :, :)         = IMAGE(l(1)-s+1:l(1), :, :)         .*t  +val.*(1-t);
+        IMAGE(end-r(1):end-r(1)+s-1, :, :) = IMAGE(end-r(1):end-r(1)+s-1, :, :) .*tf +val.*(1-tf);
+    end
+    if any(pad(3:4) > 0) || OPTION.force_taper
+        t = OPTION.taper;
+        tf = flip(t);
+        IMAGE(:, l(2)-s+1:l(2), :)         = IMAGE(:, l(2)-s+1:l(2), :)         .*t  +val.*(1-t);
+        IMAGE(:, end-r(2):end-r(2)+s-1, :) = IMAGE(:, end-r(2):end-r(2)+s-1, :) .*tf +val.*(1-tf);
+    end
+    if any(pad(5:6) > 0) || OPTION.force_taper
+        t = reshape(OPTION.taper, 1, 1, []);
+        tf = flip(t);
+        IMAGE(:, :, l(3)-s+1:l(3))         = IMAGE(:, :, l(3)-s+1:l(3))         .*t  +val.*(1-t);
+        IMAGE(:, :, end-r(3):end-r(3)+s-1) = IMAGE(:, :, end-r(3):end-r(3)+s-1) .*tf +val.*(1-tf);
+    end
+catch
+    EMC_resize_raiseError('EMC_resize:inputImageTooSmall', IMAGE, LIMITS, OPTION);
 end
-validateattributes(LIMITS, {'numeric'}, {'integer', 'vector'}, 'checkIN', 'LIMITS')
-if ndim ~= ndims(IMAGE)
-    error('IMAGE (%fD) and LIMITS (%fD) do not correspond', ndims(IMAGE), ndim)
+
+end  % p_applyTaper_fft3d
+
+
+function IMAGE = p_applyTaper_fft2d(IMAGE, LIMITS, OPTION, l, r, val)
+%
+% Apply the taper of a 2d fft IMAGE.
+%
+
+s = numel(OPTION.taper);
+pad = LIMITS > 0;
+try
+    if any(pad(1:2) > 0) || OPTION.force_taper
+        t = OPTION.taper';
+        tf = flip(t);
+        IMAGE(l(1)-s+1:l(1), :)         = IMAGE(l(1)-s+1:l(1), :)         .*t  +val.*(1-t);
+        IMAGE(end-r(1):end-r(1)+s-1, :) = IMAGE(end-r(1):end-r(1)+s-1, :) .*tf +val.*(1-tf);
+    end
+    if any(pad(3:4) > 0) || OPTION.force_taper
+        t = OPTION.taper;
+        tf = flip(t);
+        IMAGE(:, l(2)-s+1:l(2))         = IMAGE(:, l(2)-s+1:l(2))         .*t  +val.*(1-t);
+        IMAGE(:, end-r(2):end-r(2)+s-1) = IMAGE(:, end-r(2):end-r(2)+s-1) .*tf +val.*(1-tf);
+    end
+catch
+    EMC_resize_raiseError('EMC_resize:inputImageTooSmall', IMAGE, LIMITS, OPTION);
+end
+
+end  % p_applyTaper_fft2d
+
+
+function IMAGE = p_applyTaper_real3d(IMAGE, LIMITS, OPTION, pad, crop, val)
+%
+% Apply the taper of a 3d real IMAGE.
+%
+
+l = numel(OPTION.taper) + crop;  % broadcast
+ty = OPTION.taper;
+tx = ty';
+tz = reshape(ty, 1, 1, []);
+
+try
+    % top, down, left, right, bottom, front
+    if pad(1) || OPTION.force_taper
+        IMAGE(1+crop(1):l(1),:,:)         = IMAGE(1+crop(1):l(1),:,:) .* flip(tx) + val.*(1-flip(tx));
+    end
+    if pad(2) || OPTION.force_taper
+        IMAGE(end-l(2)+1:end-crop(2),:,:) = IMAGE(end-l(2)+1:end-crop(2),:,:) .* tx + val.*(1-tx);
+    end
+    if pad(3) || OPTION.force_taper
+        IMAGE(:,1+crop(3):l(3),:)         = IMAGE(:,1+crop(3):l(3),:) .* flip(ty) + val.*(1-flip(ty));
+    end
+    if pad(4) || OPTION.force_taper
+        IMAGE(:,end-l(4)+1:end-crop(4),:) = IMAGE(:,end-l(4)+1:end-crop(4),:) .* ty + val.*(1-ty);
+    end
+    if pad(5) || OPTION.force_taper
+        IMAGE(:,:,1+crop(5):l(5))         = IMAGE(:,:,1+crop(5):l(5)) .* flip(tz) + val.*(1-flip(tz));
+    end
+    if pad(6) || OPTION.force_taper
+        IMAGE(:,:,end-l(6)+1:end-crop(6)) = IMAGE(:,:,end-l(6)+1:end-crop(6)) .* tz + val.*(1-tz);
+    end
+catch
+    EMC_resize_raiseError('EMC_resize:inputImageTooSmall', IMAGE, LIMITS, OPTION);
+end
+
+end  % p_applyTaper_real3d
+
+
+function IMAGE = p_applyTaper_real2d(IMAGE, LIMITS, OPTION, pad, crop, val)
+%
+% Apply the taper of a 3d real IMAGE.
+%
+
+l = numel(OPTION.taper) + crop;  % broadcast
+ty = OPTION.taper;
+tx = ty';
+
+try
+    % top, down, left, right
+    if pad(1) || OPTION.force_taper
+        IMAGE(1+crop(1):l(1), :)        = IMAGE(1+crop(1):l(1), :) .* flip(tx) + val.*(1-flip(tx));
+    end
+    if pad(2) || OPTION.force_taper
+        IMAGE(end-l(2)+1:end-crop(2),:) = IMAGE(end-l(2)+1:end-crop(2),:) .* tx + val.*(1-tx);
+    end
+    if pad(3) || OPTION.force_taper
+        IMAGE(:, 1+crop(3):l(3))        = IMAGE(:, 1+crop(3):l(3)) .* flip(ty) + val.*(1-flip(ty));
+    end
+    if pad(4) || OPTION.force_taper
+        IMAGE(:,end-l(4)+1:end-crop(4)) = IMAGE(:,end-l(4)+1:end-crop(4)) .* ty + val.*(1-ty);
+    end
+catch
+    EMC_resize_raiseError('EMC_resize:inputImageTooSmall', IMAGE, LIMITS, OPTION);
+end
+
+end % p_applyTaper_real2d
+
+
+function [OPTION, flg, ndim] = checkIN(IMAGE, LIMITS, OPTION)
+% Sanity check.
+%
+
+if ~isnumeric(IMAGE)
+    error('EMC_resize:inputImage', 'Input IMAGE should be numeric, got %s', class(IMAGE))
+elseif isvector(IMAGE)
+    error('EMC_resize:inputImage', 'Input IMAGE should be 2d or 3d, got vector')
+end
+
+[flg.is3d, ~, ndim] = EMC_is3d(size(IMAGE));
+
+if ~isnumeric(IMAGE) || ~isrow(LIMITS) || any(rem(LIMITS,1)) || numel(LIMITS) ~= ndim * 2
+    EMC_resize_raiseError('EMC_resize:ndimNotRecognized', IMAGE, LIMITS, OPTION)
 end
 
 if any(LIMITS > 0)
@@ -339,94 +367,173 @@ else
 end
 
 % Extract optional parameters
-OPTION = EMC_extract_option(OPTION, {'origin', 'value', 'taper', 'force_taper', 'precision'}, false);
+OPTION = EMC_getOption(OPTION, {'origin', 'value', 'taper', 'force_taper', 'precision'}, false);
 
+% origin
 if isfield(OPTION, 'origin')
-    if OPTION.origin == -1
-        flg.fft = true;
-    elseif OPTION.origin == -1 || OPTION.origin == 1 || OPTION.origin == 2
-        flg.fft = false;
+    if isnumeric(OPTION.origin) && isscalar(OPTION.origin)
+        if OPTION.origin == -1
+            flg.fft = true;
+        elseif OPTION.origin == -1 || OPTION.origin == 1 || OPTION.origin == 2
+            flg.fft = false;
+        else
+            error('EMC_resize:origin', 'OPTION.origin should be 1, 2, or -1, got %d', OPTION.origin)
+        end
     else
-        error("origin should be 1, 2, or -1, got %d", OPTION.origin)
+        error('EMC_resize:origin', 'OPTION.origin should be 1, 2, or -1, got %d', OPTION.origin)
     end
 else
     OPTION.origin = 1;  % default
     flg.fft = false;
 end
 
+% precision
+[precision, flg.gpu, ~] = EMC_getClass(IMAGE);
+if isfield(OPTION, 'precision')
+    if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
+       ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
+      	error('EMC_resize:precision', "OPTION.precision should be 'single' or 'double'")
+    end
+else
+    OPTION.precision = precision;
+end
+
+% value
 if isfield(OPTION, 'value')
     if strcmpi(OPTION.value, 'uniform')
         flg.uniform = true;
     elseif strcmpi(OPTION.value, 'mean')
-        OPTION.value = mean(IMAGE(:));
+        OPTION.value = EMC_setPrecision(mean(IMAGE(:)), OPTION.precision);
         flg.uniform = false;
-    elseif isinteger(OPTION.value) || isfloat(OPTION.value)
+    elseif isnumeric(OPTION.value) && isscalar(OPTION.value)
         flg.uniform = false;
+        OPTION.value = EMC_setPrecision(OPTION.value, OPTION.precision);
+        if ~flg.gpu && EMC_isOnGpu(OPTION.value)
+            OPTION.value = gather(OPTION.value);
+        end
     else
-        error("value should be a float|int or 'uniform'")
+        error('EMC_resize:value', "OPTION.value should be a float|int, 'uniform' or 'mean'")
     end
 else
     OPTION.value = 0;  % default
     flg.uniform = false;
 end
 
+% taper
 if isfield(OPTION, 'taper')
     % bool
-    if islogical(OPTION.taper)
+    if islogical(OPTION.taper) && isscalar(OPTION.taper)
         if OPTION.taper
-            OPTION.taper = EMC_taper('cosine', 1, 0, 7);  % default
+            OPTION.taper = EMC_taper('cosine', 7, {});  % default
             flg.taper = true;
         else
             flg.taper = false;
         end
-    % [type, size]
+    % {type, size}
     elseif iscell(OPTION.taper)
         if numel(OPTION.taper) ~= 2
-            error('taper not recognized.')
+            error('EMC_resize:taper', 'OPTION.taper should be {type(str), size(int)}.')
         else
-            OPTION.taper = EMC_taper(OPTION.taper{1}, 1, 0, OPTION.taper{2});
+            OPTION.taper = EMC_taper(OPTION.taper{1}, OPTION.taper{2}, {});
             flg.taper = true;
         end
-    % vector: own taper
-    else
-        validateattributes(OPTION.taper, {'numeric'}, {'row'})
+    % vector|int|float: own taper
+    elseif isnumeric(OPTION.taper) && isrow(OPTION.taper)
+        if ~flg.gpu && EMC_isOnGpu(OPTION.taper)
+            OPTION.taper = gather(OPTION.taper);
+        end
         flg.taper = true;
+    else
+        error('EMC_resize:taper', 'OPTION.taper should be bool, cell or a row vector, got %s', class(OPTION.taper))
     end
 else
-     OPTION.taper = EMC_taper('cosine', 1, 0, 7);  % default
+     OPTION.taper = EMC_taper('cosine', 7, {});  % default
      flg.taper = true;
 end
 
 % force_taper
 if isfield(OPTION, 'force_taper')
-    if ~islogical(OPTION.force_taper)
-        error('force_taper should be a boolean, got %s', class(OPTION.force_taper))
+    if ~islogical(OPTION.force_taper) || ~isscalar(OPTION.force_taper)
+        error('EMC_resize:force_taper', ...
+              'OPTION.force_taper should be a boolean, got %s', class(OPTION.force_taper))
     end
 else
     OPTION.force_taper = false;  % default
 end
 
-% If no padding, no cropping and no taper, EMC_resize needs to know
-% if the precision should be changed before returning output.
-if isa(IMAGE, 'gpuArray')
-    flg.gpu = true;
-    current_precision = classUnderlying(IMAGE);
-else
-    flg.gpu = false;
-    current_precision = class(IMAGE);
-end
-if isfield(OPTION, 'precision')
-    if ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
-        error("presision should be 'single' or 'double', got %s", OPTION.precision)
+end  % checkIN
+
+
+function EMC_resize_raiseError(ERROR, IMAGE, LIMITS, OPTION)
+%
+% Error handling of EMC_resize
+% Generate an useful error message for debugging and expected index error for tests.
+%
+
+inSize = size(IMAGE);
+ndim = length(inSize);
+
+% EMC_resize:inputImageTooSmall: in some cases, the input IMAGE should have a minimum size.
+if strcmpi(ERROR, 'EMC_resize:inputImageTooSmall')
+
+    % CASE 1: the taper is too large given the input IMAGE.
+    if OPTION.origin == -1 && any(numel(OPTION.taper) > floor(inSize/2))
+        error('EMC_resize:inputImageTooSmall', ...
+              'For a size of %s, the maximum taper for a fft IMAGE is %s, got %d', ...
+              mat2str(inSize), mat2str(floor(inSize/2)), numel(OPTION.taper));
+    elseif any(numel(OPTION.taper) > inSize)
+        error('EMC_resize:inputImageTooSmall', ...
+              'For a size of %s, the maximum taper for an IMAGE is %s, got %d', ...
+              mat2str(inSize), mat2str(inSize), numel(OPTION.taper));
     end
-    if strcmpi(current_precision, OPTION.precision)
-        flg.change_precision = false;
+
+    extendedSize = reshape(ones(2, ndim) .* inSize, 1, []);
+
+    if OPTION.force_taper
+      	taperToApply = ones(ones(2, ndim*2)) .* numel(OPTION.taper);
     else
-        flg.change_precision = true;
+      	taperToApply = (LIMITS > 0) .* numel(OPTION.taper);
     end
+    
+    % CASE 2: For an fft IMAGE, the size(taper + cropping) should be smaller or equal
+    % than half of the size of the IMAGE.
+    if OPTION.origin == -1
+        halfSize = reshape(floor(extendedSize / 2), 2, []);
+        halfSize(1, :) = halfSize(1, :) + mod(inSize, 2);  % count extra pixel if odd;
+        halfSize = reshape(halfSize, 1, []);
+        maxCrop = -1 .* (halfSize - taperToApply);
+    
+    % CASE 3: For a real space IMAGE, if the size of the IMAGE is smaller than size (cropping + tapter),
+    % applying the taper will raise an index error.
+    else
+        maxCrop = -1 .* (extendedSize - taperToApply);
+    end
+
+    error('EMC_resize:inputImageTooSmall', ...
+          ['One axis is too small given the cropping and taper required.\n\n', ...
+           'Given the inputs (IMAGE size: %s and taper size: %s),\n'...
+           'the maximum cropping for each edges is %s, but got %s.'], ...
+          mat2str(inSize), mat2str(taperToApply), mat2str(maxCrop), mat2str((LIMITS < 0) .* LIMITS));
+
+% EMC_resize:ndimNotRecognized: Only 2d and 3d images are supported.
+% LIMITS should correspond to IMAGE.
+elseif strcmpi(ERROR, 'EMC_resize:ndimNotRecognized')
+    if ~isnumeric(LIMITS)
+        error('EMC_resize:ndimNotRecognized', ...
+              'For a %dd IMAGE, LIMITS should be a row vector of %d integers, got %s', ndim, ndim*2, class(LIMITS));
+    else
+        error('EMC_resize:ndimNotRecognized', ...
+              'For a %dd IMAGE, LIMITS should be a row vector of %d integers, got %s', ndim, ndim*2, mat2str(LIMITS));
+    end
+
+% EMC_resize:outputImageTooSmall: If too much cropping, the output can be too small.
+% It should at least be 1 pixel.
+elseif  strcmpi(ERROR, 'EMC_resize:outputImageTooSmall')
+    outSize = size(IMAGE) + sum(reshape(LIMITS, 2, []));
+    error('EMC_resize:outputImageTooSmall', ...
+          'Each output dimension should be at least 1 pixel, got output size: %s.', mat2str(outSize))
 else
-    OPTION.precision = current_precision;
-    flg.change_precision = false;
+    error('EMC_resize:indexErrorNotSupported', 'unknown error');
 end
 
-end  % checkIN
+end % EMC_resize_raiseError
