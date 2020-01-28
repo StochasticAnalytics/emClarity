@@ -69,7 +69,7 @@ function EMC_runTest(testCase)
 %
 %   % Create inputs with one fixtures.
 %   testCase.TestData.fixtureImg = @(Size, Precision) ones(Size, Precision);
-%   Img = {'fixtureImg', [128,128], 'single'};  % the array will be created just before running the test.
+%   Img = {'fixtureImg', 'gpu', 'single', [128,128]};  % the array will be created just before running the test.
 %   limits = [0,0,0,0];
 %   option = {'taper', false};
 %   expectedError = false;
