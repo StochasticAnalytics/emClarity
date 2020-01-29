@@ -63,7 +63,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 % Other EMC-files required:
 %   EMC_setPrecision.m, EMC_getClass.m, EMC_is3d.m, EMC_getOption.m, EMC_isOnGpu, EMC_taper
 %
-% See also EMC_multi_limits, EMC_multi_gridVectors
+% See also EMC_limits.
 %
 
 % Created:  18Jan2020, R2019a

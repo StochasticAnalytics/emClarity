@@ -4,18 +4,19 @@ function [OPTION] = EMC_getOption(OPTION, ONLY, FILTER)
 % Check that the OPTION cell|struct has the correct fields.
 %
 % Input:
-%   OPTION (cell|struct): 	If cell: {param1, value1 ; param2, value2 ; ...} and param* should be 
+%   OPTION (cell|struct):	If cell: {param1, value1 ; param2, value2 ; ...} and param* should be 
 %                                    non-empty character vectors or a string scalars.
 %
-%   ONLY (cell):           	{'param1', 'param2', ...}
+%   ONLY (cell):            {'param1', 'param2', ...}
 %
-%   FILTER (bool):        	If true: remove from OPTION the fields not in ONLY.
+%   FILTER (bool):          If true: remove from OPTION the fields not in ONLY.
 %                           If false: raise an error if OPTION contains a field
 %                           that is not in ONLY.
 %
 % Output:
 %   OPTION (struct):        Checked/filtered structure.
 %
+
 % Created:  18Jan2020
 % Version:  v.1.0 unittest (TF, 20Jan2020).
 %

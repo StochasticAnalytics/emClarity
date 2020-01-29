@@ -37,19 +37,19 @@ end
 ndim = numel(SIZE);
 if ndim == 3
 	if SIZE(3) == 1
-     	SIZE = SIZE(1:2);
-       	is3d = false;
+        SIZE = SIZE(1:2);
+        is3d = false;
         ndim = 2;
-	else
-      	is3d = true;
+    else
+        is3d = true;
 	end
 elseif ndim == 2
-  	is3d = false;
+    is3d = false;
 elseif ndim == 1
     error('EMC_is3d:SIZE', ['SIZE should have at least 2 elements. To describe vectors, the SIZE should ', ...
           'be [1, N] for row vectors or [N, 1] for column vector.']);
 else
-  	error('EMC_is3d:SIZE', 'SIZE has more element than maximum supported (3), got %d', ndim);
+    error('EMC_is3d:SIZE', 'SIZE has more element than maximum supported (3), got %d', ndim);
 end
 
 end  % EMC_is3d
