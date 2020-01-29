@@ -46,8 +46,8 @@
 	 limits = [1,3,2,4]  % [xlow, xhigh, ylow, yhigh]
 	 
 	% Example - This equivalent
-	 [out1] = EMC_resize(img, [1,2,3,4], {});
-	 [out2] = BH_padZeros3d(img, [1,3], [2,4], 'cpu', 'singleTaper')
+	 [out1] = EMC_resize(img, limits, {});  % by default, if padding, apply taper. See below for more details.
+	 [out2] = BH_padZeros3d(img, padlow, padtop, 'cpu', 'singleTaper')
    ```
 
 4. **Tapers**:
@@ -60,13 +60,13 @@
 	   [...,1,  0.95,0.81,0.61,0.39,0.19,0.05,0,   0,0,... ]  % EMC_resize
 	   % note the extra 0 at the end of taper.
      ```
-	To generate the same roll off, **EMC_resize** will use an additional pixel of the input image. In counterpart, it makes things more predictable and intuitive (see example 2 below) where the image is not padded. Moreover, **EMC_resize** allow the user to use its own taper:
+	To generate the same roll off, **EMC_resize** will use an additional pixel of the input image. In counterpart, it makes things more predictable and intuitive where the image is not padded (see 5.example2). Moreover, **EMC_resize** allow the user to use its own taper:
 	 ```matlab
 	 % change the size of the taper to 20 pixels.
 	 [img2dDouble] = EMC_resize(img, [0,0,0,0], {'taper', {'cosine', 20}});
 	 % switch to linear taper
 	 [img2dDouble] = EMC_resize(img, [0,0,0,0], {'taper', {'linear', 20}});
-	 % use you own taper
+	 % use your own taper
 	 taper = [1, 0.8, 0.6, 0.4];
 	 [img2dDouble] = EMC_resize(img, [0,0,0,0], {'taper', taper);
 	 
@@ -76,6 +76,7 @@
 
 5. **PRECISION**:
   In **BH_padZeros3d**, **PRECISION** manages the precision of the output and if a taper is meant to be applied to the input image. In  **EMC_resize**, this responsibility is shared between 3 optional parameters ('**precision**', '**taper**' and '**force_taper**'). By default, the precision of the output image is the same as the input image. If you want to change it, add the following to OPTION: ```{'precision', desiredPrecision}```. To turn off the taper: ```{'taper', false}```. To tape the image on every edges whether or not they are padded|cropped: ```{'force_taper', true}```.
+
    #####  EXAMPLE 1: no padding, no cropping, no taper, but cast from single to double:
    ```matlab
 	imgSingle = ones(50,50,'single');
@@ -83,13 +84,6 @@
 	% This is equivalent:
 	[imgDouble1] = EMC_resize(imgSingle, [0,0,0,0], {'precision', 'double'});
 	[imgDouble2] = BH_padZeros3d(imgSingle, [0,0], [0,0], 'cpu', 'double');
-	
-	% By default, EMC_resize will tape any edges that are padded. To deactivate
-	% the taper, use:
-	[imgDouble1] = EMC_resize(imgSingle, [10,10,10,10], {'precision', 'double'; ...
-	                                                     'taper', false});
-	% which is equivalent to
-	[imgDouble2] = BH_padZeros3d(imgSingle, [10,10], [10,10], 'cpu', 'double');
    ```
 
    #####  EXAMPLE 2: Apply a taper to every edge of the image, without cropping or padding:
@@ -112,7 +106,8 @@
 
    #####  EXAMPLE 3: default padding and taper convention
    ```matlab
-	% This is equivalent - no taper:
+	% By default, EMC_resize will tape any edges that are padded. To deactivate
+	% the taper, use:
 	[imgSingle1] = EMC_resize(imgSingle, [10,20,30,40], {'taper', false});
 	[imgSingle2] = BH_padZeros3d(imgSingle, [10,30], [20,40], 'cpu', 'single');
 	
@@ -152,7 +147,7 @@
 
 
 7. **fourierOverSample** vs '**origin**':
-  Every EMC functions use the same parameter to deal with the origin|center of an array (1d,2d or 3d): optional parameter 'origin'. origin = -1 mean the input array is mean to be treated as non-centered (zero frequency first). It is equivalent to fourierOverSample=1.
+  Every EMC functions use the same parameter to deal with the origin|center of an array (1d,2d or 3d): optional parameter 'origin'. origin = -1 means the input array is meant to be treated as non-centered (zero frequency first). It is equivalent to fourierOverSample=1.
 	 ```matlab
 	 % This is equivalent
 	 [img2dDouble] = EMC_resize(img, [10,20,30,40], {'origin', -1});
