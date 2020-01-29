@@ -21,7 +21,7 @@ function [TAPER] = EMC_taper(TYPE, SIZE, OPTION)
 %     -> 'end' (float|int):     Last value of the taper.
 %                              	default = 0
 %
-%     -> 'first' (bool):        Whether or not the taper should include the 'startAt' pixel. In any case,
+%     -> 'first' (bool):        Whether or not the taper should include the 'start' pixel. In any case,
 %                               the size of the taper will be respected (see example).
 %                               default = false
 %
@@ -35,10 +35,11 @@ function [TAPER] = EMC_taper(TYPE, SIZE, OPTION)
 %   TAPER:                      Numerical row vector of size=SIZE.
 %
 % Examples:
-%   - OUT = EMC_taper('linear', 6, {});
-%     OUT = 
-%   - OUT = EMC_taper('linear', 6, {'first', true});
-%     OUT = 
+%   - OUT = EMC_taper('linear', 6, {});  % start=1, end=0
+%     OUT (single): [0.83, 0.67, 0.50, 0.33, 0.17, 0]
+%
+%   - OUT = EMC_taper('linear', 6, {'first', true});  % start=1, end=0
+%     OUT (single): [1, 0.8, 0.6, 0.4, 0.2, 0]
 %
 % Other EMC-files required:
 %   EMC_getOption, EMC_setMethod, EMC_setPrecision
