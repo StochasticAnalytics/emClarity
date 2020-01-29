@@ -19,7 +19,7 @@
      ```
      
 2. **METHOD**:
-  EMC_resize does NOT allow the input image to change 'METHOD' (switch cpu <-> gpu). If one wants to change the method, one needs to explicitly push to device or gather to host before calling **EMC_resize**. 
+  **EMC_resize** does NOT allow the input image to change 'METHOD' (switch cpu <-> gpu). If one wants to change the method, one needs to explicitly push to device or gather to host before calling **EMC_resize**. 
 	 ```matlab
 	 % This is equivalent - push to device
 	 img = ones(50,50);
@@ -60,7 +60,7 @@
 	   [...,1,  0.95,0.81,0.61,0.39,0.19,0.05,0,   0,0,... ]  % EMC_resize
 	   % note the extra 0 at the end of taper.
      ```
-	To generate the same roll off, **EMC_resize** will use an additional pixel of the input image. In counterpart, it makes things more predictable and intuitive where the image is not padded (see 5.example2). Moreover, **EMC_resize** allow the user to use its own taper:
+	To generate the same roll off, **EMC_resize** will use an additional pixel of the input image. In counterpart, it makes things more predictable and intuitive when the image is not padded (see 5.example2). Moreover, **EMC_resize** allow the user to use its own taper:
 	 ```matlab
 	 % change the size of the taper to 20 pixels.
 	 [img2dDouble] = EMC_resize(img, [0,0,0,0], {'taper', {'cosine', 20}});
