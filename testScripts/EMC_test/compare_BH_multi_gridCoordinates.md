@@ -146,12 +146,19 @@ BH_multi_gridCoordinates was breakdown into 3 functions:
 2. **Radial** grid:
     ```matlab
     % this ...
-    [g1,g2,g3,v1,v2,v3] = BH_multi_gridCoordinates(SIZE, 'Cartesian', 'cpu', {'none'}, ...
-                                                   0,... % flgFreqSpace
-                                                   1,... % flgShiftOrigin
-                                                   1);   % flgRad
+    g1 = BH_multi_gridCoordinates(SIZE, 'Cartesian', 'cpu', {'none'}, ...
+                                  0,... % flgFreqSpace
+                                  1,... % flgShiftOrigin
+                                  1);   % flgRad
     % ... is equivalent to this:
-    [g1,g2,g3,v1,v2,v3] = EMC_coordGrids('Radial', SIZE, 'cpu', {});
+    g1 = EMC_coordGrids('Radial', SIZE, 'cpu', {});
     % note: techically radial grids are cartesian grids, but for simplicity,
     %       SYSTEM accepts 'Radial' in addition of 'cartiesian', 'cylindrical' and 'spherical'.
+    
+    % To compute radial grids with a given radius, I [TF] use EMC_coordVectors:
+    radius = [30,20];
+    SIZE = [100,100];
+    [v1,v2] = EMC_coordVectors(SIZE, 'cpu', {});
+    radialGrid = (v1'./radius(1)).^2 + (v2./radius(2)).^2;
+    % note: v1 is transposed to broadcast the vectors into a grid.
     ```
