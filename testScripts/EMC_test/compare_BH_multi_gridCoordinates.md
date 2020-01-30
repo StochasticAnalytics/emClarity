@@ -128,8 +128,30 @@ BH_multi_gridCoordinates was breakdown into 3 functions:
     % v1 = v3 = NaN
     ```
     
+#### EMC_coordGrids
+1. Change the coordinate **SYSTEM**:
+    ```matlab
+    % this ...
+    [g1,g2,g3,v1,v2,v3] = BH_multi_gridCoordinates(SIZE, 'Cartesian', 'cpu', {'none'}, 0,1,0);
+    % ... is equivalent to this:
+    [g1,g2,g3,v1,v2,v3] = EMC_coordGrids('Cartesian', SIZE, 'cpu', {});
     
+    % note: EMC_coordGrids uses strcmpi to check SYSTEM, so 'cartesian works too'.
     
-    
-    
+    % note: EMC_coordGrids has extacly the same OPTION parameters than EMC_coordVectors
+    help EMC_coordGrids
+    help EMC_coordVectors
+    ```
 
+2. **Radial** grid:
+    ```matlab
+    % this ...
+    [g1,g2,g3,v1,v2,v3] = BH_multi_gridCoordinates(SIZE, 'Cartesian', 'cpu', {'none'}, ...
+                                                   0,... % flgFreqSpace
+                                                   1,... % flgShiftOrigin
+                                                   1);   % flgRad
+    % ... is equivalent to this:
+    [g1,g2,g3,v1,v2,v3] = EMC_coordGrids('Radial', SIZE, 'cpu', {});
+    % note: techically radial grids are cartesian grids, but for simplicity,
+    %       SYSTEM accepts 'Radial' in addition of 'cartiesian', 'cylindrical' and 'spherical'.
+    ```
