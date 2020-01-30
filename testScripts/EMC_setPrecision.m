@@ -7,7 +7,7 @@ if strcmp(PRECISION, 'single')
 elseif strcmp(PRECISION, 'double')
 	NUM = double(NUM);
 else
-	error('EMC_setPrecision:PRECISION', "PRECISION should be 'single' or 'double'")
+	error('EMC:precision', "PRECISION should be 'single' or 'double'")
 end
 
 end

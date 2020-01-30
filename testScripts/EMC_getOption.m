@@ -1,11 +1,12 @@
 function [OPTION] = EMC_getOption(OPTION, ONLY, FILTER)
 %
-% Try to make parameters with default value easier.
+% [OPTION] = EMC_getOption(OPTION, ONLY, FILTER)
 % Check that the OPTION cell|struct has the correct fields.
 %
 % Input:
-%   OPTION (cell|struct):	If cell: {param1, value1 ; param2, value2 ; ...} and param* should be 
+%   OPTION (cell|struct):	If cell: {param1, value1; param2, value2; ...} and param* should be 
 %                                    non-empty character vectors or a string scalars.
+%                                    size: [n, 2] with n being the number of parameters.
 %
 %   ONLY (cell):            {'param1', 'param2', ...}
 %
@@ -18,7 +19,8 @@ function [OPTION] = EMC_getOption(OPTION, ONLY, FILTER)
 %
 
 % Created:  18Jan2020
-% Version:  v.1.0 unittest (TF, 20Jan2020).
+% Version:  v.1.0   unittest (TF, 20Jan2020).
+%           v.1.0.1 new error identifier convention (TF, 30Jan2020).
 %
 
 if iscell(OPTION)
@@ -30,8 +32,7 @@ if iscell(OPTION)
                 if FILTER
                     OPTION = rmfield(OPTION, fields{idx});
                 else
-                    error('EMC_getOption:OPTION', ...
-                          'OPTION cell contains an unexpected field: %s', fields{idx})
+                    error('EMC:OPTION', 'OPTION cell contains an unexpected field: %s', fields{idx})
                 end
             end
         end
@@ -45,14 +46,12 @@ elseif isstruct(OPTION)
             if FILTER
                 OPTION = rmfield(OPTION, fields{idx});
             else
-                error('EMC_getOption:OPTION', ...
-                      'OPTION structure contains an unexpected field: %s', fields{idx})
+                error('EMC:OPTION', 'OPTION structure contains an unexpected field: %s', fields{idx})
             end
         end
     end
 else
-    error('EMC_getOption:OPTION', ...
-          'OPTION should be a cell or a structure, got %s', class(OPTION))
+    error('EMC:OPTION', 'OPTION should be a cell or a structure, got %s', class(OPTION))
 end
 
-end
+end  % EMC_getOption

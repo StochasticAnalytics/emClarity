@@ -28,10 +28,11 @@ function [is3d, SIZE, ndim] = EMC_is3d(SIZE)
 % Created:  18Jan2020
 % Version:  v.1.0   better docstring (TF, 23Jan20).
 %           v.1.1   unittest (TF, 23Jan20).
+%           v.1.1.1 new error identifier convention (TF, 30,Jan2020).
 %
 
 if ~isnumeric(SIZE) || ~isvector(SIZE) || any(SIZE < 1) || any(rem(SIZE, 1))
-    error('EMC_is3d:SIZE', 'SIZE should be a numeric vector of positive integers')
+    error('EMC:SIZE', 'SIZE should be a numeric vector of positive integers')
 end
 
 ndim = numel(SIZE);
@@ -46,10 +47,10 @@ if ndim == 3
 elseif ndim == 2
     is3d = false;
 elseif ndim == 1
-    error('EMC_is3d:SIZE', ['SIZE should have at least 2 elements. To describe vectors, the SIZE should ', ...
+    error('EMC:SIZE', ['SIZE should have at least 2 elements. To describe vectors, the SIZE should ', ...
           'be [1, N] for row vectors or [N, 1] for column vector.']);
 else
-    error('EMC_is3d:SIZE', 'SIZE has more element than maximum supported (3), got %d', ndim);
+    error('EMC:SIZE', 'SIZE has more element than maximum supported (3), got %d', ndim);
 end
 
 end  % EMC_is3d

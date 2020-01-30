@@ -53,9 +53,9 @@ function [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION)
 %
 % Example:
 %   [x,y,z] = EMC_coordVectors([10,9,8], 'gpu', {});
-%   [x,y]   = EMC_coordVectors([64,64], 'cpu', {'origin',-1 ; 'normalize',true});
-%   [x]     = EMC_coordVectors([64, 1], 'cpu', {'origin',-1 ; 'normalize',true});
-%   [~,y]   = EMC_coordVectors([1, 64], 'cpu', {'origin',-1 ; 'normalize',true});
+%   [x,y]   = EMC_coordVectors([64,64], 'cpu', {'origin', -1; 'normalize',true});
+%   [x]     = EMC_coordVectors([64, 1], 'cpu', {'origin', -1; 'normalize',true});
+%   [~,y]   = EMC_coordVectors([1, 64], 'cpu', {'origin', -1; 'normalize',true});
 %
 % Other EMC-files required:
 %   EMC_is3d, EMC_getOption
@@ -78,7 +78,7 @@ OPTION = EMC_getOption(OPTION, {'origin', 'shift', 'normalize', 'isotrope', 'hal
 if isfield(OPTION, 'origin')
     if ~isnumeric(OPTION.origin) || ~isscalar(OPTION.origin) || ...
        ~(OPTION.origin == 1 || OPTION.origin == -1 || OPTION.origin == 0 || OPTION.origin == 2)
-            error('EMC_coordVectors:origin', 'origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
+        error('EMC:origin', 'origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
     end
 else
     OPTION.origin = 1;  % default
@@ -86,7 +86,7 @@ end
 
 if isfield(OPTION, 'half')
     if ~islogical(OPTION.half) || ~isscalar(OPTION.half)
-        error('EMC_coordVectors:half', 'half should be a boolean, got %s', class(OPTION.half))
+        error('EMC:half', 'half should be a boolean, got %s', class(OPTION.half);
     end
 else
     OPTION.half = false;  % default
@@ -94,17 +94,17 @@ end
 
 if isfield(OPTION, 'shift')
     if ~isnumeric(OPTION.shift) || ~isvector(OPTION.shift)
-        error('EMC_coordVectors:shift', ...
+        error('EMC:shift', ...
               'shift should be a vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
-        error('EMC_coordVectors:shift', ...
+        error('EMC:shift', ...
               'shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
     elseif numel(OPTION.shift) ~= ndim
-        error('EMC_coordVectors:shift', ...
+        error('EMC:shift', ...
               'For a %dd SIZE, shift should be a vector of %d float|int, got %s', ...
               ndim, ndim, mat2str(OPTION.shift, 2))
     elseif (OPTION.half || OPTION.origin == -1) && any(OPTION.shift)
-      	error('EMC_coordVectors:shift', ...
+        error('EMC:shift', ...
               'shifts are not allowed with half=true or origin=-1 , got %s', mat2str(OPTION.shift, 2))
     end
 else
@@ -113,7 +113,7 @@ end
 
 if isfield(OPTION, 'normalize')
     if ~islogical(OPTION.normalize) || ~isscalar(OPTION.normalize)
-        error('EMC_coordVectors:normalize', 'normalize should be a boolean, got %s', class(OPTION.normalize))
+        error('EMC:normalize', 'normalize should be a boolean, got %s', class(OPTION.normalize))
     end
 else
     OPTION.normalize = false;  % default
@@ -121,7 +121,7 @@ end
 
 if isfield(OPTION, 'isotrope')
     if ~islogical(OPTION.isotrope) || ~isscalar(OPTION.isotrope)
-        error('EMC_coordVectors:isotrope', 'isotrope should be a boolean, got %s', class(OPTION.isotrope))
+        error('EMC:isotrope', 'isotrope should be a boolean, got %s', class(OPTION.isotrope))
     end
 else
     OPTION.isotrope = false;  % default
@@ -130,7 +130,7 @@ end
 if isfield(OPTION, 'precision')
     if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
        ~(strcmpi(OPTION.precision, 'single') || strcmpi(OPTION.precision, 'double'))
-     	error('EMC_coordVectors:precision', "precision should be 'single' or 'double")
+        error('EMC:precision', "precision should be 'single' or 'double")
     end
 else
     OPTION.precision = 'single';  % default

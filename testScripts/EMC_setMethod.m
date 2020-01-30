@@ -12,7 +12,7 @@ elseif strcmpi(METHOD, 'cpu')
         NUM = gather(NUM);
     end
 else
-    error('EMC_setMethod:METHOD', "METHOD should be 'cpu' or 'gpu'")
+    error('EMC:METHOD', "METHOD should be 'cpu' or 'gpu'")
 end
 
 end
