@@ -1,4 +1,4 @@
-## compare_BH_multi_gridCoordinates &rarr; EMC_coordVectors, EMC_coordGrids and EMC_coordTransform
+## BH_multi_gridCoordinates &rarr; EMC_coordVectors, EMC_coordGrids and EMC_coordTransform
 BH_multi_gridCoordinates was breakdown into 3 functions:
 - coordinates/EMC_coordVectors: compute the coordinate vectors.
 - coordinates/EMC_coordGrids: compute coordinate grids of different coordinate systems (cartesian, cylindrical, etc.)
