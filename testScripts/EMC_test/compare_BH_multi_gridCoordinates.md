@@ -162,3 +162,6 @@ BH_multi_gridCoordinates was breakdown into 3 functions:
     radialGrid = (v1'./radius(1)).^2 + (v2./radius(2)).^2;
     % note: v1 is transposed to broadcast the vectors into a grid.
     ```
+
+#### EMC_coordTransform
+TODO: add this part, but not a priority, since the transformation are now done with mex files.
