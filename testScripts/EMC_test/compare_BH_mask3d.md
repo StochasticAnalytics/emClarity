@@ -55,7 +55,8 @@ MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION);
      MASK = EMC_maskShape('sphere', [100,100], [30,30], 'gpu', {'kernel', ownKernel});
     ```
 
-5. **Global variables**: BH_mask3d uses global variable to set some parameters (see below). These are now optional parameters, accessible with the OPTION cell|struct.
+#### EMC_maskReference
+1. **Global variables**: BH_mask3d uses global variable to set some parameters (see below). These are now optional parameters, accessible with the OPTION cell|struct.
     ```
     bh_global_binary_mask_low_pass  -> 'lowpass'
     bh_global_binary_mask_threshold -> 'threshold'
