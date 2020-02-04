@@ -32,7 +32,7 @@ function [TAPER] = EMC_taper(TYPE, SIZE, OPTION)
 %                               default = 'single'
 %
 % Output:
-%   TAPER:                      Numerical row vector of size=SIZE.
+%   TAPER:                      Numeric row vector of size=SIZE.
 %
 % Examples:
 %   - OUT = EMC_taper('linear', 6, {});  % start=1, end=0
@@ -54,7 +54,7 @@ function [TAPER] = EMC_taper(TYPE, SIZE, OPTION)
 
 % SIZE
 if ~(isscalar(SIZE) && isnumeric(SIZE) && ~rem(SIZE, 1) && SIZE > 1)
-    error('EMC_taper:SIZE', 'SIZE should be an int, greater than 1')
+    error('EMC:taper', 'SIZE should be an int, greater than 1')
 end
 
 OPTION = EMC_getOption(OPTION, {'start', 'end', 'first', 'method', 'precision'}, false);
@@ -62,7 +62,7 @@ OPTION = EMC_getOption(OPTION, {'start', 'end', 'first', 'method', 'precision'},
 % precision
 if isfield(OPTION, 'precision')
     if ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
-      	error('EMC_taper:precision', "OPTION.precision should be 'single' or 'double'")
+      	error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
     end
 else
     OPTION.precision = 'single';  % default
@@ -71,7 +71,7 @@ end
 % method
 if isfield(OPTION, 'method')
     if ~(strcmpi('gpu', OPTION.method) || strcmpi('cpu', OPTION.method))
-      	error('EMC_taper:method', "OPTION.method should be 'cpu' or 'gpu'")
+      	error('EMC:method', "OPTION.method should be 'cpu' or 'gpu'")
     end
 else
     OPTION.method = 'cpu';  % default
@@ -80,7 +80,7 @@ end
 % start
 if isfield(OPTION, 'start')
     if ~(isscalar(OPTION.start) && isnumeric(OPTION.start))
-        error('EMC_taper:start', 'start should be a float|int, got %s, numel=%d', ...
+        error('EMC:start', 'OPTION.start should be a float|int, got %s, numel=%d', ...
               class(OPTION.start), numel(OPTION.start))
     end
 else
@@ -90,7 +90,7 @@ end
 % end
 if isfield(OPTION, 'end')
     if ~(isscalar(OPTION.end) && isnumeric(OPTION.end))
-        error('EMC_taper:end', 'end should be a float|int, got %s, numel=%d', ...
+        error('EMC:end', 'OPTION.end should be a float|int, got %s, numel=%d', ...
               class(OPTION.end), numel(OPTION.end))
     end
 else
@@ -106,7 +106,7 @@ if isfield(OPTION, 'first')
             OPTION.first = 0;
         end
     else
-        error('EMC_taper:first', 'first should be a (scalar) bool, got %s, numel=%d', ...
+        error('EMC:first', 'OPTION.first should be a (scalar) bool, got %s, numel=%d', ...
               class(OPTION.first), numel(OPTION.first))
     end
 else
@@ -128,11 +128,10 @@ elseif strcmpi(TYPE, 'linear')
         TAPER = TAPER(2:end);
     end
 else
-    error('EMC_taper:TYPE', "TYPE should be 'cosine' or 'linear'")
+    error('EMC:taper', "TYPE should be 'cosine' or 'linear'")
 end
 
 % Cast to desired precision; push or gather if necessary.
 TAPER = EMC_setMethod(EMC_setPrecision(TAPER, OPTION.precision), OPTION.method);
 
 end
-

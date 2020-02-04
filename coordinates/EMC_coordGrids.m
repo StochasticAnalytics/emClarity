@@ -57,8 +57,8 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_coordGrids(SYSTEM, SIZE, METHOD, OPTION)
 % Version:  v.1.0   New SIZE convention (see EMC_is3d).
 %                   Now follow MATLAB convention for scalars and vectors (TF, 23Jan2020)
 %           v.1.1   Rename (EMC_multi_gridMasks to EMC_maskGrids) and unittest (TF, 24Jan2020).
-%           v.1.1.1 Rename (masking/EMC_maskGrids to coord/EMC_coordGrids) and switch to new
-%                   error identifier convention (TF, 30Jan2020).
+%           v.1.1.1 Rename (masking/EMC_maskGrids to coord/EMC_coordGrids), switch to new
+%                   error identifier convention and unittest (TF, 30Jan2020).
 %
 
 %% checkIN
@@ -67,7 +67,7 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_coordGrids(SYSTEM, SIZE, METHOD, OPTION)
 % None of the vectors should be NaN <=> SIZE should describe a 2d or 3d array.
 if any(SIZE(1:2) == 1)
     error('EMC:SIZE', 'SIZE should describe a 2d or 3d array, got %s', mat2str(SIZE))
-elseif ~(ischar(SYSTEM) || ~isstring(SYSTEM))
+elseif ~(ischar(SYSTEM) || isstring(SYSTEM))
     error('EMC:SYSTEM', 'SYSTEM should be a string|char, got %s', class(SYSTEM))
 end
 
@@ -89,13 +89,7 @@ if numel(SIZE) == 3 && SIZE(3) ~= 1
         gY = atan2(Y, X);
         gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] to [0,2pi]
     else
-        if ~(isstring(SYSTEM) || ischar(SYSTEM))
-            error('EMC:SYSTEM', ...
-                  "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", SYSTEM)
-        else
-            error('EMC:SYSTEM', ...
-                  "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", class(SYSTEM))
-        end
+        error('EMC:SYSTEM', "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial'")
     end
 else % 2d
     if strcmpi(SYSTEM, 'cartesian')
@@ -110,13 +104,7 @@ else % 2d
         gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] to [0,2pi]
         gZ = nan;
     else
-       	if ~(isstring(SYSTEM) || ischar(SYSTEM))
-            error('EMC:SYSTEM', ...
-                  "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", SYSTEM)
-        else
-            error('EMC:SYSTEM', ...
-                  "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial', got %s", class(SYSTEM))
-        end
+       	error('EMC:SYSTEM', "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial'")
     end
 end
 

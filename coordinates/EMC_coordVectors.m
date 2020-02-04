@@ -86,7 +86,7 @@ end
 
 if isfield(OPTION, 'half')
     if ~islogical(OPTION.half) || ~isscalar(OPTION.half)
-        error('EMC:half', 'half should be a boolean, got %s', class(OPTION.half);
+        error('EMC:half', 'half should be a boolean, got %s', class(OPTION.half));
     end
 else
     OPTION.half = false;  % default
@@ -236,7 +236,7 @@ if strcmpi(METHOD, 'gpu')
     if computeDim(2); vY = gpuArray(vY); end
     if flg3d;         vZ = gpuArray(vZ); end
 elseif ~(ischar(METHOD) || isstring(METHOD)) || ~strcmpi(METHOD, 'cpu')
-    error('EMC_coordVectors:METHOD', "METHOD must be 'gpu' or 'cpu'");
+    error('EMC:METHOD', "METHOD must be 'gpu' or 'cpu'");
 end
 
 if (OPTION.isotrope)

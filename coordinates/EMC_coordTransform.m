@@ -1,191 +1,208 @@
-function [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRANS, varargin)
-% [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates(SIZE, METHOD, TRANS, varargin)
+function [gX, gY, gZ, vX, vY, vZ] = EMC_coordTransform(SIZE, METHOD, OPTION, varargin)
 %
-% Compute flow-field grids (gridCoordinates), for interpolations.
-% WARNING: To compute grid masks, use EMC_multi_gridMasks.
-% WARNING: To compute gridVectors, use EMC_multi_gridVectors.
+% [gX, gY, gZ, vX, vY, vZ] = EMC_coordTransform(SIZE, METHOD, OPTION, varargin)
+% Compute flow-field grids (grid coordinates) and coordinate vectors used for interpolations.
 %
-% SIZE (vector):                Size of the grid to compute (x, y, z) or (x, y).
-%                               Sould be a 2d/3d row vector of integers.
+% WARNING: The outputs are meant to be used for interpolation. To compute grid coordinates,
+%          use EMC_coordGrids. To compute grid vectors, use EMC_coordVectors.
 %
-% METHOD (str):                 Device to use; 'gpu' or 'cpu'.
+% Input:
+%   SIZE (vector):           	Size (in pixel) of the grids to compute; [x, y, z] or [x, y].
+%                               NOTE: [1, N] or [N, 1] is not allowed.
 %
-% TRANS (cell | str):           Transformation directives.
-%   Syntax:
-%       -> {}:                  no rotation, no shifts, no scaling
-%       -> {field, value; ...}: Any optional fields. Fields that are not specified are set
-%                               to their default value. Note the ';' between parameters.
-%                               NOTE: unknown fields will raise an error.
+%   METHOD (str):            	Device to use; 'gpu' or 'cpu'.
 %
-%   Optional fields:
-%       -> 'direction' (str):   direction convention (see BH_defineMatrix.m for more details),
+%   OPTION (cell | struct):   	Optional parameters.
+%                               If cell: {field,value ; ...}, note the ';' between parameters.
+%                               NOTE: Can be empty.
+%                               NOTE: Unknown fields will raise an error.
+%
+%     -> 'direction' (str):     Direction convention (see BH_defineMatrix.m for more details),
 %                               'forward'|'fwd' or 'inverse'|'inv'. If the grids are the query
 %                               of interpolation, the direction should be 'inverse' to produce
 %                               CCW rotation on the final image.
 %                               default = 'inverse'
 %
-%       -> 'rotm' (vector):     Rotation to apply; 3D:3x3 or 2D:2x2 rotation matrices.
-%                               If 2D: 3x3 rotation matrices are also accepted, but the extra
-%                               row/column will be ignored.
+%     -> 'rotm' (vector):       Rotation to apply; 3D:3x3 or 2D:2x2 rotation matrices.
 %                               default = no rotation
 %
-%       -> 'shift' (vector):    (x, y, z) or (x, y) translations to apply; should correspond to SIZE.
-%                               Shifts are applied BEFORE rotation and scaling.
+%     -> 'shift' (vector):     	[x, y, z] or [x, y] translations to apply (should correspond to SIZE).
+%                               Shifts are not allowed with half=true or origin=-1.
+%                               NOTE: Shifts are applied BEFORE rotation and scaling.
 %                               NOTE: Shifts do NOT change the center of rotation.
+%                               NOTE: NaNs or Inf are not accepted.
 %                               default = no shifts
 %
-%       -> 'mag' (vector|int):  (x, y, z) or (x, y) scaling factor to apply; should correspond to SIZE.
+%     -> 'mag' (vector|int):    [x, y, z] or [x, y] scaling to apply (should correspond to SIZE).
 %                               If only one int|float: isotropic magnification applied.
-%                               NOTE: scaling applied BEFORE rotation.
+%                               NOTE: scaling is applied BEFORE rotation.
 %                               default = 1 (no scaling)
 %
-%       -> 'sym' (int):         Central symmetry. For each symmetry unit, a set of vectors
-%                               and grids will be computed.
+%     -> 'sym' (int):           Central symmetry. For each symmetry unit, a set of grids will be computed.
 %                               default = 1 (no symmetry)
 %
-%       -> 'origin'(int):     	Origin convention - Center of rotation.
-%                               -1: zero frequency first (fft output)
-%                               0: real origin (if even nb of pixels, the center is in between 2 pixels)
-%                               1: right origin (extra pixel to the left; ceil((N+1)/2))
-%                               2: left origin (extra pixel to the right)
-%                               emClarity uses the 'right' origin convention ('origin', 1).
+%     -> 'origin'(int):         Origin convention - Center of rotation.
+%                               See EMC_coordVectors for more details.
 %                               default = 1
 %
-%       -> 'offset' (vector):   Offset to apply; should correspond to SIZE. Offsets are used to adjust
-%                               the center of rotation defined by 'origin'. 
+%     -> 'offset' (vector):     [x, y, z] or [x, y] offset to apply (should correspond to SIZE).
+%                               Offsets are used to adjust the center of rotation defined by 'origin'. 
 %                               NOTE: this effectively apply a shift on both the vectors and the grids.
 %                               NOTE: if there is no rotation or scaling to apply, this has no effect
 %                                     on the final interpolated image.
 %                               default = no offset
 %
-%       -> 'binary' (array):    Binary mask indicating the gridCoordinate pixels to ignore during
+%     -> 'binary' (logical):    Binary mask (of size=SIZE) to apply on the grid coordinates before
 %                               transformation.
 %
-%       -> 'normalize' (bool):  Normalize the vectors and the grids between 0 and 1.
+%     -> 'normalize' (bool):    Normalize the vectors and the grids between -0.5 and 0.5.
 %                               default = false
 %
-% varagin (1x3 | 1x2 cell):     Use 3 pre-created gridVectors corresponding to vX, vY, vZ.
+%     -> 'precision' (str):     Precision of the vectors and grids; 'single' or 'double'.
+%                               default = 'single'
+%
+%   (optional)
+%   varagin (3 row vectors):    Use 3 pre-created coordinate vectors corresponding to vX, vY and vZ.
+%                               If SIZE correspond to a 3d array, vZ should be NaN.
 %                               NOTE: Half vectors are not accepted.
+%                               NOTE: For efficiency, this function do NOT check for NaNs or Infs values.
 %
-%---------
-% RETURN:                       gX, gY, gZ are the gridCoordinates, vx, vY, vZ are the gridVectors.
-%                               If TRANS.sym > 1, the grids are cells.
+% Output:
+%   gX, gY, gZ (num arrays):    Grid coordinates, either 2d or 3d.
+%                               If 'sym' > 1, the grids are 1xn cells (n=sym) containing the grid
+%                               coordinates for each symmetric unit.
 %
-%---------
-% EXAMPLE: [gX, gY, gZ, vX, vY, vZ] = EMC_multi_gridCoordinates([10,9], 'cpu', ...
-%                                       {'rotm', [0,-1; 1,0]; 'shift', [0, 2]});
+%   vx, vY, vZ (num vectors):   Vector coordinates.
 %
-% See also EMC_multi_vectorCoordinates, EMC_multi_gridMasks
+% Notes:
+%   - To change the scale, the rotation matrix is scaled, nothing else.
+%   - To apply a shift, the vectors are shifted BUT the grids are NOT. Therefore, shifts are applied
+%     to the vectors only once the grids are created.
+%   - To apply an offset (change the center of rotation), both the vectors and the grids are shifted.
+%
+% Example:
+%   [gX, gY, ~, vX, vY, ~] = EMC_coordTransform([10,9], 'cpu', {'rotm', [0,-1; 1,0]; 'shift', [0, 2]});
+%
+% Other EMC-files required:
+%   EMC_is3d, EMC_getOption, EMC_coordVectors
+%
+% See also EMC_coordVectors, EMC_coordGrids
+%
+
+% Created:  18Jan2020, R2019a
+% Version:  v.1.0.  Rename (EMC_multi_gridCoordinates to EMC_coordTransform) and switch to new
+%                   error identifier convention (TF, 30Jan2020).
+%
 
 %% MAIN
-% 1) To change the scale, the rotation matrix is scaled, nothing else.
-% 2) To apply a shift, the vectors are shifted BUT the grids are NOT. As such, add shifts to the vectors
-%    only once the grids are created.
-% 3) To apply an offset (change the center of rotation), both the vectors and the grids are shifted.
-
-if strcmpi(METHOD,'GPU')
-  SIZE = gpuArray(single(SIZE));
-else
-  SIZE = single(SIZE);
-end
-
-[SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS);
+[SIZE, OPTION, flg, ndim] = checkIN(SIZE, METHOD, OPTION);
 
 % Scale the rotation matrix.
-% By default, the rotation is CCW, so the rotm must be transposed (it is not, but behaves like it).
+% By default, the rotation is CCW, so the rotm must be transposed (it is done implicitely later).
 % To effectively make the scaling BEFORE the rotation, flip the mag to [z, y, x] to match the transposed
 % rotm.
-if strcmpi(TRANS.direction, 'inverse')
-    if any(TRANS.mag)
-        TRANS.rotm = (eye(ndim) ./ flip(TRANS.mag)) * TRANS.rotm;
+if strcmpi(OPTION.direction, 'inverse')
+    if any(OPTION.mag - 1)
+        OPTION.rotm = (eye(ndim) ./ flip(OPTION.mag)) * OPTION.rotm;
     end
-else
-    if any(TRANS.mag - 1)
-        TRANS.rotm = (eye(ndim) .* TRANS.mag) * TRANS.rotm;
+else  % forward
+    if any(OPTION.mag - 1)
+        OPTION.rotm = (eye(ndim) .* OPTION.mag) * OPTION.rotm;
     end
     % Negate the offsets/shifts if 'forward'.
-    TRANS.shift = TRANS.shift .* -1;
-    TRANS.offset = TRANS.offset .* -1;
+    OPTION.shift = OPTION.shift .* -1;
+    OPTION.offset = OPTION.offset .* -1;
 end
 
-% Option to use pre-created vectors which is surprisingly expensive to create, otherwise make them.
+% Option to use pre-created vectors, otherwise make them.
 if ~isempty(varargin)
-    if isnumeric(varargin{1})
-        vX = varargin{1};
-        vY = varargin{2};
-        if (flg.is3d)
-            vZ = varargin{3};
+    if length(varargin) ~= 3
+        error('EMC:varargin', ...
+              'varargin should contain 3 row vectors, got %s elements', length(varargin))
+    elseif ~flg.is3d
+        if ~isscalar(varargin{3}) && ~isnan(varargin{3})
+            error('EMC:varargin', 'For a 2d case, vZ should be NaN')
         else
-            vZ = nan;
-        end
-        
-        % offsets
-        if (flg.offset)
-            vX = vX - TRANS.offset(1);
-            vY = vY - TRANS.offset(2);
-            if (flg.is3d); vZ = vZ - TRANS.offset(3); end
-        end
-        
-        % normalize
-        if (TRANS.normalize)
-            vX = vX ./ SIZE(1);
-            vY = vY ./ SIZE(2);
-            if (flg.is3d); vZ = vZ ./ SIZE(3); end
+            vX = EMC_setMethod(EMC_setPrecision(varargin{1}, OPTION.precision), METHOD);
+            vY = EMC_setMethod(EMC_setPrecision(varargin{2}, OPTION.precision), METHOD);
         end
     else
-        error('1st varargin should be numeric (gridVectors), got %s' + class(varargin{1}));
+        vX = EMC_setMethod(EMC_setPrecision(varargin{1}, OPTION.precision), METHOD);
+       	vY = EMC_setMethod(EMC_setPrecision(varargin{2}, OPTION.precision), METHOD);
+        vZ = EMC_setMethod(EMC_setPrecision(varargin{3}, OPTION.precision), METHOD);
     end
-else
-    % Shift the vectors with the given offsets.
-    [vX, vY, vZ] = EMC_multi_vectorCoordinates(...
-        SIZE, METHOD, TRANS.offset, TRANS.origin, TRANS.normalize, false);
+
+    if ~isnumeric(vX) || ~isrow(vX) || SIZE(1) ~= length(vX)
+        error('EMC:varargin', 'varargin{1} (vX) should be a numeric row vector of %d elements', SIZE(1))
+    elseif ~isnumeric(vY) || ~isrow(vY) || SIZE(2) ~= length(vY)
+        error('EMC:varargin', 'varargin{2} (vY) should be a numeric row vector of %d elements', SIZE(2))
+    elseif flg.is3d && ~isnumeric(vZ) || ~isrow(vZ) || SIZE(3) ~= length(vZ)
+        error('EMC:varargin', 'varargin{3} (vZ) should be a numeric row vector of %d elements', SIZE(3))
+    end
+
+    % Apply offsets and|or normalize if whished. Note: shifts are not applied to vectors.
+    if (flg.offset)
+     	vX = vX - OPTION.offset(1);
+      	vY = vY - OPTION.offset(2);
+     	if flg.is3d; vZ = vZ - OPTION.offset(3); end
+    end
+    if (OPTION.normalize)
+        vX = vX ./ SIZE(1);
+      	vY = vY ./ SIZE(2);
+        if flg.is3d; vZ = vZ ./ SIZE(3); end
+    end
+
+else  % varargin is empty
+    OPTION = EMC_getOption(OPTION, {'offset', 'origin', 'normalize', 'precision'}, true);
+    [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION, false);
+    % Note: shifts are not applied to vectors.
 end
 
-% The vectors are now generated, centered, and normalized if wished.
+% The vectors are now ready.
 
-% gridCoordinates; Optionally evaluate only a smaller masked region.
-if (flg.is3d)
+% Compute the grids; Optionally evaluate only a smaller masked region.
+if flg.is3d
     [X, Y, Z] = ndgrid(vX, vY, vZ);
-    if (flg.binary)  
+    if flg.binary 
         X = X(binaryVol);
         Y = Y(binaryVol);
         Z = Z(binaryVol);
     end
 else
     [X, Y] = ndgrid(vX, vY);
-    if (flg.binary) 
+    if flg.binary
         X = X(binaryVol);
         Y = Y(binaryVol);
     end
 end
 
-% Apply the shifts on the vectors only once the gridCoordinates are created.
-if (flg.shift)
-    vX = vX - TRANS.shift(1);
-    vY = vY - TRANS.shift(2);
-    if (flg.is3d); vZ = vZ - TRANS.shift(3); end
+% Apply the shifts on the vectors only once the grids are created.
+if flg.shift
+    vX = vX - OPTION.shift(1);
+    vY = vY - OPTION.shift(2);
+    if flg.is3d; vZ = vZ - OPTION.shift(3); end
 end
 
 % Compute a grid for each symmetry unit.
-if (flg.sym)
-  	gX = {TRANS.sym, 1};
-    gY = {TRANS.sym, 1};
-    gZ = {TRANS.sym, 1};
-    symInc = 360 ./ TRANS.sym;
+if flg.sym
+    gX = {OPTION.sym, 1};
+    gY = {OPTION.sym, 1};
+    gZ = {OPTION.sym, 1};
+    symInc = 360 ./ OPTION.sym;
 end
 
 % Rotate and scale the coordinates
-for iSym = 1:TRANS.sym
-   	if (flg.transform)
-        % Only in plane symmetries considered anywhere
-        % so inverse|forward shouldn't matter.
-        if iSym > 1
-            R = TRANS.rotm * BH_defineMatrix([iSym.*symInc,0,0],'Bah','inverse');
-        else
-            R = TRANS.rotm;
-        end
-
-        if (flg.is3d)
+for iSym = 1:OPTION.sym
+    % Only in plane symmetries considered anywhere
+    % so inverse|forward shouldn't matter.
+    if iSym > 1
+    	R = OPTION.rotm * BH_defineMatrix([iSym.*symInc,0,0],'Bah','inverse');
+    else
+      	R = OPTION.rotm;
+    end
+    
+    if flg.transform || iSym > 1
+        if flg.is3d
             % CCW rotation by default (rotm')
             XTrans = X.*R(1,1) + Y.*R(2,1) + Z.*R(3,1);
             YTrans = X.*R(1,2) + Y.*R(2,2) + Z.*R(3,2);
@@ -198,13 +215,13 @@ for iSym = 1:TRANS.sym
         end
     else
         XTrans = X;
-        YTrans = Y ;
-        if (flg.is3d); ZTrans = Z; else; ZTrans = nan; end
+        YTrans = Y;
+        if flg.is3d; ZTrans = Z; else; ZTrans = nan; end
     end
 
     % Only use as cell if symmetry is requested
-    if (flg.sym)
-        gX{iSym+1} = XTrans;
+    if flg.sym
+        gX{iSym+1} = XTrans;  % I [TF] hope this doesn't generate a copy.
         gY{iSym+1} = YTrans;
         gZ{iSym+1} = ZTrans;
     else
@@ -215,17 +232,19 @@ for iSym = 1:TRANS.sym
 end % loop over symmetry units
 
 clear X Y Z XTrans YTrans ZTrans
-end  % EMC_multi_gridCoordinates
+end  % EMC_coordTransform
 
 
-function [SIZE, METHOD, TRANS, flg, ndim] = checkIN(SIZE, METHOD, TRANS)
-%% checkIN
-% Sanity checks of BH_multi_gridCoordinates inputs.
-[SIZE, flg.is3d, ndim] = EMC_is3d(SIZE);
-validateattributes(SIZE, {'numeric'}, {'row', 'nonnegative', 'integer'}, 'checkIN', 'SIZE');
+function [SIZE, OPTION, flg, ndim] = checkIN(SIZE, METHOD, OPTION)
+
+[flg.is3d, SIZE, ndim] = EMC_is3d(SIZE);
 
 if ~(strcmpi(METHOD, 'gpu') || strcmpi(METHOD, 'cpu'))
-     error("SYSTEM should be 'gpu' or 'cpu', got %s", METHOD)
+    if isstring(METHOD) || ischar(METHOD) 
+        error('EMC:METHOD', "SYSTEM should be 'gpu' or 'cpu', got %s", METHOD)
+    else
+        error('EMC:METHOD', "SYSTEM should be 'gpu' or 'cpu', got %s", clas(METHOD))
+    end
 end
 
 % flags
@@ -235,84 +254,141 @@ flg.sym = false;
 flg.binary = false;
 
 % Extract optional parameters
-TRANS = EMC_extract_option(TRANS, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
-                                   'origin', 'offset', 'binary', 'normalize'}, false);
+OPTION = EMC_getOption(OPTION, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
+                                'origin', 'offset', 'binary', 'normalize', 'precision'}, false);
 
-if isfield(TRANS, 'rotm')
-    validateattributes(TRANS.rotm, {'numeric'}, {'numel', ndim.^2, 'square'}, 'checkIN', 'rotm')
+% rotm
+if isfield(OPTION, 'rotm')
+    if ~isnumeric(OPTION.rotm) || ~ismatrix(OPTION.rotm) 
+        error('EMC:rotm', 'rotm should be a %dx%d numeric matrix, got %s', ...
+              ndim, ndim, class(OPTION.rotm))
+    elseif numel(OPTION.rotm) == ndim^2
+        error('EMC:rotm', 'rotm should be a %dx%d numeric matrix, got size:%s', ...
+              ndim, ndim, mat2str(size(OPTION.rotm)))
+    end
     % Most of the time, it will not be an identity matrix, so don't check and do transformation anyway.
     flg.transform = true;
 else
-    TRANS.rotm = eye(ndim);  % default
+    OPTION.rotm = eye(ndim);  % default
 end
 
-if isfield(TRANS, 'shift')
-    validateattributes(TRANS.shift, {'numeric'}, ...
-                       {'row', 'numel', ndim, 'finite', 'nonnan'}, 'checkIN', 'shift')
-    if any(TRANS.shift)
+% shift
+if isfield(OPTION, 'shift')
+    if ~isnumeric(OPTION.shift) || ~isvector(OPTION.shift)
+        error('EMC:shift', ...
+              'shift should be a vector of float|int, got %s', class(OPTION.shift))
+    elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
+        error('EMC:shift', ...
+              'shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
+    elseif numel(OPTION.shift) ~= ndim
+        error('EMC:shift', ...
+              'For a %dd SIZE, shift should be a vector of %d float|int, got %s', ...
+              ndim, ndim, mat2str(OPTION.shift, 2))
+    elseif any(OPTION.shift)
         flg.shift = true;
     end
-end
-
-if isfield(TRANS, 'mag')
-    if length(TRANS.mag) == 1
-        TRANS.mag = zeros(1, ndim) + TRANS.mag;  % isotropic scaling
-    else
-        validateattributes(TRANS.mag, {'numeric'}, ...
-                           {'vector', 'numel', ndim, 'finite', 'nonnan'}, 'checkIN', 'mag')
-    end
-    flg.transform = true;
 else
-    TRANS.mag = ones(1, ndim);  % default
+    OPTION.shift = zeros(1, ndim);  % default
 end
 
-if isfield(TRANS, 'sym')
-    validateattributes(TRANS.sym, {'numeric'}, {'numel', ndim, 'integer', 'positive'}, 'checkIN', 'sym')
-    if TRANS.sym ~= 1
+% mag
+if isfield(OPTION, 'mag')
+    if ~isnumeric(OPTION.mag)
+        error('EMC:mag', ...
+              'mag should be a numeric scalar or vector, got %s', class(OPTION.mag))
+    elseif isvector(OPTION.mag)
+        if length(OPTION.mag) ~= ndim
+            error('EMC:mag', ...
+                  'mag should be a vector of %d elements, got %d elements', ndim, length(OPTION.mag))
+      	elseif any(isnan(OPTION.mag)) || any(isinf(OPTION.mag))
+            error('EMC:mag', ...
+                  'mag should not have any nan nor inf, got:%s', mat2str(OPTION.mag))
+        end
+        flg.transform = true;
+    elseif isscalar(OPTION.mag) && ~any(isnan(OPTION.mag)) || ~any(isinf(OPTION.mag))
+        OPTION.mag = zeros(1, ndim) + OPTION.mag;  % isotropic scaling
+        flg.transform = true;
+    else
+       	error('EMC:mag', ...
+              'mag should be a numeric scalar or a numeric vector of %d elements', ndim)
+    end
+else
+    OPTION.mag = ones(1, ndim);  % default
+end
+
+% sym
+if isfield(OPTION, 'sym')
+    if ~isnumeric(OPTION.sym) || ~isscalar(OPTION.sym) || OPTION.sym < 1 || rem(OPTION.sym, 1)
+        error('EMC:sym', ...
+              'sym should be a positive integer')
+    elseif OPTION.sym ~= 1
         flg.sym = true;
     end
 else
-    TRANS.sym = 1;  % default
+    OPTION.sym = 1;  % default
 end
 
-if isfield(TRANS, 'direction')
-    if ~contains(['inverse', 'inv'], TRANS.direction)
-        TRANS.direction = 'inverse';
-    elseif ~contains([ 'forward', 'fwd'], TRANS.direction)
-        TRANS.direction = 'forward';
+% direction
+if isfield(OPTION, 'direction')
+    if any(strmcpi(['inverse', 'inv'], OPTION.direction))
+        OPTION.direction = 'inverse';
+    elseif any(strmcpi([ 'forward', 'fwd'], OPTION.direction))
+        OPTION.direction = 'forward';
     else
-        error("direction should be 'forward' or 'inverse', got %s", TRANS.direction)
+        error('EMC:direction', "direction should be 'forward' or 'inverse'")
     end
 else
-    TRANS.direction = 'inverse';  % default
+    OPTION.direction = 'inverse';  % default
 end
 
-if isfield(TRANS, 'origin')
-    if ~(TRANS.origin == -1 || TRANS.origin == 0 || TRANS.origin == 1 || TRANS.origin == 2)
-        error("center should be 0, 1, 2, or -1, got %d", TRANS.origin)
+% origin
+if isfield(OPTION, 'origin')
+    if ~isnumeric(OPTION.origin) || ~isscalar(OPTION.origin) || ...
+       ~(OPTION.origin == 1 || OPTION.origin == -1 || OPTION.origin == 0 || OPTION.origin == 2)
+        error('EMC:origin', 'origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
     end
 else
-    TRANS.origin = 1;  % default
+    OPTION.origin = 1;  % default
 end
 
-if isfield(TRANS, 'offset')
-    validateattributes(TRANS.offset, {'numeric'}, ...
-                       {'row', 'numel', ndim, 'finite', 'nonnan'}, 'checkIN', 'offset')
-else
-    TRANS.offset = zeros(1, ndim);  % default
-end
-
-if isfield(TRANS, 'binary')
-    validateattributes(TRANS.offset, {'numeric'}, {'ndims', ndim, 'binary'}, 'checkIN', 'binary')
-    flg.binary = true;
-end
-
-if isfield(TRANS, 'normalize')
-    if ~islogical(TRANS.normalize)
-        error('normalize should be a boolean, got %s', class(TRANS.normalize))
+% offset
+if isfield(OPTION, 'offset')
+    if ~isnumeric(OPTION.offset) || ~isvector(OPTION.offset)
+        error('EMC:offset', ...
+              'offset should be a vector of float|int, got %s', class(OPTION.offset))
+    elseif any(isnan(OPTION.offset)) || any(isinf(OPTION.offset))
+        error('EMC:offset', ...
+              'offset should not contain NaNs or Inf, got %s', mat2str(OPTION.offset, 2))
+    elseif numel(OPTION.offset) ~= ndim
+        error('EMC:offset', ...
+              'For a %dd SIZE, offset should be a vector of %d float|int, got %s', ...
+              ndim, ndim, mat2str(OPTION.offset, 2))
     end
 else
-    TRANS.normalize = false;  % default
+    OPTION.offset = zeros(1, ndim);  % default
+end
+
+% binary
+if isfield(OPTION, 'binary')
+    if ~islogical(OPTION.binary) || size(OPTION.binary) ~= SIZE
+        error('EMC:binary', 'binary should be a logical of size:%s', mat2str(SIZE))
+    else
+        flg.binary = true;
+    end
+end
+
+% normalize
+if isfield(OPTION, 'normalize')
+    if ~islogical(OPTION.normalize) || ~isscalar(OPTION.normalize)
+        error('EMC:normalize', 'normalize should be a boolean,')
+    end
+else
+    OPTION.normalize = false;  % default
+end
+
+% precision is checked by EMC_coordVectors or EMC_setPrecision
+if ~isfield(OPTION, 'precision')
+    OPTION.precision = 'single';  % default
 end
 
 end  % checkIN
