@@ -3,3 +3,5 @@ mexFiles/compiled/mexCTF.mexa64
 mexFiles/compiled/
 mexFiles/src
 bin/
+testScripts/EMC_test/logTest/
+testScripts/EMC_test/logPerf/
