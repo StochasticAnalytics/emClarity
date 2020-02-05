@@ -77,26 +77,27 @@ else
 end
 
 % uniform
-if help_isOptionDefined(OPTION, 'uniform')
-    if help_getOptionParam(OPTION, 'uniform')
+if isreal(filteredImg)
+    if help_isOptionDefined(OPTION, 'uniform')
+        if help_getOptionParam(OPTION, 'uniform')
+            if abs(mean(filteredImg(:))) > 0.1
+                message = sprintf('output mean should be 0, got %f, original %f', mean(filteredImg(:)), mean(IMAGE(:)));
+                return
+            elseif abs(std(filteredImg(:)) - 1) > 0.1
+                message = sprintf('output std should be 1, got %f', std(filteredImg(:)));
+                return
+            end
+        end
+    else
         if abs(mean(filteredImg(:))) > 0.1
             message = sprintf('output mean should be 0, got %f, original %f', mean(filteredImg(:)), mean(IMAGE(:)));
             return
         elseif abs(std(filteredImg(:)) - 1) > 0.1
-            message = sprintf('output std should be 1, got %f', std(filteredImg(:)));
-            return
+           message = sprintf('output std should be 1, got %f', std(filteredImg(:)));
+           return
         end
     end
-else
-    if abs(mean(filteredImg(:))) > 0.1
-        message = sprintf('output mean should be 0, got %f, original %f', mean(filteredImg(:)), mean(IMAGE(:)));
-        return
-    elseif abs(std(filteredImg(:)) - 1) > 0.1
-       message = sprintf('output std should be 1, got %f', std(filteredImg(:)));
-       return
-    end
 end
-
 % compare with fixture
 if EXTRA
     if any(filteredImg - EXTRA) > 1e-7
