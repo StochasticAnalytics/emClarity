@@ -5,7 +5,7 @@ function [is3d, SIZE, ndim] = EMC_is3d(SIZE)
 %
 % Input:
 %   SIZE (int vector):  Vector describing the size of an array; 3d:[x,y,z], 2d:[x,y] or 1d:[x,1]|[1,y].
-%                       NOTE: Column vectors are also accepted.
+%                       NOTE: Column vectors are NOT accepted.
 %                       NOTE: Although 2d unit vectors ([1, 1]) are describing scalars,
 %                             they are accepted because it is a valid size.
 %
@@ -33,8 +33,8 @@ function [is3d, SIZE, ndim] = EMC_is3d(SIZE)
 %           v.1.1.2 correctly check for NaNs and Infs (TF, 4Feb2020).
 %
 
-if ~isnumeric(SIZE) || ~isvector(SIZE) || any(isinf(SIZE)) || ~all(SIZE > 0) || any(rem(SIZE, 1))
-    error('EMC:SIZE', 'SIZE should be a numeric vector of positive integers')
+if ~isnumeric(SIZE) || ~isrow(SIZE) || any(isinf(SIZE)) || ~all(SIZE > 0) || any(rem(SIZE, 1))
+    error('EMC:SIZE', 'SIZE should be a numeric row vector of positive integers')
 end
 
 ndim = numel(SIZE);

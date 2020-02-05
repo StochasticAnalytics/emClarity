@@ -76,7 +76,7 @@ function [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION)
 OPTION = EMC_getOption(OPTION, {'origin', 'shift', 'normalize', 'isotrope', 'half', 'precision'}, false);
 
 if isfield(OPTION, 'origin')
-    if ~isnumeric(OPTION.origin) || ~isscalar(OPTION.origin)
+    if ~isscalar(OPTION.origin) || ~isnumeric(OPTION.origin)
         error('EMC:origin', 'OPTION.origin should be an integer, got %s of size: %s', ...
               class(OPTION.origin), mat2str(size(OPTION.origin)))
     elseif OPTION.origin ~= 1 && OPTION.origin ~= -1 && OPTION.origin ~= 0 && OPTION.origin ~= 2
@@ -95,7 +95,7 @@ else
 end
 
 if isfield(OPTION, 'shift')
-    if ~isnumeric(OPTION.shift) || ~isvector(OPTION.shift)
+    if ~isnumeric(OPTION.shift) || ~isrow(OPTION.shift)
         error('EMC:shift', ...
               'OPTION.shift should be a vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))

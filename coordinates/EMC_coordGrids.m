@@ -7,7 +7,7 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_coordGrids(SYSTEM, SIZE, METHOD, OPTION)
 %   SYSTEM (str):            	'cartesian', 'spherical', 'cylindrical' or 'radial'.
 %
 %   SIZE (vector):            	Size (in pixel) of the grids to compute; [x, y, z] or [x, y].
-%                               NOTE: [1, N] or [N, 1] is not allowed.
+%                               NOTE: [1, N], [N, 1] or [1,1] are not allowed.
 %
 %   METHOD (str):             	Device to use; 'gpu' or 'cpu'.
 %

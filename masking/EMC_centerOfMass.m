@@ -41,8 +41,8 @@ elseif ORIGIN ~= 1 && ORIGIN ~= 2 && ORIGIN ~= 0
 end
 
 IMAGEsize = size(IMAGE);
-[precision, isGpu] = EMC_getClass(IMAGE);
-if isGpu
+[precision, isOnGpu] = EMC_getClass(IMAGE);
+if isOnGpu
     [vX, vY, vZ] = EMC_coordVectors(IMAGEsize, 'gpu', {'origin', ORIGIN; 'precision', precision});
 else
     [vX, vY, vZ] = EMC_coordVectors(IMAGEsize, 'cpu', {'origin', ORIGIN; 'precision', precision});
