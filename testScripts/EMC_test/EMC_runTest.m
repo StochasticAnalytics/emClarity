@@ -3,22 +3,23 @@ function EMC_runTest(testCase)
 % EMC functions testing framework.
 %
 % Objective:
-%   1) Fast and robust way to implement tests for EMC_functions.
-%   2) Log: save every test into a mat file.
-%   3) MATLAB debug: easily pause when test failed.
+%   1) Fast and robust way to implement tests for EMC functions.
+%   2) Log: save test inputs, outputs and results into a mat file.
+%   3) MATLAB debug: pause when a test fails.
 %
 % Input:
 % testCase.TestData should contains the following field:
 %
 %   functionToTest (handle):    Function to test.
 %                               Signature: [ouput1, ...] = example(input1, ...)
-%                               Functions without outputs and/or inputs are also accepted.
 %
 %   toTest (cell):              Should correspond to functionToTest inputs (same order), plus 2 arguments:
 %                               - expectedError (false|str): If false: the test should not raise any error.
 %                                                            If str: error identifier that should be raised.
+%                                                                    If 'error', don't check for a specific
+%                                                                    error id (generic error).
 %
-%                               - extraSpace (any):	This variable is not used directly by EMC_runTest,
+%                               - extraSpace (any): This variable is not used directly by EMC_runTest,
 %                                                   but will be send to the evaluateOutput function.
 %                                                   This allow more freedom when designing tests.
 %
@@ -30,38 +31,40 @@ function EMC_runTest(testCase)
 %
 %   evaluateOutput (handle):    Function to check the validity of the output.
 %                               It is only ran if the functionToTest did NOT raise an error.
-%                               Signature: [result, message] = example(input1, ..., actualOutput, extraSpace)
-%                                   result (str):        whether or not the output pass the test;
-%                                                        'passed', 'failed' or 'warning'.
-%                                   message (str):    	 For logging purposes.
-%                                   actualOutput (cell): 1xn cell array containing the output to check.
-%                                                        If the functionToTest does not return any output,
-%                                                        the outputCell will be empty.
-%                                   extraSpace (any):    See toTest field for more details.
+%                               Signature: [result, message] = example(input1, ..., outputToCheck, extraSpace)
+%                                   result (str):         whether or not the output pass the test;
+%                                                         'passed', 'failed' or 'warning'.
+%                                   message (str):    	  For logging purposes.
+%                                   outputToCheck (cell): 1xn cell array containing the output to check.
+%                                                         If the functionToTest does not return any output,
+%                                                         the outputCell will be empty.
+%                                   extraSpace (any):     See toTest field for more details.
 %
 %   (optional)
 %   fixture* (handle):          If an input (input1A, etc.) is a 1xN cell with its first element starting by
-%                               'fixture' , EMC_runTest will look for the corresponding function handle in
+%                               'fixture', EMC_runTest will look for the corresponding function handle in
 %                               testCase.TestData, use the rest of the element(s) as input to run the
 %                               function handle and use this output as input for the test. This mechanism
-%                               allows to create or load fixture on the fly.
-%                               Functions with no inputs are also accepted.
+%                               allows to create or load fixture on the fly. Functions with no inputs are
+%                               also accepted. See example below.
 %
 %   (optional)
 %   debug (int):                0: no debug.
-%                               1: if test result = 'fail', pause the code.
-%                               2: if test result = 'fail' or 'warning', pause the code.
+%                               1: if test result = 'fail', pause the execution.
+%                               2: if test result = 'fail' or 'warning', pause the execution.
 %
 %   (optional)
-%   testName (string):       	Name of the test function. If more than one test per test function,
-%                               the logfiles will be overritten. Use this prefix to have multiple
-%                               tests in one function.
+%   testName (string):       	Name of the test function. Add this suffix to the logfilename.
+%                               Use this prefix to have multiple calls within one test function.
 %
 % Notes:
-%   - Logging:  Each script (ex: test_EMC_resize.m) generates a directory called ./logTest/<functionToTest>.
+%   - Logging:  Each test script (test_*.m) generates a directory called: ./logTest/log_<functionToTest>.
 %               Within this directory, a log file is saved every time this function is called. The name of
-%               the logfile is <testfunction><testNames>.m or <testfunction>.m if testName is not defined.
+%               this logfile is <testfunction><testNames>.m or <testfunction>.m if testName is not defined.
+%
 %   - Stack:    This function cannot be called from the cmd line. It needs a parent workspace.
+%
+%   - Add the possibility to test functions without outputs and/or inputs.
 %
 % Example:
 %   % One test with EMC_resize:
@@ -69,31 +72,30 @@ function EMC_runTest(testCase)
 %
 %   % Create inputs with one fixtures.
 %   testCase.TestData.fixtureImg = @(Size, Precision) ones(Size, Precision);
-%   Img = {'fixtureImg', 'gpu', 'single', [128,128]};  % the array will be created just before running the test.
+%   img = {'fixtureImg', 'single', [128,128]};  % the array will be created just before running the test.
 %   limits = [0,0,0,0];
 %   option = {'taper', false};
 %   expectedError = false;
 %   extraSpace = nan;
-%   testCase.TestData.toTest = {Img, limits, option, expectedError, extraSpace};
+%   testCase.TestData.toTest = {img, limits, option, expectedError, extraSpace};
 %
 %   % You should have created an evaluation function, with the following signature:
-%   % [result, message] = exampleFunction(Img, limits, option, outcell, extraSpace).
+%   % [result, message] = exampleFunction(img, limits, option, outcell, extraSpace).
 %   testCase.TestData.evaluateOutput = @exampleFunction;
 %
 %   % Run the test.
-%   EMC_runTest(testCase);  % logfile: ./logTest/EMC_resize/EMC_resize.mat
-%
-% Created:	19Jan2020
+%   EMC_runTest(testCase);
 %
 
-% Version:  v.1.1   new logging format (TF, 22Jan2020).
+% Created:	19Jan2020
+% Version:  v.1.0.  new logging format (TF, 22Jan2020).
+%           v.1.1.  debug is now optional (TF, 2Feb2020).
 %
 
 % Set debug pause.
 if isfield(testCase.TestData, 'debug') && testCase.TestData.debug > 0
     dbstop if caught error EMC_runTest:debug
 end
-
 
 %% Save inputs as log.
 stack = dbstack;
@@ -188,12 +190,19 @@ for iTest = 1:nbTests
     end
     
     % Debug pause.
-    if testCase.TestData.debug > 0
+    if isfield(testCase.TestData, 'debug') && testCase.TestData.debug > 0
+        % Tips: The test failed, try to figure out why ->
+        %       - look at the current test in testCase.TestData.toTest, test number: iTest
+        %       - the output of the current test is in: outputs
+        %       - run the function again:
+        %           testCase.TestData.functionToTest(testCase.TestData.toTest{iTest, 1:end-2});
+        %       - run the evaluation again:
+        %           testCase.TestData.evaluateOutput(testCase.TestData.toTest{iTest, 1:end-2}, outputs, testCase.TestData.toTest{iTest, end});
         try
             if testCase.TestData.debug == 1 && strcmp(result, 'failed')
                 error('EMC_runTest:debug', 'test failed')
             elseif testCase.TestData.debug == 2 && ~strcmp(result, 'passed')
-                error('EMC_runTest:debug', 'test failed')
+                 error('EMC_runTest:debug', 'test failed')
             end
         catch
             continue

@@ -4,21 +4,21 @@ end
 
 
 function setupOnce(testCase)
-
-% Setup
 testCase.TestData.debug = 0;
 testCase.TestData.functionToTest = @EMC_coordVectors;
 testCase.TestData.evaluateOutput = @evaluateOutput;
-
 end
 
 
 function [result, message] = evaluateOutput(SIZE, METHOD, OPTION, OUTPUTCELL, EXTRA)
 %
-% Check method, precision, size for each vector.
-% If axis size is 1, check that corresponding vector is NaN.
-% If option.half = true, check half size is correct.
-% If EXTRA, load and check for equality with fixture.
+% Check:
+%   METHOD:     outputs are following the METHOD instruction.
+%   PRECISION:  outputs have the desired precision
+%   SIZE:       outputs have the correct size.
+%               If unit dimension (size=1), check that output is NaN.
+%
+%   If EXTRA, load and check for equality with fixture.
 %
 
 result = 'failed';
@@ -38,7 +38,7 @@ end
 for iVec = 1:ndim
     vector = OUTPUTCELL{iVec};
     
-    %% nan
+    % nan
     if SIZE(iVec) == 1
         if ~isscalar(vector) && ~isnan(vector)
             message = sprintf('vector %d should be nan', iVec);
@@ -47,7 +47,7 @@ for iVec = 1:ndim
         continue
     end
     
-    %% precision and method
+    % precision and method
     [actualMethod, actualPrecision] = help_getClass(vector);
     
     if help_isOptionDefined(OPTION, 'precision')
@@ -63,7 +63,7 @@ for iVec = 1:ndim
         return
     end
     
-    %% size
+    % size
     expectedSize = SIZE(iVec);
     
     % half = true
@@ -118,8 +118,8 @@ function test_default(testCase)
 %
 
 sizes = {[1, 30, 1]; [30, 1, 1]; [30, 30, 1]; [1, 30]; [30, 1]; [1, 1, 1]; [1, 1, 30]};
-sizes = [sizes; help_getRandomSizes(1, [2000, 4000], '2d')];
-sizes = [sizes; help_getRandomSizes(1, [2000, 4000], '3d')];
+sizes = [sizes; help_getRandomSizes(1, [200, 400], '2d')];
+sizes = [sizes; help_getRandomSizes(1, [200, 400], '3d')];
 
 method = {'cpu'; 'gpu'};
 option = help_getBatchOption({'origin', {0; 1; 2; -1}; ...
@@ -137,11 +137,11 @@ end
 function test_shift(testCase)
 % Separate test because shifts are not compatible with origin=-1 and half=true.
 %
-testCase.TestData.debug = 2;
+testCase.TestData.debug = 0;
 
 %% Batch
 for iDim = {'3d', '2d'}
-    sizes = help_getRandomSizes(5, [2, 1000], iDim{:});
+    sizes = help_getRandomSizes(5, [2, 100], iDim{:});
     method = {'cpu'; 'gpu'};
     option = help_getBatchOption({'origin', {0; 1; 2}; ...
                                   'normalize', {true; false}; ...
@@ -155,14 +155,16 @@ for iDim = {'3d', '2d'}
 end
 
 %% Assume errors and specific cases.
-errorShift = 'EMC_coordVectors:shift';
 testCase.TestData.toTest = { ...
-    [50,51,52], 'cpu', {'origin', -1; 'shift', [1,1,1]},                errorShift, false; ...
-    [51,52,53], 'cpu', {'half', true; 'shift', [1,1,1]},                errorShift, false; ...
-    [50,51,52], 'cpu', {'origin', -1; 'shift', [1,1,1]; 'half', true}, 	errorShift, false; ...
-    [50,51,52], 'cpu', {'shift', [nan,1,1]},                            errorShift, false; ...
-    [50,51,52], 'cpu', {'shift', [inf,1,1]},                            errorShift, false; ...
-    [50,51,52], 'cpu', {'shift', 'kayak'},                              errorShift, false; ...
+    [50,51,52], 'cpu', {'origin', -1; 'shift', [1,1,1]},                'EMC:shift', false; ...
+    [51,52,53], 'cpu', {'half', true; 'shift', [1,1,1]},                'EMC:shift', false; ...
+    [50,51,52], 'cpu', {'origin', -1; 'shift', [1,1,1]; 'half', true}, 	'EMC:shift', false; ...
+    [50,51,52], 'cpu', {'shift', [nan,1,1]},                            'EMC:shift', false; ...
+    [50,51,52], 'cpu', {'shift', [inf,1,1]},                            'EMC:shift', false; ...
+    [50,51,52], 'cpu', {'shift', 'kayak'},                              'EMC:shift', false; ...
+    [50,51],    'cpu', {'shift', [1,1,1]},                              'EMC:shift', false; ...
+    [50,51],    'cpu', {'shift', [1,1,0]},                              'EMC:shift', false; ...
+    [50,51],    'cpu', {'shift', [1;1]},                                'EMC:shift', false; ...
     };
 
 end
@@ -170,18 +172,43 @@ end
 
 function test_assumeError(testCase)
 
-sizes = {[10,10]};
-method = {'cpu'; ''; {}; ""; "kayak"; [1,2]; 1};
+testCase.TestData.debug = 2;
 
-option = help_getBatchOption({'origin', {{}; 3; -2; 1.1; [1,2]; true; 'kayak'}});
-option = [option; help_getBatchOption({'normalize', {{}; 3; 1.1; [true, false]; 1; 0; 'kayak'}})];
-option = [option; help_getBatchOption({'isotrope', {{}; 3; 1.1; [true, false]; 1; 0; 'kayak'}})];
-option = [option; help_getBatchOption({'precision', {'cpu'; ''; {}; ""; "kayak"; [1,2]; 1}})];
-option = [option; help_getBatchOption({'half', {{}; 3; 1.1; [true, false]; 1; 0; 'kayak'}})];
+% size
+sizes = {[]; 1; [0,10]; [10,0]; [nan, 10]; [inf, 10]; '23'; ones(10,10); {}; nan; inf; [10;10]};
+testCase.TestData.toTest = help_getBatch(sizes, {'cpu'}, {{}}, 'EMC:SIZE', {false});
+
+% method
+method = {''; {}; ""; "kayak"; [1,2]; 1; nan; inf};
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                            help_getBatch({[10,10]}, method, {{}}, 'EMC:METHOD', {false})];
+
+% option
+option = help_getBatchOption({'origin', {{}; 3; -2; 1.1; [1,2]; true; 'kayak'; nan; inf}});
 option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                            help_getBatch({[10,10]}, {'cpu'}, option, 'EMC:origin', {false})];
 
-% raise generic error; each option will raise a different identifier, so just check the error is raised.
-testCase.TestData.toTest = help_getBatch(sizes, method, option, {'error'}, {false});
+option = help_getBatchOption({'normalize', {{}; 3; 1.1; [true, false]; 1; 0; 'kayak'; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                            help_getBatch({[10,10]}, {'cpu'}, option, 'EMC:normalize', {false})];
+                        
+option = help_getBatchOption({'isotrope', {{}; 3; -2; 1.1; [1,2]; 1; 0; 'kayak'; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                            help_getBatch({[10,10]}, {'cpu'}, option, 'EMC:isotrope', {false})];
+
+option = help_getBatchOption({'precision', {'cpu'; ''; {}; ""; "kayak"; [1,2]; 1; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                            help_getBatch({[10,10]}, {'cpu'}, option, 'EMC:precision', {false})];
+                        
+option = help_getBatchOption({'half', {{}; 3; 1.1; [true, false]; 1; 0; 'kayak'; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                            help_getBatch({[10,10]}, {'cpu'}, option, 'EMC:half', {false})];
+
 EMC_runTest(testCase);
 
 end
@@ -228,7 +255,3 @@ testCase.TestData.toTest = { ...
 EMC_runTest(testCase);
 
 end
-
-
-
-

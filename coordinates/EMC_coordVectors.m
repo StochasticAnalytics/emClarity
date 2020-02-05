@@ -34,8 +34,8 @@ function [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION)
 %     -> 'isotrope' (bool):    	Stretch the vector values to the smallest dimensions.
 %                               default = false
 %
-%     -> 'half' (bool):        	Compute 'half' of the vX vector. Originally made for rfft (the FT of a real
-%                               function is Hermitian).
+%     -> 'half' (bool):         Compute 'half' of the vX vector. Originally made for rfft (the FT
+%                               of a real function is Hermitian).
 %                               default = false
 %
 %     -> 'precision' (str):   	Precision of the vectors; 'single' or 'double'.
@@ -76,9 +76,11 @@ function [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION)
 OPTION = EMC_getOption(OPTION, {'origin', 'shift', 'normalize', 'isotrope', 'half', 'precision'}, false);
 
 if isfield(OPTION, 'origin')
-    if ~isnumeric(OPTION.origin) || ~isscalar(OPTION.origin) || ...
-       ~(OPTION.origin == 1 || OPTION.origin == -1 || OPTION.origin == 0 || OPTION.origin == 2)
-        error('EMC:origin', 'origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
+    if ~isnumeric(OPTION.origin) || ~isscalar(OPTION.origin)
+        error('EMC:origin', 'OPTION.origin should be an integer, got %s of size: %s', ...
+              class(OPTION.origin), mat2str(size(OPTION.origin)))
+    elseif OPTION.origin ~= 1 && OPTION.origin ~= -1 && OPTION.origin ~= 0 && OPTION.origin ~= 2
+        error('EMC:origin', 'OPTION.origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
     end
 else
     OPTION.origin = 1;  % default
@@ -86,7 +88,7 @@ end
 
 if isfield(OPTION, 'half')
     if ~islogical(OPTION.half) || ~isscalar(OPTION.half)
-        error('EMC:half', 'half should be a boolean, got %s', class(OPTION.half));
+        error('EMC:half', 'OPTION.half should be a boolean, got %s', class(OPTION.half));
     end
 else
     OPTION.half = false;  % default
@@ -95,17 +97,17 @@ end
 if isfield(OPTION, 'shift')
     if ~isnumeric(OPTION.shift) || ~isvector(OPTION.shift)
         error('EMC:shift', ...
-              'shift should be a vector of float|int, got %s', class(OPTION.shift))
+              'OPTION.shift should be a vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
         error('EMC:shift', ...
-              'shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
+              'OPTION.shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
     elseif numel(OPTION.shift) ~= ndim
         error('EMC:shift', ...
-              'For a %dd SIZE, shift should be a vector of %d float|int, got %s', ...
+              'For a %dd SIZE, OPTION.shift should be a vector of %d float|int, got %s', ...
               ndim, ndim, mat2str(OPTION.shift, 2))
     elseif (OPTION.half || OPTION.origin == -1) && any(OPTION.shift)
         error('EMC:shift', ...
-              'shifts are not allowed with half=true or origin=-1 , got %s', mat2str(OPTION.shift, 2))
+              'OPTION.shifts are not allowed with half=true or origin=-1 , got %s', mat2str(OPTION.shift, 2))
     end
 else
     OPTION.shift = zeros(1, ndim);  % default
@@ -113,7 +115,7 @@ end
 
 if isfield(OPTION, 'normalize')
     if ~islogical(OPTION.normalize) || ~isscalar(OPTION.normalize)
-        error('EMC:normalize', 'normalize should be a boolean, got %s', class(OPTION.normalize))
+        error('EMC:normalize', 'OPTION.normalize should be a boolean, got %s', class(OPTION.normalize))
     end
 else
     OPTION.normalize = false;  % default
@@ -121,7 +123,7 @@ end
 
 if isfield(OPTION, 'isotrope')
     if ~islogical(OPTION.isotrope) || ~isscalar(OPTION.isotrope)
-        error('EMC:isotrope', 'isotrope should be a boolean, got %s', class(OPTION.isotrope))
+        error('EMC:isotrope', 'OPTION.isotrope should be a boolean, got %s', class(OPTION.isotrope))
     end
 else
     OPTION.isotrope = false;  % default
@@ -130,7 +132,7 @@ end
 if isfield(OPTION, 'precision')
     if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
        ~(strcmpi(OPTION.precision, 'single') || strcmpi(OPTION.precision, 'double'))
-        error('EMC:precision', "precision should be 'single' or 'double")
+        error('EMC:precision', "OPTION.precision should be 'single' or 'double")
     end
 else
     OPTION.precision = 'single';  % default

@@ -1,19 +1,12 @@
 function tests = test_EMC_taper
-
-% Errors that can be raised by EMC_taper:
-%
-
 tests = functiontests(localfunctions);
-
 end
 
 
 function setupOnce(testCase)
-% Setup
 testCase.TestData.debug = 0;
 testCase.TestData.functionToTest = @EMC_taper;
 testCase.TestData.evaluateOutput = @evaluateOutput;
-
 end
 
 
@@ -106,7 +99,6 @@ end  % evaluateOutput
 
 
 function test_default(testCase)
-
 type_ = {'cosine'; 'linear'};
 sizes = {100};
 option = help_getBatchOption({'precision', {'single'; 'double'}; ...
@@ -114,42 +106,50 @@ option = help_getBatchOption({'precision', {'single'; 'double'}; ...
                               'end', {1; -5; 2.5; single(1.5); gpuArray(2)}; ...
                               'first', {true; false}; ...
                               'method', {'cpu'; 'gpu'}});
-expectedError = {false};
-extra = {false};
-
-testCase.TestData.toTest = help_getBatch(type_, sizes, option, expectedError, extra);
+testCase.TestData.toTest = help_getBatch(type_, sizes, option, {false}, {false});
 EMC_runTest(testCase);
-
 end
 
 
 function test_assumption(testCase)
 %% type
-type_ = {[]; ''; {}; 'kayak'; 2; 1:12};
-sizes = {100};
+type_ = {[]; ''; {}; 'kayak'; 2; 1:12; nan; inf};
+numel = {100};
 option = {{}};
 
-expectedError = {'EMC_taper:TYPE'};
-extra = {false};
+testCase.TestData.toTest = help_getBatch(type_, numel, option, {'EMC:taper'}, {false});
+testCase.TestData.toTest = [testCase.TestData.toTest; {{'cosine'}, 1, {}, 'EMC:taper', false}];
 
-testCase.TestData.toTest = help_getBatch(type_, sizes, option, expectedError, extra);
-testCase.TestData.toTest = [testCase.TestData.toTest; {{'cosine'}, 1, {}, 'EMC_taper:SIZE', false}];
-
-%% optinal parameters
-type_ = {'cosine'};
-sizes = {10};
-option = help_getBatchOption({'precision', {''; 'kayak'; 1; false; []; {12}}; ...
-                              'method', {''; 'kayak'; 1; false; {}; {12}};
-                              'start', {1:3; 'kayak'; {}}; ...
-                              'end', {1:3; ''; {}}; ...
-                              'first', {2; '1'; nan}});
-option = option(~cellfun(@isempty, option));
-
-expectedError = {'error'};  % generic error
-extra = {false};
-
+% numel
+numel = {[]; 1; [0,10]; [10,0]; [nan, 10]; [inf, 10]; '23'; ones(10,10); {}; nan; inf};
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
-                            help_getBatch(type_, sizes, option, expectedError, extra)];
-EMC_runTest(testCase);
+                            help_getBatch({'cosine'}, numel, {{}}, 'EMC:taper', {false})];
 
+% option
+option = help_getBatchOption({'precision', {''; 'kayak'; 1; false; []; {12}; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                           help_getBatch({'cosine'}, {20}, option, 'EMC:precision', {false})];
+
+option = help_getBatchOption({'method', {''; 'kayak'; 1; false; {}; {12}; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                           help_getBatch({'cosine'}, {20}, option, 'EMC:method', {false})];
+                       
+option = help_getBatchOption({'start', {1:3; 'kayak'; {}; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                           help_getBatch({'cosine'}, {20}, option, 'EMC:start', {false})];
+                       
+option = help_getBatchOption({'end', {1:3; ''; {}; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                           help_getBatch({'cosine'}, {20}, option, 'EMC:end', {false})];
+                       
+option = help_getBatchOption({'first', {2; '1'; nan; inf}});
+option = option(~cellfun(@isempty, option), 1);
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+                           help_getBatch({'cosine'}, {20}, option, 'EMC:first', {false})];
+
+EMC_runTest(testCase);
 end
