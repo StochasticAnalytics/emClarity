@@ -70,7 +70,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 % Version:  v.1.0.1 better error message display (TF, 20Jan2020).
 %           v.1.1   unittest (TF, 21Jan2020).
 %           v.1.1.1 add isscalar when expecting a scalar (TF, 21Jan2020).
-%           v.1.1.2 switch from mean(a(:)) to mean('all') (TF, 1Feb2020).
+%           v.1.1.2 switch from mean(a(:)) to mean('all'), and std(a, 0, 'all') (TF, 1Feb2020).
 %
 
 %% MAIN
@@ -92,7 +92,7 @@ end
 % Option to pad with white gaussian noise.
 if flg.uniform
     val = EMC_setPrecision(mean(IMAGE, 'all'), OPTION.precision);
-    std_ = EMC_setPrecision(std(IMAGE(:)), OPTION.precision);
+    std_ = EMC_setPrecision(std(IMAGE, 0, 'all'), OPTION.precision);
 else
     val = OPTION.value;
     std_ = nan;
