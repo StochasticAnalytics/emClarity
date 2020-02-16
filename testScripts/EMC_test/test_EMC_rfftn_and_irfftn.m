@@ -79,7 +79,6 @@ end
 
 
 function test_default(testCase)
-%
 sizes = [help_getRandomSizes(50, [10,300], '2d'); help_getRandomSizes(50, [10,200], '3d')];
 img = help_getBatch({'fixtureRand'}, {'cpu';'gpu'}, {'double';'single'}, sizes);
 testCase.TestData.toTest = help_getBatch(img, {false}, {false});

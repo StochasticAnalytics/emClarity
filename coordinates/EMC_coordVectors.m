@@ -58,19 +58,19 @@ function [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION)
 %   [~,y]   = EMC_coordVectors([1, 64], 'cpu', {'origin', -1; 'normalize',true});
 %
 % Other EMC-files required:
-%   EMC_is3d, EMC_getOption
+%   EMC_is3d, EMC_getOption, EMC_setPrecision
 %
 % See also EMC_is3d
 %
 
 % Created:  18Jan2020, R2019a
-% Version:  v.1.0   New SIZE convention (see EMC_is3d). 
+% Version:  v.1.0   New SIZE convention (see EMC_is3d).
 %                   Now follow MATLAB convention for scalars and vectors (TF, 23Jan2020)
 %           v.1.1   Rename (EMC_coordVectors to EMC_coordVectors) and unittest (TF, 24Jan2020).
 %
 
 %% checkIN
-[flg3d, SIZE, ndim] = EMC_is3d(SIZE);
+[is3d, SIZE, ndim] = EMC_is3d(SIZE);
 
 % Extract optional parameters
 OPTION = EMC_getOption(OPTION, {'origin', 'shift', 'normalize', 'isotrope', 'half', 'precision'}, false);
@@ -131,8 +131,8 @@ end
 
 if isfield(OPTION, 'precision')
     if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
-       ~(strcmpi(OPTION.precision, 'single') || strcmpi(OPTION.precision, 'double'))
-        error('EMC:precision', "OPTION.precision should be 'single' or 'double")
+       ~strcmpi(OPTION.precision, 'single') && ~strcmpi(OPTION.precision, 'double')
+        error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
     end
 else
     OPTION.precision = 'single';  % default
@@ -167,24 +167,16 @@ else  % OPTIONAL.origin == 0
 end
 
 % Any dimension with a size of 1 is not computed and has its corresponding vector equals to NaN.
-computeDim = SIZE > 1;
+isDim = SIZE > 1;
 
 % real space
 if OPTION.origin >= 0
-    if computeDim(1)
-        if (OPTION.half)
+    if isDim(1)
+        if OPTION.half
             if OPTION.origin == 0 && ~mod(SIZE(1), 2)  % real center and even pixels
-                if strcmpi(OPTION.precision, 'single')
-                    vX = 0.5:single((SIZE(1)/2));
-                else
-                    vX = 0.5:(SIZE(1)/2);
-                end
+                vX = 0.5:EMC_setPrecision((SIZE(1)/2), OPTION.precision);
             else
-                if strcmpi(OPTION.precision, 'single')
-                    vX = 0:single(floor(SIZE(1)/2));
-                else
-                    vX = 0:floor(SIZE(1)/2);
-                end
+                vX = 0:EMC_setPrecision(floor(SIZE(1)/2), OPTION.precision);
             end
         else
             vX = (limits(1, 1) - OPTION.shift(1)):(limits(2, 1) - OPTION.shift(1));
@@ -193,26 +185,14 @@ if OPTION.origin >= 0
         vX = nan;
     end
     
-    if computeDim(2)
-        vY = (limits(1, 2) - OPTION.shift(2)):(limits(2, 2) - OPTION.shift(2));
-    else
-        vY = nan;
-    end
-    if flg3d
-        vZ = (limits(1, 3) - OPTION.shift(3)):(limits(2, 3) - OPTION.shift(3));
-    else
-        vZ = nan;
-    end
+    if isDim(2); vY = (limits(1, 2) - OPTION.shift(2)):(limits(2, 2) - OPTION.shift(2)); else; vY = nan; end
+    if is3d;     vZ = (limits(1, 3) - OPTION.shift(3)):(limits(2, 3) - OPTION.shift(3)); else; vZ = nan; end
     
 % reciprocal space
 else
-    if computeDim(1)
+    if isDim(1)
         if (OPTION.half)
-            if strcmpi(OPTION.precision, 'single')
-                vX = 0:single(floor(SIZE(1)/2));
-            else
-                vX = 0:floor(SIZE(1)/2);
-            end
+            vX = 0:EMC_setPrecision(floor(SIZE(1)/2), OPTION.precision);
         else
             vX = [0:limits(2,1), limits(1,1):-1];
         end
@@ -220,23 +200,15 @@ else
         vX = nan;
     end
     
-    if computeDim(2)
-        vY = [0:limits(2,2), limits(1,2):-1];
-    else
-        vY = nan;
-    end
-    if flg3d
-        vZ = [0:limits(2,3), limits(1,3):-1];
-    else
-        vZ = nan;
-    end
+    if isDim(2); vY = [0:limits(2,2), limits(1,2):-1]; else; vY = nan; end
+    if is3d;     vZ = [0:limits(2,3), limits(1,3):-1]; else; vZ = nan; end
 end
 
-% In my case [TF], it is faster to create on host and then push to device.
+% In my case [TF], it is faster to create on host and then push to device for vectors < 8000 elements.
 if strcmpi(METHOD, 'gpu')
-    if computeDim(1); vX = gpuArray(vX); end
-    if computeDim(2); vY = gpuArray(vY); end
-    if flg3d;         vZ = gpuArray(vZ); end
+    if isDim(1); vX = gpuArray(vX); end
+    if isDim(2); vY = gpuArray(vY); end
+    if is3d;     vZ = gpuArray(vZ); end
 elseif ~(ischar(METHOD) || isstring(METHOD)) || ~strcmpi(METHOD, 'cpu')
     error('EMC:METHOD', "METHOD must be 'gpu' or 'cpu'");
 end
@@ -245,13 +217,13 @@ if (OPTION.isotrope)
     radius = max(abs(limits));
     radius_min = min(radius);
     if OPTION.normalize; radius = radius .* min(SIZE); end
-    if computeDim(1); vX = vX .* (radius_min / radius(1)); end
-    if computeDim(2); vY = vY .* (radius_min / radius(2)); end
-    if flg3d;         vZ = vZ .* (radius_min / radius(3)); end
+    if isDim(1); vX = vX .* (radius_min / radius(1)); end
+    if isDim(2); vY = vY .* (radius_min / radius(2)); end
+    if is3d;     vZ = vZ .* (radius_min / radius(3)); end
 elseif (OPTION.normalize)
-    if computeDim(1); vX = vX ./ SIZE(1); end
-    if computeDim(2); vY = vY ./ SIZE(2); end
-    if flg3d;         vZ = vZ ./ SIZE(3); end
+    if isDim(1); vX = vX ./ SIZE(1); end
+    if isDim(2); vY = vY ./ SIZE(2); end
+    if is3d;     vZ = vZ ./ SIZE(3); end
 end
 
 end  % EMC_coordVectors
