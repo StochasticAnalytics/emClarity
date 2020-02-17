@@ -72,8 +72,8 @@ function test_default(testCase)
 
 sizes = [help_getRandomSizes(1, [50, 1000], '2d'); help_getRandomSizes(1, [50, 250], '3d')];
 pixels = {1; 2.5};
-highpass = {5; nan};
-lowpass = {5; 'nyquist'};
+highpass = {5; nan; 0};
+lowpass = {5; nan; 0; 'nyquist'};
 method = {'cpu'; 'gpu'};
 
 option = help_getBatchOption({'origin', {-1; 0; 1; 2}; ...
@@ -127,7 +127,7 @@ testCase.TestData.toTest = [testCase.TestData.toTest; ...
     help_getBatch([100,100], {1}, highpass, {2}, {'cpu'}, {{}}, {'EMC:HIGHPASS'}, {false})];
 
 % lowpass
-lowpass = {'kayak'; -1; {}; [1,2]; []; inf};
+lowpass = {'kayak'; -1; {}; [1,2]; []; inf; 0.5};
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
     help_getBatch([100,100], {1}, {2}, lowpass, {'cpu'}, {{}}, {'EMC:LOWPASS'}, {false})];
 
@@ -146,7 +146,7 @@ options = [options; help_getBatchOption({'highpassRoll', {''; 'kayak'; [1,2]; {}
                                          'lowpassThresh', {-0.1; 1; nan; inf; ''; [1,2]}})];
 options = options(~cellfun(@isempty, options), :);
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
-    help_getBatch([100,100], {1}, {2}, {2}, {'cpu'}, options, {'error'}, {false})];
+    help_getBatch([100,100], {1}, {2}, {2.5}, {'cpu'}, options, {'error'}, {false})];
 
 EMC_runTest(testCase);
 

@@ -118,7 +118,7 @@ function test_default(testCase)
 
 systems = {'cartesian'; 'cylindrical'; 'spherical'; 'radial'};
 
-sizes = help_getRandomSizes(1, [1000, 4000], '2d');
+sizes = help_getRandomSizes(1, [200, 500], '2d');
 sizes = [sizes; help_getRandomSizes(1, [50, 200], '3d')];
 
 method = {'cpu'; 'gpu'};
