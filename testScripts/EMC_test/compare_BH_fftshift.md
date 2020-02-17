@@ -26,12 +26,12 @@ INDEX = EMC_maskIndex(TYPE, SIZE, METHOD, OPTION)
     EMC_irfftn(EMC_fftn(img1), shape);
     
     % note: 'half2full' is only for not-centered grids at the moment.
-    %       It is useful, I[TF]'ll add this option for centered grids.
+    %       If it is useful, I[TF]'ll add this option for centered grids.
     ```
     ```EMC_irfftn``` is calling ```EMC_maskIndex``` to compute the 'half2full' index wrap mask. To speed things up, ```EMC_irfftn``` is saving the mask in the heap (persistent). As such, one should clear the function after use to release the allocated memory (```clear EMC_irfftn```). See ```help EMC_irfftn``` for more information.
 
 2. ```fftshift``` and ```ifftshift```:
-```EMC_maskIndex``` fully support fftshift and ifftshift index masks, for 2d/3d full/half grid. It is also *considerably* faster than ```BH_fftshift``` as it doesn't relly on sub2ind and ndgrids.
+```EMC_maskIndex``` fully supports fftshift and ifftshift index masks, for 2d/3d full/half grid. It is also *considerably* faster than ```BH_fftshift``` as it doesn't rely on sub2ind and ndgrids.
     ```matlab
     % fftshift
     idx = BH_fftShift(0, [128,128], 0);
