@@ -85,7 +85,7 @@ imgNan = ones(10,10);
 imgNan(4,4) = nan;
 imgInf = imgNan;
 imgInf(4,4) = inf;
-img = {'kayak'; ones(5,5,5,5); []; 2; {}; zeros(10,10); imgNan; imgInf};
+img = {'kayak'; ones(5,5,5,5); []; 2; {}; imgNan; imgInf};
 testCase.TestData.toTest = help_getBatch(img, {1}, {'error'}, {false});
 
 % origin
