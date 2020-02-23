@@ -4,7 +4,7 @@ end
 
 
 function setupOnce(testCase)
-testCase.TestData.debug = 0;
+testCase.TestData.debug = 2;
 testCase.TestData.functionToTest = @EMC_applyBandpass;
 testCase.TestData.evaluateOutput = @evaluateOutput;
 testCase.TestData.fixtureRandn = @getRandomImgMean;
@@ -17,25 +17,42 @@ img = img ./ max(img(:));
 end
 
 
-function [result, message] = evaluateOutput(IMAGE, ~, OPTION, OUTPUTCELL, EXTRA)
+function [img1, img2] = compareFullAndHalf(img, ~, option)
+
+[METHOD, PRECISION] = help_getClass(img);
+bp_half = EMC_getBandpass(size(img), 1, 15, 2.5, METHOD, {'precision', PRECISION; 'half', true});
+bp_full = EMC_getBandpass(size(img), 1, 15, 2.5, METHOD, {'precision', PRECISION; 'half', false});
+
+img1 = EMC_applyBandpass(img, bp_half, option);
+img2 = EMC_applyBandpass(img, bp_full, option);
+
+% img1 and img2 should be identical.
+end
+
+
+function [result, message] = evaluateOutput(IMAGE, ~, OPTION, OUTPUTCELL, ~)
 % IMAGE = EMC_applyBandpass(IMAGE, BANDPASS, OPTION)
 % Check:
 %   METHOD:     output has the same method has IMAGE
 %   PRECISION:  output has the same precision has IMAGE
 %   SIZE:       output has the same size has IMAGE
 %   Output should be real if 'iff'=true and complex if false.
-%   Mean and std should be close to 0 and 1 respectively, if 'uniform' is true.
+%   Mean and std should be close to 0 and 1 respectively, if 'standardize' is true.
 %
 %   If EXTRA, load and check for equality with fixture.
 %
 
 result = 'failed';
 
-if length(OUTPUTCELL) ~= 1
+if length(OUTPUTCELL) == 2
+    [filteredImg, filteredImg2] = OUTPUTCELL{:};
+    ishalf = true;
+elseif length(OUTPUTCELL) ~= 1
     message = sprintf('expected output number = 1, got %d', length(OUTPUTCELL));
     return
 else
     filteredImg = OUTPUTCELL{1};
+    ishalf = false;
 end
 
 % precision and method
@@ -49,37 +66,53 @@ elseif ~strcmp(actualPrecision, expectPrecision)
     message = sprintf('expected precision=%s, got %s', expectPrecision, actualPrecision);
     return
 end
-    
-% size
-if size(filteredImg) ~= size(IMAGE)
- 	message = sprintf('expected size=%d, got %d', size(IMAGE), size(filteredImg));
-   	return
-end
 
 % ifft
 if help_isOptionDefined(OPTION, 'ifft')
     if help_getOptionParam(OPTION, 'ifft')
+        isifft = true;
         if ~isreal(filteredImg)
             message = 'output should be real with because ifft=true';
             return
+        % size
+        elseif size(filteredImg) ~= size(IMAGE)
+            message = sprintf('expected size=%s, got %s', mat2str(size(IMAGE)), mat2str(size(filteredImg)));
+            return
         end
     else
+        isifft = false;
         if isreal(filteredImg)
             message = 'output should be complex with because ifft=true';
             return
-        end
+        % size
+        elseif ishalf
+            imgSize = size(IMAGE);
+            if ~isequal([floor(imgSize(1)/2)+1, imgSize(2:end)], size(filteredImg))  % half size
+                message = sprintf('expected size=%s, got %s', ...
+                    mat2str([floor(imgSize(1)/2)+1, imgSize(2:end)]), mat2str(size(filteredImg)));
+                return
+            end
+        elseif size(filteredImg) ~= size(IMAGE)
+            message = sprintf('expected size=%s, got %s', mat2str(size(IMAGE)), mat2str(size(filteredImg)));
+            return
+        end 
     end
 else
+    isifft = true;
     if ~isreal(filteredImg)
         message = 'output should be real with because ifft=true';
        	return
-  	end
+   % size
+    elseif size(filteredImg) ~= size(IMAGE)
+        message = sprintf('expected size=%s, got %s', mat2str(size(IMAGE)), mat2str(size(filteredImg)));
+        return
+    end
 end
 
 % uniform
 if isreal(filteredImg)
-    if help_isOptionDefined(OPTION, 'uniform')
-        if help_getOptionParam(OPTION, 'uniform')
+    if help_isOptionDefined(OPTION, 'standardize')
+        if help_getOptionParam(OPTION, 'standardize')
             if abs(mean(filteredImg(:))) > 0.1
                 message = sprintf('output mean should be 0, got %f, original %f', mean(filteredImg(:)), mean(IMAGE(:)));
                 return
@@ -98,10 +131,11 @@ if isreal(filteredImg)
         end
     end
 end
+
 % compare with fixture
-if EXTRA
-    if any(filteredImg - EXTRA) > 1e-7
-       	message = 'vectors are not equal to corresponding fixture';
+if ishalf && isifft
+    if any(abs(filteredImg - filteredImg2) > 1e-5, 'all')
+       	message = 'half not equivalent to full';
        	return
     end
 end
@@ -123,7 +157,7 @@ methods = {'cpu'; 'gpu'};
 img = help_getBatch({'fixtureRandn'}, methods, precisions, sizes);
 
 option = help_getBatchOption({'ifft', {true;false}; ...
-                              'uniform', {true;false}});
+                              'standardize', {true;false}});
 
 testCase.TestData.toTest = help_getBatch(img, option, {false}, {false});
 
@@ -150,7 +184,7 @@ methods = {'cpu'; 'gpu'};
 img = help_getBatch({'fixtureRandn'}, methods, precisions, sizes);
 
 option = help_getBatchOption({'ifft', {true;false}; ...
-                              'uniform', {true;false}});
+                              'standardize', {true;false}});
 
 testCase.TestData.toTest = help_getBatch(img, option, {false}, {false});
 
@@ -193,10 +227,36 @@ testCase.TestData.toTest = [testCase.TestData.toTest; ...
 
 % options
 options = help_getBatchOption({'iff', {1;0;-1;3;'kayak';nan;inf;{};[];''}; ...
-                               'uniform', {1;0;-1;3;'kayak';inf;nan;{};[];''}});
+                               'standardize', {1;0;-1;3;'kayak';inf;nan;{};[];''}});
 options = options(~cellfun(@isempty, options), :);
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
-                            help_getBatch({ones(10,10)}, ones(10,10), options, {'error'}, {false})];
+        help_getBatch({ones(10,10)}, ones(10,10), options, {'error'}, {false})];
+    
+% check that bandpass other than full and half raise an error.
+testCase.TestData.toTest = [testCase.TestData.toTest; ...
+       {ones(100,100), ones(80,100), {},    'EMC:IMAGE', false; ...
+       ones(50,50,50), ones(25,50,50), {}, 'EMC:IMAGE', false}];
+
+EMC_runTest(testCase);
+
+end
+
+
+function test_half(testCase)
+% check that using half bandpass gives the same filtered image at the end than full bandpass.
+testCase.TestData.functionToTest = @compareFullAndHalf;
+
+sizes = help_getRandomSizes(2, [150,250], '2d');
+precisions = {'single'; 'double'};
+methods = {'cpu'; 'gpu'};
+img = help_getBatch({'fixtureRandn'}, methods, precisions, sizes);
+option = help_getBatchOption({'ifft', {true;false}; 'standardize', {true;false}});
+testCase.TestData.toTest =  help_getBatch(img, {nan}, option, {false}, {false});
+
+sizes = help_getRandomSizes(2, [150,250], '3d');
+img = help_getBatch({'fixtureRandn'}, methods, precisions, sizes);
+testCase.TestData.toTest = [testCase.TestData.toTest; help_getBatch(img, {nan}, option, {false}, {false})];
+
 EMC_runTest(testCase);
 
 end

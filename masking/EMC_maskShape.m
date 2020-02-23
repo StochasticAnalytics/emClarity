@@ -81,11 +81,11 @@ function MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 %           v.1.1.0 unittest (TF, 2Feb2020).
 %           v.1.1.1 even kernels are now accepted. If you use your own vector kernel,
 %                   it will be casted to the METHOD and precision before convolution (4Feb2020).
-%           v.1.1.2 SIZE, RADIUS and shifts must be row vectors (column are illegal now) (4Feb2020).
+%           v.1.1.2 SIZE, RADIUS and shifts must be row vectors (columns are illegal now) (4Feb2020).
 %
 
 %% 
-[SIZE, OPTION, flg, ndim] = checkIN(SIZE, RADIUS, METHOD, OPTION);
+[SIZE, OPTION, flg] = checkIN(SIZE, RADIUS, METHOD, OPTION);
 
 cutoffLow = 0.001;  % everything below this value is set to 0.
 
@@ -209,7 +209,7 @@ end
 % kernel, it creates a nice roll off to zero at the edges of the MASK.
 if flg.kernel
     % Force taper at the edges.
-    MASK = EMC_resize(MASK, zeros(1,ndim*2), {'force_taper', true; 'taper', zeros(1, ceil(kernelSize/2))});
+    MASK = EMC_resize(MASK, nan, {'force_taper', true; 'taper', zeros(1, ceil(kernelSize/2))});
     MASK = EMC_convn(MASK, OPTION.kernel); % this is the most expensive part
     MASK = MASK ./ max(MASK, [], 'all');  % rounding errors; max=1
     MASK(MASK <= cutoffLow) = 0;  % predictable end of the pass
@@ -218,7 +218,7 @@ end
 end  % EMC_maskShape
 
 
-function [SIZE, OPTION, flg, ndim] = checkIN(SIZE, RADIUS, METHOD, OPTION)
+function [SIZE, OPTION, flg] = checkIN(SIZE, RADIUS, METHOD, OPTION)
 
 [flg.is3d, SIZE, ndim] = EMC_is3d(SIZE);
 if SIZE(1) == 1 || SIZE(2) == 1

@@ -4,16 +4,16 @@ end
 
 
 function setupOnce(testCase)
-testCase.TestData.debug = 0;
+testCase.TestData.debug = 2;
 testCase.TestData.functionToTest = @EMC_resize;
 testCase.TestData.evaluateOutput = @evaluateOutput;
 testCase.TestData.fixtureOnes = @help_getInputOnes;
 end
 
 
-function [result, message] = evaluateOutput(IMG, LIMITS, OPTION, OUTPUTCELL, ~)
+function [result, message] = evaluateOutput(IMG, LIMITS, OPTION, OUTPUTCELL, EXTRA)
 % This function is checking for output size, precision and method.
-
+% Additionnaly, checks that the output is equal to fixture.
 result = 'passed';
 message = '';
 
@@ -48,22 +48,12 @@ elseif outSize ~= size(OUTPUT)
     message = sprintf('output size should be %s, got %s', mat2str(outSize), mat2str(size(OUTPUT)));
 end
 
-end
-
-
-function [result, message] = evaluateOutputFixture(IMG, LIMITS, OPTION, OUTPUTCELL, EXTRA)
-% This function is checking for output size, precision and method.
-% Additionnaly, checks that the output is equal to fixture.
-
-[result, message] = evaluateOutput(IMG, LIMITS, OPTION, OUTPUTCELL, nan);
-if strcmp(result, 'failed')
-    return
-end
-
-fixture = load(EXTRA);
-if any(abs(OUTPUTCELL{1} - fixture.out)) > 1e-07
-    result = 'failed';
-    message = 'not equal to fixture';
+if any(EXTRA)
+    fixture = load(EXTRA);
+    if any(abs(OUTPUTCELL{1} - fixture.out)) > 1e-07
+        result = 'failed';
+        message = 'not equal to fixture';
+    end
 end
 
 end
@@ -82,7 +72,7 @@ function test_default(testCase)
 imgSizes = help_getRandomSizes(1, [80, 1000], '2d');
 img = help_getBatch({'fixtureOnes'}, {'cpu'; 'gpu'}, {'single'; 'double'}, imgSizes);
 
-limits = help_getRandomLimits(1, [-30,30], {'both', 'pad', 'crop'}, ...
+limits = help_getRandomLimits(3, [-30,30], {'both', 'pad', 'crop'}, ...
                               {'all', 'x', 'y'}, {'both', 'left', 'right'}, '2d');
 
 option = {{}; {'origin', -1}; {'origin', 1}; {'origin', 2}};
@@ -95,7 +85,7 @@ EMC_runTest(testCase);
 imgSizes = help_getRandomSizes(1, [80, 250], '3d');
 img = help_getBatch({'fixtureOnes'}, {'cpu'; 'gpu'}, {'single'; 'double'}, imgSizes);
 
-limits = help_getRandomLimits(1, [-30,30], {'both', 'pad', 'crop'}, ...
+limits = help_getRandomLimits(2, [-30,30], {'both', 'pad', 'crop'}, ...
                               {'all', 'x', 'y', 'z', 'xy', 'xz', 'yz'}, {'both', 'left', 'right'}, '3d');
 
 option = {{}; {'origin', -1}; {'origin', 1}; {'origin', 2}};
@@ -128,7 +118,7 @@ option = help_getBatchOption({'origin', {-1;1}; ...
                               'value', {2.5; single(2.4); 'uniform'; 'mean'}});
 
 testCase.TestData.toTest = help_getBatch(img, limits, option, {false}, {false});
-testCase.TestData.testName = 'batch2d';
+testCase.TestData.testName = '2d';
 EMC_runTest(testCase);
 
 %% 3d
@@ -139,7 +129,7 @@ limits = help_getRandomLimits(2, [-30,30], {'both'}, {'all',}, {'both'}, '3d');
 
 
 testCase.TestData.toTest = help_getBatch(img, limits, option, {false}, {false});
-testCase.TestData.testName = 'batch3d';
+testCase.TestData.testName = '3d';
 EMC_runTest(testCase);
 
 %% assume errors
@@ -159,17 +149,33 @@ function test_taper_and_value(testCase)
 imgSizes = help_getRandomSizes(1, [120, 1000], '2d');
 img = help_getBatch({'fixtureOnes'}, {'cpu'; 'gpu'}, {'single'; 'double'}, imgSizes);
 
-limits = help_getRandomLimits(2, [-30,30], {'both'}, {'all',}, {'both'}, '2d');
+limits = help_getRandomLimits(2, [-30,30], {'both'}, {'all'}, {'both'}, '2d');
 
 option = help_getBatchOption({'origin', {-1;1}; ...
                               'taper', {single([0.7,0.5,0.3,0.1]); single(2.5); 5; ...
                                         gpuArray(single([0.7,0.5,0.3,0.1])); ...
-                                        gpuArray(single(2.5)); {'cosine', 10}; {'linear', 30}}; ...
+                                        gpuArray(single(2.5))}; ...
                               'value', {single(2.4); gpuArray(single(2.4)); gpuArray(12); 'uniform'; 'mean'};
                               'force_taper', {true}});
 
 testCase.TestData.toTest = help_getBatch(img, limits, option, {false}, {false});
-testCase.TestData.testName = 'batch2d';
+testCase.TestData.testName = '2d';
+EMC_runTest(testCase);
+
+% taper new convention: if cell|struct -> 'type', 'numel' or 'percent'.
+option = help_getBatchOption({'origin', {-1}; ...
+                              'taper', help_getBatchOption({'type', {'linear'; 'cosine'}; ...
+                                                            'numel', {2;20}}); ...
+                              'value', {single(2.4); gpuArray(2.4)};
+                              'force_taper', {true}});
+testCase.TestData.toTest = help_getBatch(img, limits, option, {false}, {false});
+option = help_getBatchOption({'origin', {-1}; ...
+                              'taper', help_getBatchOption({'type', {'linear'; 'cosine'}; ...
+                                                            'percent', {0; 0.1; 0.3}}); ...
+                              'value', {single(2.4); gpuArray(2.4)};
+                              'force_taper', {true}});
+testCase.TestData.toTest = [testCase.TestData.toTest; help_getBatch(img, limits, option, {false}, {false})];
+testCase.TestData.testName = '2d_new_taper';
 EMC_runTest(testCase);
 
 %% 3d
@@ -181,12 +187,28 @@ limits = help_getRandomLimits(2, [-30,30], {'both'}, {'all',}, {'both'}, '3d');
 option = help_getBatchOption({'origin', {-1;1}; ...
                               'taper', {single([0.7,0.5,0.3,0.1]); single(2.5); 5; ...
                                         gpuArray(single([0.7,0.5,0.3,0.1])); ...
-                                        gpuArray(single(2.5)); {'cosine', 10}; {'linear', 30}}; ...
+                                        gpuArray(single(2.5))}; ...
                               'value', {single(2.4); gpuArray(single(2.4)); gpuArray(12); 'uniform'; 'mean'};
                               'force_taper', {true}});
 
 testCase.TestData.toTest = help_getBatch(img, limits, option, {false}, {false});
-testCase.TestData.testName = 'batch3d';
+testCase.TestData.testName = '3d';
+EMC_runTest(testCase);
+
+% taper new convention: if cell|struct -> 'type', 'numel' or 'percent'.
+option = help_getBatchOption({'origin', {-1}; ...
+                              'taper', help_getBatchOption({'type', {'linear'; 'cosine'}; ...
+                                                            'numel', {2;20}}); ...
+                              'value', {single(2.4); gpuArray(2.4)};
+                              'force_taper', {true}});
+testCase.TestData.toTest = help_getBatch(img, limits, option, {false}, {false});
+option = help_getBatchOption({'origin', {-1}; ...
+                              'taper', help_getBatchOption({'type', {'linear'; 'cosine'}; ...
+                                                            'percent', {0; 0.1; 0.3}}); ...
+                              'value', {single(2.4); gpuArray(2.4)};
+                              'force_taper', {true}});
+testCase.TestData.toTest = [testCase.TestData.toTest; help_getBatch(img, limits, option, {false}, {false})];
+testCase.TestData.testName = '3d_new_taper';
 EMC_runTest(testCase);
 
 %% assume errors
@@ -194,13 +216,12 @@ EMC_runTest(testCase);
 
 % EMC:taper
 option = help_getBatchOption({'taper', {[0.9; 0.7; 0.5; 0.3; 0.1]; [0.9, 0.7, 0.5; 0.3, 0.1, 0]; ...
-                                        'kayak'; []; {}; ""; struct('cosine', 10)}});
+                                        'kayak'; []; ""; struct('cosine', 10); {'kayak', 1}}});
 option = option(~cellfun(@isempty, option));
-testCase.TestData.toTest = help_getBatch(img, limits, option, {'EMC:taper'}, {false});
+testCase.TestData.toTest = help_getBatch(img, limits, option, {'error'}, {false});
 
 % EMC:taper - SIZE
-option = help_getBatchOption({'taper', {{'cosine', 1}; {'cosine', -1}; {'linear', 1}; {'linear', -1}; ...
-                                        {'cosine', nan}; {'cosine', inf}}});
+option = help_getBatchOption({'taper', {{'numel', 1}; {'numel', -1}; {'numel', nan}; {'numel', inf}}});
 option = option(~cellfun(@isempty, option));
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, limits, option, {'EMC:taper'}, {false})];
@@ -209,16 +230,16 @@ testCase.TestData.toTest = [testCase.TestData.toTest; ...
 option = help_getBatchOption({'taper', {{'kayak', 10}; {[], 10}; {nan, 10}; {inf, 10}}});
 option = option(~cellfun(@isempty, option));
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
-                            help_getBatch(img, limits, option, {'EMC:taper'}, {false})];
-                        
+                            help_getBatch(img, limits, option, {'error'}, {false})];
+
 % EMC:IMAGE
 img1 = {'fixtureOnes', 'cpu', 'single', [100,100]};
 img2 = {'fixtureOnes', 'cpu', 'single', [100,101]};
 
 testCase.TestData.toTest = [testCase.TestData.toTest; { ...
-    img1, [10,10,10,10], {'taper', {'linear', 101}}, 'EMC:taper', false; ...
-    img2, [10,10,10,10], {'taper', {'linear', 102}}, 'EMC:taper', false; ...
-    img2, [10,10,10,10], {'taper', {'linear', 51}; 'origin', -1}, 'EMC:taper', false; ...
+    img1, [10,10,10,10], {'taper', {'numel', 101}}, 'EMC:taper', false; ...
+    img2, [10,10,10,10], {'taper', {'numel', 102}}, 'EMC:taper', false; ...
+    img2, [10,10,10,10], {'taper', {'numel', 51}; 'origin', -1}, 'EMC:taper', false; ...
     }];
 
 % EMC:value
@@ -275,10 +296,13 @@ testCase.TestData.toTest = { ...
     img, 'kayak',       {},                             'EMC:LIMITS', false; ...
     img, [],            {},                             'EMC:LIMITS', false; ...
     img, {},            {},                             'EMC:LIMITS', false; ...
-    img, nan,            {},                          	'EMC:LIMITS', false; ...
     img, inf,            {},                          	'EMC:LIMITS', false; ...
     img, [nan,10,10,10],            {},                 'EMC:LIMITS', false; ...
     img, [inf,10,10,10],            {},                 'EMC:LIMITS', false; ...
+    
+    % new taper
+    ones(20,20,20), [5,5,5,5], {'taper', {'numel', 10; 'percent', 0.1}}, 'EMC:LIMITS', false; ...
+    ones(20,20,20), [5,5,5,5], {'taper', {'percent', 1}}, 'EMC:LIMITS', false; ...
 };
 
 EMC_runTest(testCase);
@@ -288,7 +312,7 @@ end
 
 function test_fixture(testCase)
 
-testCase.TestData.evaluateOutput = @evaluateOutputFixture;
+testCase.TestData.evaluateOutput = @evaluateOutput;
 
 img2d = {'fixtureOnes', 'cpu', 'single', [128,128]};
 img3d = {'fixtureOnes', 'cpu', 'single', [128,128,128]};
