@@ -53,9 +53,9 @@ IMAGE = IMAGE - min(IMAGE, [], 'all');  % min to 0
 total = sum(IMAGE, 'all');
 if total == 0
     if EMC_is3d(imgSize)
-        COM = [sum(vX) / imgSize(1), sum(vY)/imgSize(2), sum(vZ)/imgSize(3)];
+        COM = [sum(vX)/imgSize(1), sum(vY)/imgSize(2), sum(vZ)/imgSize(3)];
     else
-        COM = [sum(vX) / imgSize(1), sum(vY)/imgSize(2)];
+        COM = [sum(vX)/imgSize(1), sum(vY)/imgSize(2)];
     end
     return
 end

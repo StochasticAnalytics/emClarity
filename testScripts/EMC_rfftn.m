@@ -1,7 +1,7 @@
 function DFT = EMC_rfftn(IMAGE)
 %
 % N-D Fast Fourier Transform of a real 2d/3d real IMAGE.
-% Use the hermitian symmetry of the IMAGE and return the non-redondant coefficients only.
+% Use the hermitian symmetry of the IMAGE and return the non-redundant coefficients only.
 %
 % Input:
 %   IMAGE (numeric):    2d or 3d numerical array (real).
@@ -21,7 +21,7 @@ function DFT = EMC_rfftn(IMAGE)
 %
 
 % This is a real pain that MATLAB doesn't support this; compute the full spectrum
-% and truncate to return non-redondant coefficients only.
+% and truncate to return non-redundant coefficients only.
 DFT = fftn(IMAGE);
 if ndims(DFT) == 3
     DFT = DFT(1:(floor(size(DFT, 1)/2) + 1), :, :);

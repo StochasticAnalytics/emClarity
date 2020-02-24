@@ -38,7 +38,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 %                                   If bool: Apply or not the default taper.
 %                                   If vector: column vector used as taper (left to right <-> center to edge).
 %                                   If scalar: equivalent to [scalar]; one pixel taper.
-%                                   If cell|struct: Same format as OPTION, with the following parameter:
+%                                   If cell|struct: Same format as OPTION, with the following parameters:
 %                                       -> 'type' (str):      type of taper; 'linear' or 'cosine'.
 %                                       -> 'numel' (int):     size (in pixel) of the taper.
 %                                       -> 'percent' (float): size of the taper, in percentage (0 <= x < 1)

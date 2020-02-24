@@ -22,7 +22,7 @@ function IMAGE = EMC_convn(IMAGE, KERNEL)
 %
 % Note:
 %   - For the 2d case with separable kernels, convn(convn(img, k), k) is slower than
-%     conv2(img, k, k) on CPU. Their are equivalent on GPU.
+%     conv2(img, k, k) on CPU. They are equivalent on GPU.
 %
 % Example:
 %   - a = rand(1000,1000);

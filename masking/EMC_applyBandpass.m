@@ -1,6 +1,6 @@
 function IMAGE = EMC_applyBandpass(IMAGE, BANDPASS, OPTION)
 %
-% IMAGE = EMC_applyBandpass(IMAGE, BANDPASS, OPTION, varargin)
+% IMAGE = EMC_applyBandpass(IMAGE, BANDPASS, OPTION)
 % Apply a BANDPASS filter to a real IMAGE.
 %
 % Input:

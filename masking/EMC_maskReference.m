@@ -13,25 +13,22 @@ function [MASK, COM, FRACTION] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 %                                       NOTE: Can be empty.
 %                                       NOTE: Unknown fields will raise an error.
 %
-%     -> 'fsc' (bool):                  Is the mask meant to be used for FSC calculation?
-%                                       If so, use a softer dilation for FSC masking compared to the
-%                                       more stringent dilation used for alignment where the focus is
-%                                       on stronger density.
-%                                       default = false
-%
 %     -> 'lowpass' (float):             Cutoff, in Angstrom, of the low pass filter to apply
 %                                       to the IMAGE before computing the reference mask.
 %                                       NOTE: If lower than Nyquist, adjust it to Nyquist.
-%                                       default = max(14, PIXEL*2)
+%                                       default = 14
 %
 %     -> 'threshold' (float):           The first part of the algorithm is based on a connectivity expansion
-%                                       scheme. The pixels/voxels higher than a given threshold will be used
-%                                       as seeds for expansion...
+%                                       scheme (dilation weigthed by the density strengh). The pixels/voxels
+%                                       higher than a given threshold will be used as seeds for expansion.
+%                                       This threshold is empirical and applied on the IMAGE after
+%                                       preprocessing (median filter, lowpass, taper and standardization).
+%                                       default = 2.4
 %
-%	  -> 'com' (bool):                  Compute the center of mass of the reference mask (MASK).
+%     -> 'com' (bool):                  Compute the center of mass of the reference mask (MASK).
 %                                       default = false
 %
-% 	  -> 'origin' (int):                Origin of the IMAGE.
+%     -> 'origin' (int):                Origin of the IMAGE.
 %                                       0, 1 or 2; see EMC_coordVectors for more details.
 %                                       NOTE: This option is only used to compute the center of mass and
 %                                             is therefore ignored if 'com'=false.
@@ -39,16 +36,17 @@ function [MASK, COM, FRACTION] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 %                                             real space.
 %                                       defaut = 1
 %
-%     -> 'fraction' (bool):            	Compute the estimated particle fraction.
+%     -> 'fsc' (bool):                  Whether or not the mask is meant for FSC calculation?
+%                                       If true, use a stronger dilation for FSC masking compared to the
+%                                       more stringent dilation used for alignment. Additionnaly, computes
+%                                       the particle fraction (FRACTION).
 %                                       default = false
 %
-%     -> 'hydrationScaling'(float):   	Estimate of the molecular volume at the hydratation radius
+%     -> 'hydration_scaling'(float):    Estimate of the molecular volume at the hydratation radius
 %                                       of the underlying atoms. The default value (calculated empirically)
 %                                       depends on the mask resolution, therefore, the 'lowpass' parameter.
-%                                       NOTE: This option is only used with 'fraction'=true.
-%                                       TODO: When the map resolution is lower than the masking
-%                                             resolution, this will again underestimate the scaling,
-%                                             artificialy *de*pressing the FSC.
+%                                       NOTE: This option is only used with 'fsc'=true.
+%                                       default = see line 266.
 %
 %     -> 'precision' (str):             Precision of the output MASK.
 %                                       NOTE: This is changed before lowpass filter.
@@ -61,28 +59,41 @@ function [MASK, COM, FRACTION] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 %                                       If 'com'=false, return nan.
 %
 %   FRACTION (float):                   Estimated particle/background ratio in the MASK.
-%                                       If 'fraction'=false, return nan.
+%                                       If 'fsc'=false, return nan.
+%
+% Note:
+%   - I [TF] don't understand this: "When the map resolution is lower than the masking
+%     resolution, this will underestimate the scaling, artificialy *de*pressing the FSC".
+%
+%   - The mask is very dependent of OPTION.threshold, specially for alignment masks.
+%     I [TF] am supprised this hasn't cause problems.
+%
+% Other EMC-files required:
+%   EMC_getOption, EMC_is3d, EMC_resize, EMC_applyBandpass, EMC_getBandpass, EMC_mediaFilter,
+%   EMC_gaussianKernel, EMC_setPrecision, EMC_convn, EMC_centerOfMass.
 %
 
+% Created:  18Jan2020, R2019a
+% Version:  v.1.0.
+%
 
 %% MAIN
-[IMAGE, SIZE, OPTION, flg, tofloat] = checkIN(IMAGE, PIXEL, OPTION);
+[IMAGE, SIZE, METHOD, OPTION] = checkIN(IMAGE, PIXEL, OPTION);
 
-% Use this mask to suppress densities at edge of IMAGE.
-minusEdges = EMC_shapeMask('rectangle', SIZE, ceil(SIZE/2), flg.method, ...
-                           {'precision', OPTION.precision; 'origin', OPTION.origin});
-
-% Get the IMAGE ready: median filter; force edge to go to zeros to suppress
-%                      edge artifacts; lowpass filter
-if flg.is3d
-    IMAGE = EMC_applyBandpass(EMC_setMethod(medfilt3(gather(IMAGE), [3,3,3]), flg.method) .* minusEdges, ...
-                              EMC_bandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, ...
-                                           {'precision', OPTION.precision}));
+% Use this mask to suppress densities at the edges of IMAGE.
+if strcmp(METHOD, 'gpu')
+    minusEdges = EMC_resize(ones(SIZE, OPTION.precision, 'gpuArray'), nan, {'force_taper', true});
 else
-    IMAGE = EMC_applyBandpass(medfilt2(IMAGE, [3,3]) .* minusEdges, ...
-                              EMC_bandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, ...
-                                           {'precision', OPTION.precision}));
+    minusEdges = EMC_resize(ones(SIZE, OPTION.precision), nan, {'force_taper', true});
 end
+
+% Get the IMAGE ready: median filter (remove hot pixels); force edge to go to zeros to suppress
+% edge artifacts; lowpass filter
+IMAGE = EMC_applyBandpass(...
+            EMC_medianFilter(IMAGE) .* minusEdges, ...
+            EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, METHOD, {'precision', OPTION.precision; ...
+                                                                       'lowpassRoll', 'extended'}), ...
+            {});
 
 % Make sure no wrap-around artifacts.
 IMAGE = IMAGE .* minusEdges;
@@ -94,105 +105,103 @@ else
     dilationThresholds = [1.0, 0.9];  % tight
 end
 
-% Seeds: select regions of the IMAGE with highest values while making sure there is at least on pixel.
-maxThreshold = max(OPTION.threshold .* std(IMAGE(IMAGE > 0), 0, 'all'), max(IMAGE, [], 'all'));
+% Seeds: select regions of the IMAGE with highest values while making sure there is at least one pixel.
+maxThreshold = min(OPTION.threshold .* std(IMAGE(IMAGE > 0), [], 'all'), max(IMAGE, [], 'all'));
 currentMask = IMAGE > maxThreshold;  % seeds
 
 % The dilatation kernel is one of the key part of the algorithm as it restricts the selection of
 % region with lowest density to regions that are in close proximity to the already selected
 % regions: connectivity-based expansion.
-dilationKernel = EMC_gaussianKernel([1,3], 3, METHOD, {'precision', OPTION.precision; ...
-                                                       'method', flg.method});
+dilationKernel = EMC_gaussianKernel([1,3], 3, {'precision', OPTION.precision; 'method', METHOD});
 
 % Connectivity-based expansion of the current mask.
 for threshold = dilationThresholds .* maxThreshold
-    currentMask = tofloat(currentMask);
+    currentMask = EMC_setPrecision(currentMask, OPTION.precision);
     currentKernel = dilationKernel;
 
-    for i = 1:ceil(threshold.^2 ./ 3); currentKernel = convn(currentKernel, currentKernel); end
+    for i = 1:ceil(threshold.^2 ./ 3) - 1
+        currentKernel = convn(currentKernel, currentKernel);
+    end
     currentMask = (~currentMask .* EMC_convn(currentMask, currentKernel) > 0) + currentMask;
-    
+
     % This part is crucial as it restricts the expansion to the close pixel higher than the current
     % threshold. This is where the 'connectivity' really happens.
     currentMask = (IMAGE .* currentMask > threshold);
 end
 
 % At this stage, the currentMask is considered as the particle volume (non-hydrated).
-% Same this volume to compute the particle fraction.
-if OPTION.fraction
+% Save this volume to compute the particle fraction.
+if OPTION.fsc
     particleVolEstimate = sum(currentMask, 'all');
 end
 
 % Expand the currentMask (particle volume) by at least 10 Angstroms.
 rad = max(3, floor(10 ./ PIXEL));
-for i = 1:size(currentMask,3)
+for i = 1:size(currentMask, 3)
     currentMask(:,:,i) = currentMask(:,:,i) + bwdist(currentMask(:,:,i)) < (rad / 2);
 end
+currentMask = EMC_setPrecision(currentMask, OPTION.precision);
 
-% For FSC masks, apply a gaussian blur to the mask.
+% At this point, currentMask is probably a slight over estimate of the protein envelope, however,
+% we want to leave room for regions which aren't yet aligned well and thus appear weak. Otherwise,
+% the centering on just the strong density may prevent them from ever improving.
+
+% For FSC masks, add an additional dilation. By expanding the mask to include more solvent,
+% one can arbitrarily decrease the measured SNR. Even though this expansion is almost certainly
+% containing surrounding solvent, estimate the signal reduction in the taper as the mask could
+% cut through densities.
 if OPTION.fsc
-    smoothKernel = EMC_gaussianKernel([1, rad], rad/2, {'precision', OPTION.precision; 'method', flg.method});
-    currentMask = EMC_convn(tofloat(currentMask), convn(smoothKernel, smoothKernel));
-    currentMask = currentMask ./ max(currentMask(:));
-end
+    smoothKernel = EMC_gaussianKernel([1, rad], rad/2, {'precision', OPTION.precision; 'method', METHOD});
+    fscMask = EMC_convn(currentMask, convn(smoothKernel, smoothKernel));
+    fscMask = fscMask ./ max(fscMask(:));
+    maskVolume = sum(fscMask>0, 'all');
 
-% Make sure no wrap-around artifacts.
-MASK = currentMask .* minusEdges;
+    powerReduction = sum(IMAGE.^2 .* fscMask>0, 'all') ./ sum(IMAGE.^2 .* fscMask, 'all');
 
-% Compute the center of mass of the final MASK.
-% Q4B8: If fsc mask, why aren't you computing the com on the final MASK? line 458 of BH_mask3d is weird:
-% binaryVol = (binaryVol - min(binaryVol(MASK > 0.01)) ).*MASK; with binaryVol being the binary mask and
-% MASK being binaryVol with blurring and edgetaper.
-if OPTION.com
-    COM = EMC_centerOfMass(MASK, OPTION.origin);
-else
-    COM = nan;
-end
+    % Scale the particle volume; 'remove' its hydration volume.
+    % TODO: so we assume particleVolEstimate contains some solvent then?
+    particleVolEstimate = particleVolEstimate ./ OPTION.hydration_scaling;
 
-% Estimate the particle fraction
-if OPTION.fraction
-    % The mask is not a logical mask, it has values between 0 and 1. As such,
-    % estimate the signal reduction in these regions.
-    powerReduction = sum(IMAGE.^2 .* currentMask>0, 'all') ./ ...
-                     sum(IMAGE.^2 .* currentMask, 'all');
-
-    maskVolume = sum(currentMask>0, 'all');
-
-    % Scale the particle volume to add its hydration volume.
-    particleVolEstimate = particleVolEstimate ./ OPTION.hydrationScaling;
-
-    % Finally, estimate the fraction of the mask taken by the particle by
-    % comparing the hydrated particle volume to the mask volume (scalled down
-    % to take into account the power reduction due to the roll off)
+    % Finally, estimate the fraction of the mask taken by the particle, by
+    % comparing the particle volume (not-hydrated) to the mask volume (scalled down
+    % to take into account the power reduction due to the taper).
     FRACTION = particleVolEstimate ./ (maskVolume .* powerReduction);
 
-    fprintf(['Size: %s - Precision: %s - Method: %s\n', ...
-             'Estimated particule volume : %d voxels\n', ...
-             'Estimated mask volume      : %d voxels\n', ...
-             'Power reduction            : %2.3f\n', ...
-             'Particle fraction          : %2.3f\n'], ...
-             mat2str(SIZE), OPTION.precision, flg.method, ...
+    fprintf(['FSC mask: Estimated particule volume : %d voxels\n', ...
+             '               Estimated mask volume : %d voxels\n', ...
+             '                     Power reduction : %2.3f\n', ...
+             '                   Particle fraction : %2.3f\n'], ...
              particleVolEstimate, maskVolume, powerReduction, FRACTION);
+
+    % Make sure no wrap-around artifacts.
+    MASK = fscMask .* minusEdges;
+
+    % To compute the COM, restrict to the region most likely to contain only the protein.
+    if OPTION.com; COM = EMC_centerOfMass(MASK .* currentMask, OPTION.origin); else; COM = nan; end
 else
+    % Make sure no wrap-around artifacts.
+    MASK = currentMask .* minusEdges;
+
+    if OPTION.com; COM = EMC_centerOfMass(MASK, OPTION.origin); else; COM = nan; end
     FRACTION = nan;
 end
 
-end
+end  % EMC_maskReference
 
 
-function [IMAGE, SIZE, OPTION, flg, tofloat] = checkIN(IMAGE, PIXEL, OPTION)
+function [IMAGE, SIZE, METHOD, OPTION] = checkIN(IMAGE, PIXEL, OPTION)
 
 if ~isnumeric(IMAGE)
     error('EMC:IMAGE', 'IMAGE should be numeric, got %s', class(IMAGE))
 elseif ~isreal(IMAGE)
     error('EMC:IMAGE', 'IMAGE should be real, got complex')
 end
-[flg.is3d, SIZE, flg.ndim] = EMC_is3d(size(IMAGE));
+[~, SIZE, ~] = EMC_is3d(size(IMAGE));
 
 if EMC_isOnGpu(IMAGE)
-    flg.method = 'gpu';
+    METHOD = 'gpu';
 else
-    flg.method = 'cpu';
+    METHOD = 'cpu';
 end
 
 % PIXEL
@@ -201,7 +210,7 @@ if ~isscalar(PIXEL) || ~isnumeric(PIXEL) || isinf(PIXEL) || ~(PIXEL > 0)
 end
 
 OPTION = EMC_getOption(OPTION, {'origin', 'fsc', 'com', 'lowpass', ...
-                                'threshold', 'fraction', 'hydrationScaling', 'precision'}, false);
+                                'threshold', 'hydration_scaling', 'precision'}, false);
 
 % origin
 if isfield(OPTION, 'origin')
@@ -233,15 +242,6 @@ else
     OPTION.com = false;  % default
 end
 
-% fraction
-if isfield(OPTION, 'fraction')
-    if  ~isscalar(OPTION.fraction) || ~islogical(OPTION.fraction)
-        error('EMC:fraction', 'OPTION.fraction should be a boolean, got %s', class(OPTION.fraction))
-    end
-else
-    OPTION.fraction = false;  % default
-end
-
 % lowpass
 if isfield(OPTION, 'lowpass')
     if ~isscalar(OPTION.lowpass) || ~isnumeric(OPTION.lowpass) || ...
@@ -264,28 +264,24 @@ else
     OPTION.threshold = 2.5;  % default
 end
 
-% hydrationScaling
-if isfield(OPTION, 'hydrationScaling')
-    if ~isscalar(OPTION.hydrationScaling) || ~isnumeric(OPTION.hydrationScaling) || ...
-       isinf(OPTION.hydrationScaling) || ~(OPTION.hydrationScaling >= 0)
-        error('EMC:hydrationScaling', 'OPTION.hydrationScaling should be a nonnegative float|int')
+% hydration_scaling
+if isfield(OPTION, 'hydration_scaling')
+    if ~isscalar(OPTION.hydration_scaling) || ~isnumeric(OPTION.hydration_scaling) || ...
+       isinf(OPTION.hydration_scaling) || ~(OPTION.hydration_scaling >= 0)
+        error('EMC:hydration_scaling', 'OPTION.hydration_scaling should be a nonnegative float|int')
     end
 else
-    OPTION.hydrationScaling = (-2.8e-3) .* OPTION.lowpass.^2 + 0.14 .* OPTION.lowpass + 1.5;  % default
+    OPTION.hydration_scaling = (-2.8e-3) .* OPTION.lowpass.^2 + 0.14 .* OPTION.lowpass + 1.5;  % default
 end
 
 % precision
-if isfield(OPTION, precision)
-    if strcmpi(OPTION.precision, 'single')
-        tofloat = @(array) single(array);
-    elseif strcmpi(OPTION.precision, 'double')
-        tofloat = @(array) double(array);
-    else
+if isfield(OPTION, 'precision')
+    if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
+       ~strcmpi(OPTION.precision, 'single') && ~strcmpi(OPTION.precision, 'double')
         error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
     end
 else
     OPTION.precision = 'single';  % default
-    tofloat = @(array) single(array);
 end
 
 end  % checkIN
