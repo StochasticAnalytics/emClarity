@@ -1,7 +1,7 @@
 
 function [ TRANS_IMAGE ] = BH_resample2d( IMAGE, ANGLES, SHIFTS, ...
                                           CONVENTION, METHOD, DIRECTION, ...
-                                          MAG, SIZEOUT)
+                                          MAG, SIZEOUT, varargin)
 %Transform an image in 3d.
 %
 %   
@@ -53,6 +53,17 @@ else
   useGPU = false;
 end
 
+doHalfGrid = 0;
+if nargin > 8
+  if isa(varargin{1},'fourierTransformer')
+    doHalfGrid = 1;
+    hgSHIFTS = SHIFTS; SHIFTS = [0,0];
+    hgMAG = 1/MAG; MAG = 1;
+  else
+    error('did not recognize the varargin');
+  end
+end
+
 % Check for indication that transformations are from imod, in which case the
 % origin of even images needs to be shifted.
 if strcmpi(CONVENTION, 'IMOD')
@@ -70,16 +81,7 @@ else
     stackIN = IMAGE; clear IMAGE
 end
 
-% % % % Allow for anisotropic stretching 
-% % % if numel(MAG) == 3
-% % %   if ~strcmpi(DIRECTION, 'forward')
-% % %     error('Just implementing anisotropic stretch for forward %s.\n','xform');
-% % %   else
-% % %     aStretch = 1/MAG(3);
-% % %   end
-% % % else
-% % %   aStretch = 1;
-% % % end
+
 
 % For individual resampling, pushing to the gpu is (with the current hardware)
 % slow enough that it negates the benefit. If however the supplied image is
@@ -121,49 +123,86 @@ else
   error('ANGLES must be either three eulers or 9 rot matrix')
 end
 
-% In case the image is being expanded, pad accordingly
-[ padVal ] = BH_multi_padVal( size(stackIN), SIZEOUT );
-padLow = padVal(1,:);
-padHigh= padVal(2,:);
+% In case the image is being expanded, pad accordingly (only for real space
+
+
+[ trimVal ] = BH_multi_padVal( size(stackIN), SIZEOUT );
+padLow = trimVal(1,:);
+padHigh= trimVal(2,:);
 
 padLow = padLow .* (padLow > 0);
 padHigh = padHigh.* (padHigh > 0);
 
-if ( useGPU)
-  stackIN = BH_padZeros3d(stackIN,padLow,padHigh,'GPU','single');
-else
-  stackIN = BH_padZeros3d(stackIN,padLow,padHigh,'cpu','single');
-end    
+if ~doHalfGrid
+  if ( useGPU )
+    stackIN = BH_padZeros3d(stackIN,padLow,padHigh,'GPU','single');
+  else
+    stackIN = BH_padZeros3d(stackIN,padLow,padHigh,'cpu','single');
+  end 
+end
 
-[ Xnew,Ynew,~,x1,y1,~ ] = BH_multi_gridCoordinates( size(stackIN), ...
+if doHalfGrid
+  [ Xnew,Ynew,~,x1,y1,~ ] = BH_multi_gridCoordinates( varargin{1}.inputSize, ...
+                                                   'Cartesian', ...
+                                                    METHOD,transformation,...
+                                                    1, 1, 0,{'halfgrid'});
+
+
+else
+  [ Xnew,Ynew,~,x1,y1,~ ] = BH_multi_gridCoordinates( size(stackIN), ...
                                                    'Cartesian', ...
                                                     METHOD,transformation,...
                                                     0, shiftOrigin, 0 );
+end
 
 
-     
-[ padVal ] = BH_multi_padVal( SIZEOUT, size(stackIN) );
-cutLow = padVal(1,:);
-cutHigh= padVal(2,:);
+if ~doHalfGrid 
+  [ padVal ] = BH_multi_padVal( SIZEOUT, size(stackIN) );
+  cutLow = padVal(1,:);
+  cutHigh= padVal(2,:);
 
-cutLow = cutLow .* (cutLow > 0);
-cutHigh = cutHigh.* (cutHigh > 0);
-Xnew = Xnew(cutLow(1) + 1:end - cutHigh(1), ...
-            cutLow(2) + 1:end - cutHigh(2));
-          
-Ynew = Ynew(cutLow(1) + 1:end - cutHigh(1), ...
-            cutLow(2) + 1:end - cutHigh(2));
-          
+  cutLow = cutLow .* (cutLow > 0);
+  cutHigh = cutHigh.* (cutHigh > 0);
+  Xnew = Xnew(cutLow(1) + 1:end - cutHigh(1), ...
+              cutLow(2) + 1:end - cutHigh(2));
+
+  Ynew = Ynew(cutLow(1) + 1:end - cutHigh(1), ...
+              cutLow(2) + 1:end - cutHigh(2));
+end
+
 if (flgSeq)
   Xnew = Xnew{1};
   Ynew = Ynew{1};
 end 
 
+
 % Interpolate and write out the image.
 if ( useGPU )
-  TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew.*1/MAG,Ynew.*1/MAG,'linear',0);
+  if (doHalfGrid)
+    hermitianMates = Xnew < 0;
+    Xnew(hermitianMates) = -1.*Xnew(hermitianMates);
+    Ynew(hermitianMates) = -1.*Ynew(hermitianMates);
+
+    stackIN = varargin{1}.fwdSwap(varargin{1}.fwdFFT(stackIN));
+    TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew.*(1/hgMAG),Ynew.*(1/hgMAG),'linear',0);
+    
+    TRANS_IMAGE(hermitianMates) = conj(TRANS_IMAGE(hermitianMates));
+
+    if (hgMAG ~= 1 || hgSHIFTS(1) || hgSHIFTS(2))
+      isCentered=1;
+      TRANS_IMAGE = varargin{1}.shiftStretch(TRANS_IMAGE,hgSHIFTS,hgMAG,isCentered);
+    end
+    
+
+     TRANS_IMAGE = BH_padZeros3d( varargin{1}.invFFT(varargin{1}.invSwap(TRANS_IMAGE),2),...
+                                trimVal(1,:),trimVal(2,:),'GPU','single');
+
+  else
+    TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',mean(stackIN(:)));
+    
+  end
 else
-  TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew.*1/MAG,Ynew.*1/MAG,'spline',NaN);
+  TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'spline',NaN);
   TRANS_IMAGE(isnan(TRANS_IMAGE)) = mean(TRANS_IMAGE(~isnan(TRANS_IMAGE)));
 end
 clear Xnew Ynew Znew x1 y1 z1 stackIN ANGLES SHIFTS CONVENTION METHOD DIRECTION

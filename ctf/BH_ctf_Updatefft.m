@@ -57,21 +57,27 @@ end
 try
   ppool = parpool(nGPUs);
 catch
-  delete(gcp);
+  delete(gcp('nocreate'));
   ppool = parpool(nGPUs);
 end
+
+% For some reason matlab was geeking out about calling this in the parfor
+% loop, getting confused about whether it is a variable or a function.
+recGeomForThickness = subTomoMeta.reconGeometry;
 
 parfor iGPU = 1:nGPUs
   for iTilt = 1:length(ITER_LIST{iGPU})
     
   if ( flgParallel )
     useGPU = iGPU;
-    gDev = gpuDevice(useGPU)
+    gDev = gpuDevice(useGPU);
   else
     useGPU = BH_multi_checkGPU(-1);
     gDev = gpuDevice(useGPU);
   end
   STACK_PRFX = ITER_LIST{iGPU}{iTilt};
+
+      
 % Assuming that mapBackIter > 0 since we are updating
 if (mapBackIter)
   mapBackPrfx = sprintf('mapBack%d/%s_ali%d_ctf',mapBackIter,STACK_PRFX,mapBackIter)
@@ -165,18 +171,15 @@ end
 
 
 eraseSigma = 3;%pBH.('beadSigma');
-if ( eraseSigma > 0 )
-  eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5));
-  flgImodErase = 0
-else
-  % Converte bead diameter to pixels and add a little to be safe.
-  eraseRadius = 1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5);
-  flgImodErase = 1
-end
 
-%PRJ_STACK ={sprintf('fixedStacks/%s.fixed',STACK)}
-% PRJ_OUT = {NAMEOUT};
+eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5));
+flgImodErase = 0
 
+        % FIXME, this should be stored from previous mask calc and accessed there.
+      % For now just take based on tomogram (which will be larger than the true specimen thickness)
+      %THICKNESS = recGeomForThickness.(sprintf('%s_1',STACK_PRFX));
+      %THICKNESS = min(10,abs(THICKNESS(1,3)-THICKNESS(2,3)).*PIXEL_SIZE.*10^9);
+      THICKNESS = 10;
 % Assuming all extreme pixels have already been removed from the stack.
 %PRJ_STACK = {sprintf('%s_local04_18.mrc',mjIDX)};%,sprintf('%s_local14_18.mrc',mjIDX),sprintf('%s_local24_18.mrc',mjIDX),sprintf('%s_local34_18.mrc',mjIDX)};
 nStacks = length(tlt);
@@ -231,25 +234,11 @@ iStack=1;
                   iHeader.yOrigin , ...
                   iHeader.zOrigin ] ./ (1+abs(SuperResolution));
 
-  d1 = iHeader.nX; d2 = iHeader.nY; d3 = iHeader.nZ;
+  d1 = iHeader.nX; d2 = iHeader.nY; d3 = size(INPUT_CELL{iStack,1},1);%iHeader.nZ;
+  
 
 if (SuperResolution)
   halfMask = fftshift(BH_bandpass3d(1.*[d1,d2,1],0,0,4,'GPU',1));
-
-
-
-% else
-%   % Even though we oversample by padding, the nyquist is the same so crop
-%   % there
-%   halfMask2 = fftshift(BH_bandpass3d([2.*[d1,d2],1],0,0,2,'GPU',1));
-%   fftMask = BH_fftShift(0,[2.*[d1,d2],1],1); 
-%   ifftMask = BH_fftShift(0,[-2.*[d1,d2],1],1); 
-%   % Calculate grids in reciprocal pixels including 2pi for phase shifting
-%   [dU, dV] = BH_multi_gridCoordinates(2.*[d1,d2],'Cartesian','GPU', ...
-%                                                   {'none'},1,1,0);
-%   dU = dU .* (-2i*pi);
-%   dV = dV .* (-2i*pi);  
-
 end
 
 TLT = INPUT_CELL{iStack,1};
@@ -312,26 +301,7 @@ system('mkdir -p aliStacks');
     % create and later run a script to erase gold beads using imods
     % ccderaser and the present fiducial model.
 
-    % In addition to pixel size matching, it seems as if when the
-    % origin in the header is not 0,0,0 then the erase model won't fit
-    % - figure out how to adjust
-    if ( flgImodErase )
-    eraseOUT = fopen(sprintf('%s_erase.com',fileName),'w');
-    fprintf(eraseOUT,['#Command file to erase gold beads\n', ...
-                      'ccderaser -StandardInput << EOF\n', ...
-                      'BetterRadius %f\n', ... % need to get bead and pixel size from meta data
-                      'InputFile %s\n', ...
-                      'OutputFile %s-erase\n',...
-                      'ModelFile fixedStacks/%s.erase\n',...
-                      'MergePatches 1\n',...
-                      'ExcludeAdjacent\n',...
-                      'CircleObjects /\n',...
-                      'PolynomialOrder 1\n',...
-                      'ExpandCircleIterations 10\n',...
-                      'EOF'],min(56,eraseRadius),outputStackName,outputStackName,fileName);
-    fclose(eraseOUT);               
-    [~] = system(sprintf('chmod a=wrx %s_erase.com',fileName));
-    end
+
 
   else
     flgEraseBeads = 0;
@@ -362,15 +332,7 @@ system('mkdir -p aliStacks');
     tlt_tmp{i} = TLT(i,:);
   end
 
-% % % % % 
-% tmp override
-%   numWORKERS = 2;
-%   try
-%     parpool(numWORKERS)
-%   catch
-%     delete(gcp)
-%     parpool(numWORKERS)
-%   end
+
 
   if (flgSkipUpdate)
     continue
@@ -400,10 +362,7 @@ system('mkdir -p aliStacks');
 %                                            BH_decomposeIMODxf(mbEST(i,1:4))
 
 
-  % I have things set up to scale the pixel size by the magnification in a
-  % few places, notable CTF correction. Since that mag is now adjusted in
-  % the projection image resampling, set mag to 1.0
-  tlt_tmp{i}(14) = 1.00;
+
 
 
   if (SuperResolution)
@@ -455,7 +414,7 @@ system('mkdir -p aliStacks');
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
     
-     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(1)));
+     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(23),'keep'));
      
     % Information beyond the physical nyquist should be removed to limit
     % aliasing of noise prior tto interpolation.
@@ -476,9 +435,10 @@ system('mkdir -p aliStacks');
     
     
     % If it is even sized, shift up one pixel so that the origin is in the middle
-    % of the odd output here we can just read it in this way, unlike super res.  
+    % of the odd output here we can just read it in this way, unlike super res.
+     
     iProjection = ...
-                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(1)));
+                 single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep'));
     
 
   end
@@ -574,6 +534,7 @@ system('mkdir -p aliStacks');
 %                                              trimVal(1,:),trimVal(2,:),...
 %                                              'GPU','single')))));
 %   else
+
     
       STACK(:,:,i)  = gather(real(BH_padZeros3d(iProjection, ...
                                              trimVal(1,:),trimVal(2,:),...
@@ -599,6 +560,7 @@ system('mkdir -p aliStacks');
     TLT(:,4) = mbTLT;
     if (defShifts)
       TLT(:,15) = TLT(:,15) + defShifts;
+      TLT(:,16) = PIXEL_SIZE;
     end
   
 
@@ -613,35 +575,43 @@ system('mkdir -p aliStacks');
       
       sprintf('%s/%s.tlt',INPUT_CELL{iStack,7},INPUT_CELL{iStack,6})
       fileID = fopen(tlt_OUT{iStack}, 'w');
-      fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
+      fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%5e\t%5e\t%07.7f\t%07.7f\t',...
                '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-               '%d\t%d\t%d\n'], TLT');
+               '%d\t%d\t%d\t%3.2f\n'], TLT');
              
 
-    if ( flgEraseBeads && ~(flgImodErase) )    
+    if ( flgEraseBeads  )    
       beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
       beadList(:,1:2) = beadList(:,1:2) ./ updateScale;
-      STACK = BH_eraseBeads(STACK,eraseRadius, beadList);
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
-    elseif (flgEraseBeads)
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
-      STACK = []; newStack = [];
-      system(sprintf('%s_erase.com',mapBackPrfx));
-      system(sprintf('mv %s-erase %s',outputStackName,outputStackName));
-    else
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+      [ STACK ] = BH_eraseBeads(STACK,eraseRadius, beadList);
+
     end
-    
+
+
+      
+      fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
+               THICKNESS, STACK_PRFX);
+             
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10);
+      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+      
      xShift= []; yShift = []; scale = []; angleShift = [];
      dZ = [];  recZ= []; rotMat = []; angX = []; angY = [];             
   else
     
-    if ( flgEraseBeads && ~(flgImodErase) )
+    if ( flgEraseBeads )
         beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
         beadList(:,1:2) = beadList(:,1:2) ./ updateScale;
         STACK = BH_eraseBeads(STACK,eraseRadius, beadList);
     end 
-    SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+
+
+      
+      fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
+               THICKNESS, STACK_PRFX);
+             
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10);
+      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
 
   end
   if (mapBackIter && conserveDiskSpace)

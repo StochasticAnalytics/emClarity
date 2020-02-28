@@ -261,7 +261,7 @@ if (calcAvg)
     try 
      ppool = parpool(nWorkers);
     catch 
-        delete(gcp);
+        delete(gcp('nocreate'));
         ppool = parpool(nWorkers);
     end
 
@@ -317,7 +317,7 @@ else
   end
   
   if (calcAvg)
-    delete(gcp)
+    delete(gcp('nocreate'))
   end  
  
  %%%%%%%%%%%%%%%%%%%%%%%%%

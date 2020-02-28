@@ -79,22 +79,22 @@ if samplingRate > 1
                         iHeader.yOrigin ./ samplingRate, ...
                         iHeader.zOrigin ./ samplingRate];  
                       
-        bpFilt = BH_bandpass3d([iHeader.nX,iHeader.nY,1],0,0,samplingRate*2,'GPU',1);
-        binSize = floor([iHeader.nX,iHeader.nY]./samplingRate);
-        binSize = binSize - 1 + mod(binSize,2);
-        trimVal = BH_multi_padVal([iHeader.nX,iHeader.nY],binSize);
-        % For even sized images, IMODs origin of rotation is not centered on a
-        % pixel, so force to ODD size to make things predicatible.
+                      
+        [binSize,binShift] = BH_multi_calcBinShift([iHeader.nX,iHeader.nY],1,samplingRate);
+
         binSize = [binSize,iHeader.nZ];
         newStack = zeros(binSize,'single');
         for iPrj = 1:binSize(3)
-          iProjection = gpuArray(getVolume(tiltObj,[-1],[-1],iPrj));
-          if ( flgMedianFilter )        
-            iProjection = medfilt2(iProjection,[3,3]);
+          iProjection = gpuArray(getVolume(tiltObj,[-1],[-1],iPrj,'keep'));
+          
+          if (iPrj == 1)
+            bhF = fourierTransformer(iProjection);
           end
-          iProjection = fftn(iProjection).*bpFilt;
-          iProjection = real(ifftn(ifftshift(BH_padZeros3d(fftshift(iProjection),...
-                                             trimVal(1,:),trimVal(2,:),'GPU','single'))));
+          
+          
+          iProjection = BH_resample2d(iProjection,[0,0,0],binShift,'Bah','GPU','forward',1/samplingRate,[binSize(1:2)],bhF);
+
+
           newStack(:,:,iPrj) = gather(iProjection);
         end
         

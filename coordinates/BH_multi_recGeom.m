@@ -26,6 +26,7 @@ for iSt = 1:nTomos
   recGeom(iSt,:) = recCoords{1}(1 + (iSt-1)*6: 6 + (iSt-1)*6);              
 end
            
-
+% Note that the x/z shifts (col 5,6) are shifts given to IMOD, which are the opposite of the location of the origin (relative to the center)
+% To make it more confusing, since the reconstruction is done in a ref frame rotated about X, the Z shift is flipped so it matches the origin in Z
 end
 

@@ -60,21 +60,21 @@ if all(IN_PLANE)
     IN_PLANE_SEARCH(end+1) = 0;
   end
   
-  if (symmetryConstrainedSearch)
-    for iSym = 1:symmetryConstrainedSearch-1
-      IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
-    end
-  end
+%   if (symmetryConstrainedSearch)
+%     for iSym = 1:symmetryConstrainedSearch-1
+%       IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
+%     end
+%   end
   nIN_PLANE = length(IN_PLANE_SEARCH);
   angleStep(1,:) = [0,0,0,0,psiStep];
 else
 IN_PLANE_SEARCH = 0;
-  if (symmetryConstrainedSearch)
-    for iSym = 1:symmetryConstrainedSearch-1
-      IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
-    end
-  
-  end
+%   if (symmetryConstrainedSearch)
+%     for iSym = 1:symmetryConstrainedSearch-1
+%       IN_PLANE_SEARCH = [IN_PLANE_SEARCH,IN_PLANE_SEARCH + iSym.*(360/symmetryConstrainedSearch)];
+%     end
+%   
+%   end
 
   psiStep = 0;
   nIN_PLANE = 1; % Always search the unrotated sample
@@ -105,7 +105,7 @@ if all(OUT_OF_PLANE)
       nAzimuthal = 0;
       phiStep = 0.5.* sind(thetaStep)^-1.0 .* thetaStep;
     else
-      phiStep = sind(theta)^-1.0 .* thetaStep;
+      phiStep = sind(theta/1)^-1.0 .* thetaStep;
       if (theta - thetaStep == 0) || (theta + thetaStep == 180)
         % strict even spacing leaves the first out of plane undersampled
         phiStep = 0.5 * phiStep;

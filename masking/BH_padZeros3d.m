@@ -34,11 +34,22 @@ function [ PADDED_IMG ] = BH_padZeros3d( IMAGE, PADLOW, PADTOP, ...
 %   - Test for expected function, and return value (template matching depends)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-padLOW = PADLOW ;
-padTOP = PADTOP;
+if isnumeric(PADLOW)
+  padLOW = PADLOW ;
+  padTOP = PADTOP;
+elseif strcmpi(PADLOW,'fwd')
+  padLOW = PADTOP(1,:);
+  padTOP = PADTOP(2,:);
+elseif strcmpi(PADLOW,'inv')
+  padLOW = PADTOP(3,:);
+  padTOP = PADTOP(4,:);
+else
+  error('padLOW should be numeric, fwd or inv');
+end
 
 
 twoD = 0;
+doRand = false;
 if numel(padLOW) == 2
   twoD = 1;
   padLOW= [padLOW, 0];
@@ -46,7 +57,13 @@ if numel(padLOW) == 2
 end
 
 if nargin > 5
-  extrapVal = varargin{1};
+  if isnumeric(varargin{1})
+    extrapVal = varargin{1};
+  else
+    extrapVal = std(IMAGE(:));
+    extrapMean = mean(IMAGE(:));
+    doRand = 1;
+  end
 else
   extrapVal = 0;
 end
@@ -101,17 +118,33 @@ end
 
 if strcmp(METHOD, 'GPU')
   if strcmpi(PRECISION, 'single')
-    PADDED_IMG = zeros(padSize,'single','gpuArray');
+    if (doRand)
+      PADDED_IMG = randn(padSize,'single','gpuArray').*extrapVal+extrapMean;
+    else
+      PADDED_IMG = zeros(padSize,'single','gpuArray');
+    end
   elseif strcmpi(PRECISION, 'double')
-    PADDED_IMG = zeros(padSize,'double','gpuArray');
+    if (doRand)
+      PADDED_IMG = randn(padSize,'double','gpuArray').*extrapVal+extrapMean;
+    else
+      PADDED_IMG = zeros(padSize,'double','gpuArray');
+    end
   else
     error('PRECISION must be single or double, not %s', PRECISION)
   end
 else
   if strcmpi(PRECISION, 'single')
-    PADDED_IMG = zeros(padSize,'single');
+    if (doRand)
+      PADDED_IMG = randn(padSize,'single').*extrapVal+extrapMean;
+    else
+      PADDED_IMG = zeros(padSize,'single');
+    end
   elseif strcmpi(PRECISION, 'double')
-    PADDED_IMG = zeros(padSize,'double');  
+    if (doRand)
+      PADDED_IMG = randn(padSize,'double').*extrapVal+extrapMean;
+    else
+      PADDED_IMG = zeros(padSize,'double'); 
+    end
   else
     error('PRECISION must be single or double, not %s', PRECISION)
   end

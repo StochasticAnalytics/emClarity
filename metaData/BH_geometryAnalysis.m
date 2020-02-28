@@ -13,18 +13,24 @@ end
 CYCLE = str2num(CYCLE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 undoOP = 0;
+listTomos = 0;
 if strcmpi(VECTOR_OP, 'undo')
   undoOP = 1;
   fprintf('Undoing %s action', OPERATION);
+elseif (strcmpi(VECTOR_OP, 'listTomos'))
+    listTomos = 1;
+    fprintf('Listing tomos, delete those that should be removed, and run again replacing "listTomos" with "tomoList.txt"\n');
 else
   try
     % should be a text file of only x,y,z (model2points imodModel classes.txt)
     % or
     % a list of names of tomograms to remove
-    [~,modNAME,~] = fileparts(VECTOR_OP);
-    system(sprintf('model2point %s %s.txt > /dev/null',VECTOR_OP,modNAME));
-    
-    VECTOR_OP = importdata(sprintf('%s.txt',modNAME));
+    if ~(strcmp(VECTOR_OP,'tomoList.txt'))
+      [~,modNAME,~] = fileparts(VECTOR_OP);
+      system(sprintf('model2point %s %s.txt > /dev/null',VECTOR_OP,modNAME));
+
+      VECTOR_OP = importdata(sprintf('%s.txt',modNAME));
+    end
 
   catch
     % or a 3-vector containing shifts to apply to all volumes, or range for
@@ -145,11 +151,20 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
       end
     case 'Cluster'
   
-        classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
+        try
+          classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
+        catch
+          classVector{1}  = pBH.(sprintf('%s_classes',fieldPrefix));
+        end
+        
         classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
 
-        classCoeffs{1} =  pBH.('Pca_coeffs_odd');
-        classCoeffs{2} =  pBH.('Pca_coeffs_eve');
+        try
+          classCoeffs{1} =  pBH.('Pca_coeffs_odd');
+          classCoeffs{2} =  pBH.('Pca_coeffs_eve');
+        catch
+          classCoeffs{1} = pBH.('Pca_coeffs');
+        end
 
       cN = sprintf('%s_%d_%d_nClass_%d_%s',outputPrefix,classCoeffs{halfNUM(1)}(1,1), ...
                                     classCoeffs{halfNUM(1)}(1,end), className, halfSet)
@@ -388,10 +403,58 @@ switch OPERATION
     end 
     
   case 'RemoveTomos'
-    error('Remove tomos is not set up correctly.\n');
-    % not working, and also neets to be applied to all bse fields
-    VECTOR_OP
-    geometry = rmfield(geometry,VECTOR_OP);
+    
+    if (listTomos)
+      f=fieldnames(masterTM.mapBackGeometry.tomoName);
+      tomoFid = fopen('tomoList.txt','w');
+      fprintf(tomoFid,'%s\n',f{:});
+      fclose(tomoFid);   
+    else
+      tomoList = importdata(VECTOR_OP);
+      f=fieldnames(masterTM.mapBackGeometry.tomoName);
+    
+      for iOrig = 1:length(f)
+        flgRemove = 1;
+        for iToKeep = 1:length(tomoList)         
+          if strcmp(f{iOrig},tomoList{iToKeep})
+            tomoList{iToKeep};
+            flgRemove = 0;
+            break;
+          end
+        end
+        if (flgRemove)
+          if isfield(masterTM.reconGeometry,(f{iOrig}))
+            masterTM.reconGeometry = rmfield(masterTM.reconGeometry,f{iOrig});
+          end
+          if isfield(masterTM.tiltGeometry,(f{iOrig}))
+            masterTM.tiltGeometry = rmfield(masterTM.tiltGeometry,f{iOrig});
+          end
+          if isfield(masterTM.ctfGroupSize,(f{iOrig}))
+            masterTM.ctfGroupSize = rmfield(masterTM.ctfGroupSize,f{iOrig});
+          end
+          if isfield(masterTM.(cycleNumber).RawAlign,f{iOrig})
+            masterTM.(cycleNumber).RawAlign = rmfield(masterTM.(cycleNumber).RawAlign,(f{iOrig}));
+          end
+          if isfield(masterTM.mapBackGeometry.tomoName,(f{iOrig}))
+            tN = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tomoNumber;
+            tName = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tiltName;
+            if isfield(masterTM.mapBackGeometry,tName)
+              masterTM.mapBackGeometry.(tName).nTomos = masterTM.mapBackGeometry.(tName).nTomos - 1;
+                keepRows = ismember(1:size(masterTM.mapBackGeometry.(tName).coords,1),tN);
+                masterTM.mapBackGeometry.(tName).coords = masterTM.mapBackGeometry.(tName).coords(~keepRows,:);
+                masterTM.mapBackGeometry.tomoName = rmfield(masterTM.mapBackGeometry.tomoName,f{iOrig});
+              if masterTM.mapBackGeometry.(tName).nTomos == 0 
+                masterTM.mapBackGeometry = rmfield(masterTM.mapBackGeometry,tName);
+              end
+            end
+          end
+        
+        end
+      end
+      geometry = masterTM.tiltGeometry;  
+    end   
+    
+      
        
     
   case 'RandomizeEulers'

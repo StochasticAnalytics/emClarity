@@ -1,44 +1,82 @@
 function [  ] = BH_ctf_Correct3d( PARAMETER_FILE, varargin )
 %Apply a full 3d CTF ala Jensen and Kornberg approach
-%   Detailed explanation goes here
+%   Run in a few new modes
+%   emClarity ctf 3d paramN.m = Normal, reconstruction for subTomo
+
+%   emClarity ctf 3d paramN.m [THICKNESS, BINNING] = use this for picking
+%   subRegions
+%
+%   emClarity ctf 3d paramN.m 'templateMatching' = use this to make recs
+%   for higher res template matching (in the works)
 
 % Read in 2dCtf stacks to trouble shoot
 PosControl2d=0;
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 
-try
-  tiltWeight = pBH.('ctf_tiltWeight');
-catch
-  tiltWeight = [0.2,0];
+% Apply a Wiener filter with this many zeros during Ctf multiplication
+global bh_global_turn_on_phase_plate
+masterTM = struct();
+resTarget = 15;
+
+% TODO remove thise params
+tiltWeight = [0.2,0];
+shiftDefocusOrigin = 1;
+tiltStart = 1;
+
+
+%default to cycle number zero for
+%determining mean z height of particles
+recWithoutMat = false;
+reconstructionParameters = 0;
+
+if nargin > 2
+  if ~isnan(str2num(varargin{1}))
+    reconstructionParameters = str2num(varargin{1});
+    recWithoutMat = true;
+    % Default to on for subregion picking
+    % If user has specified phakePhasePlate, don;t use ...otherwise
+    if isempty(bh_global_turn_on_phase_plate) || bh_global_turn_on_phase_plate == 0
+      bh_global_turn_on_phase_plate = [1,2];
+    end
+  end
+elseif nargin > 1
+  if strcmpi(varargin{1},'templateSearch')
+    recWithoutMat = true;
+  else
+    error('Extra argument to ctf 3d should be a vector [THICKNESS, BINNING] tiltN, or a string templateSearch');
+  end
+else
+  % Default to zero for normal use
+  if isempty(bh_global_turn_on_phase_plate)
+      bh_global_turn_on_phase_plate = 0;
+  end
 end
 
 try 
   % -1, whiten before ctf, 1 whiten after - test both.
-  flgWhitenPS = pBH.('whitenPS');
+  flgWhitenPS = [pBH.('whitenPS'),0];
 catch
-  flgWhitenPS = 0;
+  flgWhitenPS = [0,0];
 end
 
 try
-  % Shift the defocus origin from the sample origin in the microscope, to
-  % the plane defined by the center of mass of subtomograms (in Z);
-  shiftDefocusOrigin = pBH.('shiftDefocusToSubTomoCOM');
+  applyExposureFilter = pBH.('applyExposureFilter')
 catch
-  % This seems to be working well, so set default to true
-  shiftDefocusOrigin = 1;
+  applyExposureFilter = 1;
 end
-%default to cycle number zero for
-%determining mean z height of particles
-if nargin > 1
-  % Start part way through on a seperate node
-  tiltStart = str2double(varargin{1});
-  fprintf('\n\nYou have asked to start with tilt-series # %d\n',tiltStart);
-  fprintf('The cycle number is now automatically determined, no need to enter\n\n');
-  if tiltStart == 0
-    error('tiltStart of zero asked for!')
-  end
-else
-  tiltStart = 1;
+
+
+try
+  useSurfaceFit = pBH.('useSurfaceFit')
+catch
+  useSurfaceFit = 1
+end
+
+try
+  % Not for normal use, pass the total dose less first frame to flip values.
+  invertDose = pBH.('invertDose')
+catch
+  invertDose = 0;
 end
 
 %cycleNumber = sprintf('cycle%0.3d',CYCLE);
@@ -79,14 +117,28 @@ end
 fprintf('tmpCache is %s\n',tmpCache);
 system(sprintf('mkdir -p %s',tmpCache));
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-mapBackIter = subTomoMeta.currentTomoCPR;
-masterTM = subTomoMeta; clear subTomoMeta
+if (recWithoutMat)
+  mapBackIter = 0;
+  CYCLE = 0;
+else
+  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  mapBackIter = subTomoMeta.currentTomoCPR;
+  masterTM = subTomoMeta; clear subTomoMeta
+  CYCLE = masterTM.currentCycle;
+end
 
-CYCLE = masterTM.currentCycle;
 cycleNumber = sprintf('cycle%0.3d',CYCLE);
-fprintf(' %s \n',cycleNumber);
-
+% This should be run after raw alignment and after cycle 0
+if (CYCLE)
+  if isfield(masterTM.(cycleNumber),'RawAlign')
+    fprintf(' %s \n',cycleNumber);
+  elseif isfield(masterTM.(sprintf('cycle%0.3d',CYCLE-1)),'RawAlign')
+    cycleNumber = sprintf('cycle%0.3d',CYCLE-1);
+    fprintf('Falling back the previous alignment cycle\n');
+  else
+    error('Did not find the geometry from RawAlign for %s!',cycleNumber);
+  end
+end
 
 try
   usePreCombDefocus = pBH.('usePreCombDefocus')
@@ -97,7 +149,7 @@ end
 try
   flgDampenAliasedFrequencies = pBH.('flgDampenAliasedFrequencies')
 catch
-  flgDampenAliasedFrequencies = 0;
+  flgDampenAliasedFrequencies = 0
 end
 
 try
@@ -118,17 +170,19 @@ end
 
 % ctf3dDepth=pBH.('defocusErrorEst')
 %mean in case cones.
-resTarget = mean(masterTM.('currentResForDefocusError')*.5)                                  
+
 
 %%%%% Take these from param file later.
-% % % % % samplingRate = 2; nGPUs = 1; ctf3dDepth = 50e-9; usableArea = [3710,3710,1000]./samplingRate;
-samplingRate = pBH.('Ali_samplingRate')
+if (reconstructionParameters(1))
+  samplingRate = reconstructionParameters(2);
+else
+  samplingRate = pBH.('Ali_samplingRate');
+  resTarget = mean(masterTM.('currentResForDefocusError')*.5) 
+  if (flgWhitenPS(1))
+    flgWhitenPS(2) = resTarget;
+  end
+end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Need to change this to
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% either be precomputed, or
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% get x,y from TLT 20,21 and
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% max Z from
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% recon/name.coords
 
 nGPUs = pBH.('nGPUs');
 % Optionally specify gpu idxs
@@ -140,40 +194,53 @@ else
 end
 
 pixelSize = pBH.('PIXEL_SIZE').*10^10 .* samplingRate;
+
+if (recWithoutMat)
+  reconstructionParameters(1) = reconstructionParameters(1) ./ pixelSize;
+end
+
 if pBH.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
 
-
-tiltList_tmp = fieldnames(masterTM.mapBackGeometry);
-tiltList_tmp = tiltList_tmp(~ismember(tiltList_tmp,{'viewGroups','tomoName'}));
-nST = 1; tiltList = {};
-for iStack = 1:length(tiltList_tmp)
-  if masterTM.mapBackGeometry.(tiltList_tmp{iStack}).nTomos
-    tiltList{nST} = tiltList_tmp{iStack};
-    nST = nST +1;
+if (recWithoutMat)
+  if (reconstructionParameters(1))
+    tiltList{1} = varargin{2};
+    tomoList{1} = sprintf('%s_1',tiltList{1});
+  else
+    % TODO set up a check on the recon folder to get what is needed for
+    % templateSearch
   end
+else
+  tiltList_tmp = fieldnames(masterTM.mapBackGeometry);
+  tiltList_tmp = tiltList_tmp(~ismember(tiltList_tmp,{'viewGroups','tomoName'}));
+  nST = 1; tiltList = {};
+  for iStack = 1:length(tiltList_tmp)
+    if masterTM.mapBackGeometry.(tiltList_tmp{iStack}).nTomos
+      tiltList{nST} = tiltList_tmp{iStack};
+      nST = nST +1;
+    end
+  end
+  clear tiltList_tmp
+
+  tomoList = fieldnames(masterTM.mapBackGeometry.tomoName);
 end
-clear tiltList_tmp
-  
-tomoList = fieldnames(masterTM.mapBackGeometry.tomoName);
 
 nTilts = length(tiltList);
 
-
-
-
 % Divide the tilt series up over each gpu
 iterList = cell(nGPUs,1);
+% If there is only one tilt, things break in a weird way
+nGPUs = min(nGPUs, nTilts);
 for iGPU = 1:nGPUs
-  iterList{iGPU} = iGPU+(tiltStart-1):nGPUs:nTilts;
-  iterList{iGPU}
+  iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
+  iterList{gpuList(iGPU)};
 end
 
 try
   parpool(nGPUs) 
 catch
-  delete(gcp)
+  delete(gcp('nocreate'))
   parpool(nGPUs)
 end
 
@@ -182,12 +249,16 @@ end
 % prebinned stacks are there.
 
 for iGPU = 1:nGPUs
-  for iTilt = iterList{iGPU}
+  for iTilt = iterList{gpuList(iGPU)}
     
-    nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
-    iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords ./samplingRate;
-    iCoords(:,1:4) = fix(iCoords(:,1:4));
-    iTomoList = cell(nTomos,1);
+    if (recWithoutMat)
+      nTomos = 1;
+    else
+      nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
+      iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords ./samplingRate;
+      iCoords(:,1:4) = fix(iCoords(:,1:4));
+      iTomoList = cell(nTomos,1);
+    end
     
     % For now, since the tilt geometry is not necessarily updated (it is manual)
     % in the masterTM, check that newer (possible perTilt refined) data is
@@ -205,30 +276,37 @@ for iGPU = 1:nGPUs
     
        
     % Get all the tomogram names that belong to a given tilt-series.
-    nTomos = 0;
-    alreadyMade = 0;
-    for iTomo = 1:length(tomoList)
-      if strcmp(tiltList{iTilt},masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
-        iTomoList{nTomos+1} = tomoList{iTomo};
-        nTomos = nTomos + 1;
-      end
-     % The order of tomo num could be off but only if all are present do we
-     % skip.
-     checkRecon = sprintf('cache/%s_%d_bin%d.rec', ...
-                          tiltList{iTilt},iTomo,samplingRate);
-     if exist(checkRecon, 'file')
-       fprintf('found %s to already exits\n',checkRecon);
-       alreadyMade = alreadyMade +1;
-     end
-      
-    end
+    if (~recWithoutMat)
+      nTomos = 0;
+      alreadyMade = 0;
+      for iTomo = 1:length(tomoList)
+        if strcmp(tiltList{iTilt},masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
+          iTomoList{nTomos+1} = tomoList{iTomo};
+          nTomos = nTomos + 1;
+        end
+       % The order of tomo num could be off but only if all are present do we
+       % skip.
+       if (bh_global_turn_on_phase_plate(1))
+         filtered = '_filtered';
+       else
+         filtered = '';
+       end
+       checkRecon = sprintf('cache/%s_%d_bin%d%s.rec', ...
+                            tiltList{iTilt},iTomo,samplingRate,filtered);
+       if exist(checkRecon, 'file')
+         fprintf('found %s to already exits\n',checkRecon);
+         alreadyMade = alreadyMade +1;
+       end
 
-    if alreadyMade == nTomos
-      fprintf('All tomos 1-%d found to exist for tilt-series %s\n',nTomos,tiltList{iTilt});
-      continue
+      end
+
+      if alreadyMade == nTomos
+        fprintf('All tomos 1-%d found to exist for tilt-series %s\n',nTomos,tiltList{iTilt});
+        continue
+      end
     end
   
-  
+
   
     preBinStacks(TLT, tiltList{iTilt}, mapBackIter,1,...
                                                       samplingRate,...
@@ -245,12 +323,32 @@ parfor iGPU = 1:nGPUs
 % for iGPU = 1:nGPUs 
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt 
-  for iTilt = iterList{iGPU}
-% % % % %   for iTilt = 6 
-    nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
-    iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords ./samplingRate;
-    iCoords(:,1:4) = fix(iCoords(:,1:4));
+  for iTilt = iterList{gpuList(iGPU)}
+    
+    if (recWithoutMat)
+      nTomos = 1;
+    else
+      nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
+      iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords;
+      targetSizeY = diff(floor(iCoords(:,2:3)),1,2)+1;
+      iCoords = iCoords ./ samplingRate;
+        % Get the tilt-series dimensions - This is terrible.
+        for iTomo = 1:length(tomoList)
+          if strcmp(tiltList{iTilt},masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
+            masterTM.tiltGeometry.(tomoList{iTomo})(1,20:21)
+            [tiltNY] = masterTM.tiltGeometry.(tomoList{iTomo})(1,21);
+            break
+          end
+        end
+
+%     [ binShift, ~ ] = BH_multi_calcBinShift( [tiltNX,tiltNY], 1, samplingRate);
+      iCoords(:,1:4) = floor(iCoords(:,1:4));
+    iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
+
+    % FIXME
+    end
     iTomoList = cell(nTomos,1);
+
     
     % For now, since the tilt geometry is not necessarily updated (it is manual)
     % in the masterTM, check that newer (possible perTilt refined) data is
@@ -266,60 +364,83 @@ parfor iGPU = 1:nGPUs
       fprintf('using TLT %s\n', TLTNAME);
     end
     
-    
+       
+    if (~recWithoutMat)
+      % Get all the tomogram names that belong to a given tilt-series.
+      nTomos = 0;
+      alreadyMade = 0;
+      for iTomo = 1:length(tomoList)
+        if strcmp(tiltList{iTilt},masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
+          iTomoList{nTomos+1} = tomoList{iTomo};
+          nTomos = nTomos + 1;
+        end
+       % The order of tomo num could be off but only if all are present do we
+       % skip.
+       if (bh_global_turn_on_phase_plate(1))
+         filtered = '_filtered';
+       else
+         filtered = '';
+       end
+       checkRecon = sprintf('cache/%s_%d_bin%d%s.rec', ...
+                            tiltList{iTilt},iTomo,samplingRate,filtered);
+       if exist(checkRecon, 'file')
+         fprintf('found %s to already exits\n',checkRecon);
+         alreadyMade = alreadyMade +1;
+       end
 
-    
-   
-    % Get all the tomogram names that belong to a given tilt-series.
-    nTomos = 0;
-    alreadyMade = 0;
-    for iTomo = 1:length(tomoList)
-      if strcmp(tiltList{iTilt},masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
-        iTomoList{nTomos+1} = tomoList{iTomo};
-        nTomos = nTomos + 1;
       end
-     % The order of tomo num could be off but only if all are present do we
-     % skip.
-     checkRecon = sprintf('cache/%s_%d_bin%d.rec', ...
-                          tiltList{iTilt},iTomo,samplingRate);
-     if exist(checkRecon, 'file')
-       fprintf('found %s to already exits\n',checkRecon);
-       alreadyMade = alreadyMade +1;
-     end
-      
-    end
 
-    if alreadyMade == nTomos
-      fprintf('All tomos 1-%d found to exist for tilt-series %s\n',nTomos,tiltList{iTilt});
-      continue
+      if alreadyMade == nTomos
+        fprintf('All tomos 1-%d found to exist for tilt-series %s\n',nTomos,tiltList{iTilt});
+        continue
+      end
     end
     
-    [ avgZ, maxZ, tomoNumber ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
-                                          iTomoList,nTomos, pixelSize, ...
-                                          samplingRate, cycleNumber);
-    
-    if ( shiftDefocusOrigin )
-      fprintf('Using avgZ %3.3e nm as the defocus origin\n',avgZ*10^9);
-    else
-      avgZ = 0;
-      fprintf('Using sample origin as the defocus origin\n');
-      fprintf('If you want to use the COM of subTomos, set shiftDefocusToSubTomoCOM=1\n');
-    end
-    % Load in the aligned stack, check for outliers, and mask usable area with
-    % a soft edge, also mask with high-pass filter.
-    [ maskedStack, ~, ~ ] = loadAndMaskStack(TLT,tiltList{iTilt},...
-                                                         mapBackIter,...
-                                                         maxZ*10/pixelSize,...
-                                                         samplingRate,...
-                                                         PosControl2d,...
-                                                         tiltWeight,flgWhitenPS,pixelSize);
-      
-    [d1, d2, nPrjs] = size(maskedStack);
-  
 
-                                        %0;%mean(iCoords(:,6))*pixelSize*10^-10;
-    
-    if ( flg2dCTF )
+
+      if samplingRate > 1
+        fullStack = sprintf('%aliStacks/%s_ali%d.fixed', ...
+                             tiltList{iTilt},mapBackIter+1);
+        inputStack = sprintf('cache/%s_ali%d_bin%d.fixed',...
+                             tiltList{iTilt},mapBackIter+1,samplingRate);
+        if ~exist(inputStack, 'file')
+      %     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s > /dev/null',samplingRate,fullStack,inputStack);
+      % %     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s ',samplingRate,fullStack,inputStack);
+      % 
+      %     system(binCMD);
+          BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
+
+        end
+      else
+        inputStack = sprintf('aliStacks/%s_ali%d.fixed',...
+                              tiltList{iTilt},mapBackIter+1);
+      end
+
+%       system(sprintf('header %s',inputStack));
+      % iHeader = MRCImage(inputStack,0);
+      % STACK = gpuArray(single(getVolume(iHeader)));
+
+      maskedStack = single(getVolume(MRCImage(inputStack)));  
+            
+      if (recWithoutMat)
+        if (reconstructionParameters(1))
+          NX = size(maskedStack,1);
+          NY = size(maskedStack,2)-1;
+          NZ = floor(reconstructionParameters(1))
+          maxZ = NZ;
+          iCoords = [NX,1,NY,NZ,0,0];
+          tomoNumber = 1;
+        else
+          % TODO deal with templateSearch
+        end
+      else
+        [ ~, maxZ, tomoNumber, ~ ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
+                                              iTomoList,nTomos, pixelSize, ...
+                                              samplingRate, cycleNumber,...
+                                              0,1);
+      end
+     
+    if ( flg2dCTF || recWithoutMat)
       nSections = 1;
       ctf3dDepth = maxZ * 10 ^ -9;
     else
@@ -345,6 +466,27 @@ parfor iGPU = 1:nGPUs
     
     [ sectionList ] = calcTomoSections(iCoords, tomoNumber,pixelSize, ...
                                         nSections,tiltList{iTilt}, ctf3dDepth);
+                                      
+
+    if (recWithoutMat)
+      avgZ = 0;
+      surfaceFit = {0};
+    else
+      
+    [ avgZ, maxZ, tomoNumber, surfaceFit ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
+                                            iTomoList,nTomos, pixelSize, ...
+                                            samplingRate, cycleNumber,...
+                                            sectionList,0);
+    
+    end
+    if ( shiftDefocusOrigin )
+      fprintf('Using avgZ %3.3e nm as the defocus origin\n',avgZ*10^9);
+    else
+      avgZ = 0;
+      fprintf('Using sample origin as the defocus origin\n');
+      fprintf('If you want to use the COM of subTomos, set shiftDefocusToSubTomoCOM=1\n');
+    end
+
       
 
     
@@ -398,10 +540,16 @@ parfor iGPU = 1:nGPUs
         correctedStack = maskedStack;
       else
 
+       % I would have thought the global would be recognized, but it looks
+       % like there is something odd about its use with a parfor loop
+       % FIXME, when setting up the iterator, make clean copies for each
+       % worker that are local in scope.e
       [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixelSize,maskedStack,...
                                             maxZ*10/pixelSize,flgDampenAliasedFrequencies,...
-                                            preCombDefocus,samplingRate);  
+                                            preCombDefocus,samplingRate,...
+                                            applyExposureFilter,surfaceFit{iSection},...
+                                            useSurfaceFit,invertDose,bh_global_turn_on_phase_plate);  
       end
       % Write out the stack to the cache directory as a tmp file
 
@@ -456,18 +604,16 @@ parfor iGPU = 1:nGPUs
           end
 
           % hangover from slab padding, remove later.
-          padRec = 0;
-          
-          
+          padRec = 0;        
 
-          nTiltWorkers = 4;
-          nTotalSlices = (iCoords(iTomo,3)-iCoords(iTomo,2)+1)
-          tiltChunkSize = ceil(nTotalSlices/nTiltWorkers)
-          tiltChunks = iCoords(iTomo,2):tiltChunkSize:iCoords(iTomo,3)
-          tiltChunks(end) = iCoords(iTomo,3)
-          totalSlices = [tiltChunks(1),tiltChunks(end)]
+          nTiltWorkers = 2;
+          nTotalSlices = (iCoords(iTomo,3)-iCoords(iTomo,2)+1);
+          tiltChunkSize = ceil(nTotalSlices/nTiltWorkers);
+          tiltChunks = iCoords(iTomo,2):tiltChunkSize:iCoords(iTomo,3);
+          tiltChunks(end) = iCoords(iTomo,3);
+          totalSlices = [tiltChunks(1),tiltChunks(end)];
 
-          rCMD = sprintf(['tilt -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
+          rCMD = sprintf(['tilt -SuperSampleFactor 2 -ExpandInputLines -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
                        '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
                        outputStack, reconName, rawTLT, gpuList(iGPU), ...
                        iCoords(iTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
@@ -499,7 +645,8 @@ parfor iGPU = 1:nGPUs
           fprintf(recScript,'\n\nwait\n\n');
           fclose(recScript);
           system(sprintf('chmod a=wrx %s.sh',reconName));
-          [recError] = system(sprintf('%s.sh  > /dev/null ',reconName)); % /dev/null
+       
+          [recError,~] = system(sprintf('%s.sh > /dev/null ',reconName)); % /dev/null
           if (recError)
             system(sprintf('%s.sh',reconName));
             error('\n\nerror during reconstruction %s\n\n',reconName);
@@ -538,13 +685,18 @@ parfor iGPU = 1:nGPUs
       
     for iT = 1:nTomos
       iTomo = tomoNumber(iT);
-      reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
-                              tiltList{iTilt},iTomo,samplingRate)
+      if (bh_global_turn_on_phase_plate(1))
+        reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
+                              tiltList{iTilt},iTomo,samplingRate);
+      else
+         reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
+                              tiltList{iTilt},iTomo,samplingRate);      
+      end
                             
       recCMD = 'newstack -fromone';
       for iSection = 1:nSections
         reconName = sprintf('%s/%s_ali%d_%d_%d.rec', ...
-                             tmpCache, tiltList{iTilt},mapBackIter+1,iTomo,iSection)
+                             tmpCache, tiltList{iTilt},mapBackIter+1,iTomo,iSection);
         
         if any(sectionList{iT}(iSection,:)+9999)  
           recCMD = [recCMD,sprintf(' -secs 1-%d %s', ...
@@ -569,7 +721,7 @@ parfor iGPU = 1:nGPUs
         
       end
                         
-     
+
     end % end of recombination loop
      
   maskedStack = [];
@@ -590,135 +742,135 @@ end
 
 end
 
-function [STACK, evalMask, deltaZ] = loadAndMaskStack(TLT, STACK_PRFX, ...
-                                                      mapBackIter,maxZpix,...
-                                                      samplingRate,...
-                                                      PosControl2d,...
-                                                      tiltWeight,flgWhitenPS,pixelSize)
-
-if (PosControl2d) 
-  prefix = 'ctf';
-  suffix = '_ctf'
-else
-  prefix = 'ali';
-  suffix = '';
-end
-
-if samplingRate > 1
-  fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
-                       prefix,STACK_PRFX,mapBackIter+1,suffix);
-  inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
-                       STACK_PRFX,mapBackIter+1,suffix,samplingRate);
-  if ~exist(inputStack, 'file')
-%     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s > /dev/null',samplingRate,fullStack,inputStack);
-% %     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s ',samplingRate,fullStack,inputStack);
-% 
-%     system(binCMD);
-    BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
-   
-  end
-else
-  inputStack = sprintf('%sStacks/%s_ali%d%s.fixed',...
-                        prefix,STACK_PRFX,mapBackIter+1,suffix)
-end
-
-system(sprintf('header %s',inputStack));
-% iHeader = MRCImage(inputStack,0);
-% STACK = gpuArray(single(getVolume(iHeader)));
-
-STACK = single(getVolume(MRCImage(inputStack)));
-
-% iHeader = getHeader(iHeader);
-% iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
-%                 iHeader.cellDimensionY/iHeader.nY, ...
-%                 iHeader.cellDimensionZ/iHeader.nZ];
-
-
-[d1,d2,d3] = size(STACK);
-nPrjs = d3;
-
-useableArea = [d1-128,d2-128,maxZpix];
-  
-
-  % Keeping all on the GPU won't fit if a full 4k4k is reconstucted. run and then pull.
-   % This should be double checked because it is annoying.
-  %[exposureFilter] = gather((BH_exposureFilter([d1,d2], TLT,'GPU',samplingRate,0)));
-
-  
-  [evalMask, deltaZ ] = BH_multi_projectionMask( [d1,d2,d3;useableArea], TLT, 'cpu' );
-  
- 
-  
- 
-  % Local normalization doesn't address any large scale gradients in the
-  % images. Do a simple high pass over the lowest 7 frequencyBinns
-  bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
-
-  taperMask = gpuArray(fspecial('gaussian',[9,9],1.5));
-  
-
-  for iPrj = 1:nPrjs
-
-
-    iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)));
-    %iExpFilter = gpuArray(exposureFilter(:,:,TLT(iPrj,1)));
-    iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
-    
-%     iMask = convn(single(iEvalMask),taperMask,'same');
-
-
-     iProjection = iProjection - mean(iProjection(iEvalMask));
-     iProjection  = real(ifftn(fftn(iProjection).*bandNyquist));
-
-%      iProjection  = real(ifftn(fftn(iProjection.*iMask).*bandNyquist));
-
-
-    inFin = ~(isfinite(iProjection)); nInf = sum(inFin(:));
-    if (nInf)
-    % fprintf('Removing %d (%2.4f) inf from prj %d\n',nInf,100*nInf/numel(iProjection),TLT(iPrj,1));
-     iProjection(inFin) = 0;
-    end
-
-    iRms = rms(iProjection(iEvalMask));
-    outliers = (iProjection > 6 * iRms); nOutliers = sum(outliers(:));
-    tiltScale = 1- ( abs(sind(TLT(iPrj,4))).* tiltWeight(1));
-    if (nOutliers)
-
-%       iProjection(outliers) = sign(iProjection(outliers)).*3.*iRms.*((rand(size(iProjection(outliers)))./2)+0.5);
-      iProjection(outliers) = 6.*iRms.* (rand(size(iProjection(outliers)))-0.5);
-      iProjection = iProjection ./ ( rms(iProjection(iEvalMask)) ./ tiltScale);
-    else
-      iProjection = iProjection ./ ( iRms ./ tiltScale);
-    end
-
-    if ( flgWhitenPS )
-      %fprintf('confirm whitening PS\n.'); 
-      [iProjection,~] = BH_whitenNoiseSpectrum(iProjection,'',pixelSize,1);
-    end
-
-    if tiltWeight(2)
-      % I don't think this makes sense, but test keeping the power constant
-      % after application of the exposure filter.
-      iProjection = fftn(iProjection);
-      iPower = sum(abs(iProjection(:)));
-      iProjection = iProjection .* iExpFilter;
-      STACK(:,:,TLT(iPrj,1)) = gather(single(real(ifftn(iProjection.* ...
-                                    (iPower./sum(abs(iProjection(:))))))));
-    else
-      STACK(:,:,TLT(iPrj,1)) = gather(iProjection);%gather(single(real(ifftn(fftn(iProjection) .* iExpFilter))));
-    end
-%     STACK(:,:,TLT(iPrj,1)) = gather(single(iMask.*real(ifftn(fftn(iProjection) .* iExpFilter))));
-  %   STACK(:,:,TLT(iPrj,1)) = gather(single(iProjection.*iMask));
-    clear iProjection iMask iExpFilter iEvalMask 
-  end
-
-
-  clear bandNyquist iMask exposureFilter  iProjection lowRMSMAsk
-% % Push to gpu when initializing workers
-% deltaZ = gather(deltaZ);
-% evalMask = gather(evalMask);
-
-end
+% % % function [STACK, evalMask, deltaZ] = loadAndMaskStack(TLT, STACK_PRFX, ...
+% % %                                                       mapBackIter,maxZpix,...
+% % %                                                       samplingRate,...
+% % %                                                       PosControl2d,...
+% % %                                                       tiltWeight,flgWhitenPS,pixelSize)
+% % % 
+% % % if (PosControl2d) 
+% % %   prefix = 'ctf';
+% % %   suffix = '_ctf'
+% % % else
+% % %   prefix = 'ali';
+% % %   suffix = '';
+% % % end
+% % % 
+% % % if samplingRate > 1
+% % %   fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
+% % %                        prefix,STACK_PRFX,mapBackIter+1,suffix);
+% % %   inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
+% % %                        STACK_PRFX,mapBackIter+1,suffix,samplingRate);
+% % %   if ~exist(inputStack, 'file')
+% % % %     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s > /dev/null',samplingRate,fullStack,inputStack);
+% % % %%     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s ',samplingRate,fullStack,inputStack);
+% % % % 
+% % % %     system(binCMD);
+% % %     BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
+% % %    
+% % %   end
+% % % else
+% % %   inputStack = sprintf('%sStacks/%s_ali%d%s.fixed',...
+% % %                         prefix,STACK_PRFX,mapBackIter+1,suffix)
+% % % end
+% % % 
+% % % system(sprintf('header %s',inputStack));
+% % % % iHeader = MRCImage(inputStack,0);
+% % % % STACK = gpuArray(single(getVolume(iHeader)));
+% % % 
+% % % STACK = single(getVolume(MRCImage(inputStack)));
+% % % 
+% % % % iHeader = getHeader(iHeader);
+% % % % iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
+% % % %                 iHeader.cellDimensionY/iHeader.nY, ...
+% % % %                 iHeader.cellDimensionZ/iHeader.nZ];
+% % % 
+% % % 
+% % % [d1,d2,d3] = size(STACK);
+% % % nPrjs = d3;
+% % % 
+% % % useableArea = [d1-128,d2-128,maxZpix];
+% % %   
+% % % 
+% % %   
+% % %   [evalMask, deltaZ ] = BH_multi_projectionMask( [d1,d2,d3;useableArea], TLT, 'cpu' );
+% % %   
+% % %  
+% % %   
+% % %  
+% % %   % Local normalization doesn't address any large scale gradients in the
+% % %   % images. Do a simple high pass over the lowest 7 frequencyBinns
+% % %   bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
+% % % 
+% % %   taperMask = gpuArray(fspecial('gaussian',[9,9],1.5));
+% % %   
+% % % 
+% % %   for iPrj = 1:nPrjs
+% % % 
+% % % 
+% % %     iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)));
+% % %     fprintf('iPrj %d size %d, %d\n',iPrj,size(STACK,3),TLT(iPrj,1));
+% % %     iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
+% % %     
+% % % %     iMask = convn(single(iEvalMask),taperMask,'same');
+% % % 
+% % % 
+% % %      iProjection = iProjection - mean(iProjection(iEvalMask));
+% % %     if ( flgWhitenPS(1) )
+% % %       %fprintf('confirm whitening PS\n.'); 
+% % %       flgWhitenPS
+% % %       [iProjection,~] = BH_whitenNoiseSpectrum(iProjection,'',[600,14,pixelSize,160],flgWhitenPS);
+% % %       mean2(iProjection)
+% % %     else
+% % %      iProjection  = real(ifftn(fftn(iProjection).*bandNyquist));
+% % %     end
+% % % %      iProjection  = real(ifftn(fftn(iProjection.*iMask).*bandNyquist));
+% % % 
+% % % 
+% % %     inFin = ~(isfinite(iProjection)); nInf = sum(inFin(:));
+% % %     if (nInf)
+% % %     % fprintf('Removing %d (%2.4f) inf from prj %d\n',nInf,100*nInf/numel(iProjection),TLT(iPrj,1));
+% % %      iProjection(inFin) = 0;
+% % %     end
+% % % 
+% % %     iRms = rms(iProjection(iEvalMask));
+% % %     outliers = (iProjection > 6 * iRms); nOutliers = sum(outliers(:));
+% % %     tiltScale = 1- ( abs(sind(TLT(iPrj,4))).* tiltWeight(1));
+% % %     if (nOutliers)
+% % % 
+% % % %       iProjection(outliers) = sign(iProjection(outliers)).*3.*iRms.*((rand(size(iProjection(outliers)))./2)+0.5);
+% % %       iProjection(outliers) = 6.*iRms.* (rand(size(iProjection(outliers)))-0.5);
+% % %       iProjection = iProjection ./ ( rms(iProjection(iEvalMask)) ./ tiltScale);
+% % %     else
+% % %       iProjection = iProjection ./ ( iRms ./ tiltScale);
+% % %     end
+% % % 
+% % % %     if ( flgWhitenPS )
+% % % %       %fprintf('confirm whitening PS\n.'); 
+% % % %       [iProjection,~] = BH_whitenNoiseSpectrum(iProjection,'',pixelSize,1);
+% % % %     end
+% % % 
+% % %     if tiltWeight(2)
+% % %       % I don't think this makes sense, but test keeping the power constant
+% % %       % after application of the exposure filter.
+% % %       iProjection = fftn(iProjection);
+% % %       iPower = sum(abs(iProjection(:)));
+% % %       iProjection = iProjection .* iExpFilter;
+% % %       STACK(:,:,TLT(iPrj,1)) = gather(single(real(ifftn(iProjection.* ...
+% % %                                     (iPower./sum(abs(iProjection(:))))))));
+% % %     else
+% % %       STACK(:,:,TLT(iPrj,1)) = gather(iProjection);%gather(single(real(ifftn(fftn(iProjection) .* iExpFilter))));
+% % %     end
+% % % %     STACK(:,:,TLT(iPrj,1)) = gather(single(iMask.*real(ifftn(fftn(iProjection) .* iExpFilter))));
+% % %   %   STACK(:,:,TLT(iPrj,1)) = gather(single(iProjection.*iMask));
+% % %     clear iProjection iMask iExpFilter iEvalMask 
+% % %   end
+% % % 
+% % % 
+% % %   clear bandNyquist iMask exposureFilter  iProjection lowRMSMAsk
+% % % 
+% % % 
+% % % end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -844,7 +996,6 @@ for iT = 1:length(tomoNumber)
   fprintf(tSHT,'%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f\n', iCoords(iTomo,:)');
   fprintf(tSHT,'%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f\n', sectionList{iT}');
   fclose(tSHT);
-
 end % end loop over tomos
  
 
@@ -857,13 +1008,24 @@ end
 function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                               avgZ,TLT,pixelSize,maskedStack,...
                                               maxZ,flgDampenAliasedFrequencies,...
-                                              preCombDefocus,samplingRate)
+                                              preCombDefocus,samplingRate,...
+                                              applyExposureFilter,surfaceFit,...
+                                              useSurfaceFit,invertDose,phakePhasePlate)
 % Correct in strips which is more expensive but (hopefully) more accurate.  
 
 
 
-[d1,d2,nPrjs] = size(maskedStack)
-PIXEL_SIZE = pixelSize*10^-10
+% For sections with too few subTomos to fit, fall back
+if isnumeric(surfaceFit)
+  % i.e. not a fit object
+  useSurfaceFit = 0;
+end
+
+[d1,d2,nPrjs] = size(maskedStack);
+
+
+
+PIXEL_SIZE = pixelSize*10^-10;
 % This is just going to be written out to disk so keep in main memory.
 correctedStack = zeros(d1,d2,nPrjs,'single');
 
@@ -874,7 +1036,9 @@ correctedStack = zeros(d1,d2,nPrjs,'single');
 
 defocusOffset = (((nSections-1)/-2+(iSection-1))*ctf3dDepth);
 fprintf('using offset %3.3e for section %d with COM offset %3.3e\n',defocusOffset,iSection,avgZ);
-defocusOffset = defocusOffset - avgZ;
+defocusOffset = (defocusOffset - avgZ)*(1-useSurfaceFit); % The average height of the particles is factored into the surface fit
+
+% The avg Z seems like it should be added?
 
 if ( flgDampenAliasedFrequencies )
   % Experiment with dampning higher frequencies where aliasing is going to
@@ -887,6 +1051,8 @@ end
 
 apoSize = 6;
 fastFTSize = BH_multi_iterator([d1,d2],'fourier2d');
+
+
 % These should be constant for a given tiltseries
 Cs = TLT(1,17);
 WAVELENGTH = TLT(1,18);
@@ -910,18 +1076,22 @@ end
 radialGrid = {radialGrid./PIXEL_SIZE,0,phi};
 phi = [];
 
-%[exposureFilter] = ((BH_exposureFilter([d1,d2], TLT,'GPU',samplingRate,0)));
 
 for iPrj = 1:nPrjs
 
   maxEval = cosd(TLT(iPrj,4)).*(d1/2) + maxZ./2*abs(sind(TLT(iPrj,4)));
   oX = ceil((d1+1)./2);
+  oY = ceil((d2+1)./2);
   iEvalMask = floor(oX-maxEval):ceil(oX+maxEval);
-  iExposureFilter = BH_exposureFilter(fastFTSize,TLT(iPrj,:),'GPU',samplingRate,0);
-% % %    iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)) );
-% % %    iDeltaZ = gpuArray(deltaZ(:,:,TLT(iPrj,1)));
   
-%   STRIPWIDTH = 2*floor(((tileSize/pixelSize)*abs(cosd(TLT(iPrj,4))).^1.5/2));
+  if ( applyExposureFilter )
+    iExposureFilter = BH_exposureFilter(fastFTSize,TLT(iPrj,:),'GPU',samplingRate,0);
+  else
+    iExposureFilter = 1;
+  end
+
+
+  
   STRIPWIDTH = min(floor((0.5*ctf3dDepth/PIXEL_SIZE)/abs(tand(TLT(iPrj,4)))),512);
   STRIPWIDTH = STRIPWIDTH + mod(STRIPWIDTH,2);
   % take at least 1200 Ang & include the taper if equal to STRIPWIDTH
@@ -943,141 +1113,118 @@ for iPrj = 1:nPrjs
   
 
   iProjection = BH_padZeros3d(maskedStack(:,:,TLT(iPrj,1)),padVal(1,:),padVal(2,:),'GPU','singleTaper');
+
   iProjectionFT = fftn(iProjection).*iExposureFilter; clear iExposureFilter
   correctedPrj = zeros([d1,d2],'single','gpuArray');
-%   tiltedDefocusOffset = defocusOffset/cosd(TLT(iPrj,4));
-  tiltedDefocusOffset = defocusOffset.*cosd(TLT(iPrj,4));
-
-  envFilter = gpuArray(fspecial('gaussian',[12,12],9));
-  envDiff = 60e-9.*[1,1,0];
   
-  if any( preCombDefocus )
-   wrkFids = ( preCombDefocus(:,4) == TLT(iPrj,1) - 1 );
-   wrkDefocus = preCombDefocus(wrkFids,[2,3,5]);
-   wrkDefocus(:,1:2) = wrkDefocus(:,1:2)./samplingRate;
+  % Gridvectors for the specimen plane
+  [rX,rY,~] = BH_multi_gridCoordinates([d1,d2],'Cartesian','GPU',{'none'},0,1,0);
+  % Assuming the plane fit is from the origin as it is.
+   
+
+
+  if (useSurfaceFit)
+    %rZ = (surfaceFit.p00 + surfaceFit.p10.*(rX+oX)) + surfaceFit.p01.*(rY+oY);
+    rZ = surfaceFit(rX,rY);
+  else
+    rZ = zeros([d1,d2],'single','gpuArray');
   end
-  stripDefocusOffset = floor(STRIPWIDTH/2);
+
+
+  full_defocusOffset = ((defocusOffset.*cosd(TLT(iPrj,4))) + D0);
+
+  rA = BH_defineMatrix([0,TLT(iPrj,4),0],'SPIDER','inv');
+  % Transform the specimen plane
+  tX = round(rA(1).*rX + rA(4).*rY + rA(7).*rZ +oX);
+  tY = round(rA(2).*rX + rA(5).*rY + rA(8).*rZ +oY);
+  tZ = PIXEL_SIZE.*(rA(3).*rX + rA(6).*rY + rA(9).*rZ) + full_defocusOffset;
   
-  for i = 1: STRIPWIDTH : d1
-    
-    if (i+tileSize-1) < d1
-        endIDX = (i+tileSize-1);
-        endCUT = i + STRIPWIDTH - 1 + 7;  
-        trimmedSIZE = STRIPWIDTH;
-    elseif any(ismember(i:endIDX,iEvalMask))
-        endIDX = d1;
-        endCUT = d1;
-        trimmedSIZE = endCUT-i+1 -7;
-    end    
-    
-    % The eval mask condition can be replaced once the per tomo condition
-    % is trusted.
-% % %     if any( iEvalMask(i:endIDX,floor(d2/2)) )
-    if any(ismember(i:endIDX,iEvalMask))
-      %tile = iProjection(i:endIDX,:);
-
-      iDeltaZ = (i + stripDefocusOffset - oX)*PIXEL_SIZE*-1.*tand(TLT(iPrj,4));
-      avgDefX = [];
-      if any(preCombDefocus) %%%%%
-        stripIDX = wrkDefocus(:,1) > i & wrkDefocus(:,1) <= endIDX;
-        if ( sum(stripIDX) )
-          % If there are no particles in the strip, leave avgDefX as empty
-          % and don't correct.
-          avgDefX = mean(wrkDefocus(stripIDX,3));
-          fprintf('Using %2.6e from comb rather than %2.6e\n',avgDefX, ...
-            D0+ tiltedDefocusOffset + iDeltaZ);
-% % %             D0+ tiltedDefocusOffset + (double(iDeltaZ(i+stripDefocusOffset,floor(d2/2))) .* PIXEL_SIZE));
-              
-        end
-      end
-      
-        
-      
-      %if size(tile,1) < 14
-        % At the end of the projection a very narrow strip can be cut out,
-        % it is probably better just to skip this, but for now at least
-        % don't try to taper, which would cause a crash since it is smaller
-        % than the taper size.
-     %   tile = BH_padZeros3d(tile, padVal(1,:), padVal(2,:),'GPU', 'single',mean(tile(:))); 
-     % else
-      %  tile = BH_padZeros3d(tile, padVal(1,:), padVal(2,:),'GPU', 'singleTaper',mean(tile(:)));
-      %end
-
-
-      if any(preCombDefocus) %%%%%
-        DF = avgDefX + tiltedDefocusOffset;
-      else
-% % %         DF = D0 + tiltedDefocusOffset + (double(iDeltaZ(i,floor(d2/2))) .* PIXEL_SIZE);
-        DF = D0 + tiltedDefocusOffset + iDeltaZ;
-
-      end
-      
-      if ~( isempty(DF) )
-        
-        iDefocus = [DF - ddF, DF + ddF, dPhi];
-        %fprintf('correcting strip centered on %d for prj %d with %3.3f %3.3f %3.3f',i,TLT(iPrj,1),iDefocus);
-        % Assume reconstruction is padded by ~ 10 % on both ends.
-  % % %       Hqz = BH_ctfCalc(PIXEL_SIZE,Cs,WAVELENGTH,iDefocus,[padTileSize,d2],AMPCONT,-1.0, 0.8*maxZ*10^-9);
+  % Some edge pixels can be out of bounds depending on the orientation of
+  % the plan fit. Setting to zero will will ignore them (assuming defocus
+  % is always < 0)
+  tZ( tX < 1 | tY < 1 | tX > d1 | tY > d2) = 1;
   
-         if PIXEL_SIZE < 2.0e-10
-           % use double precision - this is not enabled, but needs to be -
-           % requires changes to radial grid as well.
-           
-           Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,iDefocus,fastFTSize,AMPCONT,-1,-1);
+        
+  minDefocus = min(tZ(:));
+  maxDefocus = max(tZ(tZ<1));
+  % Spit out some info
+%   fprintf('Found a min/max defocus of %3.3e/ %3.3e for tilt %d (%3.3f deg)\n',minDefocus,maxDefocus,iPrj,TLT(iPrj,4));
+  
+  % To track sampling in case I put in overlap
+  samplingMask = zeros([d1,d2],'single','gpuArray');
+  
+
+  for iDefocus = minDefocus-ctf3dDepth/1:ctf3dDepth/1:maxDefocus+ctf3dDepth/1
+% % %     fprintf('correcting for iDefocus %3.3e\n',iDefocus);
+    %search tz take those xy and add to the prj and mask
+
+      defVect = [iDefocus - ddF, iDefocus + ddF, dPhi];
+   
+      if (phakePhasePlate(1) > 0)
+         if numel(phakePhasePlate) == 2
+           modPower = floor(phakePhasePlate(2));
          else
-           Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,iDefocus,fastFTSize,AMPCONT,-1);
+          modPower = 1;
          end
          
-        if ( flgDampenAlias )
-          % Try this out with real space convolution, which should of
-          % course be slow, but easy and direct.
-          % The premise is that aliasing will be bad when the rings are too
-          % close, and this can be dampened simply by averaging amplitudes
-          % over a small window.
-          dampSize = abs(floor(DF*10^6)); % Use the size of defocus to dermine severity.
-          dampWindow = ones([1,1].*dampSize,'single','gpuArray')./dampSize.^2;
-          Hqz = ifftshift(convn(Hqz,dampWindow,'same'));
-        end
         
-        tile  = iProjectionFT.*Hqz;
+         [Hqz, ~] = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,1,1);
 
-        
-        tile = BH_padZeros3d(real(ifftn(tile)), ...
-                             trimVal(1,:),trimVal(2,:),'GPU','single');
+         Hqz = (-1).^modPower.*(phakePhasePlate(1).*Hqz).^modPower;
+ 
 
-        % trim prior to pulling off gpu to minimize xfer
+         modHqz = [];
       else
-        
-        % No particles in this strip, so just replace with simple inversion
-        % to keep the global image statistics ~ correct.
-
-        tile = -1.*BH_padZeros3d(iProjection, trimVal(1,:),trimVal(2,:),'GPU','single');
-        
+       if PIXEL_SIZE < 2.0e-10
+         % use double precision - this is not enabled, but needs to be -
+         % requires changes to radial grid as well.
+         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
+       else
+         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1);
+       end  
       end
-       
-        %correctedStack(i + 7 : endCUT,:,TLT(iPrj,1)) = ...
-         %             gather(tile(8:trimmedSIZE+7,:));
-                    
-      correctedPrj(i:endIDX,:) = tile(i:endIDX,:); clear tile
-        
-    else
-    %fprintf('ignoring strip centered on %d for prj %d',i,TLT(iPrj,1));
-    end
-  end
- correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj); clear correctedPrj
+      
+     
+     tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz)),trimVal(1,:),trimVal(2,:),'GPU','single');
+     tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
+   
+%      try
+     linearIDX =  unique(sub2ind([d1,d2],tX(tmpMask),tY(tmpMask)));
+%      catch
+% 
+%        
+%        ferr=fopen('err.txt','w');
+%        fprintf(ferr,'%f %f\n',[tX(tmpMask),tY(tmpMask)]);
+%        fclose(ferr);
+%      error('sdf')
+%      end
+     
+     correctedPrj(linearIDX) = correctedPrj(linearIDX) + tmpCorrection(linearIDX);
+     samplingMask(linearIDX) = samplingMask(linearIDX) + 1;
+     
+  end % end loop over defocus values
+  
+
+
+  samplingMask(samplingMask == 0) = 1;
+
+ correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask); clear correctedPrj samplingMask tmpMask tmpCorrection
  clear iProjection iProjectionFT
 end % end loop over projections
 clear tile Hqz
 end
 
-function [avgZ, maxZ, tomoNumber] = calcAvgZ(masterTM,iCoords, ...
+function [avgZ, maxZ, tomoNumber,surfaceFit] = calcAvgZ(masterTM,iCoords, ...
                                              tiltName,tomoList,...
                                              nTomos, pixelSize,...
-                                             samplingRate,cycleNumber)
+                                             samplingRate,cycleNumber,...
+                                             sectionList,calcMaxZ)
 
 % Calculate the maximum extensions in Z and then how many separate sections
 % need to be corrected.
 
+surfaceFit = '';
+avgZ = 0;
 maxZ = 0;
 tomoNumber = zeros(nTomos,1);
 for iTomo = 1:nTomos
@@ -1098,12 +1245,18 @@ maxZ = maxZ + (samplingRate*2);
 maxZ = maxZ.*pixelSize./10;
 fprintf('combining thickness and shift on tilt %s, found a maxZ  %3.3f nm\n',tiltName,maxZ);
 
+if (calcMaxZ)
+  return;
+end
+
 % For now use cycle000, if adding a refinment focused on a specific set of
 % particles, then consider that later.
 
 try
-  initGeom = masterTM.(cycleNumber).Avg_geometry;
+  initGeom = masterTM.(cycleNumber).RawAlign;
+  fprintf('Loaded the geometry for RawAlign %s\n',cycleNumber);
 catch
+    fprintf('Failed to load the geometry for RawAlign %s\nTrying cycle000\n',cycleNumber);
   try
     initGeom = masterTM.cycle000.geometry;
   catch
@@ -1117,30 +1270,92 @@ totalZ = 0;
 % for each tomogram get the size and origin in Z then find mean subTomo
 % position.
 
+nSections = size(sectionList{1},1);
+xFull = cell(nSections,1);
+yFull = cell(nSections,1);
+zFull = cell(nSections,1);
+surfaceFit = cell(nSections,1);
+
+
 for iT = 1:nTomos
   iTomo = tomoNumber(iT);
+  micDimension = floor(masterTM.tiltGeometry.(tomoList{iT})(1,20:22) ./ samplingRate);
+
   % Already scaled to sampled pixels
-  tomoOrigin = ceil((iCoords(iTomo,4)+1)/2);
-  micOrigin = iCoords(iTomo,6);
-   
+  tomoOrigin =[ ceil((iCoords(iTomo,1)+1)./2),...
+                ceil((iCoords(iTomo,3)-iCoords(iTomo,2))./2),...
+                ceil((iCoords(iTomo,4)+1)/2)];
+  micOrigin = [-1*iCoords(iTomo,5), ...
+               (iCoords(iTomo,2) + tomoOrigin(2)) - ceil((micDimension(2)+1)/2),...
+               iCoords(iTomo,6)];
+             
   iTomoName = sprintf('%s_%d',tiltName,iTomo);
-  % shouldn't be any removed particles at this stage but later there would be.
+
+    % shouldn't be any removed particles at this stage but later there would be.
   zList = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,13)./samplingRate;
-  
+
   % shift from lower left to centered and include the tomos offset from the
   % microscope frame
-  zList = zList - tomoOrigin + micOrigin;
-  nSubTomos = nSubTomos + length(zList);
+  zList = zList - tomoOrigin(3) + micOrigin(3);
   totalZ = totalZ + sum(zList);
   fprintf('%s tomo has %d subTomos with mean Z %3.3f nm\n', ...
           iTomoName, length(zList), mean(zList)*pixelSize./10);
-  clear zList
-end
+  nSubTomos = nSubTomos + length(zList);
+          
+  for iSection = 1:nSections
+    
+    xFull{iSection} = [];
+    yFull{iSection} = [];
+    zFull{iSection} = [];
+
+    iSecOrigin = sectionList{iT}(iSection,6);
+    iSecRadius = sectionList{iT}(iSection,5)/2;
+    inSectionIDX = zList >  iSecOrigin - iSecRadius & zList <= iSecOrigin + iSecRadius;
+
+    
+
+    x = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,11)./samplingRate;
+    x = x - tomoOrigin(1) + micOrigin(1); 
+    y = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,12)./samplingRate;
+    y = y - tomoOrigin(2) + micOrigin(2);
+
+
+    xFull{iSection} = [xFull{iSection} x(inSectionIDX)];
+    yFull{iSection} = [yFull{iSection} y(inSectionIDX)];
+    zFull{iSection} = [zFull{iSection} zList(inSectionIDX)];
+
+
+
+   
+  end % loop over sections
+   clear zList
+end % loop over tomos
+
 
 avgZ = totalZ/nSubTomos*pixelSize/10*10^-9;
 
+%       sf(x,y) = p00 + p10*x + p01*y;
+%      surfaceFit = fit([xFull, yFull],zFull,'poly11');
+      %surfaceFit = fit([xFull, yFull],zFull,'lowess','Span',0.1);
+for iSection = 1:nSections   
+
+  if length(xFull{iSection}) >= 6
+    surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'poly22','Robust','on');
+    %figure('visible','off'), plot(surfaceFit{iSection},[xFull{iSection},yFull{iSection}],zFull{iSection});
+    %saveas(gcf,sprintf('fitThis_%s_%d.pdf',tiltName,iSection));
+    %close(gcf);
+  else
+    surfaceFit{iSection} = 0;
+  end
+end
+
+%save(sprintf('fitThis_%s_%d.mat',tiltName,iSection),'xFull','yFull','zFull','surfaceFit');
+
+
 fprintf('%s tilt-series has %d subTomos with mean Z %3.3f nm\n', ...
         tiltName, nSubTomos,avgZ*10^9);
+      
+    
 
 
 

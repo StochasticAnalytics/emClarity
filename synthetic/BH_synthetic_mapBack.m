@@ -16,15 +16,10 @@ buildTomo=1;% % % % % % %
 METHOD = 'GPU';
  flgRunAlignments = true;
 COLOR_MAP= '0';
-flgClassAvg = 0;
+flgColorMap = 0;
 
 
-% Color map to reproject for something like the ribosome.
-if ~isempty(str2num(COLOR_MAP))
-  flgColorMap = 0;
-else
-  flgColorMap = 1;
-end
+
 CYCLE = str2num(CYCLE);
 
 if CYCLE < 0
@@ -47,6 +42,17 @@ samplingRate = pBH.('Ali_samplingRate');
 % used to determine the number of fiducials/patch for local area. 
 MOL_MASS = pBH.('particleMass');
 molMass = MOL_MASS.*(25/samplingRate); 
+
+% New approach to improve accuracy. Reproject full tomo, subtract from data
+% this gives the error in the back-projection (e*) Project tomo with
+% subTomos masked out and add e* - This should give approx just the density
+% in projection due to the sub-tomo. Project just the subTomos. Hopefully
+% this can improve CTF refinement.
+try
+  testSubtraction = pBH.('bgSubtraction')
+catch
+  testSubtraction = 0
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018
 
@@ -59,7 +65,7 @@ molMass = MOL_MASS.*(25/samplingRate);
    % number of subtomograms contributing to the average should also be
    % considered to then work back to an estimate of the SNR in the particle
    % (tomogram) volume.
-   rmsScale = MOL_MASS;
+   rmsScale = sqrt(MOL_MASS);
  end
  
 try
@@ -102,6 +108,7 @@ catch
   % All early tests were Opt 5 (linear mapping) Default Grouping 5
   tiltAliOption = [5,5,5,5];
 end
+  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -111,7 +118,7 @@ tmpCache= pBH.('fastScratchDisk');
 nGPUs = pBH.('nGPUs');
 pInfo = parcluster();
 gpuScale=3*samplingRate;
-nWorkers = min(nGPUs*gpuScale,pInfo.NumWorkers); % 18
+nWorkers = min(nGPUs*gpuScale,pBH.('nCpuCores')); % 18
 fprintf('Using %d workers as max of %d %d*nGPUs and %d nWorkers visible\n', ...
         nWorkers,gpuScale,nGPUs*gpuScale,pInfo.NumWorkers);
       
@@ -177,28 +184,71 @@ else
   end
 end
 
+%%%%%%%%%%% From align Raw -- should this be its own function? %%%%%%%%
 % Load in the reference images.
-try
-  refNameODD = sprintf('%s_%s_class0_REF_ODD.mrc', ...
-                                             cycleNumber,pBH.('subTomoMeta'));
-  refNameEVE = sprintf('%s_%s_class0_REF_EVE.mrc', ...
-                                             cycleNumber,pBH.('subTomoMeta'));     
-  refODD = getVolume(MRCImage(refNameODD));
-  refEVE = getVolume(MRCImage(refNameEVE));                                           
-catch
-  fprintf('\nDid not find either %s or %s, trying Raw prefix\n',refNameODD,refNameEVE);
-  try
-    refNameODD = sprintf('%s_%s_class0_Raw_ODD.mrc', ...
-                                             cycleNumber,pBH.('subTomoMeta'));
-    refNameEVE = sprintf('%s_%s_class0_Raw_EVE.mrc', ...
-                                             cycleNumber,pBH.('subTomoMeta'));                                             
+refVol = cell(2,1);
 
-    refODD = getVolume(MRCImage(refNameODD));
-    refEVE = getVolume(MRCImage(refNameEVE));
-  catch
-    error('\nDid not find either %s or %s\n',refNameODD,refNameEVE)
+  
+refName = pBH.('Raw_className');
+classVector{1}  = pBH.('Raw_classes_odd')(1,:);
+classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
+classVector{2}  = pBH.('Raw_classes_eve')(1,:);
+classSymmetry{2}= pBH.('Raw_classes_eve')(2,:);
+
+nRefs = length(classVector{1});
+ 
+for iGold = 1:2
+
+  if iGold == 1
+    halfSet = 'ODD';
+  else
+    halfSet = 'EVE';
   end
+ 
+
+  imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet)   
+
+  iHeader = getHeader(MRCImage(subTomoMeta.(cycleNumber).(imgNAME){1},0));
+  sizeWindow = iHeader.nZ.*[1,1,1];
+  [ refVol{iGold} ] = BH_unStackMontage4d(1:nRefs, ...
+                                   subTomoMeta.(cycleNumber).(imgNAME){1}, ...
+                                   subTomoMeta.(cycleNumber).(imgNAME){2},...
+                                   sizeWindow);
+                                 
 end
+
+
+% If there are multiple classes, create a volume that can be used to color
+% the mapped back tomo
+% Color map to reproject for something like the ribosome.
+if (refName)
+  flgClassAvg = 1;
+else
+  flgClassAvg = 0;
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% try
+%   refNameODD = sprintf('%s_%s_class0_REF_ODD.mrc', ...
+%                                              cycleNumber,pBH.('subTomoMeta'));
+%   refNameEVE = sprintf('%s_%s_class0_REF_EVE.mrc', ...
+%                                              cycleNumber,pBH.('subTomoMeta'));     
+%   refODD = getVolume(MRCImage(refNameODD));
+%   refEVE = getVolume(MRCImage(refNameEVE));                                           
+% catch
+%   fprintf('\nDid not find either %s or %s, trying Raw prefix\n',refNameODD,refNameEVE);
+%   try
+%     refNameODD = sprintf('%s_%s_class0_Raw_ODD.mrc', ...
+%                                              cycleNumber,pBH.('subTomoMeta'));
+%     refNameEVE = sprintf('%s_%s_class0_Raw_EVE.mrc', ...
+%                                              cycleNumber,pBH.('subTomoMeta'));                                             
+% 
+%     refODD = getVolume(MRCImage(refNameODD));
+%     refEVE = getVolume(MRCImage(refNameEVE));
+%   catch
+%     error('\nDid not find either %s or %s\n',refNameODD,refNameEVE)
+%   end
+% end
 
 try
   conserveDiskSpace = pBH.('conserveDiskSpace');
@@ -288,6 +338,18 @@ for iTiltSeries = tiltStart:nTiltSeries
     fullPixelSize = fullPixelSize * 2;
   end
   pixelSize = fullPixelSize.*samplingRate;
+  
+try 
+  eraseMaskType = pBH.('peak_mType');
+	eraseMaskRadius = pBH.('peak_mRadius')./pixelSize;
+  fprintf('Further restricting peak search to radius %f %f %f\n',...
+          eraseMaskRadius);
+  eraseMask = 1;
+catch
+  eraseMask = 0;
+  fprintf('\n');
+end
+
 
   [ ~,~,maskRadius,~ ] = BH_multi_maskCheck(pBH,'Ali',pixelSize)
    PARTICLE_RADIUS = floor(max(pBH.('particleRadius')./pixelSize));
@@ -362,7 +424,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % re-initialize the parpool for each tilt series to free up mem.
   if ~isempty(gcp('nocreate'))
-    delete(gcp)
+    delete(gcp('nocreate'))
     parpool(nWorkers);
   else
     parpool(nWorkers);
@@ -406,7 +468,15 @@ for iTiltSeries = tiltStart:nTiltSeries
 
     reconstructionSize = [tiltHeader.nX,tiltHeader.nY,maxZ]
     originRec = ceil((reconstructionSize+1)./2)
-    avgTomo = zeros(reconstructionSize,'single');
+    avgTomo = cell(3,1);
+    avgTomo{1} = zeros(reconstructionSize,'single');
+    if (testSubtraction)
+      % TODO, if this works, set up to run in serial to save memory.
+      avgTomo{2} = avgTomo{1};
+      avgTomo{3} = avgTomo{1};
+      avgTomo{4} = zeros(reconstructionSize,'uint8');
+    end
+    
     avgSampling = zeros(reconstructionSize,'uint8');
     % These two are mutually exclusive for now, but not enforced.
     if (flgClassAvg)
@@ -440,6 +510,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     rawTLT = sortrows(TLT(:,[1,4]),1);
     fprintf(iTiltFile,'%f\n',rawTLT(:,2)');
     fclose(iTiltFile); 
+
+
     
     % Extract a "defocus file" for tilt to calculate the defocus for each
     % fiducial also considering the local alignment. If this works, I can
@@ -453,7 +525,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     fprintf(iDefocusFile,'%f\n',defTLT(:,2)'.*(-1*10^9));
     fclose(iDefocusFile);
     
-    % We also need the transform from the microscope frame in order to get
+    % We also need the transform from the microscope frame in order to
+    % get
     % an accurate defocus value. Not sure if I should be binning?
     iXFName = sprintf('%smapBack%d/%s_align.XF',mbOUT{1:3});
     iXF = fopen(iXFName,'w');
@@ -462,6 +535,12 @@ for iTiltSeries = tiltStart:nTiltSeries
     fclose(iXF);
     
     positionList = geometry.(tomoList{iTomo});
+    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    
+%     [ binShift, ~ ] = BH_multi_calcBinShift( coords, samplingRate);
+    binShift = [0,0,0];
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
 
@@ -483,8 +562,13 @@ for iTiltSeries = tiltStart:nTiltSeries
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName
     reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:)
-            
-    iGPU=1;
+          
+    if (testSubtraction)
+      % reconstruct TODO also rm existing tomo
+      iGPU = -1;
+    else
+      iGPU=1;
+    end
     tomoList{iTomo}
     if (buildTomo)
        [tomo,tomoReconCoords] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
@@ -499,25 +583,29 @@ for iTiltSeries = tiltStart:nTiltSeries
                   1+tomoTrim:end-tomoTrim, ...
                   1+tomoTrim:end-tomoTrim);
                 
-      tomo = tomo ./ (rmsScale*rms(tomo(:)));
-
+      if ~(testSubtraction)
+        % Don't normalize for the subtraction approach
+        tomo = tomo ./ (rmsScale*rms(tomo(:)));
+      end
+      
       size(tomo)    
-      size(avgTomo)
+      size(avgTomo{1})
       sX = size(tomo,1);%tomoReconCoords(1,1)
       sY = size(tomo,2);%tomoReconCoords(1,2)
       sZ = size(tomo,3);%tomoReconCoords(1,3)
       originVol = ceil((size(tomo)+1)./2);%ceil((tomoReconCoords(1,1:3)+1)./2)
 
-      reconShift = tomoReconCoords(2,1:3)
+      reconShift = tomoReconCoords(2,1:3);
      
       % vector from first pixel in tilt series to lower left corner of tomogram from
       % which the subTomo origin is described XYZ in the geometry                                            
-      lowerLeftVol = originRec + reconShift - originVol + 1
+      lowerLeftVol = originRec + reconShift - originVol + 1;
       
       % There is sometimes overlap, particularly with things like viral
       % capsids, so add to rather than just insert. Creates a little higher
       % density from the tomo in background but this is better than
       % replacing high res model density and an easy solution.
+      
       try
         
         avgSampling(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
@@ -533,56 +621,77 @@ for iTiltSeries = tiltStart:nTiltSeries
         avgSampling(avgSampling > 1) = 1;
         overlapMask = [];
         
-        avgTomo(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
+        avgTomo{1}(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
                 lowerLeftVol(2):lowerLeftVol(2)+sY -1, ...
                 lowerLeftVol(3):lowerLeftVol(3)+sZ -1) = ...
-        avgTomo(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
+        avgTomo{1}(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
                 lowerLeftVol(2):lowerLeftVol(2)+sY -1, ...
                 lowerLeftVol(3):lowerLeftVol(3)+sZ -1)      +        tomo;
+            
+        if (testSubtraction)
+          avgTomo{2}(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
+                  lowerLeftVol(2):lowerLeftVol(2)+sY -1, ...
+                  lowerLeftVol(3):lowerLeftVol(3)+sZ -1) = ...
+          avgTomo{2}(lowerLeftVol(1):lowerLeftVol(1)+sX -1, ...
+                  lowerLeftVol(2):lowerLeftVol(2)+sY -1, ...
+                  lowerLeftVol(3):lowerLeftVol(3)+sZ -1)      +        tomo;   
+        end
               
 
       catch
-        overShoot = size(avgTomo) - (lowerLeftVol + [sX,sY,sZ]) 
-        avgSampling(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) = ...
-        avgSampling(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) +  ones(size(tomo)-20,'uint8');
-        overlapMask = (avgSampling(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) <= 1);
-        tomo = tomo(11:end-10,11:end-10,11:end-10) .* overlapMask;
-        avgSampling(avgSampling > 1) = 1;
-        overlapMask = [];       
+        overShoot = size(avgTomo{1}) - (lowerLeftVol + [sX,sY,sZ]);
+        CLIPSIZE = max(abs(overShoot(:)));
+        fprintf('WARNING, your tomo is too close to an edge. Overshoot x,y,z, %d %d %d.\nClipping tomo by %d\n',overshoot,CLIPSIZE);
+        avgSampling(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE+1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE+1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE+1) = ...
+        avgSampling(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE+1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE+1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE+1) + 1;
+        overlapMask = (avgSampling(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                                   lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                                   lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1) <= 1);
 
+        tomo = tomo(CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE) .* overlapMask;
+        avgSampling(avgSampling > 1) = 1;
+       
+        
+        
+    
+        overlapMask = []; 
         % Should match, but allow a couple pixels of wiggle room
-        avgTomo(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11) = ...
-        avgTomo(lowerLeftVol(1)+10:lowerLeftVol(1)+sX -11, ...
-                lowerLeftVol(2)+10:lowerLeftVol(2)+sY -11, ...
-                lowerLeftVol(3)+10:lowerLeftVol(3)+sZ -11)      +  tomo(11:end-10,11:end-10,11:end-10); 
+        avgTomo{1}(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1) = ...
+        avgTomo{1}(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1)      +  tomo;
+        if (testSubtraction)    
+          avgTomo{2}(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                  lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                  lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1) = ...
+          avgTomo{2}(lowerLeftVol(1)+CLIPSIZE:lowerLeftVol(1)+sX -CLIPSIZE-1, ...
+                  lowerLeftVol(2)+CLIPSIZE:lowerLeftVol(2)+sY -CLIPSIZE-1, ...
+                  lowerLeftVol(3)+CLIPSIZE:lowerLeftVol(3)+sZ -CLIPSIZE-1)      +  tomo;  
+        end%(CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE,CLIPSIZE+1:end-CLIPSIZE); 
            
       end      
               
       clear tomo   
     end
 
-    
+
 
     nPrjs = size(TLT,1)
     nSubTomos = size(positionList,1);
 
-
-
     
-    % need to update this.
+    % TODO need to update this.
     if (flgColorMap)
       colorMap = single(getVolume(MRCImage(COLOR_MAP)));
       % should be the same size as the average
 
-      if any(size(refODD)-size(colorMap))
+      if any(size(refVol{1})-size(colorMap))
         error('Color map and average vol must be the same size.\n');
       end
         colorMap = colorMap(avgOrigin(1)-maxRad:avgOrigin(1)+maxRad,...
@@ -593,16 +702,23 @@ for iTiltSeries = tiltStart:nTiltSeries
 
 
     % Switch from maskRadius to particleRadius 20180129
-    sizeAvgVol = size(refODD);
-    if strcmpi(METHOD,'GPU')
+    sizeAvgVol = size(refVol{1}{1});
+    particleMask = cell(nRefs,1);
+    
 
-      refODD = gpuArray(refODD);
-      refEVE = gpuArray(refEVE);
-      particleMask = BH_mask3d('sphere',sizeAvgVol,PARTICLE_RADIUS.*[1,1,1],[0,0,0]).* ...
-                     BH_mask3d(refODD+refEVE,pixelSize,'','');
-             
-    else
-      particleMask = BH_mask3d_cpu('sphere',sizeAvgVol,PARTICLE_RADIUS.*[1,1,1],[0,0,0]);
+
+
+    for iRef = 1:nRefs
+      if strcmpi(METHOD,'GPU')
+
+        refVol{1}{iRef} = gpuArray(refVol{1}{iRef});
+        refVol{2}{iRef} = gpuArray(refVol{2}{iRef});
+        particleMask{iRef} = BH_mask3d('sphere',sizeAvgVol,PARTICLE_RADIUS.*[1,1,1],[0,0,0]).* ...
+                       BH_mask3d(refVol{1}{iRef} + refVol{2}{iRef} ,pixelSize,'','');
+
+      else
+        particleMask{iRef} = BH_mask3d_cpu('sphere',sizeAvgVol,PARTICLE_RADIUS.*[1,1,1],[0,0,0]);
+      end
     end
 
 %     [ particleMask ] = BH_multi_randomizeTaper(particleMask);
@@ -633,16 +749,21 @@ for iTiltSeries = tiltStart:nTiltSeries
 
 
 
-      prjVector = (positionList(iSubTomo,11:13)./samplingRate) - ...
+      prjVector = (positionList(iSubTomo,11:13)./samplingRate + binShift) - ...
                                          tomoTrim - originVol + reconShift;
+                                       
       
+      if (nRefs > 1)
+        iClassIDX = positionList(iSubTomo,26);
+      else
+        iClassIDX = 1;
+      end
       
-     
-    
 
 
 % % %       prjVector = prjVector + [0.5,0.0,-0.5];
       prjVector = prjVector + [0.0,0.0,1.0];
+      
       recVector = (originPrj + [0,0,ceil((reconstructionSize(3)+1)/2)] + prjVector); % subTomo origin relative to reconLowerLeft
 
       %Resample a copy of the average to match the position in the tomogram
@@ -659,25 +780,39 @@ for iTiltSeries = tiltStart:nTiltSeries
         % Reproject using tilt, so just save the 3d coords. 
        fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]', fidIDX);
        if positionList(iSubTomo,7) == 1
-        iAvgResamp = BH_resample3d(refODD,rSubTomo',shiftVAL,'Bah',METHOD,'forward');  
+        iAvgResamp = BH_resample3d(refVol{1}{iClassIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');  
        elseif positionList(iSubTomo,7) ==2
-         iAvgResamp = BH_resample3d(refEVE,rSubTomo',shiftVAL,'Bah',METHOD,'forward');
+         iAvgResamp = BH_resample3d(refVol{2}{iClassIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
        else
          error('positionList iSubtomo %d col 7 is %d',iSubTomo,positionList(iSubTomo,7));
        end
-       iMaskResamp = BH_resample3d(particleMask,rSubTomo',shiftVAL,'Bah',METHOD,'forward');
+       iMaskResamp = BH_resample3d(particleMask{iClassIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
          
 
+
+  
         iAvgResamp = gather(iMaskResamp.*iAvgResamp);
 
         if iSubTomo == 1
           SAVE_IMG(MRCImage(gather(iAvgResamp)),'testResampleMasked.mrc');
         end
-        if (flgColorMap)
-          iColorMap = gather(int16(particleMask.* BH_resample3d(colorMap, ...
+        if (flgColorMap || flgClassAvg)
+          if (flgColorMap)
+            iColorMap = gather(int16(iMaskResamp.* BH_resample3d(colorMap, ...
                                    rSubTomo',shiftVAL,'Bah',METHOD,'forward')));  
+          else
+                        % Set value to class average number
+            iColorMap = iMaskResamp;
+            iColorMap(iColorMap < 0.05) = 0;
+            iColorMap(iColorMap >= 0.05)= iClassIDX;
+            iColorMap = gather(int16(iColorMap));  
+          end
 
 
+          if ( flgClassAvg )
+
+          end
+          
           avgColor(indVAL(1,1):indVAL(2,1), ...
                    indVAL(1,2):indVAL(2,2), ...
                    indVAL(1,3):indVAL(2,3)) = avgColor(indVAL(1,1):indVAL(2,1), ...
@@ -686,11 +821,48 @@ for iTiltSeries = tiltStart:nTiltSeries
                 iColorMap(1+padVAL(1,1):end-padVAL(2,1),...
                                                       1+padVAL(1,2):end-padVAL(2,2),...
                                                       1+padVAL(1,3):end-padVAL(2,3)); 
+        
+          
         end
-        avgTomo(indVAL(1,1):indVAL(2,1), ...
-                indVAL(1,2):indVAL(2,2), ...
-                indVAL(1,3):indVAL(2,3)) =  ...
-                                    avgTomo(indVAL(1,1):indVAL(2,1), ...
+        
+        if (testSubtraction)
+          
+          % zeroed out volume
+          avgTomo{2}(indVAL(1,1):indVAL(2,1), ...
+                     indVAL(1,2):indVAL(2,2), ...
+                     indVAL(1,3):indVAL(2,3)) =  ...
+                                    avgTomo{2}(indVAL(1,1):indVAL(2,1), ...
+                                               indVAL(1,2):indVAL(2,2), ...
+                                               indVAL(1,3):indVAL(2,3)) .* ...
+                        gather((1 -  iMaskResamp(1+padVAL(1,1):end-padVAL(2,1),... % zeros out region being replaced
+                                                 1+padVAL(1,2):end-padVAL(2,2),...
+                                                 1+padVAL(1,3):end-padVAL(2,3)))>0.01);
+          % Just the subtomos
+          avgTomo{3}(indVAL(1,1):indVAL(2,1), ...
+                     indVAL(1,2):indVAL(2,2), ...
+                     indVAL(1,3):indVAL(2,3)) =  ...
+                                    avgTomo{3}(indVAL(1,1):indVAL(2,1), ...
+                                            indVAL(1,2):indVAL(2,2), ...
+                                            indVAL(1,3):indVAL(2,3)) + ...                                          
+                         gather(iAvgResamp(1+padVAL(1,1):end-padVAL(2,1),...
+                                           1+padVAL(1,2):end-padVAL(2,2),...
+                                           1+padVAL(1,3):end-padVAL(2,3)));  
+          % Just the mask overlaps
+          avgTomo{4}(indVAL(1,1):indVAL(2,1), ...
+                     indVAL(1,2):indVAL(2,2), ...
+                     indVAL(1,3):indVAL(2,3)) =  ...
+                                    avgTomo{4}(indVAL(1,1):indVAL(2,1), ...
+                                            indVAL(1,2):indVAL(2,2), ...
+                                            indVAL(1,3):indVAL(2,3)) + ...                                          
+                        gather(uint8((iMaskResamp(1+padVAL(1,1):end-padVAL(2,1),... % zeros out region being replaced
+                                            1+padVAL(1,2):end-padVAL(2,2),...
+                                            1+padVAL(1,3):end-padVAL(2,3))) > 0.01));                                        
+                                         
+        else
+           avgTomo{1}(indVAL(1,1):indVAL(2,1), ...
+                     indVAL(1,2):indVAL(2,2), ...
+                     indVAL(1,3):indVAL(2,3)) =  ...
+                                    avgTomo{1}(indVAL(1,1):indVAL(2,1), ...
                                             indVAL(1,2):indVAL(2,2), ...
                                             indVAL(1,3):indVAL(2,3)) .* ...
                         gather((1 -  iMaskResamp(1+padVAL(1,1):end-padVAL(2,1),... % zeros out region being replaced
@@ -698,7 +870,10 @@ for iTiltSeries = tiltStart:nTiltSeries
                                           1+padVAL(1,3):end-padVAL(2,3)))) + ...                                           
                                 iAvgResamp(1+padVAL(1,1):end-padVAL(2,1),...
                                            1+padVAL(1,2):end-padVAL(2,2),...
-                                           1+padVAL(1,3):end-padVAL(2,3)); 
+                                           1+padVAL(1,3):end-padVAL(2,3));          
+          
+          
+        end
 
 
 
@@ -742,38 +917,66 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   if (buildTomo)
    fclose(coordOUT);
+   
 
     p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 ',...
                    '%smapBack%d/%s.coord %smapBack%d/%s.3dfid'], ...
                    mbOUT{1:3},mbOUT{1:3})
     system(p2m);
 
-    avgTomo = MRCImage(avgTomo);
-    SAVE_IMG(avgTomo,sprintf('%smapBack%d/%s.tmpTomo', mbOUT{1:3}),4.0);
+    for iSave = 1:1+(3*testSubtraction)
+      if (iSave == 3)
+        avgTomo{3} = avgTomo{3} ./ single((avgTomo{4} + 1));
+      elseif (iSave ==4)
+        avgTomo{4} = single(1 - avgTomo{4});
+      end
+      SAVE_IMG(MRCImage(avgTomo{iSave}),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixelSize);
+      avgTomo{iSave} = [];
+
+
+      
+    end
     clear avgTomo
+    
+    if (flgColorMap || flgClassAvg)
+      SAVE_IMG(MRCImage(avgColor),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
+      clear avgColor    
+    end
     % If not planning on visualization, save only a binned copy of the synthetic
     % tomo.
-    if ~(flgColorMap) && ~(conserveDiskSpace)
-      tmpTomoBin = floor(1/samplingRate*6);
-      system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomo ',...
-                       '%smapBack%d/%s.bin%dTomo'], ...
-                       tmpTomoBin,mbOUT{1:3},mbOUT{1:3},tmpTomoBin));
-  % % % % %     system(sprintf('rm mapBack/%s.tmpTomo', tiltBaseName));
-    end
+    
+%       tmpTomoBin = floor(1/samplingRate*6);
+% TODO make this an adjustable parameter
+      tmpTomoBin = ceil(6/pixelSize);
+      
+      for iSave = 1:1+(3*testSubtraction)      
+        system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomo%d ',...
+                       '%smapBack%d/%s.bin%dTomo%d.mrc'], ...
+                       tmpTomoBin,mbOUT{1:3},iSave,mbOUT{1:3},tmpTomoBin,iSave));
+      end
+      
+      if (flgColorMap || flgClassAvg)                 
+        system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomoColor ',...
+                       '%smapBack%d/%s.bin%dTomoColor.mrc'], ...
+                       tmpTomoBin,mbOUT{1:3},mbOUT{1:3},tmpTomoBin)); 
+        system(sprintf('rm %smapBack%d/%s.tmpTomoColor ', mbOUT{1:3}));
+          
+      end
+      
+   
 
-    % -90 is assumed for trim vol, so if rotate vol is used add 90
-  
-  
-% % %       extraRot = 90;
-% % %       reconRotation(iTomo,3)+90.0+extraRot
+
       rotSize = [tiltHeader.nX,maxZ,tiltHeader.nY]
 
-      rotCMD = sprintf(['rotatevol -angles 0,0,90 -size %d,%d,%d ',...
-               '%smapBack%d/%s.tmpTomo %smapBack%d/%s.tmpRot'], ...
-               rotSize, mbOUT{1:3},mbOUT{1:3});
-      system(rotCMD);
-      system(sprintf('mv %smapBack%d/%s.tmpRot %smapBack%d/%s.tmpTomo', ...
-                     mbOUT{1:3},mbOUT{1:3}));
+      for iSave = 1:1+(3*testSubtraction)
+        rotCMD = sprintf(['rotatevol -angles 0,0,90 -size %d,%d,%d ',...
+               '%smapBack%d/%s.tmpTomo%d %smapBack%d/%s.tmpRot%d'], ...
+               rotSize, mbOUT{1:3},iSave,mbOUT{1:3},iSave);
+      
+        system(rotCMD);
+        system(sprintf('mv %smapBack%d/%s.tmpRot%d %smapBack%d/%s.tmpTomo%d', ...
+                     mbOUT{1:3},iSave,mbOUT{1:3},iSave));
+      end
 
  
 
@@ -789,7 +992,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % % % % %   end
 
 
-    clear avgTomo  wgt
+    clear avgTomo{1}  wgt
   end
   % % %   % It may be faster to work with a rotated vol since the reading in may cause
   % % %   % problems, but the projection is so slow, that this isn't worth dealing with
@@ -847,16 +1050,13 @@ for iTiltSeries = tiltStart:nTiltSeries
       % ActionIfGPUFails option. Try 3 times 512,256,128
 %         refPrj = zeros(sTX,sTY,iTLT, 'single');
         
- 
+     for iSave = 1:1+(3*testSubtraction)
         keepItRunning = 1;
-        outputStackName = sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3});
+        outputStackName = sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},iSave);
         
         while (keepItRunning)
      
-% % %           inc = 0:mapBackRePrjSize:maxZ-1
-% % %           if inc(end) < maxZ-1
-% % %             inc = [inc, maxZ-1]
-% % %           end
+
           inc = 0:mapBackRePrjSize:sTY-1;
           if inc(end) < sTY-1
             inc = [inc,sTY-1];
@@ -876,8 +1076,8 @@ for iTiltSeries = tiltStart:nTiltSeries
                 % header but don't actually reproject anything.
               fprintf('Initializing volume %d/%d with size %d\n',...
                                             iChunk,nChunks,mapBackRePrjSize);             
-              rePrjFileName = sprintf('%smapBack%d/%s_rePrj.sh',mbOUT{1:3});
-              reModFileName = sprintf('%smapBack%d/%s_reMod.sh',mbOUT{1:3});
+              rePrjFileName = sprintf('%smapBack%d/%s_%d_rePrj.sh',mbOUT{1:3},iSave);
+              reModFileName = sprintf('%smapBack%d/%s_%d_reMod.sh',mbOUT{1:3},iSave);
               reProjFile = fopen(rePrjFileName,'w');
               reModFile = fopen(reModFileName,'w');
               fprintf(reProjFile,['#!/bin/bash\n\n',...
@@ -888,7 +1088,7 @@ for iTiltSeries = tiltStart:nTiltSeries
                                   'THICKNESS %d\n', ...
                                   'TILTFILE %smapBack%d/%s_align.rawtlt\n', ...
                                   'REPROJECT %s\n', ...
-                                  'RecFileToReproject %smapBack%d/%s.tmpTomo\n',...
+                                  'RecFileToReproject %smapBack%d/%s.tmpTomo%d\n',...
                                   'TOTALSLICES %d,%d\n',...
                                   'ZMinAndMaxReproj %d,%d\n',...
                                   '%s\n', ...
@@ -896,7 +1096,7 @@ for iTiltSeries = tiltStart:nTiltSeries
                                   '%s\n',...
                                   'EOF'],tiltList{1} ,outputStackName, maxZ, ...
                                          mbOUT{1:3},...
-                                         taStr, mbOUT{1:3},...
+                                         taStr, mbOUT{1:3},iSave,...
                                          0,sTY-1,...
                                          -1,-1,...
                                          lastLine1,lastLine2,...
@@ -915,8 +1115,8 @@ for iTiltSeries = tiltStart:nTiltSeries
                 % header but don't actually reproject anything.
               fprintf('Reprojecting volume %d/%d with size %d\n',...
                                             iChunk,nChunks,mapBackRePrjSize);             
-              rePrjFileName = sprintf('%smapBack%d/%s_rePrj.sh',mbOUT{1:3});
-              reModFileName = sprintf('%smapBack%d/%s_reMod.sh',mbOUT{1:3});
+              rePrjFileName = sprintf('%smapBack%d/%s_%d_rePrj.sh',mbOUT{1:3},iSave);
+              reModFileName = sprintf('%smapBack%d/%s_%d_reMod.sh',mbOUT{1:3},iSave);
               reProjFile = fopen(rePrjFileName,'w');
               reModFile = fopen(reModFileName,'w');
               fprintf(reProjFile,['#!/bin/bash\n\n',...
@@ -927,7 +1127,7 @@ for iTiltSeries = tiltStart:nTiltSeries
                                   'THICKNESS %d\n', ...
                                   'TILTFILE %smapBack%d/%s_align.rawtlt\n', ...
                                   'REPROJECT %s\n', ...
-                                  'RecFileToReproject %smapBack%d/%s.tmpTomo\n',...
+                                  'RecFileToReproject %smapBack%d/%s.tmpTomo%d\n',...
                                   'TOTALSLICES %d,%d\n',...
                                   'ZMinAndMaxReproj %d,%d\n',...
                                   '%s\n', ...
@@ -935,7 +1135,7 @@ for iTiltSeries = tiltStart:nTiltSeries
                                   '%s\n',...
                                   'EOF'],tiltList{1} ,outputStackName, maxZ, ...
                                          mbOUT{1:3},...
-                                         taStr, mbOUT{1:3},...
+                                         taStr, mbOUT{1:3},iSave,...
                                          0,sTY-1,...
                                          inc(iChunk),inc(iChunk+1),...
                                          lastLine1,lastLine2,...
@@ -1002,7 +1202,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             
           end % end of for loop over chunks
         end % end of while loop
-        
+      end % loop over error and masked tomo
 
 
       fprintf(reModFile,['#!/bin/bash\n\n',...
@@ -1060,6 +1260,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
     defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
 
+ 
+
     % results.
 
     % I am pretty sure that the existing first column is the fiducial id
@@ -1093,21 +1295,25 @@ for iTiltSeries = tiltStart:nTiltSeries
     CTFSIZE = CTFSIZE(1:2)
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
-    if strcmpi(METHOD, 'GPU')
+   
+    if (eraseMask)
+      peakMask = BH_mask3d(eraseMaskType,(tileSize(1)+2.*padTile(1)).*[1,1],eraseMaskRadius,[0,0],'2d');
+      peakMaskDefSearch = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
+      peakMask(peakMask < 0.99) = 0;
+      peakMaskDef(peakMaskDefSearch < 0.99) = 0;
+    else
       peakMask = BH_mask3d('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
       peakMaskDefSearch = BH_mask3d('sphere',CTFSIZE,peakSearchRad,[0,0],'2d');
-      
-      fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
-      fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
-      [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
-                                                      {'none'},1,1,0);
-      dU = dU .* (2i*pi);
-      dV = dV .* (2i*pi);  
-
-    else
-      peakMask = BH_mask3d_cpu('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
-      fftMask = BH_fftShift(0,CTFSIZE,0);
     end
+
+    fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
+    fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
+    [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
+                                                    {'none'},1,1,0);
+    dU = dU .* (2i*pi);
+    dV = dV .* (2i*pi);  
+
+
     
 %     [ peakMask ] = BH_multi_randomizeTaper(peakMask);
 
@@ -1174,23 +1380,43 @@ for iTiltSeries = tiltStart:nTiltSeries
         end
       end
 
+  
+   if (testSubtraction)
+      scaleStack = getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},4)));
+      for iPrj=1:nPrjs
+        scaleStack(:,:,iPrj) = scaleStack(:,:,iPrj) ./ max(max(scaleStack(:,:,iPrj)));
+      end
+      refStack   = getVolume(MRCImage(tiltSeries));
+      errStack = scaleStack .* (refStack - getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},1))));
+      subStack = refStack - errStack - getVolume(MRCImage(sprintf('%smapBack%d/%s_%d_mapBack.st',mbOUT{1:3},2)));
+      clear refStack errStack
+      SAVE_IMG(MRCImage(subStack),sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}),pixelSize);
+      clear subStack)
       
+
+    end
+    
 parfor iPrj = 1:nPrjs     
 % for iPrj = 20;%1:nPrjs
 	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
 	    % to know what is going on here.
-      iMrcObj = MRCImage(tiltSeries);
-      iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}));
-      
+
+      if (testSubtraction)
+        iMrcObj = MRCImage(sprintf('%smapBack%d/%s_mapBack.st',mbOUT{1:3}));
+        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_3_mapBack.st',mbOUT{1:3}));
+      else
+        iMrcObj = MRCImage(tiltSeries);
+        iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}));
+      end
       % Matching the "natural" or sequential order 
       iTLT = find(TLT(:,1) == iPrj);
      
       tic
       while toc < 300
         try
-          dataPrj = single(getVolume(iMrcObj,[1,sTX],[1,sTY],iPrj));
+          dataPrj = single(getVolume(iMrcObj,[1,sTX],[1,sTY],iPrj,'keep'));
           break
         catch
           pause(1e-1)
@@ -1208,7 +1434,7 @@ parfor iPrj = 1:nPrjs
       tic
       while toc < 300
         try
-          refPrj  = single(getVolume(iMrcObjRef,[1,sTX],[1,sTY],iPrj));
+          refPrj  = single(getVolume(iMrcObjRef,[1,sTX],[1,sTY],iPrj,'keep'));
           break
         catch
           pause(1e-1)
@@ -1224,7 +1450,8 @@ parfor iPrj = 1:nPrjs
 %         fprintf('loaded refPrj %d on try %d\n',iPrj,floor(toc./0.1));
       end      
 
-
+      
+      
       % In case there is any carbon or other bright shit in the periphery
       normSize = floor([256,256]./samplingRate);
       % set to even dimension
@@ -1285,15 +1512,20 @@ parfor iPrj = 1:nPrjs
       Hqz = gather(Hqz);
       HqzUnMod = gather(HqzUnMod);
       
-        if ( flg2dCTF )
-          % If not ctf corrected projections, just use the ctf directly, otherwise...
-          Hqz = abs(Hqz.*HqzUnMod);
-        end
+      if ( flg2dCTF )
+        % If not ctf corrected projections, just use the ctf directly, otherwise...
+        Hqz = abs(Hqz.*HqzUnMod);
+      end
 
-      % Add abs(HqzUnMod) to make the data prj amplitudes match those of th
-      % reference more accurately.
-      cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).* abs(HqzUnMod).*...
-                              conj(fftn(refPrj).*Hqz))));
+      if (testSubtraction)
+        % Add abs(HqzUnMod) to make the data prj amplitudes match those of th
+        % reference more accurately.
+        cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).* Hqz .*...
+                                conj(fftn(refPrj).*abs(Hqz).^2))));
+      else
+        cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).* abs(HqzUnMod).*...
+                                conj(fftn(refPrj).*Hqz))));
+      end
 
       cccPrj = (cccPrj-min(cccPrj(:))) .* globalPeakMask;
       [~,maxPRJ] = max(cccPrj(:));
@@ -1389,8 +1621,6 @@ parfor iPrj = 1:nPrjs
                                     -1.*TLT(iTLT,19), ...
                                     -1.0);
           ctfStack(:,iCTF) = Hqz(ctfMask);
-% % % % %           ctfStack(:,:,iCTF) = Hqz;
-
           
         end
         
@@ -1457,10 +1687,7 @@ parfor iPrj = 1:nPrjs
           % the sample to move uniformly (the entire point of this
           % program.) Try shifting by max scoring defocus per fiducial, and
           % maybe eventually correcting that way too.
-% % % % %           meanDef = wrkDef(iFid,4)+defocusShifts{iPrj}; 
-% % %           [~,iMaxDef] = max(defocusCCC{iPrj}(:,iFid));
-% % %            
-% % %           meanDef = wrkDef(iFid,4)+defShiftVect(iMaxDef); 
+
           meanDef = wrkDef(iFid,2) + expectedDefocusPerFiducial{iPrj}(1,iFid);
           defAst = TLT(iTLT,12);
           angAst = TLT(iTLT,13);
@@ -1480,19 +1707,24 @@ parfor iPrj = 1:nPrjs
             Hqz = abs(Hqz.*HqzUnMod);
           end
         
-
-          refTile = real(ifftn(fftn(refTile).*Hqz.*bandPassFilter));
+          if (testSubtraction)
+            refTile = real(ifftn(fftn(refTile).*abs(Hqz).^2.*bandPassFilter));
+            dataTile = real(ifftn(fftn(dataTile).*Hqz.*bandPassFilter));
+          else
+            refTile = real(ifftn(fftn(refTile).*Hqz.*bandPassFilter));
+            dataTile = real(ifftn(fftn(dataTile).*bandPassFilter));
+          end
+          
           refTile =  BH_padZeros3d(refTile,-1.*padCTF(1,:), ...
                                            -1.*padCTF(2,:),METHOD, ...
                                                               cccPrecision);            
 
 
-          dataTile = real(ifftn(fftn(dataTile).*bandPassFilter));
           dataTile =  BH_padZeros3d(dataTile,-1.*padCTF(1,:), ...
                                            -1.*padCTF(2,:),METHOD, ...
                                                               cccPrecision);  
 
-	  try
+        try
             dataTile = dataTile - mean(dataTile(:));
             rmsData = rms(dataTile(:))
             dataTile = dataTile ./ rmsData;
@@ -1554,46 +1786,28 @@ parfor iPrj = 1:nPrjs
  
           [~,meanIDX] = min(abs(defToCheck-wrkDef(iFid,2)));
           
+ 
           iData  = fftn(dataTile);
           iData(1) = 0;
           iData = iData(ctfMask);
-          iDataNorm = sum(abs(iData(:)).^2);
-% % % % %           dataTile = dataTile(ctfMask);
-% % % % %           dataNorm = sum(abs(dataTile(:)).^2);
-               
+
           iRef = conj(fftn(refTile));
           iRef(1) = 0;
           iRef = iRef(ctfMask);
-% % % % %           refTile = refTile(ctfMask);
-          
-% % % % %           for iCTF = -nToCheck:nToCheck
-% % % % %             iRef = conj(refTile.*ctfStack(:,meanIDX+iCTF));
-% % % % %             iCCC = real(sum(iRef.*dataTile))./sqrt(sum(abs(iRef(:)).^2).* dataNorm);
-% % % % %             defocusCCC{iPrj}(iCTF+nToCheck+1,iFid) = gather(iCCC);
-% % % % %           end
+
           for iCTF = -nToCheck:nToCheck
-            iRefCTF = iRef.*ctfStack(:,meanIDX+iCTF);
-            iRefNorm = sum(abs(iRefCTF(:)).^2);
-% % % % %             cccMap = real(ifftn(iRef.*iData));
-% % % % %             cccMap = cccMap(fftMaskDefSearch).*peakMaskDefSearch;
-% % % % %             
-% % % % %             try
-% % % % %               [~,maxMap] = max(cccMap(:));
-% % % % %               [mMx, mMy] = ind2sub(size(cccMap), maxMap);
-% % % % %               cccMap = cccMap(mMx-COM:mMx+COM, mMy-COM:mMy+COM);
-% % % % %               cccMap = cccMap - min(cccMap(:));
-% % % % %               comMapX = sum(sum(bx.*cccMap))./sum(cccMap(:));
-% % % % %               comMapY = sum(sum(by.*cccMap))./sum(cccMap(:));
-% % % % %               dXY = [mMx,mMy]+[comMapX,comMapY] - defSearchOrigin(1:2);
-% % % % %             catch
-% % % % %               fprintf('peak search in def search went awry');
-% % % % %               dXY = [0,0];
-% % % % %             end
-% % % % %             % Shift prior to calculating the CCC
+            if (testSubtraction)
+              iDataCTF = iData.*ctfStack(:,meanIDX+iCTF);
+              iRefCTF = iRef.*abs(ctfStack(:,meanIDX+iCTF)).^2;
+            else
+              iRefCTF = iRef.*ctfStack(:,meanIDX+iCTF);
+              iDataCTF = iData;
+            end
             
-% % % %             iCCCun = real(sum(sum(iRef.*iData)))./sqrt(iUnShift.*iRefNorm);
-% % % % %             iData = exp(dU.*dXY(1)+dV.*dXY(2)).*iData;  
-% % % % %             iDataNorm = sum(abs(iData(:)).^2);
+            iRefNorm  = sum(abs(iRefCTF(:)).^2);
+            iDataNorm = sum(abs(iDataCTF(:)).^2);
+
+
             iCCC = real(sum(iRefCTF.*iData))./sqrt(iDataNorm.*iRefNorm);
              
             defocusCCC{iPrj}(iCTF+nToCheck+1,iFid) = gather(iCCC);
@@ -1882,7 +2096,7 @@ if ~( flgAltRun )
   end
 
 end 
-clear refODD refEVE
+clear refVol
 if ( conserveDiskSpace )
   system(sprintf('rm %smapBack%d/%s_mapBack.st', mbOUT{1:3}));
 end

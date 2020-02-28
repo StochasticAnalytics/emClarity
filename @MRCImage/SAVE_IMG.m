@@ -125,7 +125,18 @@ if mRCImage.flgVolume
   else % normal (not complex) data
 
     if (mRCImage.header.minDensity == 0) && (mRCImage.header.maxDensity == 0)
+      if numel(mRCImage.volume) < 768^3
+        mRCImage.header.minDensity = min(min(min(mRCImage.volume)));
+        mRCImage.header.maxDensity = max(max(max(mRCImage.volume)));
+    
+        mRCImage.header.meanDensity = mean(mean(mean(mRCImage.volume)));
+        mRCImage.header.densityRMS = std(std(std(mRCImage.volume)));
+        mRCImage = writeHeader(mRCImage);
+        fixHeader = 0;
+      else
+ 
       fixHeader = 1;
+      end
     else
       fixHeader = 0;
     end
@@ -137,10 +148,11 @@ if mRCImage.flgVolume
     end
   end
 end
-clear mRCImage.volume;
-%mRCImage.volume = [];
+%clear mRCImage.volume;
+mRCImage.volume = [];
 close(mRCImage);
 
+%% TODO this is really slow, like 20s sloW! sET IN THE MRCIMAGE object
 if (fixHeader)
   system(sprintf('alterheader -mmm  %s > /dev/null',newFilename))
 end

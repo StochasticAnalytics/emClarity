@@ -8,7 +8,7 @@ nB = [0,0,0];
 % nextBest = [64,72,96,108,128,144,160,168,180,192,216,224,256,...
 %             270,288,300,320,336,360,384,400,432,448,480,512];
 nextBest = [64,72,80,84,90,96,108,112,120,126,128,144,160,162, ...
-            168,180,192,216,224,240,252,256,270,288,320,324,336,...
+            168,180,192,216,224,240,256,270,288,320,324,336,...
             360,378,384,400,416,432,448,480,486,504,512];
 % fall off between 1 and 0 in masking function
 APODIZATION = 2.*6;
@@ -88,27 +88,41 @@ switch OPERATION
     % gpu as possible. With finer angular searches, the number of references
     % needs more memory, so a smaller size here means more transfers, but this
     % should be balanced by the finer angles (more comp)
-    if all(SIZES(1,:) == 256);
+    if all(SIZES(1,:) == 256)
       nextBest = [128,144,160,168,192,216,224,256];
-    elseif all(SIZES(1,:) == 384);
+    elseif all(SIZES(1,:) == 384)
       nextBest = [128,144,160,168,192,216,224,256,...
                   288,300,320,336,360,384];
-    elseif all(SIZES(1,:) == 432);
+    elseif all(SIZES(1,:) == 432)
       nextBest = [128,144,160,168,192,216,224,256,...
                   288,300,320,336,360,384,400,432];
-    elseif all(SIZES(1,:) == 512);
+    elseif all(SIZES(1,:) == 512)
       nextBest = [128,144,160,168,192,216,224,256,...
-                  288,300,320,336,360,384,400,432,480,512];         
+                  288,300,320,336,360,384,400,432,480,512];  
+    elseif all(SIZES(1,:) > 512)
+      nextBest = [128,144,160,168,192,216,224,256,...
+                  288,300,320,336,360,384,400,432,480,512,...
+            540,576,640,648,720,756,768,810,864,896,960,972,1008,1024];
     end
     sizeImage      = SIZES(2,:);
     sizeTemplate   = SIZES(3,:); % the mask or kernel
     sizeParticle   = SIZES(4,:) ;% a subregion of sizeTemplate
 
+ 
     borderSizeCalc = floor((sizeTemplate + APODIZATION)./2);
     borderSizeKeep = borderSizeCalc + 2.*sizeParticle;
-    size(nextBest);
+
+    abs(sum(sizeImage - sizeTemplate))
+    sum(0.1.*sizeImage)
+    if abs(sum(sizeImage - sizeTemplate)) < sum(0.1.*sizeImage)
+      
+      OUTPUT = [[0,0,0];[0,0,0] ;sizeImage; ...
+               sizeImage; sizeImage ; [1,1,1]];
+      return
+    end
     score = zeros(length(nextBest),6);
-    score(:,1) = nextBest';    
+    
+    
       
     validCalc = repmat(nextBest',1,3) - 2.*repmat(borderSizeCalc,length(nextBest),1);
     validKeep = repmat(nextBest',1,3) - 2.*repmat(borderSizeKeep,length(nextBest),1);
@@ -116,10 +130,11 @@ switch OPERATION
     postPad= repmat(nextBest',1,3)- ...
                 (repmat(sizeImage+borderSizeKeep,length(nextBest),1) -minIter.*(validKeep+1));
           
-    minIter
-    score(:,2:4) = repmat(nextBest',1,3) ./ postPad .* (minIter >= 0) ; 
+    % Added this so I can work with test cases where the volume to be
+    % searched is the same size as the reference
     
-    score   
+    score(:,2:4) = repmat(nextBest',1,3) ./ postPad .* (minIter >= 0) 
+    
     [~, cX] = max(score(:,2)) ;
     [~, cY] = max(score(:,3)) ;
     [~, cZ] = max(score(:,4))  ;

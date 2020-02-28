@@ -87,11 +87,8 @@ function mRCImage = MRCImage(varargin)
     
   elseif isa(varargin{1}, 'numeric')
     
-    if nargin > 1
-      % Scale to new data type
-      varargin{1} = BH_multi_statScale(varargin{1},varargin{2});
-    end
-    
+
+
     mRCImage = setVolumeAndHeaderFromVolume(mRCImage, varargin{1});
     
   else

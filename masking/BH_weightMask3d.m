@@ -437,13 +437,10 @@ WEDGE_MASK = WEDGE_MASK./(max(WEDGE_MASK(:)));
 %  BINARY_WEDGE = BINARY_WEDGE .* (rad <0.5) ;
 %  BINARY_WEDGE = convn(single(BINARY_WEDGE), BH_multi_gaussian3d(5, 1.0 ),'same');
 % % %   BINARY_WEDGE = BINARY_WEDGE ./ max(BINARY_WEDGE(:)) .*rad;
-  clear wedgeMask centralSection radialGrid rad zWeight 
+%   clear wedgeMask centralSection radialGrid rad zWeight 
 
 
-
-
-
-
+clearvars -except WEDGE_MASK padValues
 
 end
 

@@ -9,10 +9,14 @@ post="_${shortHead}"
 
 outName="$(basename ${mFile} .m)${post}"
 
-binaryOutName="1_0_0"
-scriptOutName=17b
-matlab -nosplash -nodisplay -nojvm -r "mcc -m  ${mFile} -a fitInMap.py  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+binaryOutName="1_2b_0"
+scriptOutName="1_2b_0_19a"
+
+
+
+matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
+#I /groups/grigorieff/home/himesb/work/emClarity
     
 wait
 	rm mccExcludedFiles.log
@@ -72,4 +76,6 @@ chmod a=wrx emClarity_${scriptOutName}
 
 mkdir -p ../bin
 mv emClarity_${scriptOutName} ../bin
+#mv emClarity_${binaryOutName} ../../../thirdParty/emClarity
 mv emClarity_${binaryOutName} ../bin
+cp -rp ../docs ../bin

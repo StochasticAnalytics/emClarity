@@ -49,49 +49,57 @@ function [ ROTATION_MATRIX ] = BH_defineMatrix( ANGLES, CONVENTION, DIRECTION)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Convert from degrees to radians.
-angles = ANGLES.*pi./180;
+angles = ANGLES.*(pi./180);
 
-% Create anonymous functions for each elemental rotation. These rotate a
-% vector about the given axis in a right-handed system.r = 
-Rx = @(t)[     1      0       0 ;...
-           0  cos(t)  -sin(t);...
-           0  sin(t)  cos(t) ];
+%%%%%%%%%%%%%%%%%  Angle Definitions  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Creating the anonymous functions more than doubles the run time without.
+% Using them also adds more time due to ~ 2x the trig calls.
+% Leaving them here for a reference to the matrices used.
+% Rx = @(t)[     1      0       0 ;...
+%            0  cos(t)  -sin(t);...
+%            0  sin(t)  cos(t) ];
+% 
+% Ry = @(t)[ cos(t)     0   sin(t);...
+%            0      1        0;...
+%           -sin(t)     0   cos(t) ];
+% 
+% Rz = @(t)[ cos(t)  -sin(t)      0;...
+%           sin(t)  cos(t)      0;...
+%             0       0      1 ];
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+     
+if strcmpi(DIRECTION, 'forward') || strcmpi(DIRECTION, 'invVector')
+  angles =  -1.*angles;      
+elseif strcmpi(DIRECTION, 'inv') || strcmpi(DIRECTION, 'forwardVector')
+  % For interpolation the vectors are applied to a grid, so the sense must
+    % be inverted to make the final transformation active.
 
-Ry = @(t)[ cos(t)     0   sin(t);...
-           0      1        0;...
-          -sin(t)     0   cos(t) ];
 
-Rz = @(t)[ cos(t)  -sin(t)      0;...
-          sin(t)  cos(t)      0;...
-            0       0      1 ];
+    % In order to rotate the particle from a position defined by the input
+    % angles, back to the proper reference frame, the sense is already
+    % inverted, and just the order must be inverted.
+    %
+    % Think of this as taking an average in the proper frame, applying a given
+    % rotation with 'forward', then this undoes that action.
+    %
+    % IMPORTANT NOTE: because the order is flipped, successive rotations by
+    % multiple matrices must be right multplied for inverse operations. eg:
+    % R1(e1,e2,e3) & R2(e4,e5,e6) then Rtot = R1 * R2 = e1*e2*e3*e4*e5*e6*Mat
+    angles = flip(angles);
+%   angles = [angles(3), angles(2), angles(1)];
+      else
+  error('Direction must be forward or inv, not %s', DIRECTION)
+end
 
-          
+% Reduce number of trig functions
+cosA = cos(angles);
+sinA = sin(angles);
+    
+    
 switch CONVENTION
+  
   case 'Bah'
-    if strcmpi(DIRECTION, 'forward') || strcmpi(DIRECTION, 'invVector')
-      % For interpolation the vectors are applied to a grid, so the sense must
-      % be inverted to make the final transformation active.
-      angles =  -1.*angles;
-    elseif strcmpi(DIRECTION, 'inv') || strcmpi(DIRECTION, 'forwardVector')
-      % In order to rotate the particle from a position defined by the input
-      % angles, back to the proper reference frame, the sense is already
-      % inverted, and just the order must be inverted.
-      %
-      % Think of this as taking an average in the proper frame, applying a given
-      % rotation with 'forward', then this undoes that action.
-      %
-      % IMPORTANT NOTE: because the order is flipped, successive rotations by
-      % multiple matrices must be right multplied for inverse operations. eg:
-      % R1(e1,e2,e3) & R2(e4,e5,e6) then Rtot = R1 * R2 = e1*e2*e3*e4*e5*e6*Mat
-      angles = [angles(3), angles(2), angles(1)];
-    else
-      error('Direction must be forward or inv, not %s', DIRECTION)
-    end
-    
-    % Reduce number of trig functions
-    cosA = cos(angles);
-    sinA = sin(angles);
-    
+       
 %     ROTATION_MATRIX = Rz(angles(3)) * Rx(angles(2)) * Rz(angles(1));
     ROTATION_MATRIX = [cosA(3),-sinA(3),0;...
                        sinA(3),cosA(3),0;...
@@ -102,78 +110,60 @@ switch CONVENTION
                       [cosA(1),-sinA(1),0;...
                        sinA(1),cosA(1),0;...
                        0,0,1] ;
+                     
+  case 'TILT'
+ 
+    ROTATION_MATRIX =  [cosA,0,sinA; ...
+                             0,1,0;...
+                         -sinA,0,cosA];
+
                       
   case 'SPIDER'
     
-    if strcmpi(DIRECTION, 'forward')
-      % For interpolation the vectors are applied to a grid, so the sense must
-      % be inverted to make the final transformation active.
-      angles =  -1.*angles;
-    elseif strcmpi(DIRECTION, 'inv')
-      % In order to rotate the particle from a position defined by the input
-      % angles, back to the proper reference frame, the sense is already
-      % inverted, and just the order must be inverted.
-      %
-      % Think of this as taking an average in the proper frame, applying a given
-      % rotation with 'forward', then this undoes that action.
-      angles = [angles(3), angles(2), angles(1)];
-    else
-      error('Direction must be forward or inv, not %s', DIRECTION)
-    end
-    ROTATION_MATRIX = Rz(angles(3)) * Ry(angles(2)) * Rz(angles(1));
+    
+%     ROTATION_MATRIX = Rz(angles(3)) * Ry(angles(2)) * Rz(angles(1));
+
+    ROTATION_MATRIX = [cosA(3),-sinA(3),0;...
+                       sinA(3),cosA(3),0;...
+                       0,0,1] * ...
+                      [cosA(2),0,sinA(2); ...
+                      0,1,0;...
+                      -sinA(2),0,cosA(2)] * ...
+                      [cosA(1),-sinA(1),0;...
+                       sinA(1),cosA(1),0;...
+                       0,0,1] ;
+
   case 'Helical'
-    if strcmpi(DIRECTION, 'forward') || strcmpi(DIRECTION, 'invVector')
-      % For interpolation the vectors are applied to a grid, so the sense must
-      % be inverted to make the final transformation active.
-      angles =  -1.*angles;
-    elseif strcmpi(DIRECTION, 'inv') || strcmpi(DIRECTION, 'forwardVector')
-      % In order to rotate the particle from a position defined by the input
-      % angles, back to the proper reference frame, the sense is already
-      % inverted, and just the order must be inverted.
-      %
-      % Think of this as taking an average in the proper frame, applying a given
-      % rotation with 'forward', then this undoes that action.
-      %
-      % IMPORTANT NOTE: because the order is flipped, successive rotations by
-      % multiple matrices must be right multplied for inverse operations. eg:
-      % R1(e1,e2,e3) & R2(e4,e5,e6) then Rtot = R1 * R2 = e1*e2*e3*e4*e5*e6*Mat
-      angles = [angles(3), angles(2), angles(1)];
-    else
-      error('Direction must be forward or inv, not %s', DIRECTION)
-    end
+
     
-    % Reduce number of trig functions
-    cosA = cos(angles);
-    sinA = sin(angles);
-    
-  ROTATION_MATRIX = Ry(angles(3)) * Rx(angles(2)) * Ry(angles(1));  
+%   ROTATION_MATRIX = Ry(angles(3)) * Rx(angles(2)) * Ry(angles(1));  
+
+    ROTATION_MATRIX = [cosA(3),0,sinA(3); ...
+                      0,1,0;...
+                      -sinA(3),0,cosA(3)] * ...
+                      [1,0,0; ...
+                      0,cosA(2),-sinA(2);...
+                      0,sinA(2),cosA(2)] * ...
+                      [cosA(1),0,sinA(1); ...
+                      0,1,0;...
+                      -sinA(1),0,cosA(1)];
 
   case 'IMOD'
-    if strcmpi(DIRECTION, 'forward') || strcmpi(DIRECTION, 'invVector')
-      % For interpolation the vectors are applied to a grid, so the sense must
-      % be inverted to make the final transformation active.
-      angles =  -1.*angles;
-    elseif strcmpi(DIRECTION, 'inv') || strcmpi(DIRECTION, 'forwardVector')
-      % In order to rotate the particle from a position defined by the input
-      % angles, back to the proper reference frame, the sense is already
-      % inverted, and just the order must be inverted.
-      %
-      % Think of this as taking an average in the proper frame, applying a given
-      % rotation with 'forward', then this undoes that action.
-      %
-      % IMPORTANT NOTE: because the order is flipped, successive rotations by
-      % multiple matrices must be right multplied for inverse operations. eg:
-      % R1(e1,e2,e3) & R2(e4,e5,e6) then Rtot = R1 * R2 = e1*e2*e3*e4*e5*e6*Mat
-      angles = [angles(3), angles(2), angles(1)];
-    else
-      error('Direction must be forward or inv, not %s', DIRECTION)
-    end
-    
-    % Reduce number of trig functions
+
     cosA = cos(angles);
     sinA = sin(angles);
     
-  ROTATION_MATRIX = Rz(angles(3)) * Ry(angles(2)) * Rx(angles(1));  
+%   ROTATION_MATRIX = Rz(angles(3)) * Ry(angles(2)) * Rx(angles(1));  
+
+    ROTATION_MATRIX = [cosA(3),-sinA(3),0;...
+                       sinA(3),cosA(3),0;...
+                       0,0,1] * ...
+                      [cosA(2),0,sinA(2); ...
+                      0,1,0;...
+                      -sinA(2),0,cosA(2)] * ...
+                      [cosA(1),-sinA(1),0;...
+                       sinA(1),cosA(1),0;...
+                       0,0,1] ;
   
   otherwise
     error('Convention must be Bah,SPI,Helical, not %s', CONVENTION)

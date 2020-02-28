@@ -69,15 +69,15 @@ for iTomo = 1:nTomograms
      pIndex = find(newAlignment(:,2) == particleIDX);
 
      newAngles = newAlignment(pIndex,[3:5] + 10*(iPeak-1));
-     try
+% % % % %      try
      classRot = BH_defineMatrix(newAngles,rotConvention,'inv');
-     catch
+% % % % %      catch
     
       
-      positionList(iParticle,26 + 26*(iPeak-1)) = -9999;
-      fprintf('particlet %d in catch clause rawAlignmentApply set to ignore\n',particleIDX);
-      continue
-     end
+% % % % %       positionList(iParticle,26 + 26*(iPeak-1)) = -9999;
+% % % % %       fprintf('particlet %d in catch clause rawAlignmentApply set to ignore\n',particleIDX);
+% % % % %       continue
+% % % % %      end
      
   
      oldRot = reshape(positionList(iParticle,[17:25] + 26*(iPeak-1)),3,3);
