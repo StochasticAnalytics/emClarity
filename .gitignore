@@ -1,4 +1,5 @@
 mexFiles/
+mexFiles/compiled
 bin/
 testScripts/EMC_test/logTest/
 testScripts/EMC_test/logPerf/
