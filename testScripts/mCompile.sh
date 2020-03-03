@@ -9,8 +9,8 @@ post="_${shortHead}"
 
 outName="$(basename ${mFile} .m)${post}"
 
-binaryOutName="test_9278bf9"
-scriptOutName="test_9278bf9_19a"
+binaryOutName="test_b3121d1"
+scriptOutName="test_b3121d19_19a"
 
 
 
