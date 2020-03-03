@@ -25,7 +25,7 @@ tiltStart = 1;
 
 % Test David's new super sampling in reconstruction. No check that this
 % version (currently 4.10.40) is properly sourced.
-useSuperSample = 2;
+useSuperSample = 0;
 
 %default to cycle number zero for
 %determining mean z height of particles
