@@ -1,4 +1,3 @@
-
 function [ TRANS_IMAGE ] = BH_resample2d( IMAGE, ANGLES, SHIFTS, ...
                                           CONVENTION, METHOD, DIRECTION, ...
                                           MAG, SIZEOUT, varargin)
@@ -54,11 +53,14 @@ else
 end
 
 doHalfGrid = 0;
+useNan =0;
 if nargin > 8
   if isa(varargin{1},'fourierTransformer')
     doHalfGrid = 1;
     hgSHIFTS = SHIFTS; SHIFTS = [0,0];
     hgMAG = 1/MAG; MAG = 1;
+  elseif isnan(varargin{1})
+    useNan = 1;
   else
     error('did not recognize the varargin');
   end
@@ -198,7 +200,12 @@ if ( useGPU )
                                 trimVal(1,:),trimVal(2,:),'GPU','single');
 
   else
-    TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',mean(stackIN(:)));
+    
+    if (useNan)
+      TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',NaN);
+    else
+       TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',mean(stackIN(:)));
+    end
     
   end
 else
