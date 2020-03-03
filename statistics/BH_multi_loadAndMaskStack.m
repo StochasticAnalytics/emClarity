@@ -1,4 +1,4 @@
-function [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,mapBackIter,THICKNESS,PIXEL_SIZE)
+function [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,mapBackIter,THICKNESS,PIXEL_SIZE,varargin)
 %Relative weighting of a tilt-series
 %   Weight projections after normalizing stats (mean and unit var)
 %   1) For best expected signal, which is assumed to be the fraction of
@@ -35,6 +35,18 @@ if (THICKNESS < 10 || THICKNESS > 1000)
   error('Your sample thickness is likely incorrect, it should be between 10 and 1000 nm, not %d \n',THICKNESS);
 end
 
+if (PIXEL_SIZE < 0)
+  justHighPass = 1;
+else
+  justHighPass = 0;
+end
+
+if nargin > 5
+  useMask = 1;
+else
+  useMask = 0;
+end
+
 % Override the thickness for now, if the sample isn't flat, the method to
 % calculate it based on subTomogram coordinates in 3d is not correct
 THICKNESS = 75;
@@ -66,31 +78,42 @@ else
   flgOnDevice = 0;
 end
 
-bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
 meanVariance = 0;
+
+if (justHighPass)
+  bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
+end
+
 for iPrj = 1:d3
   
-  if (flgOnDevice)
-    iProjection = STACK(:,:,TLT(iPrj,1));
-  else
-    iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
+  if (justHighPass)
+    iProjection = STACK(:,:,iPrj);
+    iProjection = BH_padZeros3d(iProjection,[0,0],[0,0],'gpuArray','singleTaper',mean(iProjection(:)));
+    iProjection  = real(ifftn(fftn(iProjection).*bandNyquist));
+    STACK(:,:,iPrj) = gather(iProjection);
+    continue
+  else   
+    if (flgOnDevice)
+      iProjection = STACK(:,:,TLT(iPrj,1));
+    else
+      iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
+    end
   end
-  
-  % Remove any residual outliers
-  mask = (abs(iProjection(:)) > mean(iProjection(:))+5*std(iProjection(:)));
-  
-  iProjection(mask) = randn([sum(mask(:)),1],'single','gpuArray').*(0.5*std(std(iProjection(~mask))));
- 
-  maxEval = cosd(TLT(iPrj,4)).*(d1/2) + (THICKNESS*10./(PIXEL_SIZE))./2*abs(sind(TLT(iPrj,4)));
-  oX = ceil((d1+1)./2);
-  iEvalMask = max(EDGE_PAD,floor(oX-maxEval)):min(d1-EDGE_PAD,ceil(oX+maxEval));
 
-  % Remove gradients
-  iProjection  = real(ifftn(fftn(iProjection).*bandNyquist));
-  % Center under mask
-  iProjection = iProjection - mean2(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD));
-  % Unit variance
-  iProjection = iProjection ./ rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
+  if (useMask)
+    iProjection = iProjection - mean2(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0));
+    iProjection = iProjection ./ rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
+  else
+    maxEval = cosd(TLT(iPrj,4)).*(d1/2) + (THICKNESS*10./(PIXEL_SIZE))./2*abs(sind(TLT(iPrj,4)));
+    oX = ceil((d1+1)./2);
+    iEvalMask = max(EDGE_PAD,floor(oX-maxEval)):min(d1-EDGE_PAD,ceil(oX+maxEval));
+
+    % Remove gradients
+    % Center under mask
+    iProjection = iProjection - mean2(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD));
+    % Unit variance
+    iProjection = iProjection ./ rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
+  end
   
   fractionOfDose = TLT(iPrj,14)/mean(TLT(:,14));
   fractionOfElastics = exp(-1.*THICKNESS/( cosd(TLT(iPrj,4))*400 ));
@@ -98,9 +121,13 @@ for iPrj = 1:d3
   
   iProjection = iProjection .* (fractionOfDose*fractionOfElastics);
 
-  meanVariance = meanVariance + rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
+%   if (useMask)
+%     meanVariance = meanVariance + rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
+%   else
+%     meanVariance = meanVariance + rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
+%   end
+    
 
-  
   
   if (flgOnDevice)
     STACK(:,:,TLT(iPrj,1)) = iProjection;
@@ -109,8 +136,8 @@ for iPrj = 1:d3
   end
   
 end % end loop over projections
-meanVariance = meanVariance ./ d3;
-STACK = STACK ./ gather( meanVariance);
+
+
 
 end % end of function
 
