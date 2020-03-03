@@ -15,7 +15,7 @@ pBH = BH_parseParameterFile(PARAMETER_FILE);
 
 % Apply a Wiener filter with this many zeros during Ctf multiplication
 global bh_global_turn_on_phase_plate
-masterTM = struct();ed
+masterTM = struct();
 resTarget = 15;
 
 % TODO remove thise params
