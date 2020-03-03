@@ -1,8 +1,9 @@
 
 function [  ] = BH_ctf_Estimate(varargin)
 
+global bh_global_do_2d_fourier_interp;
 !mkdir -p aliStacks
-
+modLocal = false;
 if length(varargin) == 5
   % PARAMETER_FILE, STACK, TILT, NAMEOUT, mapBack, collectionORDER, gpuIDX
   % orig approach, streamlining for publication
@@ -21,6 +22,9 @@ elseif length(varargin) <= 3
   
   if length(varargin) == 3
     anglesSkipped = str2num(varargin{3});
+    modLocal = true;
+
+
   else
     anglesSkipped = 0;
   end
@@ -64,6 +68,14 @@ try
 catch
   error('The tilt angle file %s was not found.\n', tltFile);
 end
+
+if (modLocal)
+  localName = sprintf('fixedStacks/%s.local',STACK_BASENAME);
+  if exist(localName,'file')
+    fprintf('\nModifying the local alignments\n');
+    BH_trimIMODLocal(localName,length(rawTLT),anglesSkipped)
+  end
+end
 skipFitting = 0;
 try
   PHASE_PLATE_SHIFT = pBH.('PHASE_PLATE_SHIFT').*pi
@@ -84,6 +96,7 @@ try
 
   flgOldDose = 0;
   tltOrder = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SHIFT);
+  
   
 catch
   fprintf('\nFalling back on old dose specification through a *.order file\n\n');
@@ -123,27 +136,27 @@ else
   scalePixelsBy = 1;
 end
 
-if 10^10*PIXEL_SIZE < 1.2
-  fprintf('PixelSize is less than 1.2 Ang so we have to use the cpu\n');
-  useGPU = 0;
-  METHOD = 'cpu';
-else
+% if 10^10*PIXEL_SIZE < 1.2
+%   fprintf('PixelSize is less than 1.2 Ang so we have to use the cpu\n');
+%   useGPU = 0;
+%   METHOD = 'cpu';
+% else
   useGPU = 1;
   METHOD = 'GPU';
-end
+% end
 
 % Sanity check
 if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
   error('pixel size should be [0,20e-10]');
 elseif (Cs > 10e-3 || Cs < 0)
-  error('Cs should be[1e-3,0');
+  fprintf('\nWARNING Cs should be[10e-3,0]\n');
 elseif(VOLTAGE > 1000e3 || VOLTAGE < 20e3)
   error ('VOLTAGE should be [20e3,1000e3]');
 elseif (AMPCONT < 0.025 || AMPCONT > 0.25)
-  error('AMPCONT should be [0.025,0.25]');
-else
-  WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
+  fprintf('\nWARNING: AMPCONT probably should be [0.025,0.25]\n');
 end
+  WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
+
 
 if Cs == 0
   Cs = 1e-6;
@@ -185,7 +198,7 @@ backGroundBuffer = 0.9985;
 try
   deltaZTolerance = pBH.('deltaZTolerance');
 catch
-  deltaZTolerance = 100e-9;
+  deltaZTolerance = 50e-9;
 end
 
 try 
@@ -196,6 +209,12 @@ end
 
 if abs(zShift) > 100e-7
   error('make sure your zShift values are of reasonable amounts (50-200nm)');
+end
+
+try
+  maxNumberOfTiles = pBH.('ctfMaxNumberOfTiles');
+catch
+  maxNumberOfTiles = 1e4;
 end
 
 % Starting at +/- 100nm
@@ -209,28 +228,25 @@ try
 catch
   tileSize = floor(680e-10 / PIXEL_SIZE);
 end
-tileOverlap = 4;
+tileOverlap = 2;
 
 tileSize = tileSize + mod(tileSize,2);
+% tileSize = max(tileSize, 384);
 fprintf('Using a tile size of %d\n',tileSize);
+
 overlap = floor(tileSize ./ tileOverlap);
 
 % Size to padTile to should be even, large, and preferably a power of 2
 try
   paddedSize = pBH.('paddedSize');
 catch
-  paddedSize = 1024;
+  paddedSize = 768;
 end
 padVAL = BH_multi_padVal([tileSize,tileSize], [paddedSize,paddedSize]);
 
 
 
-if exist(stackNameIN, 'file')
-  
-  if size(tltOrder,1) ~= length(rawTLT)
-    error('The length of the collectionOrder %d and tilt Geometry %d are different\n', ...
-                                        length(tltOrder),length(tltInfo));
-  end 
+if exist(stackNameIN, 'file') 
   
   if ( flgOldDose )
     TLT = zeros(length(rawTLT),23);
@@ -250,15 +266,14 @@ if exist(stackNameIN, 'file')
       TLT(sorted_dose(:,1),11) = cummul_dose;
     end
   else
-    included = (tltOrder(:,3) ~= -9999);
-    nSkipped = (sum(~included)); % used to adjust header
-    TLT = zeros(sum(included),23);
-    TLT(:,1) = 1:sum(included);
-    TLT(:,23) = tltOrder(included,1); % This was only the appropriate tilts are read in.
-    TLT(:,4) = tltOrder(included,2); clear rawTLT
-    TLT(:,11) = tltOrder(included,3);
+    nSkipped = length(rawTLT) - size(tltOrder,1); % used to adjust header
+    TLT = zeros(size(tltOrder,1),23);
+    TLT(:,1)  = tltOrder(:,1);
+    TLT(:,23) = tltOrder(:,5); % This was only the appropriate tilts are read in.
+    TLT(:,4)  = tltOrder(:,2); clear rawTLT
+    TLT(:,11) = tltOrder(:,3);
     TLT(:,14) = 1;
-    TLT(:,19) = tltOrder(included,4);
+    TLT(:,19) = tltOrder(:,4);
   end
   
 
@@ -302,9 +317,8 @@ system(sprintf('mkdir -p %s/ctf', pathName));
 
   d1 = iHeader.nX ; d2 = iHeader.nY ; d3 = iHeader.nZ;
   
-if (SuperResolution)
-  halfMask = fftshift(BH_bandpass3d(1.*[d1,d2,1],0,0,4,METHOD,1));
-end
+
+
 
 % Copy with column for defocus = input to CTF correct
 % saved as <filename>_ctf.tlt
@@ -379,7 +393,6 @@ else
 end
 
 
-
 if (SuperResolution)
   % Forcing output to odd size.
   sizeCropped = floor([d1,d2,d3]./2)-(1-mod(floor([d1,d2,d3]./2),2));
@@ -389,7 +402,9 @@ end
 sizeCropped(3) = d3; 
 
 STACK = zeros(sizeCropped,'single');
-
+ samplingMaskStack = zeros(sizeCropped,'uint8');
+ samplingMask = ones([sizeCropped(1:2),1],'single','gpuArray');
+ 
 
 
 if (flgReOrderMapBack)
@@ -403,6 +418,17 @@ end
   shiftMETHOD = 'GPU';
 % end
 
+% Redefine d3 incase views are ignored
+d3 = size(TLT,1);
+
+osX = 1-mod(d1,2); osY = 1-mod(d2,2);
+
+if (SuperResolution)
+  gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,-0.235,METHOD,'nyquistHigh');
+else
+  gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,METHOD,'nyquistHigh');
+end
+
 for i = 1:d3
 %  fprintf('Transforming prj %d in fourier space oversampled by 2x physical Nyquist\n',i);
 
@@ -410,10 +436,11 @@ for i = 1:d3
   % Stored in row order as output by imod, st transpose is needed. Inversion
   % of the xform is handled in resample2d.
   origXF = [1,0;0,1];
-   newXF = reshape(mbEST(i,1:4),2,2)';
+  
+  newXF = reshape(mbEST(TLT(i,23),1:4),2,2)';
 
 
-  dXYZ  = [(newXF*TLT(i,2:3)')' + mbEST(i,5:6) , 0];
+  dXYZ  = [(newXF*TLT(i,2:3)')' + mbEST(TLT(i,23),5:6) , 0];
   TLT(i,2:3) = dXYZ(1:2);
   dXYZ = dXYZ ./ scalePixelsBy;
 
@@ -421,18 +448,21 @@ for i = 1:d3
   TLT(i,7:10) = combinedXF;
 
 
-  osX = 1-mod(d1,2); osY = 1-mod(d2,2);
+  
 
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
 
      iProjection = gpuArray(single(getVolume(iMrcObj,-1,-1,TLT(i,23),'keep')));
 
+     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
+     
      % Remove any very large outliers
      largeOutliersMean= mean(iProjection(:));
      largeOutliersSTD = std(iProjection(:));
-     largeOutliersIDX = (iProjection < largeOutliersMean - 10*largeOutliersSTD | ...
-                         iProjection > largeOutliersMean + 10*largeOutliersSTD);
+     largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
+                         iProjection > largeOutliersMean + 6*largeOutliersSTD);
+                       
      iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single','gpuArray');
                  
     % Information beyond the physical nyquist should be removed to limit
@@ -441,13 +471,14 @@ for i = 1:d3
     trimVal = BH_multi_padVal(1.*size(iProjection),sizeCropped(1:2));
 
     iProjection = real(ifftn(ifftshift(...
-                               BH_padZeros3d(halfMask.*fftshift(...
+                               BH_padZeros3d(fftshift(...
                                              fftn(iProjection)), ...
                                              trimVal(1,:),trimVal(2,:),...
                                              shiftMETHOD,'single'))));  
 
 
 
+     iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),[0,0,0],[0,0],'Bah','GPU','forward',1/2,sizeCropped(1:2));
 
      sizeODD = size(iProjection)-[osX,osY];
   else
@@ -455,21 +486,23 @@ for i = 1:d3
 
     % If it is even sized, shift up one pixel so that the origin is in the middle
     % of the odd output here we can just read it in this way, unlike super res. 
-    
-      iProjection = ...
+     
+     iProjection = ...
                  single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,23),'keep'));
+               
+     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
      largeOutliersMean= mean(iProjection(:));
      largeOutliersSTD = std(iProjection(:));
      largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
                          iProjection > largeOutliersMean + 6*largeOutliersSTD);
      iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
-
-             
+    
 
   end
 
     % Padding to avoid interpolation artifacts
-    sizeSQ = floor([2,2].*sizeODD);
+    
+    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*sizeODD);
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
 
@@ -486,7 +519,7 @@ for i = 1:d3
   end
 
 
-  if (i == 1)
+  if (i == 1 && bh_global_do_2d_fourier_interp)
     bhF = fourierTransformer(iProjection);
   end
   
@@ -497,14 +530,23 @@ for i = 1:d3
  [imodMAG, imodStretch, imodSkewAngle, imodRot] = ...
                                        BH_decomposeIMODxf(combinedXF);
 
- combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
-
- combinedInverted = combinedInverted([1,2,4,5]);
 
 
- iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
+ if (bh_global_do_2d_fourier_interp)
+  combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+  combinedInverted = combinedInverted([1,2,4,5]);
+  iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
+ else
+   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
+   combinedInverted = combinedInverted([1,2,4,5]);
+   iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',1.0,size(iProjection));
+ end
  
-
+  iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),combinedXF,dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);
+  
+  iSamplingMask(isnan(iSamplingMask(:))) = 0;
+  samplingMaskStack(:,:,i) = uint8(gather(real(iSamplingMask)));
+  iSamplingMask = [];
 
 % % % % %    iProjection = real(fftshift(ifftn(ifftshift(iProjection))));
  STACK(:,:,i)  = gather(real(BH_padZeros3d(iProjection, ...
@@ -525,9 +567,10 @@ if ( flgEraseBeads )
     STACK = BH_eraseBeads(STACK,eraseRadius, beadList);
 end 
 
-[ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,PIXEL_SIZE*10^10);
+[ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,PIXEL_SIZE*10^10,samplingMaskStack);
 
 SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
 
 
 if ~(flgSkip)
@@ -566,38 +609,34 @@ if d1C > 4096 || d2C > 4096 || d3 > 40
  else
   prjMaskMethod = 'GPU'
 end
-%  [ evalMask, ~ ] = BH_multi_projectionMask([d1C,d2C,d3;d1C,d2C,1], tltForExp, ...
-%                                       prjMaskMethod, [zShift,deltaZTolerance] );
-evalMask = zeros(d1C,d2C,d3,'single');
-for iPrj = 1:d3
-  tmpTLT = tltForExp(iPrj,:);
-  % need to write over the projections position in the stack to not expand beyond 2d
-  tmpTLT(1) = 1;
-  [ iEvalMask, ~ ] = BH_multi_projectionMask([d1C,d2C,1;d1C,d2C,1], tmpTLT, ...
-                                       'GPU', [zShift,deltaZTolerance] ); 
- 
-  evalMask(:,:,tltForExp(iPrj,1)) = gather(iEvalMask);
-end
 
-
-%evalMask = gather(evalMask);
-
-
-nTiles = zeros(size(STACK,3),1);
-
-tic
-for i = 1+tileSize/2:overlap:d1C-tileSize/2
-  for j = 1+tileSize/2:overlap:d2C-tileSize/2
-    for k = 1:size(STACK,3)
-      if evalMask(i,j,k)
-        nTiles(k) = nTiles(k) + 1;
-      end
-    end
-  end
-end
-toc
-sum(nTiles)
-
+% % % % evalMask = zeros(d1C,d2C,d3,'single');
+% % % % for iPrj = 1:d3
+% % % %   tmpTLT = tltForExp(iPrj,:);
+% % % %   % need to write over the projections position in the stack to not expand beyond 2d
+% % % %   tmpTLT(1) = 1;
+% % % %   [ iEvalMask, ~ ] = BH_multi_projectionMask([d1C,d2C,1;d1C,d2C,1], tmpTLT, ...
+% % % %                                        'GPU', [zShift,deltaZTolerance] ); 
+% % % %  
+% % % %   evalMask(:,:,tltForExp(iPrj,1)) = gather(iEvalMask);
+% % % % end
+% % % % 
+% % % % 
+% % % % %evalMask = gather(evalMask);
+% % % % 
+% % % % 
+% % % % nTiles = zeros(size(STACK,3),1);
+% % % % 
+% % % % 
+% % % % for i = 1+tileSize/2:overlap:d1C-tileSize/2
+% % % %   for j = 1+tileSize/2:overlap:d2C-tileSize/2
+% % % %     for k = 1:size(STACK,3)
+% % % %       if evalMask(i,j,k)
+% % % %         nTiles(k) = nTiles(k) + 1;
+% % % %       end
+% % % %     end
+% % % %   end
+% % % % end
 
 
 
@@ -608,18 +647,12 @@ sum(nTiles)
 radialForCTF = {radialForCTF./(pixelOUT.*10^-10),0,phi}; clear phi                                                       
 
 flgExpFilter = 0;
-%if ( flgExpFilter)
-%  [exposureFilter] = BH_exposureFilter(paddedSize.*[1,1], tltForExp,'GPU',1,0);
-%  exposureFilter = gather(exposureFilter);
-%else
-%  exposureFilter = ones([paddedSize.*[1,1],d3],'single');
-%end
+
 inc = (0.5 - FIXED_FIRSTZERO) / (paddedSize/2);
 freqVector = [inc+FIXED_FIRSTZERO:inc:0.5 ];
-clear sumVector radialAvg
-sumVector(length(freqVector)) = gpuArray(double(0));
-radialAvg(length(freqVector)) = gpuArray(double(0));
-
+% % % % clear sumVector radialAvg
+% % % % sumVector(length(freqVector)) = gpuArray(double(0));
+% % % % radialAvg(length(freqVector)) = gpuArray(double(0));
 
 
 tic
@@ -627,8 +660,11 @@ nT = 1;
 nT2=0;
 nT3= 0;
 
-psTile = zeros([(paddedSize).*[1,1],3],'single','gpuArray');
+halfX = floor(paddedSize/2) + 1;
+% % % % psTile = zeros([(paddedSize).*[1,1],3],'single','gpuArray');
+psTile = zeros([halfX,paddedSize,3],'single','gpuArray');
 
+bhF2 = fourierTransformer(randn(paddedSize,paddedSize,'single','gpuArray'));
 
 for k = 1:d3
   if (skipFitting)
@@ -655,10 +691,10 @@ for k = 1:d3
   iEvalMask = ( iEvalMask > gpuArray(-deltaZTolerance) & iEvalMask < gpuArray(deltaZTolerance));
 
   
-  
-   tmpTile = zeros([paddedSize.*[1,1],3],'single','gpuArray');
+  tmpTile = zeros([halfX,paddedSize,3],'single','gpuArray');
+ 
+% % % %    tmpTile = zeros([paddedSize.*[1,1],3],'single','gpuArray');
 
-%     iProjection = double(gpuArray(STACK(:,:,TLT(k,1))));
   if flgCrop
     [iProjection,~] = cropIMG(gpuArray(STACK(:,:,TLT(k,1))),PIXEL_SIZE*10^10);
   else
@@ -676,19 +712,24 @@ for k = 1:d3
  
 
   for i = 1+tileSize/2:overlap:d1C-tileSize/2
-    if iEvalMask(i) || iEvalPos(i) || iEvalNeg(i)
+    if min([nT,nT2,nT3])< maxNumberOfTiles && (iEvalMask(i) || iEvalPos(i) || iEvalNeg(i))
       for j = 1+tileSize/2:overlap:d2C-tileSize/2  
      
-      %if evalMask(i,j,TLT(k,1))
-
-
-         thisTile = abs(fftn( ...
-                                 BH_padZeros3d(...
+        thisTile = abs(bhF2.fwdFFT(BH_padZeros3d(...
                                  (iProjection( ...
                                         i-tileSize/2+1:i+tileSize/2,...
                                         j-tileSize/2+1:j+tileSize/2)),...
                                                   padVAL(1,:),padVAL(2,:),...
                                                   'GPU','singleTaper')));
+             
+% % % % 
+% % % %          thisTile = abs(fftn( ...
+% % % %                                  BH_padZeros3d(...
+% % % %                                  (iProjection( ...
+% % % %                                         i-tileSize/2+1:i+tileSize/2,...
+% % % %                                         j-tileSize/2+1:j+tileSize/2)),...
+% % % %                                                   padVAL(1,:),padVAL(2,:),...
+% % % %                                                   'GPU','singleTaper')));
          tmpTile(:,:,1) = tmpTile(:,:,1) + thisTile;
 
 
@@ -715,18 +756,25 @@ for k = 1:d3
   psTile = psTile + tmpTile; 
 
 end
+clear tmpTile
 toc
 
-rotAvgPowerSpec = psTile;
+rotAvgPowerSpec = zeros([paddedSize,paddedSize,3],'single','gpuArray');
+for iTile = 1:3
+  tmp =  bhF2.swapIndexFWD(psTile(:,:,iTile));
+  psTile(:,:,iTile) = bhF2.swapIndexFWD(psTile(:,:,iTile));
+  rotAvgPowerSpec(:,:,iTile) = BH_multi_makeHermitian(psTile(:,:,iTile),[paddedSize,paddedSize],1);
+end
+
+clear psTile
 
 if ~(skipFitting)
-  for iTile = 1:3
-    rotAvgPowerSpec(:,:,iTile) = (fftshift(rotAvgPowerSpec(:,:,iTile)));
-  end
+% % % %   for iTile = 1:3
+% % % %     rotAvgPowerSpec(:,:,iTile) = (fftshift(rotAvgPowerSpec(:,:,iTile)));
+% % % %   end
   AvgPowerSpec = rotAvgPowerSpec;
 
-
-
+  % TODO make a better rotational averaging funciton
   [rot1, rot2, ~, r1,r2, ~] = BH_multi_gridCoordinates(paddedSize.*[1,1], ...
                                                       'Cartesian','GPU', ...
                                                       {'none'},0,1,0);
@@ -794,13 +842,13 @@ for iTilt = 1:3
 %   radialPS = [AvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
 
 
-  defRange = [currentDefocusEst-currentDefocusWin,currentDefocusEst+currentDefocusWin]
+  defRange = [currentDefocusEst-currentDefocusWin,currentDefocusEst+currentDefocusWin];
 
-  if defRange(2) > -0.05
-    fprintf('\n\nCapping defocus to 50nm from wanted %f. Do you mean to search so close to focus??\n\n',abs(defRange(2)));
-    defRange(2) = -0.05;
-  end
-  defInc   = [0.01];
+% % %   if defRange(2) > -0.05
+% % %     fprintf('\n\nCapping defocus to 50nm from wanted %f. Do you mean to search so close to focus??\n\n',abs(defRange(2)));
+% % %     defRange(2) = -0.05;
+% % %   end
+ defInc   = [0.01];
 
   defVal = (defRange(1):defInc:defRange(2))';
 
@@ -809,6 +857,9 @@ for iTilt = 1:3
   nDF = 1;
   for iDF = defVal'
     DF = iDF*10^-6;
+
+    % TODO add a global switch for the damping
+%     [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
 
     [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
 
@@ -860,7 +911,7 @@ for iTilt = 1:3
   % SAVE_IMG(MRCImage(diagnosticIMG), ...
   %                        sprintf('%s/ctf/%s_diag%s',pathName,fileName,extension));
 
-                       clear STACK exposureFilter evalMask
+                       clear STACK exposureFilter 
 
     pdfOUT = sprintf('%s/ctf/%s_psRadial_%d.pdf',pathName,stackNameOUT,iTilt)
 
@@ -1340,12 +1391,14 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SH
   doseSymmetricIncrement = pBH.('doseSymmetricIncrement');
   doseAtMinTilt = pBH.('doseAtMinTilt');
   nPrjs = length(rawTLT);
-  tltOrder = zeros(nPrjs,4);
+  tltOrder = zeros(nPrjs,5);
   
+  nAngle = 2;
+ 
   if (doseSymmetricIncrement < 0)
     % For doseSymmetricIncrement = 2, 3 deg
     % 0, 3, -3, -6, 6, 9 ...
-    doseSymmetricIncrement = abs(doseSymmetricIncrement)
+    doseSymmetricIncrement = abs(doseSymmetricIncrement);
     flgFirstTilt = 0;
   else
     % For doseSymmetricIncrement = 2, 3 deg
@@ -1354,47 +1407,51 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SH
   end
   
   if any(PHASE_PLATE_SHIFT)
-    extraPhaseShift = PHASE_PLATE_SHIFT(1):(PHASE_PLATE_SHIFT(2) - PHASE_PLATE_SHIFT(1))./nPrjs:PHASE_PLATE_SHIFT(2);
+    if diff(PHASE_PLATE_SHIFT) < 1e-3
+      PHASE_PLATE_SHIFT(2) = PHASE_PLATE_SHIFT(1) + 1e-3;
+    end
+    extraPhaseShift = [PHASE_PLATE_SHIFT(1):(PHASE_PLATE_SHIFT(2) - PHASE_PLATE_SHIFT(1))./nPrjs:PHASE_PLATE_SHIFT(2)];
   else
     extraPhaseShift = zeros(nPrjs,1);
   end
   
   totalDose = doseAtMinTilt;
-  nMax = length(rawTLT)+1;
   
   if (anglesSkipped)
     % Get the actual angles from the index
     anglesToSkip = rawTLT(anglesSkipped);
+    anglesToKeep = ~ismember(1:nPrjs,anglesSkipped);
   else
     anglesToSkip = [];
+    anglesToKeep = true(nPrjs,1);
   end
 
 
     % We always start from the first tilt.
-   [~,iTilt] = min(abs(rawTLT-startingAngle));
-   tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),totalDose,extraPhaseShift(1)];
-   tmpTLT = rawTLT([1:iTilt-1,iTilt+1:end]);
+   [~,firstTilt] = min(abs(rawTLT-startingAngle));
+   tltOrder(firstTilt,:) = [firstTilt,rawTLT(firstTilt),totalDose,extraPhaseShift(1),0];
+   % Remove this angle to get those remaining
+   tmpTLT = rawTLT([1:firstTilt-1,firstTilt+1:end]);
    largerAngles = tmpTLT(tmpTLT-startingAngle > 0);
    smallerAngles= tmpTLT(tmpTLT-startingAngle < 0);
+   
    % Now split into thos that are larger or smaller than the min tilt
    if ( startingAngle >= 0 )
-
        largerAngles = sort(largerAngles,'ascend');
        smallerAngles = sort(smallerAngles,'descend');
-
    else
-
        largerAngles = sort(largerAngles,'ascend');
        smallerAngles = sort(smallerAngles,'descend');
-
    end
    
    clear tmpTLT
    
    if ( doseSymmetricIncrement )
      % It is assumed that blocks of this many tilts are collected NOT
-     % counting the first tilt.
-     switchAfterNTilts = doseSymmetricIncrement-1*(1-flgFirstTilt);
+     % including the first tilt. If the original dose symmetric scheme is
+     % requested (negative Increment) then the first tilt IS included, and
+     % so we need to subtract one from the counter.
+     switchAfterNTilts = doseSymmetricIncrement - (1-flgFirstTilt)
      flgFirstTilt=0;
    else
      if strcmpi(startingDirection,'pos')
@@ -1406,25 +1463,48 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SH
      end
    end
 
-   maxTries = length(largerAngles) + length(smallerAngles) +2;
-   nAngle = 2;
-   while ~isempty(largerAngles) || ~isempty(smallerAngles)
-    
+
+%    while (~isempty(largerAngles) || ~isempty(smallerAngles)) && nAngle <= nPrjs
+   for iPrj = 1:nPrjs
+     if iPrj == firstTilt
+       continue;
+     end
+
      if strcmpi(startingDirection,'pos')
        try
         nextTilt = largerAngles(1);
+        if length(largerAngles) > 1
+          largerAngles = largerAngles(2:end);
+        else
+          largerAngles = [];
+        end
        catch
-         nextTilt = smallerAngles(1);
+        nextTilt = smallerAngles(1);
+        if length(smallerAngles) > 1
+          smallerAngles = smallerAngles(2:end);
+        else
+          smallerAngles = [];
+        end
        end
-       largerAngles = largerAngles(2:end);
+       
      else
        try
         nextTilt = smallerAngles(1);
+        if length(smallerAngles) > 1
+          smallerAngles = smallerAngles(2:end);
+        else
+          smallerAngles = [];
+        end
        catch
          nextTilt = largerAngles(1);
+         if length(largerAngles) > 1
+          largerAngles = largerAngles(2:end);
+         else
+           largerAngles = [];
+         end
        end
-       smallerAngles = smallerAngles(2:end);
      end
+     
      [~,iTilt] = min(abs(rawTLT-nextTilt));
    
      switchAfterNTilts = switchAfterNTilts -1;
@@ -1448,24 +1528,21 @@ function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SH
      
 
      % The dose is incremented but don't add to the list.
+
      if ~ismember(rawTLT(iTilt),anglesToSkip)
-      tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),totalDose,extraPhaseShift(nAngle)];
+      tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),totalDose,extraPhaseShift(nAngle),-1];
      else
-       tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),-9999,-9999];
+       tltOrder(iTilt,:) = [iTilt,rawTLT(iTilt),-1,-1,-1];
      end
       nAngle = nAngle + 1;
-      
-    
-   
-        
-     if (maxTries == 0)
-       error('max iterations in creating tilt order exceeded, breaking out');
-     end
-     maxTries = maxTries - 1;
+
    end
      
 
      
+    tltOrder = tltOrder(anglesToKeep,:);
+    tltOrder(:,5) = tltOrder(:,1);
+    tltOrder(:,1) = 1:size(tltOrder,1);
     tltOrder
 
     size(tltOrder)

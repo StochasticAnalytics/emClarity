@@ -1,5 +1,8 @@
 function [  ] = BH_ctf_Updatefft( PARAMETER_FILE, STACK_PRFX, applyFullorUpdate)
 
+
+global bh_global_do_2d_fourier_interp;
+
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 
 flgSkipUpdate = 0;
@@ -64,7 +67,6 @@ end
 % For some reason matlab was geeking out about calling this in the parfor
 % loop, getting confused about whether it is a variable or a function.
 recGeomForThickness = subTomoMeta.reconGeometry;
-
 parfor iGPU = 1:nGPUs
   for iTilt = 1:length(ITER_LIST{iGPU})
     
@@ -236,9 +238,12 @@ iStack=1;
 
   d1 = iHeader.nX; d2 = iHeader.nY; d3 = size(INPUT_CELL{iStack,1},1);%iHeader.nZ;
   
-
+ osX = 1-mod(d1,2); osY = 1-mod(d2,2);
+  
 if (SuperResolution)
-  halfMask = fftshift(BH_bandpass3d(1.*[d1,d2,1],0,0,4,'GPU',1));
+  gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,-0.235,'GPU','nyquistHigh');
+else
+  gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh');
 end
 
 TLT = INPUT_CELL{iStack,1};
@@ -347,19 +352,9 @@ system('mkdir -p aliStacks');
   sizeCropped(3) = d3; 
   
  STACK = zeros(sizeCropped,'single');
+ samplingMaskStack = zeros(sizeCropped,'uint8');
  
   for i = 1:d3
-    fprintf('Transforming prj %d in fourier space oversampled by 2x physical Nyquist\n',i);
-          % Rotate the tilt axis-to Y, adjust mag differences and adjust tilt angle.
-%   fprintf('resampling (slowly with spline cpu interp) prj %d/%d\n',i,d3);
-
-
-
-  % My original approach was the following, but in order to handle more
-%   % explicit transforms,
-% 
-%   [imodMAG, imodStretch, imodSkewAngle, imodRot] = ...
-%                                            BH_decomposeIMODxf(mbEST(i,1:4))
 
 
 
@@ -394,41 +389,48 @@ system('mkdir -p aliStacks');
     combinedXF = reshape((newXF*origXF)',1,4);
     tlt_tmp{i}(7:10) = combinedXF;
   else
-    combinedXF = tlt_tmp{i}(7:10)
-    dXYZ = [tlt_tmp{i}(2:3),0]
+    combinedXF = tlt_tmp{i}(7:10);
+    dXYZ = [tlt_tmp{i}(2:3),0];
   end
 
     % Now that we are always cropping prior to transforming, reduce the
     % scale. Probable should just instruct to fourier crop prior to tilt
     % alignment.flgSkipUpdate
-    dXYZ = dXYZ ./ updateScale
+    dXYZ = dXYZ ./ updateScale;
   
  
  
 
   
 
-  osX = 1-mod(d1,2); osY = 1-mod(d2,2);
+ 
   
   
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
     
-     iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(23),'keep'));
-     
+    iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(23),'keep'));
+    iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
+    
     % Information beyond the physical nyquist should be removed to limit
     % aliasing of noise prior tto interpolation.
-    iProjection = BH_padZeros3d(iProjection,[0,0],[0,0],'GPU','singleTaper');
+    iProjection = BH_padZeros3d(iProjection,[0,0],[0,0],'GPU','singleTaper',mean(iProjection(:)));
     trimVal = BH_multi_padVal(1.*size(iProjection),sizeCropped(1:2));
  
+         largeOutliersMean= mean(iProjection(:));
+     largeOutliersSTD = std(iProjection(:));
+     largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
+                         iProjection > largeOutliersMean + 6*largeOutliersSTD);
+     iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single','gpuArray');
+     
     iProjection = real(ifftn(ifftshift(...
-                               BH_padZeros3d(halfMask.*fftshift(...
+                               BH_padZeros3d(fftshift(...
                                              fftn(iProjection)), ...
                                              trimVal(1,:),trimVal(2,:),...
                                              'GPU','single'))));  
        
                              
-    
+    iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),[0,0,0],[0,0],'Bah','GPU','forward',1/2,sizeCropped(1:2));
     sizeODD = size(iProjection)-[osX,osY];
   else
     sizeODD = [d1,d2]-[osX,osY];
@@ -437,45 +439,40 @@ system('mkdir -p aliStacks');
     % If it is even sized, shift up one pixel so that the origin is in the middle
     % of the odd output here we can just read it in this way, unlike super res.
      
-    iProjection = ...
+     iProjection = ...
                  single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep'));
-    
+     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));         
+     largeOutliersMean= mean(iProjection(:));
+     
+     largeOutliersSTD = std(iProjection(:));
+     largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
+                         iProjection > largeOutliersMean + 6*largeOutliersSTD);
+     iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
+                  
 
   end
   
   % Because the rotation/scaling and translation are done separately,
   % we must use a square transform; otherwise, a rotation angle dependent
   % anisotropic distortion (like mag distortion) is introduced.
-    sizeSQ = [2,2].*max(sizeODD);
+    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*sizeODD);
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
-     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
-
-    % Only need to do this for the first pass
-    if ( i == 1 )
-
-      [ fftMask ] = BH_fftShift(0,sizeSQ,1); 
-      [ ifftMask ] = BH_fftShift(0,-1.*sizeSQ,1); 
-      % Calculate grids in reciprocal pixels including 2pi for phase shifting
-      [ dU, dV ] = BH_multi_gridCoordinates(sizeSQ,'Cartesian','GPU', ...
-                                                      {'none'},1,1,0);
-      dU = dU .* (-2i*pi);
-      dV = dV .* (-2i*pi);
-      % Remake with potential new size, and adjusted cutoff
-      halfMask2 = fftshift(BH_bandpass3d([sizeSQ,1],0,0,2,'GPU',1));
-    end
-    
-    
+    trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
+     
     iProjection = iProjection - mean(iProjection(:));
+
+  if ( SuperResolution )
+    iProjection = BH_padZeros3d(iProjection(1+osX:end,1+osY:end), ...
+                            padVal(1,:),padVal(2,:),'GPU','singleTaper');
+  else
+    iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
+                                                    'GPU','singleTaper');
+  end
+
+  if (i == 1 && bh_global_do_2d_fourier_interp)
+    bhF = fourierTransformer(iProjection);
+  end
     
-    if ( SuperResolution )
-      iProjection = BH_padZeros3d(iProjection(1+osX:end,1+osY:end), ...
-                              padVal(1,:),padVal(2,:),'GPU','singleTaper');
-    else
-      iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
-                                                      'GPU','singleTaper');
-    end
-    iProjection = fftn(iProjection(ifftMask));
-    iProjection = iProjection(fftMask);
 
   if (flgApplyFullXform)
      % Do the phase shift after rotating - need to invert the scaling since
@@ -485,61 +482,62 @@ system('mkdir -p aliStacks');
      % Assuming stretch and skew are not fit, leave defined for possible
      % later consideration.
      
-     combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
-     
-     combinedInverted = combinedInverted([1,2,4,5]);
 
+     if (bh_global_do_2d_fourier_interp)
+       if (i == 1)
+         fprintf('resampling at 2x padding with fourier interp\n');
+       end
+      combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+      combinedInverted = combinedInverted([1,2,4,5]);
+      
+      iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
+     else
+       if (i == 1)
+         fprintf('resampling at 1x padding with linear interp\n');
+       end
+       % Real space, do not invert mag
+        combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
+        combinedInverted = combinedInverted([1,2,4,5]);
+       iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',1.0,size(iProjection));
+     end
 
-     iProjectionR = (BH_resample2d(real(iProjection).*halfMask2, combinedInverted,[0,0,0],...
-                               'Bah','GPU','forward',1.0,size(iProjection))); 
-     iProjectionI = (BH_resample2d(imag(iProjection).*halfMask2, combinedInverted,[0,0,0],...
-                               'Bah','GPU','forward',1.0,size(iProjection)));  
-                            
-
-     iProjection = imodMAG^2.*exp(dU.*dXYZ(1) + dV.*dXYZ(2)) .* ...
-                   complex(iProjectionR,iProjectionI);
-
-     
-     iProjectionR = []; iProjectionI = [];
-     iProjection = real(ifftn(iProjection(ifftMask)));
-     iProjection = iProjection(fftMask);
-            
+     iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),combinedXF,dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);
+          
   else
      [imodMAG, imodStretch, imodSkewAngle, imodRot] = ...
                                            BH_decomposeIMODxf(mbEST(i,1:4));
      % Assuming stretch and skew are not fit, leave defined for possible
      % later consideration.
-     mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
-     mbEstInverted = mbEstInverted([1,2,4,5]);
-     
-     iProjectionR = BH_resample2d(real(iProjection), mbEstInverted, [0,0,0] ,...
-                               'Bah','GPU','forward',1.0,size(iProjection)); 
-     iProjectionI = BH_resample2d(imag(iProjection), mbEstInverted,[0,0,0] ,...
-                               'Bah','GPU','forward',1.0,size(iProjection)); 
-     iProjection = imodMAG^2.*exp(dU.*mbEST(i,5) + dV.*mbEST(i,6)) .* ...
-                   complex(iProjectionR,iProjectionI);
-     iProjectionR = []; iProjectionI = [];
-     iProjection = real(ifftn(halfMask2.*iProjection(ifftMask)));
-     iProjection = iProjection(fftMask);                             
-% % %      iProjection = BH_resample2d(iProjection, mbEST(i,1:4), [mbEST(i,5:6),0],...
-% % %                                'IMOD','cpu','forward',1.0,size(iProjection));                              
+
+     % NOTE mag is ignored when the rotation matrix has 4 elements (IMOD)
+    
+      if (bh_global_do_2d_fourier_interp)
+       if (i == 1)
+         fprintf('resampling at 2x padding with fourier interp\n');
+       end
+        mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+        mbEstInverted = mbEstInverted([1,2,4,5]);
+        iProjection = BH_resample2d(iProjection,mbEstInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
+      else
+       if (i == 1)
+         fprintf('resampling at 1x padding with linear interp\n');
+       end
+        mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
+        mbEstInverted = mbEstInverted([1,2,4,5]);
+        iProjection = BH_resample2d(iProjection,mbEstInverted,dXYZ(1:2),'Bah','GPU','forward',1.0,size(iProjection));
+      end
+     iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),mbEST(i,1:4),dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);                     
   end
   
-%   if (SuperResolution)
-% 
-% 
-%       STACK(:,:,i) = gather(real(ifftn(ifftshift(...
-%                                BH_padZeros3d(fftshift(...
-%                                              fftn(iProjection)), ...
-%                                              trimVal(1,:),trimVal(2,:),...
-%                                              'GPU','single')))));
-%   else
 
     
       STACK(:,:,i)  = gather(real(BH_padZeros3d(iProjection, ...
                                              trimVal(1,:),trimVal(2,:),...
                                              'GPU','single')));
-
+                                           
+      iSamplingMask(isnan(iSamplingMask(:))) = 0;
+      samplingMaskStack(:,:,i) = uint8(gather(real(iSamplingMask)));
+      iSamplingMask = [];
 %      
 %   end
              
@@ -592,8 +590,9 @@ system('mkdir -p aliStacks');
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
                THICKNESS, STACK_PRFX);
              
-      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10);
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
+      SAVE_IMG(STACK,outputStackName,iPixelHeader,iOriginHeader);
+      SAVE_IMG(samplingMaskStack,sprintf('%s.samplingMask',outputStackName));
       
      xShift= []; yShift = []; scale = []; angleShift = [];
      dZ = [];  recZ= []; rotMat = []; angX = []; angY = [];             
@@ -610,14 +609,15 @@ system('mkdir -p aliStacks');
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
                THICKNESS, STACK_PRFX);
              
-      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10);
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
+      SAVE_IMG(STACK,outputStackName,iPixelHeader,iOriginHeader);
+      SAVE_IMG(samplingMaskStack,sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
 
   end
   if (mapBackIter && conserveDiskSpace)
     system(sprintf('rm %s',oldStackName));
   end
-  reset(gDev);
+
   
   % Once updated the reconstructions are no longer valid
   system(eraseStack);

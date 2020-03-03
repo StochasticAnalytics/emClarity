@@ -1,4 +1,4 @@
-function [ cccStorage, maxAst, maxAng, astigAngSearch] = BH_ctf_Refine2(PARAMETER_FILE, STACK_PRFX, nWorkers)
+function [ cccStorage, maxAst, maxAng, astigAngSearch] = BH_ctf_Refine2(PARAMETER_FILE, STACK_PRFX)
 % Script to test refinement of ctf estimate by scaling tiles from tilted images
 % to change their nominal magnification so that the defocus matches that of the
 % mean 
@@ -14,15 +14,10 @@ end
 % set the search ranges - should change ctf_est to save the parameters used so
 % this can be loaded automatically.
 
-nWorkers = BH_multi_parallelWorkers(str2num(nWorkers));
+nWorkers = min(pBH.('nCpuCores'),7*pBH.('nGPUs'));
+nWorkers = BH_multi_parallelWorkers(nWorkers)
 
-% if nargin == 3
-%   useGPU = str2num(gpuIDX);
-%   gpuDevice(useGPU);
-% else
-%   useGPU = 1;
-%   gpuDevice(useGPU);
-% end
+
 gpuIDX = BH_multi_checkGPU(-1);
 gDev = gpuDevice(gpuIDX);
 
@@ -43,6 +38,8 @@ Cs = pBH.('Cs');
 VOLTAGE = pBH.('VOLTAGE');
 AMPCONT = pBH.('AMPCONT')
 
+ctfParams = [PIXEL_SIZE*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT]
+
 PRJ_STACK = {sprintf('aliStacks/%s_ali%d.fixed',STACK_PRFX,mapBackIter+1)};
 [pathName,fileName,extension] = fileparts(PRJ_STACK{1})
 if isempty(pathName)
@@ -52,7 +49,7 @@ end
 % Sanity check
 if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
   error('pixel size should be [0,20e-10]');
-elseif (Cs > 10e-3 || Cs < 1e-3)
+elseif (Cs > 5*10^-3 || Cs < 0)
   error('Cs should be[1e-3,10e-3]');
 elseif(VOLTAGE > 1000e3 || VOLTAGE < 20e3)
   error ('VOLTAGE should be [20e3,1000e3]');
@@ -62,6 +59,10 @@ else
   WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
 end
 
+if Cs == 0
+  fprintf('You set Cs to zero, over-riding to 5 micron\n');
+  Cs = 5e-6;
+end
 
 % Assuming that the first CTF zero is always less than this value 
 FIXED_FIRSTZERO =  PIXEL_SIZE / 40*10^-10 ;
@@ -70,20 +71,21 @@ FIXED_FIRSTZERO =  PIXEL_SIZE / 40*10^-10 ;
 highCutoff = 1/pBH.('defCutOff');
 
 
+% Size to padTile to should be even, large, and preferably a power of 2
+try
+  paddedSize = pBH.('paddedSize');
+catch
+  paddedSize = 768;
+end
 
 % Tile size & overlap
-tileOverlap = 4;
+tileOverlap = 2;
 tileSize = floor(680e-10 / PIXEL_SIZE);
 tileSize = tileSize + mod(tileSize,2);
 fprintf('Using a tile size of %d',tileSize);
 overlap = floor(tileSize ./ tileOverlap)
 
-% Size to padTile to should be even, large, and preferably a power of 2
-try
-  paddedSize = pBH.('paddedSize');
-catch
-  paddedSize = 1024;
-end
+
 
 % Starting at +/- 750nm
 deltaZTolerance = 750e-9 / PIXEL_SIZE;
@@ -93,8 +95,7 @@ zShift = 0;
 inc = (0.5 - FIXED_FIRSTZERO) / (paddedSize/2);
 freqVector = [inc+FIXED_FIRSTZERO:inc:0.5 ];
 
-% % % PRJ_STACK = {PRJ_STACK};
-% % % tlt = {sprintf('%s/ctf/%s_ctf.tlt',pathName,PRJ_OUT)};
+
 tlt = {sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',STACK_PRFX,mapBackIter+1)};
 %PRJ_OUT = {fileName};
 
@@ -144,15 +145,7 @@ for iStack = 1%stacksFound
   
       
   SIZEOUT = [d1,d2];
-  testNoRefine=0
-  % calc eval mask, this time no limits on z - also return deltaZ 
-  % Should add useable area to meta data, calculated from the rotation and maxZ calcs assume 300 ok.
-% % %   [ evalMask, ddZ ] = BH_multi_projectionMask([d1,d2,d3;d1,d2,300], TLT,'cpu',[zShift,deltaZTolerance] );   
-% % %   
-% % %   evalMask = gather(evalMask);
-  % scale delta Z to be in meters not pixels.
-% % %   ddZ = gather(single(ddZ) .* PIXEL_SIZE);
-  
+
  
 
 
@@ -188,7 +181,7 @@ if (calcAvg)
       iProjection = iProjection ./ ...
                          BH_movingRMS(iProjection,[tileSize,tileSize]);
       % Taking a cue from Alexis
-      maxPixelSizeWanted = 1.4e-10;
+      maxPixelSizeWanted = 2.0e-10;
       if TLT(iPrj,16) < maxPixelSizeWanted
         %fprintf(ftmp,'Resampling pixel size\n');
         %  Resample to 2Ang/pix
@@ -209,6 +202,10 @@ if (calcAvg)
         clear iProjection
         % Actual new pixel size
         pixelSize = sizeIN./sizeOUT(1).*TLT(iPrj,16);
+        
+        % Update the CTF params with the new pixelSize
+        ctfParams(1) = pixelSize.*10^10;
+        
         %fprintf(ftmp,'%d %d %d %d %d %d\n',trimVal);
         %fprintf(ftmp,'pixelOld %3.3e, pixelNew %3.3e\n',TLT(iPrj,16),pixelSize);
 
@@ -236,27 +233,6 @@ if (calcAvg)
     % simple rescaling.
 
 
-%         if iOverlap == 1 && length(overlap) > 1
-%           doSplineInterp = 0
-%         else
-%           doSplineInterp = 1
-%         end
-% % %         if iStack == 1
-% % %           nTiles = zeros(size(STACK,3),1);
-% % %         end
-% % % 
-% % %         for i = 1+tileSize/2:overlap:size(STACK,1)-tileSize/2
-% % %           for j = 1+tileSize/2:overlap:size(STACK,2)-tileSize/2
-% % %             for k = 1:size(STACK,3)
-% % %               if evalMask(i,j,k)
-% % %                 nTiles(k) = nTiles(k) + 1;
-% % %               end
-% % %             end
-% % %           end
-% % %         end
-% % % 
-% % %         sum(nTiles)
-% % %         nTiles    
 
     try 
      ppool = parpool(nWorkers);
@@ -267,13 +243,7 @@ if (calcAvg)
 
     for iPrj = 1:d3
                      
-% % %       pFuture(iPrj) = parfeval(ppool,@runAvgTiles,1, TLT, paddedSize, tileSize, ...
-% % %                                                   d1,d2, iPrj, overlap, ...
-% % %                                                 STACK(:,:,TLT(iPrj,1)), ...
-% % %                                                 evalMask(:,:,TLT(iPrj,1)), ...
-% % %                                                 ddZ(:,:,TLT(iPrj,1)), ...
-% % %                                                 x1, y1, Xnew, Ynew,coordShift,  ...
-% % %                                                 reScaleRealSpace);    
+  
 
       pFuture(iPrj) = parfeval(ppool,@runAvgTiles,2, TLT, paddedSize, tileSize, ...
                                                   d1,d2, iPrj, overlap, ...
@@ -287,7 +257,7 @@ if (calcAvg)
     end
     
     for i = 1:d3
-      i
+      fprintf('Refining defocus on prj %d/ %d\n',i,d3);
       [iPrj, ctfCorr,pixelSize] = fetchNext(pFuture);
 
       psTile(:,:,TLT(iPrj,1)) = ctfCorr;
@@ -323,6 +293,8 @@ else
  %%%%%%%%%%%%%%%%%%%%%%%%%
  if ( outputForCTFFIND )
    % exit an fit the PS using CTFFIND4
+    BH_runCtfFind(sprintf('fixedStacks/ctf/%s-PS2.mrc',fileName), ...
+                  sprintf('%s_ctf.tlt',fileName), ctfParams,TLT)
    return
  end
  %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -735,37 +707,7 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
                           reScaleRealSpace,pixelSize);
 
     DFo = TLT(iPrj,15);
-    % For debugging
-    %ftmp = fopen('tmp.txt','w');
-%    iProjection = iProjection - ...
-%                         BH_movingAverage(iProjection,[tileSize,tileSize]);
-%    iProjection = iProjection ./ ...
-%                         BH_movingRMS(iProjection,[tileSize,tileSize]);
-%    % Taking a cue from Alexis
-%    maxPixelSizeWanted = 2.8e-10;
-%    if TLT(iPrj,16) < maxPixelSizeWanted
-%      %fprintf(ftmp,'Resampling pixel size\n');
-%      % Resample to 2Ang/pix
-%      padSq = BH_multi_padVal(size(iProjection),max(size(iProjection)).*[1,1]);
-%      
-%      iProjection = BH_padZeros3d(iProjection,padSq(1,:),padSq(2,:),'GPU','singleTaper');
-%      sizeIN = size(iProjection,1);
-%      % Replace with BH_fftShift if this works
-%      iProjection = fftshift(fftn(iProjection));
-%      trimVal = BH_multi_padVal(size(iProjection), floor(size(iProjection).*(TLT(iPrj,16)./maxPixelSizeWanted)));
-%      iProjection = real(ifftn(ifftshift(BH_padZeros3d(iProjection,trimVal(1,:),trimVal(2,:),'GPU','single'))));
-%      sizeOUT = size(iProjection,1);
-%      % Actual new pixel size
-%      pixelSize = sizeIN./sizeOUT.*TLT(iPrj,16);
-%      %fprintf(ftmp,'%d %d %d %d %d %d\n',trimVal);
-%      %fprintf(ftmp,'pixelOld %3.3e, pixelNew %3.3e\n',TLT(iPrj,16),pixelSize);
-%      
-%      % Overwrite these for now - why did I bother passing them in as args in the first place??
-%      [d1,d2] = size(iProjection);      
-%    else
-%      pixelSize = TLT(iPrj,16); 
-%    end
-    %fclose(ftmp);
+
     padTileOver = 256;
     tmpTile = zeros(paddedSize.*[1,1]+2*padTileOver,'single','gpuArray');
     
@@ -778,8 +720,8 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
     
     % Since I'm enforcing Y-tilt axis, then this could be dramatically sped up
     % by resampling strips along the sampling
-     ftmp = fopen('tmp.txt','a');
-    fprintf(ftmp,'Pixel Size is %3.3e\n',pixelSize);
+% % % %      ftmp = fopen('tmp.txt','a');
+% % % %     fprintf(ftmp,'Pixel Size is %3.3e\n',pixelSize);
     for i = 1+tileSize/2:overlap:d1-tileSize/2
       iDeltaZ = (i - tiltOrigin)*pixelSize*-1.*tand(TLT(iPrj,4));
       if any(ismember(i-tileSize/2+1:i+tileSize/2,iEvalMask)) %evalMask(i,paddedSize/2+1)
@@ -787,7 +729,7 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
 
           %mag =  ((1+(ddZ(i,paddedSize/2+1)/DFo)).^0.5);
           mag =  (1+iDeltaZ./DFo).^0.5;
-          fprintf(ftmp,'defVal tilt %2.2f dx %d  %f %3.3e %3.3e \n',TLT(iPrj,4),i,mag,DFo,iDeltaZ);
+% % % %           fprintf(ftmp,'defVal tilt %2.2f dx %d  %f %3.3e %3.3e \n',TLT(iPrj,4),i,mag,DFo,iDeltaZ);
           
           estSize = 2048;
           ctf1 = BH_ctfCalc(pixelSize,TLT(iPrj,17),TLT(iPrj,18),DFo,estSize,TLT(iPrj,19),-1,1);
@@ -831,8 +773,8 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
           end
           [~,maxCoord] = max(scoreDef);
 
-          fprintf(ftmp,'est %3.5e with score %3.5e refined to %3.5e\n', ...
-                                      mag,scoreDef(maxCoord),defRange(maxCoord));
+% % % %           fprintf(ftmp,'est %3.5e with score %3.5e refined to %3.5e\n', ...
+% % % %                                       mag,scoreDef(maxCoord),defRange(maxCoord));
           mag = defRange(maxCoord);
          
          

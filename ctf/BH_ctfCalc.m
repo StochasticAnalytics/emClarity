@@ -24,7 +24,7 @@ if nargin == 8
     flgComplex = 1;
   end
 elseif nargin ==9
-  thisZero = varargin{1};
+  thisZero = varargin{2};
 else
   calcOneD = 0;
 end
@@ -177,8 +177,8 @@ if Phase_Only < 0
     end
 
     firstZero = find(rV > 0, 1,'first');
-    if isempty(firstZero)
-      firstMin = floor(CTFSIZE(1)/2)+1;
+    if isempty(firstZero) || firstZero < floor(0.1.*CTFSIZE(1))
+      firstMin = floor(CTFSIZE(1)/2)-6;
     else
       [~,firstMin]=min(abs(rV(7:firstZero-1)-rV(8:firstZero)));
       firstMin = firstMin + 6; 
@@ -186,7 +186,18 @@ if Phase_Only < 0
     
         
     if ( preShiftedOrigin && ~calcOneD)
-      freqMin  = radialGrid(firstMin,ceil((CTFSIZE(1)+1)./2));
+      if doHalfGrid
+        freqMin  = radialGrid(firstMin,ceil((CTFSIZE(1)+1)./2));
+        maxRes = 0.5./radialGrid(ceil((CTFSIZE(1)+1)/2),1);
+      else
+        try
+        freqMin  = radialGrid(ceil((CTFSIZE(1)+1)./2)+firstMin,ceil((CTFSIZE(2)+1)./2));
+        catch
+          ceil((CTFSIZE(1)+1)./2)
+        end
+        maxRes = 0.5./radialGrid(1,ceil((CTFSIZE(2)+1)/2));
+      end
+        
     else
       freqMin  = radialGrid(firstMin,1);
       freqZero = radialGrid(firstZero,1);
@@ -195,9 +206,18 @@ if Phase_Only < 0
         
 
   if (thisZero > 0)
-    ctfMask = BH_bandpass3d(size(Hqz),0,800,1./(0.1*freqMin+0.9*freqZero),'GPU',maxRes);
+    lowCut = 1./(0.1*freqMin+0.9*freqZero);
+    if isempty(lowCut)
+      lowCut = 2*maxRes;
+    end
+    if thisZero > 1
+      bFactor = thisZero;
+    else
+      bFactor = 100;
+    end
+    ctfMask = BH_bandpass3d(size(Hqz),0,800,lowCut,'GPU',maxRes);
     % This term is straight from dTegunov's deconv
-    snr = 10.^3.*exp((-2.2.*100).*radialGrid);
+    snr = 10.^3.*exp((-2.2.*bFactor).*radialGrid);
     ctfMask = ctfMask .* Hqz ./ (Hqz.^2 + 1./snr);
     snr = [];
   else
@@ -207,8 +227,18 @@ if Phase_Only < 0
       envelope = 1;
     end
 
-    
+    try
     ctfMask = (envelope).*(sign(Hqz).*(radialGrid <= freqMin ).*abs(Hqz).^abs(Phase_Only) + (radialGrid > freqMin).*Hqz);
+    catch
+      size(rV)
+      size(radialGrid)
+      firstMin
+      freqMin
+      firstZero
+      thisZero
+      maxRes
+      error('sfd')
+    end
   end    
 
           
