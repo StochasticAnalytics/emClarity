@@ -3,7 +3,7 @@ function [] = mexCompile(varargin)
 fprintf("\n\nCompile here\n\n");
 mexPATH = '~/work/emClarity/mexFiles/';
 
-system(sprintf('mkdir -p %s', mexPATH);
+system(sprintf('mkdir -p %s', mexPATH));
 % For now just included everything in total.
 inc = {'rotation_matrix.cpp','ctf.cu'};
 for i = 1:length(inc)

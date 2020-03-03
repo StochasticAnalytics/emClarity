@@ -591,8 +591,8 @@ system('mkdir -p aliStacks');
                THICKNESS, STACK_PRFX);
              
       [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
-      SAVE_IMG(STACK,outputStackName,iPixelHeader,iOriginHeader);
-      SAVE_IMG(samplingMaskStack,sprintf('%s.samplingMask',outputStackName));
+      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
+      SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName));
       
      xShift= []; yShift = []; scale = []; angleShift = [];
      dZ = [];  recZ= []; rotMat = []; angX = []; angY = [];             
