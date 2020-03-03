@@ -8,6 +8,7 @@ cudaStart='';
 useV2 = false;
 cmdIN = sprintf('emClarity %s ',varargin{1});
 
+
 % first argument is the program to run or "help" to print a list of available
 % options.
 setenv('MATLAB_SHELL','/bin/bash');
@@ -79,6 +80,25 @@ if nArgs > 1 && notCheckHelp
     case 'combineProjects'
       % nothing to parse
       multiGPUs = 0;
+    case 'autoAlign'
+         
+      autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_autoAlign.sh';
+      if isdeployed
+        autoAliPath = sprintf('%s%s',ctfroot,autoAliPath);
+      end
+  
+      if ~exist(varargin{3}, 'file')
+        fprintf('Did not find your .rawtlt file %s\n',varargin{3});
+        error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
+      end
+      if ~exist(varargin{2}, 'file')
+        fprintf('Did not find your .st file %s\n',varargin{2});
+        error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
+      end
+      
+      BH_runAutoAlign(autoAliPath,varargin{2},varargin{3},varargin{4},varargin{5});
+           
+      return
 
     otherwise
       pBH = emC_testParse(varargin{2});
@@ -406,10 +426,10 @@ switch varargin{1}
             end
           end
         case 'refine'
-          if length(varargin) == 4
-            error('You need to specify a gpuIDX')
+          if length(varargin) ~= 4
+            error('You need to specify a parameter file and tilt name')
           end          
-          BH_ctf_Refine2(varargin{3},varargin{4},varargin{5});
+          BH_ctf_Refine2(varargin{3},varargin{4});
         case 'update'
           if length(varargin) > 3
             error('\n\nYou now only need to specify %s parameter file.\n\n','the')
@@ -418,7 +438,10 @@ switch varargin{1}
         case 'correct'
           BH_ctf_Correct(varargin{3},varargin{4},varargin{5},varargin{6},varargin{7});
         case '3d'
-          if nArgs == 5
+          if nArgs == 6
+            % last is a dummy, used for tomoCPR background
+            BH_ctf_Correct3d(varargin{3},varargin{4},varargin{5},varargin{6});     
+          elseif nArgs == 5
             % Not a public option, start from tilt # (of nTilts)       
             BH_ctf_Correct3d(varargin{3},varargin{4},varargin{5});            
           elseif nArgs == 4
@@ -609,6 +632,13 @@ try
   % an ill-defined dependence on experimental factors. Preferably only until
   % they can be resolved.
 
+  global bh_global_window_cutoff;
+  try 
+    bh_global_window_cutoff = pBH.('windowCutoff');
+  catch
+    bh_global_window_cutoff = -2;
+  end
+  
   % These are for making shape based masks. I think the problem is likely
   % dependent on the current resolution of the sub-tomogram, and that a
   % single set of values will not work for everything. 
@@ -648,6 +678,24 @@ try
   catch
     bh_global_turn_on_phase_plate = 0;
   end
+  
+  %%%%%%% BH_ctf_estimate, updateFFT
+  %%%% Can't pad K3 images enough to avoid ghosting until mexInterp is
+  %%%% ready
+  global bh_global_do_2d_fourier_interp;
+  try
+    bh_global_do_2d_fourier_interp = pBH.('useFourierInterp');
+  catch
+    bh_global_do_2d_fourier_interp = 0;
+  end
+  
+  global bh_global_save_tomoCPR_diagnostics;
+  try
+    bh_global_save_tomoCPR_diagnostics = pBH.('tomoCprDiagnostics');
+  catch
+    bh_global_save_tomoCPR_diagnostics = 0;
+  end
+  
   
 %%%%%%%%%%%%%%
 
@@ -713,6 +761,20 @@ try
     bh_global_binary_pcaMask_threshold = 0.5;
   end
 
+  global bh_global_kFactorScaling;
+  try
+    bh_global_kFactorScaling = pBH.('kFactorScaling');
+  catch
+    bh_global_kFactorScaling = 1.0;
+  end
+  
+  global bh_global_tomoCPR_random_subset;
+  try
+    bh_global_tomoCPR_random_subset = pBH.('tomoCPR_randomSubset');
+  catch
+    bh_global_tomoCPR_random_subset = 500;
+  end
+  
   try
     bh_global_vol_est_scaling = pBH.('setParticleVolumeScaling');
   catch
@@ -735,6 +797,32 @@ try
     bh_global_MTF = 2;
   end
 
+  global bh_global_print_shifts_in_particle_basis;
+  try 
+    bh_global_print_shifts_in_particle_basis = pBH.('printShiftsInParticleBasis');
+  catch
+    bh_global_print_shifts_in_particle_basis = true;
+  end
+  
+  global bh_global_zero_lag_score;
+  try 
+    bh_global_zero_lag_score = pBH.('useZeroLagScore');
+  catch
+    bh_global_zero_lag_score = false;
+  end
+  
+  global bh_global_ML_compressByFactor;
+  global bh_global_ML_angleTolerance;
+  try
+    bh_global_ML_compressByFactor = pBH.('ML_compressByFactor')
+  catch
+    bh_global_ML_compressByFactor = 1.25
+  end
+  try
+    bh_global_ML_angleTolerance = pBH.('ML_angleTolerance')
+  catch
+    bh_global_ML_angleTolerance = 5
+  end
   
   fprintf('nExpGlobals %2.2f maskLP, %2.2f maskThr, %2.2f pcaMaskThr\n', ...
           bh_global_binary_mask_low_pass, ...
