@@ -130,18 +130,21 @@ end
 
 
 
-
-
-
 % If the volume is already loaded return the selected indices
 if mRCImage.flgVolume
 
-  if length(iRange)==1 && length(jRange) ==1 && iRange ==-1 && jRange == -1
-
+  % FIXME
+  % I don't remember why this conditional was set, and it was probably
+  % stupid. Commenting it out and watch for a break : /
+  % It looks like replacing any -1 with [] in calls to getVolume should fix
+  % ?
+  
+  
+%   if length(iRange)==1 && length(jRange) ==1 && iRange ==-1 && jRange == -1
     vol = mRCImage.volume(iIndex, jIndex, kIndex);
-  else
-    vol = mRCImage.volume;
-  end
+%   else
+%     vol = mRCImage.volume;
+%   end
   % If the below is used, it copies the data, which is a huge bummer for full tomograms.
   %vol = mRCImage.volume(iIndex, jIndex, kIndex);
   return

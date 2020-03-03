@@ -453,7 +453,7 @@ for i = 1:d3
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
 
-     iProjection = gpuArray(single(getVolume(iMrcObj,-1,-1,TLT(i,23),'keep')));
+     iProjection = gpuArray(single(getVolume(iMrcObj,[],[],TLT(i,23),'keep')));
 
      iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
      

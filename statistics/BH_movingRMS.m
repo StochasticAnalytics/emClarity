@@ -3,7 +3,11 @@ function [ img ] = BH_movingRMS( img, featureSize )
 %   Detailed explanation goes here
 flgOOM = 0;
 if ndims(img) ~= numel(featureSize)
-  error('image must have same dimension as number of dims given in feature size.')
+  fprintf('ndims img %d\n',ndims(img));
+  fprintf('img size %d\n',size(img));
+  fprintf('numel featureSize %d\n',ndims(featureSize));
+  fprintf('featureSize %d\n', featureSize);
+  error('image must have same dimension as number of dims given in feature size (movingRMS).')
 end
 
 padBy = max(ceil(featureSize./2));

@@ -409,7 +409,7 @@ system('mkdir -p aliStacks');
   % Pad the projection prior to xforming in Fourier space.
   if (SuperResolution)
     
-    iProjection = single(getVolume(iMrcObj,-1,-1,tlt_tmp{i}(23),'keep'));
+    iProjection = single(getVolume(iMrcObj,[],[],tlt_tmp{i}(23),'keep'));
     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
     
     % Information beyond the physical nyquist should be removed to limit

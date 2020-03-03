@@ -10,7 +10,8 @@ function [ ] = BH_synthetic_mapBack(PARAMETER_FILE, CYCLE, tiltStart)
 % Otherwise, pass a string that points at a single volume to use.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Some flags that are worth keeping as options, but not accessible directly
+% Some flags that are worth keeping as options, but not accessible
+% directlyCT
 % by the users (private methods-ish)
 buildTomo=1;% % % % % % %
 METHOD = 'GPU';
@@ -1451,7 +1452,6 @@ parfor iPrj = 1:nPrjs
       end      
 
       
-      
       % In case there is any carbon or other bright shit in the periphery
       normSize = floor([256,256]./samplingRate);
       % set to even dimension
@@ -1464,6 +1464,7 @@ parfor iPrj = 1:nPrjs
       dataPrj = dataPrj ./ rms(dataPrj(:));
       
 % % %       dataPrj = dataPrj - BH_movingAverage(dataPrj,normSize);
+    
       dataAVG = BH_movingAverage(dataPrj,normSize);
       % This needs to be calculated prior to normalizing the dataPrj
       dataRMS = BH_movingRMS(dataPrj-dataAVG,eSize);

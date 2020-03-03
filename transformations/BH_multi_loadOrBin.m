@@ -85,7 +85,7 @@ if samplingRate > 1
         binSize = [binSize,iHeader.nZ];
         newStack = zeros(binSize,'single');
         for iPrj = 1:binSize(3)
-          iProjection = gpuArray(getVolume(tiltObj,[-1],[-1],iPrj,'keep'));
+          iProjection = gpuArray(getVolume(tiltObj,[],[],iPrj,'keep'));
           
           if (iPrj == 1)
             bhF = fourierTransformer(iProjection);
