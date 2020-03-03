@@ -36,17 +36,15 @@ function mRCImage = open(mRCImage, filename, flgLoadVolume, debug)
 if nargin < 4
   debug = 0;
   if nargin < 3
-    flgLoadVolume = 0; % The PEET default is to load the volume into the MRC Object
-                       % There is probably some good reason for this, but I
-                       % don't see it. Double memory and slower. BAH
-                       % 20171203
+    flgLoadVolume = 1;
   end
 end
 
 % Check to see a the file is already open
-if ~ isempty(mRCImage.fid)
+if ~isempty(mRCImage.fid)
   PEETError('An MRC file is already open!');
 end
+
 % Open the file read-only, save the fid for future access and the filename
 % if we need to reopen it r+ 
 [fid, msg]= fopen(filename, 'r');
@@ -72,8 +70,6 @@ if fid ~= -1
     mRCImage.flgVolume = 1;
     fclose(mRCImage.fid);
     mRCImage.fid = [];
-  else
-    mRCImage.flgVolume = 0; % should be set in the default constructor, but ya know, derp
   end
 else
   PEETError('Unable to open file: %s.\nReason: %s', filename, msg);

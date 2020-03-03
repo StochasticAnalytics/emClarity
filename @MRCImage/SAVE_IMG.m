@@ -31,10 +31,15 @@ function [ ] = SAVE_IMG(varargin)
 
 %args
 % mRCImage, newFilename, pixelSize
+
+fixHeader = false;
 mRCImage = varargin{1};
+  
 if nargin > 1
   newFilename = varargin{2};
-  mRCImage = close(mRCImage);
+
+    mRCImage = close(mRCImage);
+
   mRCImage.filename = newFilename;
   % Check to see if the file exists
   result = dir(mRCImage.filename);
@@ -124,22 +129,20 @@ if mRCImage.flgVolume
     end
   else % normal (not complex) data
 
-    if (mRCImage.header.minDensity == 0) && (mRCImage.header.maxDensity == 0)
+    if (mRCImage.header.minDensity == 0.0 && mRCImage.header.maxDensity ==0 )
       if numel(mRCImage.volume) < 768^3
         mRCImage.header.minDensity = min(min(min(mRCImage.volume)));
         mRCImage.header.maxDensity = max(max(max(mRCImage.volume)));
     
-        mRCImage.header.meanDensity = mean(mean(mean(mRCImage.volume)));
-        mRCImage.header.densityRMS = std(std(std(mRCImage.volume)));
+        mRCImage.header.meanDensity = mean(mean(mean(single(mRCImage.volume))));
+        mRCImage.header.densityRMS = std(std(std(single(mRCImage.volume))));
         mRCImage = writeHeader(mRCImage);
         fixHeader = 0;
       else
- 
-      fixHeader = 1;
+        fixHeader = 1;
       end
-    else
-      fixHeader = 0;
     end
+    
     count = fwrite(mRCImage.fid, mRCImage.volume, modeStr);
     if count ~= nElements
       fprintf('Matrix contains %d but only wrote %d elements\n', ...
@@ -148,6 +151,14 @@ if mRCImage.flgVolume
     end
   end
 end
+
+% Set the cell angles to 90 and space group to 1 (vol not stack) by default
+  mRCImage.header.cellAngleX = 90.0;
+  mRCImage.header.cellAngleY = 90.0;
+  mRCImage.header.cellAngleZ = 90.0;
+  mRCImage.header.spaceGroup = 1;
+  mRCImage = writeHeader(mRCImage);
+  
 %clear mRCImage.volume;
 mRCImage.volume = [];
 close(mRCImage);

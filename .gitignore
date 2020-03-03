@@ -1,7 +1,4 @@
-mexFiles/compiled/mexFFT.mexa64
-mexFiles/compiled/mexCTF.mexa64
-mexFiles/compiled/
-mexFiles/src
+mexFiles/
 bin/
 testScripts/EMC_test/logTest/
 testScripts/EMC_test/logPerf/
