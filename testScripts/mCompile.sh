@@ -1,22 +1,42 @@
 #!/bin/bash
 
+# NOTE: You will also need to modify your emClarity/mexFiles/mexCompile.m
+#   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
+#   TODO set up a little configure script to do this and check other deps described below.
 
+# This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
 
+# The is the program you want to compile. Most BH_* can be compiled as standalones, but
+# you probably just want the wrapper to then emClarity.m
 mFile=${1}
 
 post="_${shortHead}"
 
 outName="$(basename ${mFile} .m)${post}"
 
-binaryOutName="test_a69a1f9"
-scriptOutName="test_a69a1f9_19a"
+# For naming. If you are compiling your own version, use something descriptive in teh
+# bugss line. e.g. buggs=5testingFeature
+major=1
+minor=5
+bugss=0
+
+# The final binary, run script and docs folder will be zipped and put in this location
+# unless it is NONE then it will be left in the bin dir.
+zip_location="~/tmp"
+#zip_location="NONE"
 
 
+binaryOutName="${major}_${minor}_${bugss}_${shortHead}"
+scriptOutName="mcr_v19a_${shortHead}"
 
-matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+# You may need to modify this line. 
+#     I have "matlab19a" on my path to point to the specific matlab install I want to use.
+#     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
+
+matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ../mexFiles/compiled/emC_ctfFind -a ../mexFiles/compiled/emC_autoAlign.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
-#I /groups/grigorieff/home/himesb/work/emClarity
+#I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
 wait
 	rm mccExcludedFiles.log
@@ -38,12 +58,12 @@ echo ''
 echo '#Please modify this line to point to the text file in your MCR root'
 echo '#where you pasted the lines suggested to add to LD_LIBRARY_PATH during install.'
 echo '#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"'
-echo 'MCR_BASH=""'
+echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MTL_MCR_17b/BH_mcr_internal19a.bashrc'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
 echo '#emClarity_ROOT=/work/emClarity'
-echo 'emClarity_ROOT=""'
+echo 'emClarity_ROOT=/groups/grigorieff/home/himesb/thirdParty/emClarity'
 echo ''
 echo ''
 echo ''
@@ -76,6 +96,23 @@ chmod a=wrx emClarity_${scriptOutName}
 
 mkdir -p ../bin
 mv emClarity_${scriptOutName} ../bin
-#mv emClarity_${binaryOutName} ../../../thirdParty/emClarity
 mv emClarity_${binaryOutName} ../bin
+
+#cp -rp /nrs/grigorieff/himesb/mayRevertBlank /nrs/grigorieff/himesb/mRevert_${binaryOutName}
+#awk -v ON="emClarity_${scriptOutName}" '{if(/^binaryName=/) print "binaryName=/groups/grigorieff/home/himesb/thirdParty/emClarity/"ON; else print $0}' /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh > /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp 
+#mv /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh
+#chmod a=wrx /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh 
+
+
 cp -rp ../docs ../bin
+cd ..
+if [[ ${zip_location} != "NONE" ]]; then
+  zip -r emClarity_${major}.${minor}.${bugss}.zip bin
+  mv emClarity_${major}.${minor}.${bugss}.zip ${zip_location}
+  rm -r bin/*
+fi
+
+
+
+
+
