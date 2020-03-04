@@ -6,7 +6,7 @@ function [ ] = BH_runCtfFind(stackName, tltName, ctfParams, tiltAngles)
 %     CS (mm)
 %     Amplitude Contrast
 
-system('mkdir -p fixedStacks/ctf/.forCtfFind');
+system('mkdir -p fixedStacks/ctf/forCtfFind');
 
 rng('shuffle');
 randPrfx = sprintf('%s_%d',tltName,randi(1e6,[1,1]));
@@ -21,7 +21,7 @@ fullStack = getVolume(MRCImage(stackName));
 [d1,d2,d3] = size(fullStack); % FIXME d1 assumed to equal d2 Add check in saving
 
 for iPrj = 1:d3
-  SAVE_IMG(MRCImage(fullStack(:,:,iPrj)),sprintf('fixedStacks/ctf/.forCtfFind/%s_%d.mrc',randPrfx,iPrj));
+  SAVE_IMG(MRCImage(fullStack(:,:,iPrj)),sprintf('fixedStacks/ctf/forCtfFind/%s_%d.mrc',randPrfx,iPrj));
 end
 
 % Check to make sure this hasn't alread been done
@@ -44,8 +44,8 @@ for iPrj = 1:d3 % I want to fit to lower resolution at higher tilts
 
   % put in a line to limit number of cores, or use the threaded version
   fprintf(fID,'\n%s --amplitude-spectrum-input << eof &',ctfFindPath);
-  fprintf(fID,'\nfixedStacks/ctf/.forCtfFind/%s_%d.mrc\n',randPrfx,iPrj);
-  fprintf(fID,'fixedStacks/ctf/.forCtfFind/%s_diagnostic_%d.mrc\n',randPrfx,iPrj);
+  fprintf(fID,'\nfixedStacks/ctf/forCtfFind/%s_%d.mrc\n',randPrfx,iPrj);
+  fprintf(fID,'fixedStacks/ctf/forCtfFind/%s_diagnostic_%d.mrc\n',randPrfx,iPrj);
   fprintf(fID,'%f\n%f\n%f\n%f\n%d\n%f\n%f\n%d\n%d\n%d\n',ctfParams(1:4), ...
                                                          d1,30,3*ctfParams(1)./cosd(tiltAngles(tltIDX,4)),...
                                                          0.75*meanDefocus,...
@@ -71,8 +71,8 @@ end
 
 % will this wait for return?
 
-baseName = sprintf('fixedStacks/ctf/.forCtfFind/%s_diagnostic_',randPrfx);
-tmpName  = sprintf('fixedStacks/ctf/.forCtfFind/%s_tmp',randPrfx);
+baseName = sprintf('fixedStacks/ctf/forCtfFind/%s_diagnostic_',randPrfx);
+tmpName  = sprintf('fixedStacks/ctf/forCtfFind/%s_tmp',randPrfx);
 
 system(sprintf('newstack %s?.mrc %s??.mrc %s_full.st',baseName,baseName,baseName));
 system(sprintf('rm %s?.mrc %s??.mrc',baseName,baseName));

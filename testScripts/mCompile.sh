@@ -23,8 +23,8 @@ bugss=0
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
-zip_location="~/tmp"
-#zip_location="NONE"
+#zip_location="~/tmp"
+zip_location="NONE"
 
 
 binaryOutName="${major}_${minor}_${bugss}_${shortHead}"
@@ -34,7 +34,7 @@ scriptOutName="mcr_v19a_${shortHead}"
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 
-matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ../mexFiles/compiled/emC_ctfFind -a ../mexFiles/compiled/emC_autoAlign.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ../mexFiles/compiled/emC_ctfFind -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     

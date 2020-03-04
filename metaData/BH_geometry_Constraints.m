@@ -5,7 +5,8 @@ flgCSV = 0;
 CYCLE = str2num(CYCLE);
 
 pixelSize = str2double(PARAMETER_FILE);
-if ~(isnan(pixelSize))
+if (isnan(pixelSize))
+  pixelSize = PARAMETER_FILE;
   flgCSV = 1;
   if ~isdir('convmap')
     error('No convmap directory found');
