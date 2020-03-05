@@ -9,13 +9,12 @@ function [TAPER] = EMC_taper(TYPE, NUMEL, OPTION)
 %   NUMEL (int):             	Size (in pixel) of the taper. Should be at least 2.
 %
 %   OPTION (cell|struct):       Optional parameters.
-%                               If cell: {param, value ; ...}, note the ';' between parameters.
+%                               If cell: {param, value; ...}, note the ';' between parameters.
 %                               NOTE: Can be empty.
 %                               NOTE: Unknown fields will raise an error.
 %
 %     -> 'start' (float|int):   Start the taper with this value.
-%                               NOTE: by default ('first'=false), the first value ('startAt' value),
-%                                     is not included in the taper.
+%                               NOTE: by default ('first'=false), this value is not included in the taper.
 %                               default = 1
 %
 %     -> 'end' (float|int):     Last value of the taper.
@@ -123,7 +122,6 @@ if strcmpi(TYPE, 'cosine')
     adjust = abs(OPTION.start - OPTION.end)/2 + min(OPTION.start, OPTION.end);
     adjustSize = NUMEL - OPTION.first;
     TAPER = cos((1-OPTION.first:adjustSize) .* pi ./ adjustSize) .* (OPTION.start - OPTION.end)/2 + adjust;
-
 elseif strcmpi(TYPE, 'linear')
     TAPER = linspace(OPTION.start, OPTION.end, NUMEL + 1 - OPTION.first);
     if ~OPTION.first

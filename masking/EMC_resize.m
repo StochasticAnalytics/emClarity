@@ -6,7 +6,8 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 % Inputs:
 %   IMAGE (single|double):          2d/3d IMAGE to pad and/or crop.
 %
-%   LIMITS (row vector):            Number of pixels to pad or crop, for each axis.
+%   LIMITS (row|nan):               Number of pixels to pad or crop, for each axis.
+%                                   If nan: no padding nor cropping; equivalent to zeros(1,ndim*2).
 %                                   If 2d IMAGE: [xleft, xright, yleft, yright].
 %                                   If 3d IMAGE: [xleft, xright, yleft, yright, zleft, zright].
 %                                   See EMC_limits for more details.
@@ -32,17 +33,23 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 %                                   If 'mean': pad with the mean of the IMAGE.
 %                                   default = 0
 %
-%     -> 'taper' (bool|cell|vector|float|int):
+%     -> 'taper' (bool | cell|struct | vector | scalar):
 %                                   Apply a taper to the IMAGE before padding.
-%                                   If bool: Apply or not the default taper; equivalent to {'cosine', 7}.
-%                                   If cell: {type, size} with type = 'linear' or 'cosine'
-%                                            and with size = size of the taper (in pixel).
+%                                   If bool: Apply or not the default taper.
 %                                   If vector: column vector used as taper (left to right <-> center to edge).
-%                                   If float|int: equivalent to [float]; one pixel taper.
+%                                   If scalar: equivalent to [scalar]; one pixel taper.
+%                                   If cell|struct: Same format as OPTION, with the following parameters:
+%                                       -> 'type' (str):      type of taper; 'linear' or 'cosine'.
+%                                       -> 'numel' (int):     size (in pixel) of the taper.
+%                                       -> 'percent' (float): size of the taper, in percentage (0 <= x < 1)
+%                                                             of the smallest axis (after padding|cropping).
+%                                                             The minimum size of the taper is 9 pixels.
+%                                                             NOTE: 'numel' and 'percent' are mutually
+%                                                                   exclusive (it's one or the other).
 %                                   NOTE: Every IMAGE dimension should be larger than the taper, with the
 %                                         exception of origin=-1, which requires the dimensions to be at
 %                                         least 2 times larger than the taper.
-%                                   default = {'cosine', 7}
+%                                   default = {'type', 'cosine'; 'percent', 0.04}
 %
 %     -> 'force_taper' (bool):      By default, (force_taper=false) only the edges that are padded are
 %                                   tapered. If true, apply the taper to every edges even if they are not
@@ -71,10 +78,14 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 %           v.1.1   unittest (TF, 21Jan2020).
 %           v.1.1.1 add isscalar when expecting a scalar (TF, 21Jan2020).
 %           v.1.1.2 switch from mean(a(:)) to mean('all'), and std(a, 0, 'all') (TF, 1Feb2020).
+%           v.1.2   LIMITS can now be NaN, which is equivalent to no padding and no croppind.
+%                   The OPTION.taper syntax changes to the standard OPTION format. The function
+%                   can accept the size of the taper in percent (see doc), which is now the default
+%                   to make it more uniform with the taper from EMC_maskShape (TF, 20Feb2020).
 %
 
 %% MAIN
-[OPTION, flg] = checkIN(IMAGE, LIMITS, OPTION);
+[LIMITS, OPTION, flg] = checkIN(IMAGE, LIMITS, OPTION);
 
 % Short cut: nothing to do to the IMAGE, except maybe changing its precision.
 if ~flg.pad && ~flg.crop && ~(flg.taper && OPTION.force_taper)
@@ -329,7 +340,7 @@ end
 end  % applyTaper_real2d
 
 
-function [OPTION, flg, ndim] = checkIN(IMAGE, LIMITS, OPTION)
+function [LIMITS, OPTION, flg, ndim] = checkIN(IMAGE, LIMITS, OPTION)
 % IMAGE
 if ~isnumeric(IMAGE)
     error('EMC:IMAGE', 'IMAGE should be numeric, got %s', class(IMAGE))
@@ -337,28 +348,23 @@ elseif isvector(IMAGE) || isscalar(IMAGE)
     error('EMC:IMAGE', 'IMAGE should be 2d or 3d, got size: %s', mat2str(size(IMAGE)))
 end
 
-[flg.is3d, ~, ndim] = EMC_is3d(size(IMAGE));
+[flg.is3d, SIZE, ndim] = EMC_is3d(size(IMAGE));
 
 % LIMITS
-if ~isnumeric(LIMITS)
+if isscalar(LIMITS) && isnan(LIMITS)
+    LIMITS = zeros(1, ndim*2);
+    flg.pad = false;
+    flg.crop = false;
+elseif ~isnumeric(LIMITS)
     error('EMC:LIMITS', 'For a %dd IMAGE, LIMITS should be a row vector of %d integers, got %s', ...
           ndim, ndim*2, class(LIMITS));
 elseif ~isrow(LIMITS) || any(isnan(LIMITS)) || any(isinf(LIMITS)) || ...
        any(rem(LIMITS,1)) || numel(LIMITS) ~= ndim * 2
     error('EMC:LIMITS', 'For a %dd IMAGE, LIMITS should be a row vector of %d integers, got %s', ...
           ndim, ndim*2, mat2str(LIMITS));
-end
-
-if any(LIMITS > 0)
-    flg.pad = true;
 else
-    flg.pad = false;
-end
-
-if any(LIMITS < 0)
-    flg.crop = true;
-else
-    flg.crop = false;
+    if any(LIMITS > 0); flg.pad = true;  else; flg.pad = false;  end
+    if any(LIMITS < 0); flg.crop = true; else; flg.crop = false; end
 end
 
 % Optinal parameters.
@@ -419,19 +425,46 @@ if isfield(OPTION, 'taper')
     % bool
     if islogical(OPTION.taper) && isscalar(OPTION.taper)
         if OPTION.taper
-            OPTION.taper = EMC_taper('cosine', 7, {});  % default
+            outSize = SIZE + sum(reshape(LIMITS, 2, []));
+            OPTION.taper = EMC_taper('cosine', max(9, ceil(min(outSize) * 0.04)), {});  % default
             flg.taper = true;
         else
             flg.taper = false;
         end
-    % {type, size}
-    elseif iscell(OPTION.taper)
-        if numel(OPTION.taper) ~= 2
-            error('EMC:taper', 'OPTION.taper should be {type(str), size(int)}.')
+    % cell | struct
+    elseif iscell(OPTION.taper) || isstruct(OPTION.taper)
+        OPTION.taper = EMC_getOption(OPTION.taper, {'type', 'numel', 'percent'}, false);
+        % type
+        if isfield(OPTION.taper, 'type')
+            if ~(ischar(OPTION.taper.type) || isstring(OPTION.taper.type)) || ...
+               ~strcmpi(OPTION.taper.type, 'cosine') && ~strcmpi(OPTION.taper.type, 'linear')
+                error('EMC:taper', "OPTION.taper.type should be 'linear' or 'cosine'")
+            end
         else
-            OPTION.taper = EMC_taper(OPTION.taper{1}, OPTION.taper{2}, {});
-            flg.taper = true;
+            OPTION.taper.type = 'cosine';  % default
         end
+        % numel
+        if isfield(OPTION.taper, 'numel')
+            if isfield(OPTION.taper, 'percent')
+                error('EMC:taper', 'OPTION.taper.numel and OPTION.taper.percent are mutually exclusive')
+            end
+        % percent
+        elseif isfield(OPTION.taper, 'percent')
+            if ~isscalar(OPTION.taper.percent) || ~isnumeric(OPTION.taper.percent) || ...
+               isinf(OPTION.taper.percent) || ~(OPTION.taper.percent >= 0) || OPTION.taper.percent >= 1
+                error('EMC:taper', 'OPTION.taper.percent should be a scalar, with: 0 <= scalar < 1')
+            else
+                outSize = SIZE + sum(reshape(LIMITS, 2, []));
+                OPTION.taper.numel = max(9, ceil(min(outSize) * OPTION.taper.percent));
+            end
+        else
+            % make sure it is at least 9 pixels
+            outSize = SIZE + sum(reshape(LIMITS, 2, []));
+            OPTION.taper.numel = max(9, ceil(min(outSize) * 0.04));  % default
+        end
+        OPTION.taper = EMC_taper(OPTION.taper.type, OPTION.taper.numel, {});
+        flg.taper = true;
+
     % vector|int|float: own taper
     elseif isnumeric(OPTION.taper) && isrow(OPTION.taper)
         if ~flg.gpu && EMC_isOnGpu(OPTION.taper)
@@ -442,8 +475,9 @@ if isfield(OPTION, 'taper')
         error('EMC:taper', 'OPTION.taper should be bool, cell or a row vector, got %s', class(OPTION.taper))
     end
 else
-     OPTION.taper = EMC_taper('cosine', 7, {});  % default
-     flg.taper = true;
+    outSize = SIZE + sum(reshape(LIMITS, 2, []));
+    OPTION.taper = EMC_taper('cosine', max(9, ceil(min(outSize) * 0.04)), {});  % default
+    flg.taper = true;
 end
 
 % force_taper
@@ -465,7 +499,7 @@ function raiseError(IMAGE, LIMITS, OPTION)
 %
 
 inSize = size(IMAGE);
-ndim = length(inSize);
+ndim = ndims(IMAGE);
 
 % CASE 1: the taper is too large given the input IMAGE.
 if OPTION.origin == -1 && any(numel(OPTION.taper) > floor(inSize/2))
@@ -479,7 +513,7 @@ end
 extendedSize = reshape(ones(2, ndim) .* inSize, 1, []);
 
 if OPTION.force_taper
-    taperToApply = ones(2, ndim*2) .* numel(OPTION.taper);
+    taperToApply = ones(1, ndim*2) .* numel(OPTION.taper);
 else
     if OPTION.origin == -1
         taperToApply = reshape(repmat(any(reshape(LIMITS > 0, 2, [])), 2, 1), 1, []);
@@ -496,7 +530,7 @@ if OPTION.origin == -1
     halfSize(1, :) = halfSize(1, :) + mod(inSize, 2);  % count extra pixel if odd;
     halfSize = reshape(halfSize, 1, []);
     maxCrop = -1 .* (halfSize - taperToApply);
-    
+
 % CASE 3: For a real space IMAGE, if the size of the IMAGE is smaller than size (cropping + tapter),
 %         applying the taper will raise an index error.
 else

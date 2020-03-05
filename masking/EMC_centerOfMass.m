@@ -7,17 +7,13 @@ function COM = EMC_centerOfMass(IMAGE, ORIGIN)
 %   IMAGE (numeric):	2d/3d IMAGE.
 %
 %   ORIGIN (int):     	Origin convention; 0, 1 or 2;
+%                       The center of mass (COM) is relative to this origin.
 %                      	See EMC_coordVectors for more details.
 %
 % Output:
 %   COM (row vector):   Center of mass of the IMAGE; 2d:[x,y] or 3d:[x,y,z]
 %                       NOTE: it has the same precision and method as the IMAGE.
-%                             Use EMC_setPrecision and EMC_setMethod to cast/push|gather.
-%
-% Note:
-%   - The algorithm is quite fast (if IMAGE is a gpuArray), but not memory efficient
-%     (use of coordinates grids). One could compute the grids one by one with repmat
-%     to be more memory efficient (but slower); for gX: grid = repmat(vX', [1,IMAGEsize(2:3)]).
+%                             Use EMC_setPrecision|cast and EMC_setMethod to cast/push|gather.
 %
 % Other EMC-files required:
 %   EMC_getClass, EMC_coordVectors
@@ -25,6 +21,11 @@ function COM = EMC_centerOfMass(IMAGE, ORIGIN)
 
 % Created:  18Jan2020, R2019a
 % Version:  v.1.0.  unittest (TF, 4Feb2020).
+%           v.1.1.  switch from computing the ndgrid to vector broadcasting.
+%                   It is slightly slower with large IMAGEs, but it is more
+%                   memory efficient as the ndgrids don't need to be computed (TF, 18Jan2020).
+%           v.1.2.  negative values are correctly handled. IMAGE with unique values
+%                   (even 0) are allowed (TF, 28Jan2020).
 %
 
 %% MAIN
@@ -40,29 +41,29 @@ elseif ORIGIN ~= 1 && ORIGIN ~= 2 && ORIGIN ~= 0
     error('EMC:origin', 'ORIGIN should be 0, 1 or 2, got %02f', ORIGIN)
 end
 
-IMAGEsize = size(IMAGE);
+imgSize = size(IMAGE);
 [precision, isOnGpu] = EMC_getClass(IMAGE);
 if isOnGpu
-    [vX, vY, vZ] = EMC_coordVectors(IMAGEsize, 'gpu', {'origin', ORIGIN; 'precision', precision});
+    [vX, vY, vZ] = EMC_coordVectors(imgSize, 'gpu', {'origin', ORIGIN; 'precision', precision});
 else
-    [vX, vY, vZ] = EMC_coordVectors(IMAGEsize, 'cpu', {'origin', ORIGIN; 'precision', precision});
+    [vX, vY, vZ] = EMC_coordVectors(imgSize, 'cpu', {'origin', ORIGIN; 'precision', precision});
 end
 
-% Normalize to have only positive values.
-% NOTE: subtract by min requires more code (if min < 0; if same value) 
-%       and speed difference is not significant compared to the rest).
-IMAGE = IMAGE ./ max(IMAGE, [], 'all');
-IMAGEsum = sum(IMAGE, 'all');
-if IMAGEsum == 0
-    error('EMC:IMAGE', 'IMAGE is empty (sum of pixels is zero)')
+IMAGE = IMAGE - min(IMAGE, [], 'all');  % min to 0
+total = sum(IMAGE, 'all');
+if total == 0
+    if EMC_is3d(imgSize)
+        COM = [sum(vX)/imgSize(1), sum(vY)/imgSize(2), sum(vZ)/imgSize(3)];
+    else
+        COM = [sum(vX)/imgSize(1), sum(vY)/imgSize(2)];
+    end
+    return
 end
 
-if EMC_is3d(IMAGEsize)
-    [gX, gY, gZ] = ndgrid(vX, vY, vZ);
-    COM = [sum(IMAGE.*gX, 'all'), sum(IMAGE.*gY, 'all'), sum(IMAGE.*gZ, 'all')] ./ IMAGEsum;
+if EMC_is3d(imgSize)
+    COM = [sum(IMAGE.*vX', 'all'), sum(IMAGE.*vY, 'all'), sum(IMAGE.*reshape(vZ,1,1,[]), 'all')] ./ total;
 else
-    [gX, gY] = ndgrid(vX, vY);
-    COM = [sum(IMAGE.*gX, 'all'), sum(IMAGE.*gY, 'all')] ./ IMAGEsum;
+    COM = [sum(IMAGE.*vX', 'all'), sum(IMAGE.*vY, 'all')] ./ total;
 end
 
 if any(isnan(COM))

@@ -361,12 +361,12 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
       if (flgFscShapeMask)
        
 % % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
-        [shapeMask_1, pV1, particleFraction1] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'fraction', true});
+        [shapeMask_1, pV1, particleFraction1] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true});
 %         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
     
 % % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
-        [shapeMask_2, pV2, particleFraction2] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'fraction', true});
+        [shapeMask_2, pV2, particleFraction2] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true});
         
 %         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
@@ -504,12 +504,12 @@ for iRef = 1:nReferences
       if (flgFscShapeMask)
        
 % % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
-        [shapeMask_1, pV1, particleFraction1] = EMC_maskReference(gpuArray(img1, pixelSize, {'fsc', true; 'fraction', true}));
+        [shapeMask_1, pV1, particleFraction1] = EMC_maskReference(gpuArray(img1, pixelSize, {'fsc', true}));
 %         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
     
 % % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
-        [shapeMask_2, pV2, particleFraction2] = EMC_maskReference(gpuArray(img2, pixelSize, {'fsc', true; 'fraction', true}));
+        [shapeMask_2, pV2, particleFraction2] = EMC_maskReference(gpuArray(img2, pixelSize, {'fsc', true}));
         
 %         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);

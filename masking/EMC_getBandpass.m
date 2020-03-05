@@ -20,7 +20,7 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 %   LOWPASS (float|str|nan):            Cutoff, in Angstrom, of the low pass filter.
 %                                       This cutoff corresponds to resolution where the pass starts
 %                                      	to roll off. Must be lower (higher frequency) than HIGHPASS.
-%                                       If nan, the filter will be a high pass filter.
+%                                       If nan or 0, the filter will be a high pass filter.
 %                                       If 'nyquist', starts the roll off at the Nyquist frequency.
 %                                       NOTE: should be higher (lower resolution) or equal to the
 %                                             Nyquist frequency.
@@ -80,8 +80,8 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 % Note:
 %   - The default gaussian std (lowroll and highroll) of 0.02 and window (lowthresh and highthresh)
 %     of 0.001 gives a roll off large enough to 'remove' the Gibbs Phenomenon (ringing effect).
-%     As a result, these filters are far from perfect filter. One improvement, to reduce unwanted
-%     frequency, could be to shift the cutoffs at ~0.8 or ~0.7 and not at 1 as they are currently.
+%     These filters are far from perfect filter. One improvement to reduce unwanted frequency,
+%     could be to shift the cutoffs at ~0.8 or ~0.7 and not at 1 as they are currently.
 %
 %   - The size of the gaussian roll is relative to the size of the filter. It might cause an issue
 %     if the filter is very small (<100pixel wide) where the roll off is only over a few pixels.
@@ -100,11 +100,23 @@ function BANDPASS = EMC_getBandpass(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTI
 
 % Created:  18Jan2020, R2019a
 % Version:  v.1.0.  unittest (TF, 2Feb2020).
+%           v.1.0.1 LOWPASS can be 0, which is now equivalent to NaN (no lowpass filter).
+%                   If no highpass and no lowpass, compute a full pass (TF, 17Feb2020).
 %
 
 %% checkIN
 defaultSigma = 0.02;
 [SIZE, OPTION, flg] = checkIN(SIZE, PIXEL, HIGHPASS, LOWPASS, METHOD, OPTION, defaultSigma);
+
+% If no lowpass and no highpass, return ones.
+if ~flg.lowpass && ~flg.highpass
+    if strcmpi(METHOD, 'gpu')
+        BANDPASS = ones(SIZE, OPTION.precision, 'gpuArray');
+    else
+        BANDPASS = ones(SIZE, OPTION.precision);
+    end
+    return
+end
 
 [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, {'origin', OPTION.origin; ...
                                                'half', OPTION.half; ...
@@ -208,14 +220,12 @@ end
 if ~isscalar(HIGHPASS)
     error('EMC:HIGHPASS', 'HIGHPASS should be a scalar, got a %s of size %s', ...
           class(HIGHPASS), mat2str(size(HIGHPASS)))
-elseif isnan(HIGHPASS)
+elseif isnan(HIGHPASS) || HIGHPASS == 0
     flg.highpass = false;
-elseif isnumeric(HIGHPASS) && ~isinf(HIGHPASS) && HIGHPASS >= 0
-    if HIGHPASS == 0
-        flg.highpass = false;
-    elseif HIGHPASS < PIXEL * 2
-        error('EMC:HIGHPASS', 'HIGHPASS should be greater (lower resolution) or equal to Nyquist (%.3f)', ...
-              PIXEL * 2)
+elseif isnumeric(HIGHPASS) && ~isinf(HIGHPASS) && HIGHPASS > 0
+    if HIGHPASS < PIXEL * 2
+        error('EMC:HIGHPASS', ...
+              'HIGHPASS should be greater (lower resolution) or equal to Nyquist (%.3f)', PIXEL * 2)
     end
     flg.highpass = true;
 else
@@ -223,20 +233,20 @@ else
 end
 
 % LOWPASS cutoff
-if isscalar(LOWPASS) && isnumeric(LOWPASS) && ~isinf(LOWPASS) && LOWPASS >= 0
-    if LOWPASS < PIXEL * 2
+if isscalar(LOWPASS) && isnumeric(LOWPASS) && ~isinf(LOWPASS)
+    if isnan(LOWPASS) || LOWPASS == 0
+        flg.highpass = false;
+    elseif LOWPASS < PIXEL * 2
         error('EMC:LOWPASS', 'LOWPASS should be greater (lower resolution) or equal to Nyquist (%.3f)', ...
               PIXEL * 2)
     elseif flg.highpass && HIGHPASS < LOWPASS
         error('EMC:LOWPASS', 'LOWPASS should be smaller (high frequency) than HIGHPASS')
     end
     flg.lowpass = true;
-elseif isscalar(LOWPASS) && isnan(LOWPASS)
-    flg.lowpass = false;
 elseif strcmpi(LOWPASS, 'nyquist')
     flg.lowpass = true;
 else
-    error('EMC:LOWPASS', "LOWPASS should be a positive float|int, nan or 'nyquist'")
+    error('EMC:LOWPASS', "LOWPASS should be a non negative float|int, nan or 'nyquist'")
 end
 
 % highpassRoll

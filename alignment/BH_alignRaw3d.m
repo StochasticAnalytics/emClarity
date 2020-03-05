@@ -413,7 +413,7 @@ clear fftPlanner
 % % % % % % %               BH_mask3d(refIMG{1}{iRef}+refIMG{2}{iRef},pixelSize,'','')));
  
     [ volMask ] = gather(sqrt(volMask .* ...            
-              EMC_maskReference(refIMG{1}{iRef}+refIMG{2}{iRef}, pixelSize, {})));
+              EMC_maskReference(refIMG{1}{iRef}+refIMG{2}{iRef}, pixelSize, {'fsc', true})));
 
   else
 % % % % % % %     [ volMask ] = gather(BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter));
