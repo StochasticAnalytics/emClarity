@@ -531,6 +531,9 @@ for i = 1:d3
                                        BH_decomposeIMODxf(combinedXF);
 
 
+      bh_global_do_2d_fourier_interp     
+      
+      i
 
  if (bh_global_do_2d_fourier_interp)
   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
@@ -564,10 +567,11 @@ if ( flgEraseBeads )
     beadList = load(sprintf('fixedStacks/%s.erase2',fileName));
    
     beadList(:,1:2) = beadList(:,1:2) ./ scalePixelsBy;
-    STACK = BH_eraseBeads(STACK,eraseRadius, beadList);
+    STACK = BH_eraseBeads(STACK,eraseRadius, beadList, sortrows(TLT,1));
 end 
-
+fprintf('here1\n')
 [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,PIXEL_SIZE*10^10,samplingMaskStack);
+fprintf('here1\n')
 
 SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
 SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);

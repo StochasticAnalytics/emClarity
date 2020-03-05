@@ -27,8 +27,10 @@ bugss=0
 zip_location="NONE"
 
 
-binaryOutName="${major}_${minor}_${bugss}_${shortHead}"
-scriptOutName="mcr_v19a_${shortHead}"
+#binaryOutName="${major}_${minor}_${bugss}_${shortHead}"
+#scriptOutName="mcr_v19a_${shortHead}"
+binaryOutName="testEMC_mask"
+scriptOutName="testEMC_mask_v19a"
 
 # You may need to modify this line. 
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.

@@ -1,4 +1,4 @@
-function [ Stack ] = BH_eraseBeads( Stack, beadRadius, beadModel)
+function [ Stack ] = BH_eraseBeads( Stack, beadRadius, beadModel, TLT)
 % Erase beads from a non-CTF corrected stack
 
 
@@ -17,10 +17,10 @@ end
 for iPrj = 1:d3
   
 iProjection = Stack(:,:,iPrj);
+iPrj_inFullStack = TLT(iPrj, 23);
 
-
-oX = round(beadModel( abs(beadModel(:,3) - iPrj +1) < 10^-1, 1));
-oY = round(beadModel( abs(beadModel(:,3) - iPrj +1) < 10^-1, 2));
+oX = round(beadModel( abs(beadModel(:,3) - iPrj_inFullStack +1) < 10^-1, 1));
+oY = round(beadModel( abs(beadModel(:,3) - iPrj_inFullStack +1) < 10^-1, 2));
 
 if (useGPU)
   iMask = zeros(size(iProjection),'single','gpuArray');
