@@ -118,11 +118,14 @@ for threshold = dilationThresholds .* maxThreshold
     currentMask = tofloat(currentMask);
     currentKernel = dilationKernel;
 
-    for i = 1:ceil(threshold.^2 ./ 3)
-      currentKernel = convn(currentKernel, currentKernel,'same'); 
-    end
+%     for i = 1:ceil(threshold.^2 ./ 3)
+%       currentKernel = convn(currentKernel, currentKernel,'same'); 
+%     end
 
-    currentMask = (~currentMask .* EMC_convn(currentMask, currentKernel) > 0) + currentMask;
+    for i = 1:ceil(threshold.^2 ./ 3)
+      currentMask = single(~currentMask.*convn(currentMask,dilationKernel,'same') > 0.00)+currentMask;   
+    end   
+%     currentMask = (~currentMask .* EMC_convn(currentMask, currentKernel) > 0) + currentMask;
     
     % This part is crucial as it restricts the expansion to the close pixel higher than the current
     % threshold. This is where the 'connectivity' really happens.
@@ -133,6 +136,7 @@ end
 % Same this volume to compute the particle fraction.
 if OPTION.fraction
     particleVolEstimate = sum(currentMask, 'all');
+    COM = currentMask;
 end
 
 % Expand the currentMask (particle volume) by at least 10 Angstroms.
@@ -158,14 +162,22 @@ MASK = currentMask .* minusEdges;
 if OPTION.com
     COM = EMC_centerOfMass(MASK, OPTION.origin);
 else
+  if OPTION.fraction
+    taperKernel = gpuArray(BH_multi_gaussian3d(4.*[1,1,1],1.75));   
+    COM = convn(COM,taperKernel,'same');
+    COM = convn(sqrt(COM),taperKernel,'same'); 
+    clear taperKernel
+  else
     COM = nan;
+  end
 end
 
 % Estimate the particle fraction
 if OPTION.fraction
     % The mask is not a logical mask, it has values between 0 and 1. As such,
     % estimate the signal reduction in these regions.
-    powerReduction = sum(IMAGE.^2 .* currentMask>0, 'all') ./ ...
+                   
+    powerReduction = sum(IMAGE.^2 .* (currentMask>0), 'all') ./ ...
                      sum(IMAGE.^2 .* currentMask, 'all');
 
     maskVolume = sum(currentMask>0, 'all');
@@ -176,7 +188,7 @@ if OPTION.fraction
     % Finally, estimate the fraction of the mask taken by the particle by
     % comparing the hydrated particle volume to the mask volume (scalled down
     % to take into account the power reduction due to the roll off)
-    FRACTION = particleVolEstimate ./ (maskVolume .* powerReduction);
+    FRACTION = maskVolume./  (particleVolEstimate .* powerReduction);
 
     fprintf(['Size: %s - Precision: %s - Method: %s\n', ...
              'Estimated particule volume : %d voxels\n', ...
@@ -184,7 +196,7 @@ if OPTION.fraction
              'Power reduction            : %2.3f\n', ...
              'Particle fraction          : %2.3f\n'], ...
              mat2str(SIZE), OPTION.precision, flg.method, ...
-             particleVolEstimate, maskVolume, powerReduction, FRACTION);
+             particleVolEstimate, maskVolume, powerReduction, 1/FRACTION);
 else
     FRACTION = nan;
 end

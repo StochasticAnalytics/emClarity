@@ -361,15 +361,12 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
       if (flgFscShapeMask)
        
 % % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
-fprintf('before mask 1\n');
-        [shapeMask_1, ~, pV1] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fraction', true});
+        [shapeMask_1, pV1, particleFraction1] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'fraction', true});
 %         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
     
 % % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
-fprintf('before mask 2\n');
-
-        [shapeMask_2, ~, pV2] = EMC_maskReference(gpuArray(refIMG{2}{iRef), pixelSize, {'fraction', true});
+        [shapeMask_2, pV2, particleFraction2] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'fraction', true});
         
 %         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
@@ -379,19 +376,8 @@ fprintf('before mask 2\n');
         shapeMask_2 = 1;
       end
       
-% Testing a more precise calculation withing mask3d     
-     
-        
-      if ( ~flgFscShapeMask )
-     
-        shapeMask_1 = 1;
-        shapeMask_2 = 1;
-       
-      end
       
-      particleVolume(iRef) = gather((pV1(1)+pV2(1))./2);
-      pV1(1) = 0;
-      pV2(1) = 0;
+      particleVolume(iRef) = gather(mean(particleFraction1+particleFraction2));
       pV1 = gather(pV1.*volMask{1});
       pV2 = gather(pV2.*volMask{2});
 
@@ -516,17 +502,15 @@ for iRef = 1:nReferences
     img2=IMG2;
     
       if (flgFscShapeMask)
-       size(img1)
-       size(volMask{1})
-% % % % % % %         [shapeMask_1,pV1] = BH_mask3d(img1,pixelSize,'','');
-        [shapeMask_1] = EMC_maskReference(img1, pixelSize, {});
-
+       
+% % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
+        [shapeMask_1, pV1, particleFraction1] = EMC_maskReference(gpuArray(img1, pixelSize, {'fsc', true; 'fraction', true}));
 %         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-
-% % % % % % %         [shapeMask_2,pV2] = BH_mask3d(img2,pixelSize,'',''); 
-        [shapeMask_2] = EMC_maskReference(img2, pixelSize, {});
-
+    
+% % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
+        [shapeMask_2, pV2, particleFraction2] = EMC_maskReference(gpuArray(img2, pixelSize, {'fsc', true; 'fraction', true}));
+        
 %         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
 
@@ -535,9 +519,8 @@ for iRef = 1:nReferences
         shapeMask_2 = 1;
       end
       
-      particleVolume(iRef) = gather((pV1(1)+pV2(1))./2);
-      pV1(1) = 0;
-      pV2(1) = 0;
+      
+      particleVolume(iRef) = gather(mean(particleFraction1+particleFraction2));
       pV1 = gather(pV1.*volMask{1});
       pV2 = gather(pV2.*volMask{2});
      
