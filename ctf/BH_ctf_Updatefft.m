@@ -601,7 +601,7 @@ system('mkdir -p aliStacks');
     if ( flgEraseBeads )
         beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
         beadList(:,1:2) = beadList(:,1:2) ./ updateScale;
-        STACK = BH_eraseBeads(STACK,eraseRadius, beadList);
+        STACK = BH_eraseBeads(STACK,eraseRadius, beadList,sortrows(TLT,1));
     end 
 
 
