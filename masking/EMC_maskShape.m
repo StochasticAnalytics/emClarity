@@ -10,6 +10,10 @@ function MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 %                                         the RADIUS and eventual shifts must only be integers,
 %                                         and origin=0 is not allowed.
 %
+%                                         Added floor(round(RADIUS) to make
+%                                         this the default. TODO: shifts
+%                                         [BAH]
+%
 %   SIZE (int vector):              Size (in pixel) of the mask to compute; [x, y, z] or [x, y].
 %                                   NOTE: [1, N] or [N, 1] is not allowed.
 %
@@ -225,10 +229,15 @@ if SIZE(1) == 1 || SIZE(2) == 1
     error('EMC:SIZE', 'SIZE should be the size of a 2d or 3d array, got size %s', mat2str(SIZE))
 end
 
-if ~isnumeric(RADIUS) || ~isvector(RADIUS) || ~all(RADIUS > 1) || any(rem(RADIUS,1)) || ...
+if any(rem(RADIUS,1)) 
+  RADIUS = floor(round(RADIUS));
+end
+
+if ~isnumeric(RADIUS) || ~isvector(RADIUS) || ~all(RADIUS > 1) || ...
    ~isequal(size(SIZE), size(RADIUS)) || any(isinf(RADIUS))
     error('EMC:RADIUS', 'RADIUS should be a vector of %d integers greater than 1', ndim)
 end
+
 
 if strcmpi(METHOD, 'gpu')
     flg.gpu = true;

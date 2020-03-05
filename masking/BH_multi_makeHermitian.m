@@ -41,7 +41,7 @@ if (flg2d)
   fullXform(1:oX-2+isOdd,:) = halfXform(oX-1+isOdd:-1:2,:);
 else
   fullXform(oX-1+isOdd:end,:,:) = halfXform;
-  fullXform(1:oX-2+isOdd,:,:) = halfXform(oX-1+isOdd:-1:2,:,nZ:-1:1);l
+  fullXform(1:oX-2+isOdd,:,:) = halfXform(oX-1+isOdd:-1:2,:,nZ:-1:1);
 end
 
 clear halfXform
