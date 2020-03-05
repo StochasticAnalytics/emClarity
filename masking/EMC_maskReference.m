@@ -76,13 +76,16 @@ minusEdges = EMC_maskShape('rectangle', SIZE, ceil(SIZE/2), flg.method, ...
 %                      edge artifacts; lowpass filter
 
 if flg.is3d
+  fprintf('I am HEREER\n');
     IMAGE = EMC_applyBandpass(EMC_setMethod(medfilt3(gather(IMAGE), [3,3,3]), flg.method) .* minusEdges, ...
                               EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, ...
-                                           {'precision', OPTION.precision}));
+                                           {'precision', OPTION.precision}), ...
+                                           {});
 else
-    IMAGE = EMC_applyBandpass(medfilt2(IMAGE, [3,3]) .* minusEdges, ...
-                              EMC_bandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, ...
-                                           {'precision', OPTION.precision}));
+    IMAGE = EMC_applyBandpass(EMC_setMethod(medfilt2(IMAGE, [3,3]), flg.method) .* minusEdges, ...
+                              EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, ...
+                                           {'precision', OPTION.precision}), ...
+                                           {});
 end
 
 % Make sure no wrap-around artifacts.
@@ -96,21 +99,29 @@ else
 end
 
 % Seeds: select regions of the IMAGE with highest values while making sure there is at least on pixel.
-maxThreshold = max(OPTION.threshold .* std(IMAGE(IMAGE > 0), 0, 'all'), max(IMAGE, [], 'all'));
+% % % maxThreshold = max(OPTION.threshold .* std(IMAGE(IMAGE > 0), 0, 'all'), max(IMAGE, [], 'all'));
+maxThreshold = min(OPTION.threshold .* std(IMAGE(IMAGE > 0), 0, 'all'), max(IMAGE, [], 'all'));
+
 currentMask = IMAGE > maxThreshold;  % seeds
 
 % The dilatation kernel is one of the key part of the algorithm as it restricts the selection of
 % region with lowest density to regions that are in close proximity to the already selected
 % regions: connectivity-based expansion.
-dilationKernel = EMC_gaussianKernel([1,3], 3, METHOD, {'precision', OPTION.precision; ...
-                                                       'method', flg.method});
+% dilationKernel = EMC_gaussianKernel([3,3], 3, {'precision', OPTION.precision; ...
+%                                                        'method', flg.method});
+                                                     
+                                                    
+dilationKernel = gpuArray(BH_multi_gaussian3d(3.*[1,1,1],3.0));
 
 % Connectivity-based expansion of the current mask.
 for threshold = dilationThresholds .* maxThreshold
     currentMask = tofloat(currentMask);
     currentKernel = dilationKernel;
 
-    for i = 1:ceil(threshold.^2 ./ 3); currentKernel = convn(currentKernel, currentKernel); end
+    for i = 1:ceil(threshold.^2 ./ 3)
+      currentKernel = convn(currentKernel, currentKernel,'same'); 
+    end
+
     currentMask = (~currentMask .* EMC_convn(currentMask, currentKernel) > 0) + currentMask;
     
     % This part is crucial as it restricts the expansion to the close pixel higher than the current

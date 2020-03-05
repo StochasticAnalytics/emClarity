@@ -322,7 +322,8 @@ for iGold = 1:2
   sizeREF = masterTM.(cycleNumber).(imgNAME){2}{1}(2:2:6)';
                                
   if (flgCenterRefCOM)
-   [ comMask ] = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+% % % % % % %    [ comMask ] = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+   [ comMask ]  = EMC_maskShape(maskType, sizeMask, sizeMask, 'gpu', {'shift', maskCenter});
   end
                             
   % get boxSize 
@@ -333,7 +334,8 @@ for iGold = 1:2
       if (flgCenterRefCOM)
         % Not sure if this is always the best approach, but it may be
         % useful in some cases.
-        [~,iCOM] = BH_mask3d(gpuArray(tIMG{n}).*comMask,pixelSize,'','',1);
+% % % % % % %         [~,iCOM] = BH_mask3d(gpuArray(tIMG{n}).*comMask,pixelSize,'','',1);
+        [ iCOM ] = EMC_centerOfMass(gpuArray(tIMG{n}).*comMask, 1);
         fprintf('centering ref %d on COM %3.3f %3.3f %3.3f \n',n,iCOM);
         
         tIMG{n} = BH_resample3d(tIMG{n},[0,0,0],gather(iCOM), ...
@@ -385,7 +387,9 @@ clear fftPlanner
 
   
   % make rotationally invariant
-  [ peakMask] = gather(BH_mask3d('sphere', sizeWindow, [1,1,1].*max(peakSearch), maskCenter));
+% % % % % % %   [ peakMask] = gather(BH_mask3d('sphere', sizeWindow, [1,1,1].*max(peakSearch), maskCenter));
+  [ peakMask ]  = gather(EMC_maskShape('sphere', sizeWindow, [1,1,1].*floor(max(peakSearch)), 'gpu', {'shift', maskCenter}));
+
   if (eraseMask)
     % Mask could be smaller than the normal taper would allow, so instead
     % of thresholding a normal mask, take this alt route.
@@ -399,14 +403,22 @@ clear fftPlanner
   
    
   if ( flgRaw_shapeMask )
-    [ volMask ] = BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter);
+% % % % % % %     [ volMask ] = BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter);
+    [ volMask ] = EMC_maskShape(maskType, sizeWindow, maskRadius, 'gpu', {'shift', maskCenter});
+
     % Currently not set up for mult-ref alignment
     iRef = 1;
     % Use the geometric mean so that excluded areas mask out
-    [ volMask ] = gather(sqrt(volMask .* ...
-              BH_mask3d(refIMG{1}{iRef}+refIMG{2}{iRef},pixelSize,'','')));
+% % % % % % %     [ volMask ] = gather(sqrt(volMask .* ...
+% % % % % % %               BH_mask3d(refIMG{1}{iRef}+refIMG{2}{iRef},pixelSize,'','')));
+ 
+    [ volMask ] = gather(sqrt(volMask .* ...            
+              EMC_maskReference(refIMG{1}{iRef}+refIMG{2}{iRef}, pixelSize, {})));
+
   else
-    [ volMask ] = gather(BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter));
+% % % % % % %     [ volMask ] = gather(BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter));
+    [ volMask ] = gather(EMC_maskShape(maskType, sizeWindow, maskRadius, 'gpu', {'shift', maskCenter}));
+    
   end     
                                                    
 % % %   [ peakMask] = gather(BH_mask3d(maskType, sizeMask, peakSearch, maskCenter));

@@ -54,6 +54,4 @@ else
     error('EMC:OPTION', 'OPTION should be a cell or a structure, got %s', class(OPTION))
 end
 
-fprintf('at the end of the option\n');
-OPTION
 end  % EMC_getOption

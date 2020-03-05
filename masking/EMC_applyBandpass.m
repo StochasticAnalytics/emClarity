@@ -51,7 +51,8 @@ function IMAGE = EMC_applyBandpass(IMAGE, BANDPASS, OPTION)
 %           v.1.1.  explicit checks for IMAGE and BANDPASS; unittest (TF, 3Feb2020).
 %
 
-% %% checkIN
+%% checkIN
+
 [~, imgSize] = EMC_is3d(size(IMAGE));
 if isvector(IMAGE)
     error('EMC:IMAGE', 'IMAGE should be a 2d or 3d matrix, got vector')
@@ -63,9 +64,8 @@ elseif ~isreal(IMAGE)
 elseif ~EMC_sharePrecision(IMAGE, BANDPASS) || ~EMC_shareMethod(IMAGE, BANDPASS)
     error('EMC:IMAGE', 'IMAGE and BANDPASS should have the same precision and method')
 end
-fprintf("Before getOpt\n");
-OPTION = EMC_getOption(OPTION, {'ifft', 'uniform'}, false)
-fprintf("after getOpt\n");
+
+OPTION = EMC_getOption(OPTION, {'ifft', 'uniform'}, false);
 
 if isfield(OPTION, 'ifft')
     if ~islogical(OPTION.ifft) && ~isscalar(OPTION.ifft)

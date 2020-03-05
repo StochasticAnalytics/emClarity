@@ -302,11 +302,15 @@ end
 % Make a mask, and apply to the average motif && save a masked, binned copy of
 % the average for inspection. 
 
-[ tmpMask ] = BH_mask3d(maskType, sizeMask, maskRadius-7, maskCenter);
+% % % % % % % [ tmpMask ] = BH_mask3d(maskType, sizeMask, maskRadius-7, maskCenter);
+[ tmpMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius-7, 'gpu', {'shift', maskCenter});
+
 volMask{1} = gather(BH_multi_randomizeTaper(tmpMask));
 volMask{2} = gather(BH_multi_randomizeTaper(tmpMask)); clear tmpMask
 
-[ tmpMask] = BH_mask3d(maskType, sizeMask, peakSearch, maskCenter);                                                   
+% % % % % % % [ tmpMask] = BH_mask3d(maskType, sizeMask, peakSearch, maskCenter);  
+[ tmpMask ]  = EMC_maskShape(maskType, sizeMask, peakSearch, 'gpu', {'shift', maskCenter});
+
 peakMask{1} = gather(BH_multi_randomizeTaper(tmpMask));
 peakMask{2} = gather(BH_multi_randomizeTaper(tmpMask)); clear tmpMask
 
@@ -356,11 +360,17 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
 
       if (flgFscShapeMask)
        
-        [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
+% % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
+fprintf('before mask 1\n');
+        [shapeMask_1, ~, pV1] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fraction', true});
 %         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
     
-        [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
+% % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
+fprintf('before mask 2\n');
+
+        [shapeMask_2, ~, pV2] = EMC_maskReference(gpuArray(refIMG{2}{iRef), pixelSize, {'fraction', true});
+        
 %         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
 
@@ -508,11 +518,15 @@ for iRef = 1:nReferences
       if (flgFscShapeMask)
        size(img1)
        size(volMask{1})
-        [shapeMask_1,pV1] = BH_mask3d(img1,pixelSize,'','');
+% % % % % % %         [shapeMask_1,pV1] = BH_mask3d(img1,pixelSize,'','');
+        [shapeMask_1] = EMC_maskReference(img1, pixelSize, {});
+
 %         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
 
-        [shapeMask_2,pV2] = BH_mask3d(img2,pixelSize,'',''); 
+% % % % % % %         [shapeMask_2,pV2] = BH_mask3d(img2,pixelSize,'',''); 
+        [shapeMask_2] = EMC_maskReference(img2, pixelSize, {});
+
 %         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
 

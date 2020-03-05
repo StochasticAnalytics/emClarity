@@ -613,14 +613,20 @@ if (flgFinalAvg)
                                 masterTM.(cycleNumber).(weightNAME){2},...
                                 sizeCalc);
                      
-  [ peakMask] = gather(BH_mask3d('sphere', sizeMask, peakSearch, maskCenter));  
+% % % % % % %   [ peakMask] = gather(BH_mask3d('sphere', sizeMask, peakSearch, maskCenter));  
+  [ peakMask ]  = gather(EMC_maskShape('sphere', sizeMask, peakSearch, 'gpu', {'shift', maskCenter}));
+
   peakBinary = single(find(peakMask > 0.01));
                                 
 end
 
 
-interpMask = gather(BH_mask3d('sphere',sizeWindow,(sizeWindow./2)-6, maskCenter));
-interpMaskWdg = gather(BH_mask3d('sphere',sizeCalc,(sizeCalc./2), maskCenter));
+% % % % % % % interpMask = gather(BH_mask3d('sphere',sizeWindow,(sizeWindow./2)-6, maskCenter));
+[ interpMask ]  = gather(EMC_maskShape('sphere', sizeWindow, (sizeWindow./2)-6, 'gpu', {'shift', maskCenter}));
+
+% % % % % % % interpMaskWdg = gather(BH_mask3d('sphere',sizeCalc,(sizeCalc./2), maskCenter));
+[ interpMaskWdg ]  = gather(EMC_maskShape('sphere', sizeCalc, (sizeCalc./2), 'gpu', {'shift', maskCenter}));
+
 % interpMask = (interpMask > 0.9);
 interpMaskWdg = single(find(interpMaskWdg > 0.9));
 avgResults=cell(nParProcesses);
@@ -1385,7 +1391,9 @@ for iClassPos = 1:maxClasses
   
   
     if (doNotTrim) && (flgClassify)
-      m = BH_mask3d('sphere',sizeMask,floor(sizeMask./2-6),pcaMaskCenter); 
+% % % % % % %       m = BH_mask3d('sphere',sizeMask,floor(sizeMask./2-6),pcaMaskCenter); 
+      [ m ]  = EMC_maskShape('sphere', sizeMask,floor(sizeMask./2-6), 'gpu', {'shift', pcaMaskCenter});
+    
 
     else
       m = 1;
