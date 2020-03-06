@@ -29,6 +29,7 @@ if (padConv)
   
 else
   nX = originalSize(1);
+  nY = originalSize(2);
   nZ = originalSize(3);
   oX = floor(nX/2)+1;
   isOdd = mod(nX,2);
@@ -36,12 +37,15 @@ else
   fullXform = zeros(originalSize,'single','gpuArray');   
 end
 
+% NOTE this is now used for things that are abs()^2 but if used more
+% generally an option to multiply the hermitian conjugate side by -1 will
+% be needed.
 if (flg2d)
   fullXform(oX-1+isOdd:end,:,:) = halfXform;
-  fullXform(1:oX-2+isOdd,:) = halfXform(oX-1+isOdd:-1:2,:);
+  fullXform(1:oX-2+isOdd,:) = halfXform(oX-1+isOdd:-1:2,nY:-1:1);
 else
   fullXform(oX-1+isOdd:end,:,:) = halfXform;
-  fullXform(1:oX-2+isOdd,:,:) = halfXform(oX-1+isOdd:-1:2,:,nZ:-1:1);
+  fullXform(1:oX-2+isOdd,:,:) = halfXform(oX-1+isOdd:-1:2,nY:-1:1,nZ:-1:1);
 end
 
 clear halfXform
