@@ -1,4 +1,4 @@
-function COM = EMC_centerOfMass(IMAGE, ORIGIN)
+function COM = EMC_centerOfMass(IMAGE, ORIGIN, varargin)
 %
 % COM = EMC_centerOfMass(IMAGE, ORIGIN)
 % Compute the center of mass of real space 2d/3d IMAGE.
@@ -9,6 +9,10 @@ function COM = EMC_centerOfMass(IMAGE, ORIGIN)
 %   ORIGIN (int):     	Origin convention; 0, 1 or 2;
 %                       The center of mass (COM) is relative to this origin.
 %                      	See EMC_coordVectors for more details.
+%
+%   varargin (cell): Option to pass a mask, which is required to match the
+%                     the behavior in BH_mask3d. TF - could convert to use
+%                     the EMC checkIN and {} option syntax.
 %
 % Output:
 %   COM (row vector):   Center of mass of the IMAGE; 2d:[x,y] or 3d:[x,y,z]
@@ -41,6 +45,12 @@ elseif ORIGIN ~= 1 && ORIGIN ~= 2 && ORIGIN ~= 0
     error('EMC:origin', 'ORIGIN should be 0, 1 or 2, got %02f', ORIGIN)
 end
 
+if nargin > 2
+  doMask = true;
+else
+  doMask = false;
+end
+
 imgSize = size(IMAGE);
 [precision, isOnGpu] = EMC_getClass(IMAGE);
 if isOnGpu
@@ -49,7 +59,12 @@ else
     [vX, vY, vZ] = EMC_coordVectors(imgSize, 'cpu', {'origin', ORIGIN; 'precision', precision});
 end
 
-IMAGE = IMAGE - min(IMAGE, [], 'all');  % min to 0
+if (doMask)
+  IMAGE = IMAGE - min(IMAGE(varargin{1}>0.01), [], 'all').*varargin{1};  % min to 0
+else
+  IMAGE = IMAGE - min(IMAGE, [], 'all');  % min to 0
+end
+
 total = sum(IMAGE, 'all');
 if total == 0
     if EMC_is3d(imgSize)

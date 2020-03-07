@@ -335,9 +335,10 @@ for iGold = 1:2
         % Not sure if this is always the best approach, but it may be
         % useful in some cases.
 % % % % % % %         [~,iCOM] = BH_mask3d(gpuArray(tIMG{n}).*comMask,pixelSize,'','',1);
-        [ iCOM ] = EMC_centerOfMass(gpuArray(tIMG{n}).*comMask, 1);
-        fprintf('centering ref %d on COM %3.3f %3.3f %3.3f \n',n,iCOM);
         
+        [~, iCOM] = EMC_maskReference(gpuArray(tIMG{n}).*comMask, pixelSize, {'fsc',true; 'com', true});
+        fprintf('centering ref %d on COM %3.3f %3.3f %3.3f \n',n,iCOM);
+
         tIMG{n} = BH_resample3d(tIMG{n},[0,0,0],gather(iCOM), ...
                                            {'Bah',1,'spline'},'cpu','inv');
       

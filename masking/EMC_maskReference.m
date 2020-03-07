@@ -1,6 +1,6 @@
-function [MASK, COM, FRACTION] = EMC_maskReference(IMAGE, PIXEL, OPTION)
+function [MASK, COM, FRACTION, MASK_CORE] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 %
-% [MASK, COM, FRACTION] = EMC_maskReference(IMAGE, PIXEL, OPTION)
+% [MASK, COM, FRACTION, MASK_CORE] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 % Compute a real-space reference mask of a 3d/2d particle.
 %
 % Input:
@@ -60,6 +60,11 @@ function [MASK, COM, FRACTION] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 %
 %   FRACTION (float):                   Estimated particle/background ratio in the MASK.
 %                                       If 'fsc'=false, return nan.
+%
+%   MASK_CORE (numeric):                Core of the reference mask used for
+%                                       a tight fsc calculation, as in
+%                                       RELION, or as visual inspection.
+%                                       
 %
 % Note:
 %   - I [TF] don't understand this: "When the map resolution is lower than the masking
@@ -141,7 +146,7 @@ end
 
 
 particleVolEstimate = sum(currentMask, 'all');
-COM = currentMask;
+MASK_CORE = currentMask;
 
 
 % Expand the currentMask (particle volume) by at least 10 Angstroms.
@@ -186,27 +191,29 @@ if OPTION.fsc
     MASK = fscMask .* minusEdges;
 
     % To compute the COM, restrict to the region most likely to contain only the protein.
-    if OPTION.com; 
-      COM = EMC_centerOfMass(MASK .* currentMask, OPTION.origin); 
+    if OPTION.com
+      COM = EMC_centerOfMass(MASK, OPTION.origin, currentMask); 
     else
-
-      taperKernel = gpuArray(BH_multi_gaussian3d(4.*[1,1,1],1.75));
-      COM = convn(COM,taperKernel,'same');
-      COM = convn(sqrt(COM),taperKernel,'same'); 
-      clear taperKernel
+      COM = nan;
     end
+    
+    taperKernel = gpuArray(BH_multi_gaussian3d(4.*[1,1,1],1.75));
+    MASK_CORE = convn(MASK_CORE,taperKernel,'same');
+    MASK_CORE = convn(sqrt(MASK_CORE),taperKernel,'same'); 
+    clear taperKernel
+    
 else
     % Make sure no wrap-around artifacts.
     MASK = currentMask .* minusEdges;
 
-    if OPTION.com; 
-	COM = EMC_centerOfMass(MASK, OPTION.origin); 
-	else; 
+  if OPTION.com
+    COM = EMC_centerOfMass(MASK, OPTION.origin, currentMask); 
+  else
     taperKernel = gpuArray(BH_multi_gaussian3d(4.*[1,1,1],1.75));   
     COM = convn(COM,taperKernel,'same');
     COM = convn(sqrt(COM),taperKernel,'same'); 
     clear taperKernel
-end
+  end
     FRACTION = nan;
 end
 

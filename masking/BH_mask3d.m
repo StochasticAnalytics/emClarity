@@ -344,8 +344,7 @@ if strcmpi(mShape, 'BINARY')
     dilationThresholds =  [ 1.0000 0.9   ] ;
   end
   for threshold =  dilationThresholds.*maxThreshold
-    threshold 
-    maxThreshold
+
   %  figure, imshow3D(binaryMask) 0.6923 0.6154 
    if threshold >= 0 
     currentMask = single(gpuArray(binaryVol));
@@ -355,7 +354,6 @@ if strcmpi(mShape, 'BINARY')
     else
       dilationKernel = gpuArray(BH_multi_gaussian2d(3.*[1,1],3.0));
     end
-    size(dilationKernel)
     %figure, imshow3D(gather(b))
   
     if (fscMask)
