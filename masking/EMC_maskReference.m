@@ -128,16 +128,16 @@ dilationKernel = gpuArray(BH_multi_gaussian3d(3.*[1,1,1],3.0));
 % Connectivity-based expansion of the current mask.
 for threshold = dilationThresholds .* maxThreshold
     currentMask = EMC_setPrecision(currentMask, OPTION.precision);
-     currentKernel = dilationKernel;
+%     currentKernel = dilationKernel;
 
 %     for i = 1:ceil(threshold.^2 ./ 3)
 %       currentKernel = convn(currentKernel, currentKernel,'same'); 
 %     end
 
     for i = 1:ceil(threshold.^2 ./ 3)
-      currentMask = single(~currentMask .* EMC_convn(currentMask, currentKernel) > 0) + currentMask;
+      currentMask = single(~currentMask.*convn(currentMask,dilationKernel,'same') > 0.00)+currentMask;   
     end   
-%     
+%     currentMask = (~currentMask .* EMC_convn(currentMask, currentKernel) > 0) + currentMask;
     
     % This part is crucial as it restricts the expansion to the close pixel higher than the current
     % threshold. This is where the 'connectivity' really happens.
@@ -209,9 +209,11 @@ else
   if OPTION.com
     COM = EMC_centerOfMass(MASK, OPTION.origin, currentMask); 
   else
-    COM = nan;
+    taperKernel = gpuArray(BH_multi_gaussian3d(4.*[1,1,1],1.75));   
+    COM = convn(COM,taperKernel,'same');
+    COM = convn(sqrt(COM),taperKernel,'same'); 
+    clear taperKernel
   end
-    MASK_CORE = nan;
     FRACTION = nan;
 end
 

@@ -32,21 +32,14 @@ useSuperSample = 0;
 recWithoutMat = false;
 reconstructionParameters = 0;
 
-loadSubTomoMeta = true;
 if nargin > 2
   if ~isnan(str2num(varargin{1}))
     reconstructionParameters = str2num(varargin{1});
     recWithoutMat = true;
-    if length(varargin) > 2
-      % Full recon for tomoCPR
-      bh_global_turn_on_phase_plate = 0
-    else
-      loadSubTomoMeta = false;
-      % Default to on for subregion picking
-      % If user has specified phakePhasePlate, don;t use ...otherwise
-      if isempty(bh_global_turn_on_phase_plate) || bh_global_turn_on_phase_plate == 0
-        bh_global_turn_on_phase_plate = [1,2]
-      end
+    % Default to on for subregion picking
+    % If user has specified phakePhasePlate, don;t use ...otherwise
+    if isempty(bh_global_turn_on_phase_plate) || bh_global_turn_on_phase_plate == 0
+      bh_global_turn_on_phase_plate = [1,2];
     end
   end
 elseif nargin > 1
@@ -128,15 +121,8 @@ fprintf('tmpCache is %s\n',tmpCache);
 system(sprintf('mkdir -p %s',tmpCache));
 
 if (recWithoutMat)
-  if (loadSubTomoMeta)
-    load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-    mapBackIter = subTomoMeta.currentTomoCPR;
-    masterTM = subTomoMeta; clear subTomoMeta
-    CYCLE = masterTM.currentCycle;   
-  else
-    mapBackIter = 0;
-    CYCLE = 0;
-  end
+  mapBackIter = 0;
+  CYCLE = 0;
 else
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR;
@@ -212,9 +198,9 @@ end
 
 pixelSize = pBH.('PIXEL_SIZE').*10^10 .* samplingRate;
 
-% if (recWithoutMat)
-%   reconstructionParameters(1) = reconstructionParameters(1) ./ pixelSize;
-% end
+if (recWithoutMat)
+  reconstructionParameters(1) = reconstructionParameters(1) ./ pixelSize;
+end
 
 if pBH.('SuperResolution')
   pixelSize = pixelSize * 2;
@@ -442,12 +428,10 @@ parfor iGPU = 1:nGPUs
       if (recWithoutMat)
         if (reconstructionParameters(1))
           NX = size(maskedStack,1);
-          NY = size(maskedStack,2);
-
-%           NY = size(maskedStack,2)-1;
+          NY = size(maskedStack,2)-1;
           NZ = floor(reconstructionParameters(1))
           maxZ = NZ;
-          iCoords = [NX,0,NY-1,NZ,0,0];
+          iCoords = [NX,1,NY,NZ,0,0];
           tomoNumber = 1;
         else
           % TODO deal with templateSearch
@@ -589,29 +573,15 @@ parfor iGPU = 1:nGPUs
           reconName = sprintf('%s/%s_ali%d_%d_%d.rec', ...
                               tmpCache,tiltList{iTilt},mapBackIter+1,iTomo,iSection);
 
-                     
-          if (loadSubTomoMeta)
-            TA = sortrows(masterTM.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},iTomo)),1);
-            TA = TA(:,4);
-          else
-            if (mapBackIter)
-              TA = sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt},...
-                                                         mapBackIter);      
-            else
-              TA = sprintf('%sfixedStacks/%s.tlt',CWD,tiltList{iTilt});
-            end              
-          end
-          
-          rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},iTomo);
-          rawTLT_file = fopen(rawTLT, 'w');
-          fprintf(rawTLT_file,'%f\n', TA');
-          fclose(rawTLT_file);
-          
           if (mapBackIter)
-           
+            rawTLT = sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt},...
+                                                       mapBackIter);
             LOCAL = sprintf('%smapBack%d/%s_ali%d_ctf.local',CWD,mapBackIter,tiltList{iTilt}, ...
-                                                           mapBackIter);                                                          
+                                                           mapBackIter);
+                                          
+                   
           else 
+            rawTLT = sprintf('%sfixedStacks/%s.tlt',CWD,tiltList{iTilt});
             LOCAL = sprintf('%sfixedStacks/%s.local',CWD,tiltList{iTilt});
           end
           
@@ -730,15 +700,9 @@ parfor iGPU = 1:nGPUs
       
     for iT = 1:nTomos
       iTomo = tomoNumber(iT);
-      
-      if reconstructionParameters(1)
-        if (bh_global_turn_on_phase_plate(1))
-          reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
-                                tiltList{iTilt},iTomo,samplingRate);
-        else
-          reconNameFull = sprintf('cache/%s_%d_bin%d_backgroundEst.rec', ...
-                                tiltList{iTilt},iTomo,samplingRate);          
-        end
+      if (bh_global_turn_on_phase_plate(1))
+        reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
+                              tiltList{iTilt},iTomo,samplingRate);
       else
          reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
                               tiltList{iTilt},iTomo,samplingRate);      
