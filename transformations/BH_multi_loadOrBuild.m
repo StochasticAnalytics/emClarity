@@ -73,7 +73,7 @@ else
 end
   
 
-if exist(recon,'file')
+if exist(recon,'file') || ~doRecon
   header = getHeader(MRCImage(stack,0));
   [ reconGeom ] = calc_rg(  header, rCoords );
 elseif (doRecon)
@@ -164,6 +164,9 @@ else
 
 end
 
+if (strcmpi(recon,'tomoCPR'))
+  m = '';
+else
   failedLoads = 0;
   while failedLoads < 6
     try
@@ -189,6 +192,7 @@ end
       end
     end
   end
+end
 
 
 
