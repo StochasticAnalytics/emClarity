@@ -30,24 +30,13 @@ function [ PEAK_COORD ] =  BH_multi_xcf_Translational(  rotPART_FT, REF_FT, ...
 % Option for different correlation functions, for now switching from Xcf to Mcf
 % fixed, but only here (not rotational
 
-if isa(peakMask, 'fourierTransformer')
-  iCCCmap = real(peakMask.invFFT(...
-                 peakMask.swapPhase(rotPART_FT.*REF_FT,'fwd')));
-%   iCCCmap = fftshift(real(peakMask.invFFT(...
-%                  rotPART_FT.*REF_FT)));
-%                figure, imshow3D(gather(iCCCmap));
-%                figure,imshow3D(gather(real(peakMask.invFFT(...
-%                  peakMask.swapPhase(rotPART_FT.*REF_FT,'fwd')))));
-
+if strcmpi(peakMask,'noShift')
+  % regular cross-correlation, but with fourier interp vol so no need for
+  % final fftshift.
+  iCCCmap = real(ifftn(rotPART_FT.*REF_FT));
 else
-  if strcmpi(peakMask,'noShift')
-    % regular cross-correlation, but with fourier interp vol so no need for
-    % final fftshift.
-    iCCCmap = real(ifftn(rotPART_FT.*REF_FT));
-  else
-      % regular cross-correlation
-    iCCCmap = fftshift(real(ifftn(rotPART_FT.*REF_FT)));
-  end
+    % regular cross-correlation
+  iCCCmap = fftshift(real(ifftn(rotPART_FT.*REF_FT)));
 end
 
 
@@ -60,11 +49,9 @@ iCCCmap = iCCCmap - min(iCCCmap(:));
 if nargin > 4 
   if ~isempty(varargin{1})
     % Zero out tighter zone for cases of repeating lattice
-    iCCCmap = iCCCmap .* varargin{1};
+    iCCCmap(varargin{1}) = 0;
   end
 end
-
-
 peakCOM = PEAK_COM;
 
 
@@ -123,10 +110,7 @@ if (~isnan(gather(maxVal)) && (maxVal ~= 0))
   end
 else
    fprintf('maxVal in iCCCmap is %f\n', maxVal);
-%    figure, imshow3D(gather(iCCCmap));
-%    figure, imshow3D(gather(varargin{1}));
-%    error('sdf')
-%    
+   
    PEAK_COORD = [0,0,0];
 end
 PEAK_COORD = PEAK_COORD - ceil((size(iCCCmap)+1)./2);

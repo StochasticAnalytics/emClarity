@@ -1,7 +1,7 @@
 
 function [UPDATED_GEOMETRY] = ...
                             BH_rawAlignmentsApply( INPUT_GEOMETRY , ...
-                            BEST_ANGLES, SAMPLING, nPeaks, rotConvention, varargin)
+                            BEST_ANGLES, SAMPLING, nPeaks, rotConvention)
 %Apply class alignments to the full set of subTomograms
 %   
 %
@@ -59,13 +59,7 @@ for iTomo = 1:nTomograms
     newAlignment = alignmentGeometry.(tomoList{iTomo});
 
  for iPeak = 1:nPeaks   
-   
-    if (varargin{1})
-      includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999 & ...
-                         positionList(:,8  + 26*(iPeak-1)) ~= 0);
-    else
-      includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999);
-    end
+    includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999);
    
     for iParticle = includeList'
      % assuming all classes are sequential, only discarded between cycles.
@@ -75,17 +69,15 @@ for iTomo = 1:nTomograms
      pIndex = find(newAlignment(:,2) == particleIDX);
 
      newAngles = newAlignment(pIndex,[3:5] + 10*(iPeak-1));
-     try
-       newAngles
-       rotConvention
-       classRot = BH_defineMatrix(newAngles,rotConvention,'inv');
-     catch
+% % % % %      try
+     classRot = BH_defineMatrix(newAngles,rotConvention,'inv');
+% % % % %      catch
     
       
-      positionList(iParticle,26 + 26*(iPeak-1)) = -9999;
-      fprintf('particlet %d in catch clause rawAlignmentApply set to ignore\n',particleIDX);
-      continue
-     end
+% % % % %       positionList(iParticle,26 + 26*(iPeak-1)) = -9999;
+% % % % %       fprintf('particlet %d in catch clause rawAlignmentApply set to ignore\n',particleIDX);
+% % % % %       continue
+% % % % %      end
      
   
      oldRot = reshape(positionList(iParticle,[17:25] + 26*(iPeak-1)),3,3);

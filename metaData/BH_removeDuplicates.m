@@ -133,8 +133,8 @@ for iTomo = 1:nTomograms
       % column 3
       posList(maxCCCcoord) = 0;
       nRemoved = nRemoved + sum(posList);
-      positionList(posList,[26:26:end]) = -9999;
-      positionList(posList,[3:26:end])  = -9999;
+      positionList(posList,26) = -9999;
+      positionList(posList,3)  = -9999;
       
     end
     catch

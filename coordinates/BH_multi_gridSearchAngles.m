@@ -44,9 +44,9 @@ end
 
 
 if (length(ANGLE_SEARCH) == 5)
-  helical = ANGLE_SEARCH(5);
+  symmetryConstrainedSearch = ANGLE_SEARCH(5);
 else
-  helical = 0;
+  symmetryConstrainedSearch = 0;
 end
 
   
@@ -130,13 +130,6 @@ else
   % Setting top polar limits the angular search to at most the in plane angles,
   % as the azimuth is also zero for iPolarAngle = 1.
   topPolar = 0;
-end
-
-% Override the search for  helical
-if (helical)
-  fprintf('WARNING: overriding the azimuthal search for helical to -pi:out_of_plane_step:pi\n');
-  azimuthalSearch = -180:OUT_OF_PLANE(2):180;
-  angleStep(:,[2,3]) = repmat([length(azimuthalSearch),OUT_OF_PLANE(2)],size(angleStep,1),1);
 end
 
 % number of angles in the
