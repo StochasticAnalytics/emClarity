@@ -12,6 +12,16 @@
 %   TODO
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+global bh_global_print_shifts_in_particle_basis;
+if isempty(bh_global_print_shifts_in_particle_basis)
+  bh_global_print_shifts_in_particle_basis = true;
+end
+
+global bh_global_zero_lag_score;
+if isempty(bh_global_zero_lag_score)
+  bh_global_zero_lag_score = false
+end
+
 if (nargin ~= 2 && nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, [1,abs(ccc),2,weighted,3,abs(weighted)]')
 else
@@ -19,13 +29,7 @@ else
   resumeVars = struct();
 end
 
-if nargin == 3
-  
-  flgWeightCCC = str2double(varargin{1});
-else
-  % default to linear ccc (which is actually weighted by the SNR though)
-  flgWeightCCC = 0;
-end
+
 
 % Explicit reference to location of variables in main memory, or on the GPU. As
 % in pcaPub, looking ahead to re-write in c++ for cuda, no cells allowed.
@@ -99,6 +103,14 @@ try
 catch 
   flgSymmetrizeSubTomos = 0;
 end
+
+
+try 
+  randomSubset = pBH.('Ali_randSubset');
+catch
+  randomSubset = 0;
+end
+
 flgRaw_shapeMask =  0;%= pBH.('experimentalOpts')(3)
 samplingRate = pBH.('Ali_samplingRate');
 
@@ -130,11 +142,11 @@ catch
 end
 
 rotConvention = 'Bah';
-if length(angleSearch) == 5
-  if ( angleSearch(5) )
-    rotConvention = 'Helical';
-  end
-end
+% % % if length(angleSearch) == 5
+% % %   if ( angleSearch(5) )
+% % %     rotConvention = 'Helical';
+% % %   end
+% % % end
 
 rotConvention
 
@@ -183,10 +195,18 @@ else
   refVectorFull{2} = [pBH.('Raw_classes_eve');1];
 end
 
+system('mkdir -p alignResume');
+
+if (randomSubset)
+  [ geometry, nTOTAL, nSUBSET, randomIDX ] = BH_randomSubset( geometry,'pca', randomSubset, [1,2] );
+  save(sprintf('alignResume/%s_randomSubset.mat',cycleNumber),'randomIDX');
+  fprintf('\nUsing a random subset of %d of %d subtomos\n',nSUBSET,nTOTAL);
+end
 
 % % % pathList= subTomoMeta.mapPath;
 % % % extList = subTomoMeta.mapExt;
 masterTM = subTomoMeta; clear subTomoMeta
+
 
 
 
@@ -446,11 +466,11 @@ clear fftPlanner
                                                          'GPU', {'none'}, 1, 0, 1 );
       radialGrid = single(radialGrid./pixelSize);
       % returns a cpu array
-      if (flgWeightCCC)
-        [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1); 
-      else
+% % %       if (flgWeightCCC)
+% % %         [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1); 
+% % %       else
         [ bandpassFilt{iRef}, ~] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1); 
-      end
+% % %       end
       
 
       bandpassFiltREF{iRef} = 1;
@@ -466,11 +486,11 @@ clear fftPlanner
                                                          'GPU', {'none'}, 1, 0, 1 );
       radialGrid = single(radialGrid./pixelSize);
       % returns a cpu array
-      if (flgWeightCCC)
-        [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1 ); 
-      else
+% % %       if (flgWeightCCC)
+% % %         [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1 ); 
+% % %       else
         [ bandpassFilt{iRef},~ ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1 ); 
-      end
+% % %       end
 
       bandpassFiltREF{iRef} = 1;
 
@@ -516,9 +536,7 @@ for iGold = 1:2
   for iRef = 1:nReferences(iGold)
     
     refTMP_2 = refIMG{iGold}{iRef}; refIMG{iGold}{iRef} = [];
-    refTMP = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
-                      padWindow(1,2) + 1: end - padWindow(2,2), ...
-                      padWindow(1,3) + 1: end - padWindow(2,3));
+    refTMP = BH_padZeros3d(refTMP_2,'inv',padWindow,'GPU','single');
 
 
     % if not using a weighted average (adapted SPW filter), apply an
@@ -533,10 +551,8 @@ for iGold = 1:2
 
     ref_FT2{iGold}{iRef} = gather(refTMP_2);
     % Trim for output reference
-        refTMP_2 = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
-                      padWindow(1,2) + 1: end - padWindow(2,2), ...
-                      padWindow(1,3) + 1: end - padWindow(2,3));
-    
+    refTMP_2 = BH_padZeros3d(refTMP_2,'inv',padWindow,'GPU','single');
+
     % Overwrite a copy of the filtered, bandpassed ref for output
     refOUT{nOut} = real(ifftn(conj(ref_FT1{iGold}{iRef})));
     refOUT{nOut} = gather(refOUT{nOut}(padCalc(1,1) + 1: end - padCalc(2,1), ...
@@ -577,7 +593,7 @@ clear refIMG refWDG refOUT iRef
 %%%%%%%%%%%%%%%%%%%%% search at all in that dimension.
 
 [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
-                                      = BH_multi_gridSearchAngles(angleSearch)
+                                      = BH_multi_gridSearchAngles(angleSearch(1:4))
 
 [masterTM] = BH_recordAngularSampling( masterTM, cycleNumber, angleStep, inPlaneSearch);                               
                                     
@@ -612,10 +628,10 @@ end
 
 size(ref_FT2)
 
-system('mkdir -p alignResume');
+
 
 system(sprintf('mkdir -p alignResume/%s',outputPrefix));
-softenWeight = 1/sqrt(samplingRate);
+softenWeight = 1; %/sqrt(samplingRate);
 for iParProc = 1:nParProcesses
 
   % Caclulating weights takes up a lot of memory, so do all that are necessary
@@ -641,7 +657,7 @@ end
 
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
-%for iParProc = 1:nParProcesses
+% for iParProc = parVect
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
@@ -653,6 +669,18 @@ parfor iParProc = parVect
     iGPUidx = gpuIDXList(iParProc);
     gpuDevice(iGPUidx);
     fprintf('parProc %d/%d assigned to GPU %d\n',iParProc,nParProcesses,iGPUidx);
+    
+  particleResampler = -1;
+  wedgeResampler = -1;
+  eraseResampler = -1;
+  refResampler = -1;
+  
+  bhFT = fourierTransformer(zeros(sizeCalc,'single','gpuArray'));
+  % This is already set-up to calculate a halfGrid, but I need to confirm
+  % that is working. For now, keep it simple
+  fftShiftMask = BH_fftShift(0,-1.*sizeCalc,true);
+  fftShiftMask = fftShiftMask(1:bhFT.halfDimSize,:,:);
+  
   for iTomo = iterList{iParProc}
 
 
@@ -660,7 +688,7 @@ parfor iParProc = parVect
   nCtfGroups = ctfGroupList.(tomoList{iTomo})(1);
   % Check for interupted alignment.
   previousAlignment = sprintf('alignResume/%s/%s.txt',outputPrefix,tomoList{iTomo});
-  if exist(previousAlignment,'file')
+  if ~(randomSubset) && exist(previousAlignment,'file') % With random subsets the alignment can't be resumed. I could set this up to save the random number stream or even simply the list of random idxs.
     % Sometimes when multiple nodes are used, an extra line is added.
     % TODO fix this workaround
     system(sprintf('awk ''{if($10 != "") print $0 }'' %s > %s_clean; mv %s_clean %s',...
@@ -678,17 +706,48 @@ parfor iParProc = parVect
     
     bandpassFilt_tmp = cell(nReferences(1),1);
     bandpassFiltREF_tmp = cell(nReferences(1),1);
+    
+    
     for iRef = 1:nReferences(1)
       if flgMultiRefAlignment <= 2
-      bandpassFilt_tmp{iRef} = gpuArray(bandpassFilt{iRef});
-      bandpassFiltREF_tmp{iRef} = gpuArray(bandpassFiltREF{iRef});
+        if size(bandpassFilt{iRef},1) > 1
+          bandpassFilt_tmp{iRef} = gpuArray(bandpassFilt{iRef}(1:bhFT.halfDimSize,:,:));
+        else
+          bandpassFilt_tmp{iRef} = gpuArray(bandpassFilt{iRef});
+        end
+        
+        if size(bandpassFiltREF_tmp{iRef} ,1) > 1
+          bandpassFiltREF_tmp{iRef} = gpuArray(bandpassFiltREF{iRef}(1:bhFT.halfDimSize,:,:));
+        else      
+          bandpassFiltREF_tmp{iRef} = gpuArray(bandpassFiltREF{iRef});
+        end
       else
-      bandpassFilt_tmp{iRef} = (bandpassFilt{iRef});
-      bandpassFiltREF_tmp{iRef} = (bandpassFiltREF{iRef});
+        if size(bandpassFilt{iRef},1) > 1        
+          bandpassFilt_tmp{iRef} = (bandpassFilt{iRef}(1:bhFT.halfDimSize,:,:));
+        else
+          bandpassFilt_tmp{iRef} = (bandpassFilt{iRef});
+        end
+        if size(bandpassFiltREF_tmp{iRef} ,1) > 1
+          bandpassFiltREF_tmp{iRef} = (bandpassFiltREF{iRef}(1:bhFT.halfDimSize,:,:));
+        else
+            bandpassFiltREF_tmp{iRef} = (bandpassFiltREF{iRef});    
+        end
+                
       end
     end
     
+ 
+    if isa(eraseResampler, 'interplator')
+      eraseResampler.deallocate();
+      delete(eraseReasampler);
+      eraseResampler = -1;
+    end
     
+    if isa(refResampler, 'interpolator')
+      refResampler.deallocate();
+      delete(refResampler);
+      refResampler = -1;
+    end
     
     ref_FT1_tmp = cell(2,1);
     ref_FT2_tmp = cell(2,1);
@@ -701,37 +760,27 @@ parfor iParProc = parVect
     peakMask_tmp = gpuArray(peakMask);
     peakBinary_tmp = single(find( peakMask_tmp > 0.01 )); 
     wdgBinary_tmp = gpuArray(wdgBinary);
-    eraseMask_tmp = gpuArray(eraseMask);
+    if isempty(eraseMask)
+      eraseMask_tmp = [];
+    else
+      eraseMask_tmp = gpuArray(eraseMask);  
+    end
     
     wCCC_tmp = cell(length(wCCC));
-    
 
-    
-    for iRef = 1:nReferences(1)
-      for iWccc = 1:length(wCCC{iRef})
-        if (flgWeightCCC)
-          wCCC_tmp{iRef}{iWccc} = gpuArray(wCCC{iRef}{iWccc});
-        else
-          % The check in xcf_rotational looks for a cell 
-          wCCC_tmp{iRef} = 0;
-        end
-      end
-    end
-      
-    
           
     for iGold = 1:2
       for iRef = 1:nReferences(iGold)
         if flgMultiRefAlignment <= 2
-        ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
+        ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef}(1:bhFT.halfDimSize,:,:));
         ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
-        ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
+        ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef}(1:bhFT.halfDimSize,:,:));
         ref_WGT_rot{iGold}{iRef} = gpuArray(refWgtROT{iGold}{iRef});
         else
         % Temp workaround, six big ribo refs crashing
-        ref_FT1_tmp{iGold}{iRef} = (ref_FT1{iGold}{iRef});
+        ref_FT1_tmp{iGold}{iRef} = (ref_FT1{iGold}{iRef}(1:bhFT.halfDimSize,:,:));
         ref_FT2_tmp{iGold}{iRef} = (ref_FT2{iGold}{iRef});
-        ref_WGT_tmp{iGold}{iRef} = (refWGT{iGold}{iRef});
+        ref_WGT_tmp{iGold}{iRef} = (refWGT{iGold}{iRef}(1:bhFT.halfDimSize,:,:));
         ref_WGT_rot{iGold}{iRef} = (refWgtROT{iGold}{iRef});
         end
       end
@@ -768,10 +817,8 @@ parfor iParProc = parVect
         maxWedgeIfft = maxWedgeMask;
 
         for iWdg = 1:length(maxWedgeMask)
-          if ~isempty(maxWedgeMask{iWdg})           
-            maxWedgeIfft{iWdg} = ifftshift(maxWedgeIfft{iWdg}.^softenWeight);
-            maxWedgeMask{iWdg} = maxWedgeMask{iWdg}.^softenWeight;
-          end
+%           maxWedgeMask{iWdg} = maxWedgeMask{iWdg}.^softenWeight;
+          maxWedgeIfft{iWdg} = ifftshift(maxWedgeIfft{iWdg});
         end
 
       
@@ -820,6 +867,7 @@ parfor iParProc = parVect
     wdgIDX = 0;
     
     for iSubTomo = 1:nSubTomos
+      
       breakPeak = 0; % for try catch on cut out vols    
       if (wdgIDX ~= positionList(iSubTomo,9))
         % Geometry is sorted on this value so that tranfers are minimized,
@@ -827,18 +875,18 @@ parfor iParProc = parVect
         % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
         wdgIDX = positionList(iSubTomo,9);
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
-        % Avoid temporar
-        iMaxWedgeMask = []; iMaxWedgeIfft = [];
+
+        % New wedge mask so reset the interpolator
+        if isa(wedgeResampler, 'interpolator')
+          wedgeResampler.deallocate();
+          delete(wedgeResampler);
+          wedgeResampler = -1;
+        end
         iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
-        iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});       
+        iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX}(1:bhFT.halfDimSize,:,:));       
       end
       
 
-        [~,iw1,iw2,iw3] = BH_resample3d(iMaxWedgeMask, eye(3), [0,0,0], ...
-                              {'Bah',1,'linear',1,wdgBinary_tmp}, ...
-                                                         'GPU', 'inv');  
-        inputWgtVectors = {iw1,iw2,iw3};
-        iw1 = []; iw2 = []; iw3 = [];
                                                        
       for iPeak = 1:nPeaks
         if (breakPeak) 
@@ -849,7 +897,13 @@ parfor iParProc = parVect
         cccStorage2= zeros(nAngles(1).*nReferences(1),10,'gpuArray');
         powerOut = zeros(nAngles(1).*nReferences(1),1,'gpuArray');
       
-    
+        % New particle so reset the interpolator
+        if isa(particleResampler, 'interpolator')
+          particleResampler.deallocate();
+          delete(particleResampler);
+          particleResampler = -1;
+        end
+
     
         % Used in refinment loop
         angCount = 1;
@@ -858,6 +912,12 @@ parfor iParProc = parVect
         classIDX = positionList(iSubTomo, 26+26*(iPeak-1));
         particleIDX = positionList(iSubTomo, 4);
         iGold = positionList(iSubTomo, 7);
+        if (randomSubset)
+          useRandom = positionList(iSubTomo, 8);
+
+        else
+          useRandom = 1;
+        end
      
 
         if classVector{iGold}(1,:) == 0
@@ -869,13 +929,15 @@ parfor iParProc = parVect
         end
 
 
+        
 
         if (classIDX ~= -9999) && ... % All previously ignored particles
          ( flgAllClasses ||  ismember(classIDX, classVector{iGold}(1,:)) ) 
+         
 
-            
+          
         center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
-        angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
+        angles = reshape(positionList(iSubTomo,[17:25]+26*(iPeak-1)),3,3);
         
         % Find range to extract, and check for domain error.
        if (flgCutOutVolumes)
@@ -899,13 +961,17 @@ parfor iParProc = parVect
         geometry_tmp.(tomoList{iTomo})(iSubTomo, 26) = -9999;     
       else
         
+      if (useRandom)
+          % else skip right to the print statment. This is the easiest way
+          % to keep the bookkeeping straight for intial testing.
+        
         
         if (flgCutOutVolumes)
           % Test with some generic padding , only to be used on bin 1 at
           % first!!! TODO add a flag to check this.
           try
             particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
-            iparticle = gpuArray(getVolume(MRCImage(particleOUT_name),[indVAL(1,1),indVAL(2,1)], ...
+            iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),[indVAL(1,1),indVAL(2,1)], ...
                                                                     [indVAL(1,2),indVAL(2,2)], ...
                                                                     [indVAL(1,3),indVAL(2,3)],'keep'));
           catch
@@ -917,20 +983,19 @@ parfor iParProc = parVect
         else
 
           if ( loadTomo )
-            iparticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
+            iParticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
                                             indVAL(1,2):indVAL(2,2), ...
                                             indVAL(1,3):indVAL(2,3)));
 
           else
-            iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+            iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
                                                       [indVAL(1,2),indVAL(2,2)], ...
                                                       [indVAL(1,3),indVAL(2,3)],'keep'));
           end
           
         end
-        [ iparticle ] = BH_padZeros3d(iparticle,  padVAL(1,1:3), ...
-                                      padVAL(2,1:3), 'GPU', 'singleTaper');
-         
+        [ iParticle ] = BH_padZeros3d(iParticle,'fwd',padVAL,'GPU','singleTaper');
+        
 
         
         for iAngle = 1:size(angleStep,1)
@@ -972,10 +1037,8 @@ parfor iParProc = parVect
                   % ignored during the windowing of the particle.
                   estPeakCoord = shiftVAL;
                   % Estimate the peakshift by rotating the ref not the particle.
-                  iTrimParticle = ...
-                         iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                                   padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                                   padWindow(1,3) + 1:end - padWindow(2,3) );
+                iTrimParticle = BH_padZeros3d(iParticle,'inv',padWindow,'GPU','single');
+
                                
 
                 case 2
@@ -988,72 +1051,51 @@ parfor iParProc = parVect
                  
 
              
-
-                % Assuming if class specific symmetry, then some not just 1
-                if (flgSymmetry) 
                   symmetry = classSymmetry{iGold}(1, classPosition);
                   %fprintf('Symmetry confirmation %d\n',symmetry);
-                    [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
-                                                  estPeakCoord,...
-                                                  {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                                                  'GPU', 'inv',inputVectors);
+                          % New particle so reset the interpolator
+                  if isa(particleResampler, 'interpolator')
+
+                    [ iTrimParticle ] = particleResampler.interp3d( ...
+                                                     iParticle, RotMat, estPeakCoord, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                  else
+
+                    [particleResampler, iTrimParticle] = interpolator( ...
+                                                     iParticle, RotMat, estPeakCoord, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
 
 
+                  end
+
+                  if isa(wedgeResampler, 'interpolator')
+
+                    [ iWedgeMask ] = wedgeResampler.interp3d( ...
+                                                     iMaxWedgeMask, RotMat, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                  else
+
+                    [wedgeResampler, iWedgeMask] = interpolator( ...
+                                                     iMaxWedgeMask, RotMat, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+
+
+                  end
+                  
 
                      if (getInitialCCC)
-                     [ iTrimInitial ] =  BH_resample3d(iparticle, ...
-                                                    reshape(angles,3,3),... 
-                                                    shiftVAL,...
-                                                    {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                                                    'GPU', 'inv',inputVectors);
-
-                    
-           
-% % %                      powerInitial =  sum(abs(iTrimInitial(volBinary_tmp))).^2;   
-% % % 
-                
-                      iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
-                                               {'Bah',symmetry,'linear',1,wdgBinary_tmp}, ...
-                                               'GPU', 'inv',inputWgtVectors);
-                      
-                                 
+                       
+                     [ iTrimInitial ] = particleResampler.interp3d( ...
+                                                     iParticle, angles, shiftVAL, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                                                   
+                    [ iWedgeInitial ] = wedgeResampler.interp3d( ...
+                                                     iMaxWedgeMask, angles, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
+                                                   
+                                                   
                      end           
 
-                        iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                                 {'Bah',symmetry,'linear',1,wdgBinary_tmp}, ...
-                                                 'GPU', 'inv',inputWgtVectors);
-                    
-
-
-
-
-                else
-                  symmetry = 1;
-                  % Transform the particle, and then trim to motif size
-
-                  [ iTrimParticle ] = BH_resample3d(iparticle, RotMat, ...
-                                            estPeakCoord, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
-                       iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                       {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'inv',inputWgtVectors);
-
-
-
-                  if (getInitialCCC)
-                     
-                     iTrimInitial =  BH_resample3d(iparticle, reshape(angles,3,3),... 
-                                           shiftVAL,{'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
-                                         
-
-                                   
-                     iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
-                                                  {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'inv',inputWgtVectors);         
-                                                                          
-                  end
-                end % Symmetry or not + interpolation
-                
-                 
-% % %                  powerOut(angCount) =   sum(abs(iTrimParticle(volBinary_tmp))).^2;
-                 
               end
 
                 
@@ -1076,57 +1118,104 @@ parfor iParProc = parVect
 
                   
                     % use transpose of RotMat
-           
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{iRef}, RotMat', ...
-                                            estPeakCoord, {'Bah',1,'linear',1,peakBinary_tmp}, 'GPU', 'forward',inputVectors);
-                    
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{iRef}, RotMat', ...
-                                            [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);
-                                      
-%                     iRotRef = ...
-%                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                       padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                       padWindow(1,3) + 1:end - padWindow(2,3) );                                          
+                    Rtr = RotMat';
 
+                    [ ~, iRotRef ] = interpolator(ref_FT2_tmp{iGold}{iRef}, Rtr, estPeakCoord, ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true);                
+            
+              
+                    % The eraseMask, if used, must be transformed into the
+                    % rotated coordinate system
+                   if isempty(eraseMask_tmp)     
+                     useVals = [];
+                   else
+                     if isa(eraseResampler, 'interpolator')
+
+                      [ useVals ] = eraseResampler.interp3d( ...
+                                                       eraseMask_tmp, Rtr, -1.*estPeakCoord, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+                    else
+
+                      [eraseResampler, useVals] = interpolator( ...
+                                                       eraseMask_tmp, Rtr, -1.*estPeakCoord, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+
+
+                     end
+                     
+                     useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+                   end
+                    
+                    [ ~, iRotWdg ] = interpolator(ref_WGT_rot{iGold}{iRef}, Rtr, [0,0,0], ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
+         
+                                      
+                  
                     % maybe I should be rotating peak mask here in case it has
                     % an odd shape, since we are leaving the proper frame
                         
-                    iRotRef = BH_bandLimitCenterNormalize(...
-                                                         iRotRef.*peakMask_tmp,...
-                                                         bandpassFiltREF_tmp{iRef} ,peakBinary_tmp,...
-                                                         padCalc,flgPrecision);
-                                                       
-                    rotPart_FT = BH_bandLimitCenterNormalize(...
-                                 iTrimParticle.*peakMask_tmp,...
-                                 bandpassFilt_tmp{iRef} ,peakBinary_tmp,padCalc,flgPrecision); 
-                               
+                     [ iRotRef ] = BH_bandLimitCenterNormalize_halfGrid( ...
+                                                  iRotRef.*peakMask_tmp,...
+                                                  bandpassFiltREF_tmp{iRef},...
+                                                  bhFT, padCalc);
+                                                
+% % %                     iRotRef = BH_bandLimitCenterNormalize(...
+% % %                                                          iRotRef.*peakMask_tmp,...
+% % %                                                          bandpassFiltREF_tmp{iRef} ,peakBinary_tmp,...
+% % %                                                          padCalc,flgPrecision);
+
+                     [ rotPart_FT ] = BH_bandLimitCenterNormalize_halfGrid( ...
+                                                  iTrimParticle.*peakMask_tmp,...
+                                                  bandpassFilt_tmp{iRef},...
+                                                  bhFT, padCalc);
+                                                
+% % %                     rotPart_FT = BH_bandLimitCenterNormalize(...
+% % %                                  iTrimParticle.*peakMask_tmp,...
+% % %                                  bandpassFilt_tmp{iRef} ,peakBinary_tmp,padCalc,flgPrecision); 
+  
                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                                                            rotPart_FT.*ifftshift(iRotWdg), ...
+                                                            rotPart_FT.*iRotWdg(fftShiftMask), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            bhFT, peakCOM,useVals);
+% % %                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
+% % %                                                             rotPart_FT.*ifftshift(iRotWdg), ...
+% % %                                                             conj(iRotRef).*iMaxWedgeIfft,...
+% % %                                                             peakMask_tmp, peakCOM,useVals);
 
 
                     cccStorageTrans(iRef,:) = [iRef, particleIDX, ...
                                                phi, theta, psi - phi, ...
                                                0, 0, ...
-                                               peakCoord + estPeakCoord];                                      
+                                               peakCoord + estPeakCoord];        
+                                             
+                                             
                   case 2
                     
                     % get starting point
                     if (getInitialCCC)
                       
-                      initialRotPart_FT = BH_bandLimitCenterNormalize(...
+                      initialRotPart_FT = BH_bandLimitCenterNormalize_halfGrid(...
                                               iTrimInitial.*volMask_tmp,...
-                                              bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
-                    
+                                              bandpassFilt_tmp{iRef} , ...
+                                              bhFT, padCalc);
+% % %                       initialRotPart_FT = BH_bandLimitCenterNormalize(...
+% % %                                               iTrimInitial.*volMask_tmp,...
+% % %                                               bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
                     
 
                       [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( initialRotPart_FT, ...
                                                            ref_FT1_tmp{iGold}{iRef}, ...
-                                                           ifftshift(iWedgeInitial),...
+                                                           iWedgeInitial(fftShiftMask),...
                                                            ref_WGT_tmp{iGold}{iRef}, ...
-                                                           wCCC_tmp{iRef});
+                                                           bh_global_zero_lag_score);
+% % %                       [ iCCC, ~ ] = ...
+% % %                                   BH_multi_xcf_Rotational( initialRotPart_FT, ...
+% % %                                                            ref_FT1_tmp{iGold}{iRef}, ...
+% % %                                                            ifftshift(iWedgeInitial),...
+% % %                                                            ref_WGT_tmp{iGold}{iRef}, ...
+% % %                                                            bh_global_zero_lag_score);
+% % %                                                            wCCC_tmp{iRef});
 
 
                           
@@ -1141,20 +1230,30 @@ parfor iParProc = parVect
                     
                   
                     end
-                    
-                  rotPart_FT = BH_bandLimitCenterNormalize(...
+  
+                    rotPart_FT = BH_bandLimitCenterNormalize_halfGrid(...
                                             iTrimParticle.*volMask_tmp,...
-                                            bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
+                                            bandpassFilt_tmp{iRef} ,...
+                                            bhFT,padCalc);
+% % %                   rotPart_FT = BH_bandLimitCenterNormalize(...
+% % %                                             iTrimParticle.*volMask_tmp,...
+% % %                                             bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
                                           
                                           
                      
-                      
                       [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( rotPart_FT, ...
                                                            ref_FT1_tmp{iGold}{iRef},...
-                                                           ifftshift(iWedgeMask),...
+                                                           iWedgeMask(fftShiftMask),...
                                                            ref_WGT_tmp{iGold}{iRef}, ...
-                                                           wCCC_tmp{iRef});
+                                                           bh_global_zero_lag_score);                     
+% % %                       [ iCCC, ~ ] = ...
+% % %                                   BH_multi_xcf_Rotational( rotPart_FT, ...
+% % %                                                            ref_FT1_tmp{iGold}{iRef},...
+% % %                                                            ifftshift(iWedgeMask),...
+% % %                                                            ref_WGT_tmp{iGold}{iRef}, ...
+% % %                                                            bh_global_zero_lag_score);
+% %                                                            wCCC_tmp{iRef});
                                                          
 
 
@@ -1289,57 +1388,24 @@ parfor iParProc = parVect
               case 1
                
                 % Estimate the peakshift by rotating the ref not the particle.
-                iTrimParticle = ...
-                       iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                                 padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                                 padWindow(1,3) + 1:end - padWindow(2,3) );
-                               
+                iTrimParticle = BH_padZeros3d(iParticle,'inv',padWindow,'GPU','single');
+                
               case 2
             
-               % Assuming if class specific symmetry, then some not just 1
-                if (flgSymmetry)
-                  symmetry = classSymmetry{iGold}(1, classPosition);
+                
+                % Assuming that the interpolator class is set in the first
+                % loop.
+                
+                [ iTrimParticle ] = particleResampler.interp3d( ...
+                                                     iParticle, RotMat, rXYZ, ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
 
-                    [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
-                                                  rXYZ,...
-                                                  {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                                                  'GPU', 'inv',inputVectors);
-
-
-%                     iTrimParticle =  iTrimParticle(...
-%                                      padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                      padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                      padWindow(1,3) + 1:end - padWindow(2,3) );
-                    
-                         iWedgeMask =  BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                                         {'Bah',symmetry,'linear',1,wdgBinary_tmp},...
-                                                         'GPU', 'inv',inputWgtVectors);
-                      
-
-                else
-                  symmetry = 1;
-                  % Transform the particle, and then trim to motif size
-
-                  [ iTrimParticle ] = BH_resample3d(iparticle, RotMat, ...
-                                            rXYZ, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'inv',inputVectors);
+                [ iWedgeMask ] = wedgeResampler.interp3d( ...
+                                                     iMaxWedgeMask, RotMat, [0,0,0], ...
+                                                     'Bah', 'inv', sprintf('C%d',symmetry));
 
 
-                         iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                                           {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'inv');
-                     
-                          
-%                     iTrimParticle = ...
-%                          iTrimParticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                      padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                      padWindow(1,3) + 1:end - padWindow(2,3) );
-
-
-                end % Symmetry or not + interpolation
-
-
-
-
-              
+                        
             end
 
 
@@ -1347,30 +1413,58 @@ parfor iParProc = parVect
               if alignLoop == 1
 
                     % use transpose of RotMat
-                    try
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{rRef}, RotMat', ...
-                                            rXYZ, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                    catch
-                    cccPreRefineSort(1,1)
-                    end                      
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{rRef}, RotMat', ...
-                                [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);                                          
+                    Rtr = RotMat';
+     
+                    [ ~, iRotRef ] = interpolator(ref_FT2_tmp{iGold}{iRef}, Rtr, rXYZ, ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
+                    
+                    % The eraseMask, if used, must be transformed into the
+                    % rotated coordinate system
+                   if isempty(eraseMask_tmp)     
+                     useVals = [];
+                   else
+                     
+                     [ useVals ] = eraseResampler.interp3d( ...
+                                                       eraseMask_tmp, Rtr, -1.*rXYZ, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+
+                     useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+                     
+                   end
+                    
+                   [ ~, iRotWdg ] = interpolator(ref_WGT_rot{iGold}{iRef}, Rtr, [0,0,0], ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
+                                                 
                                       
 
-
-                    iRotRef = BH_bandLimitCenterNormalize(...
+                                                   
+                    iRotRef = BH_bandLimitCenterNormalize_halfGrid(...
                                                          iRotRef.*peakMask_tmp,...
-                                                         bandpassFiltREF_tmp{rRef},peakBinary_tmp,...
-                                                         padCalc,flgPrecision);
+                                                         bandpassFiltREF_tmp{rRef},...
+                                                         bhFT,padCalc);
                                                        
-                    rotPart_FT = BH_bandLimitCenterNormalize(...
+                    rotPart_FT = BH_bandLimitCenterNormalize_halfGrid(...
                                  iTrimParticle.*peakMask_tmp,...
-                                 bandpassFilt_tmp{rRef} ,peakBinary_tmp,padCalc,flgPrecision); 
+                                 bandpassFilt_tmp{rRef} ,bhFT,padCalc); 
                                
                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                                                            rotPart_FT.*ifftshift(iRotWdg), ...
+                                                            rotPart_FT.*iRotWdg(fftShiftMask), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            bhFT, peakCOM,useVals);
+% % % 
+% % %                     iRotRef = BH_bandLimitCenterNormalize(...
+% % %                                                          iRotRef.*peakMask_tmp,...
+% % %                                                          bandpassFiltREF_tmp{rRef},peakBinary_tmp,...
+% % %                                                          padCalc,flgPrecision);
+% % %                                                        
+% % %                     rotPart_FT = BH_bandLimitCenterNormalize(...
+% % %                                  iTrimParticle.*peakMask_tmp,...
+% % %                                  bandpassFilt_tmp{rRef} ,peakBinary_tmp,padCalc,flgPrecision); 
+% % %                                
+% % %                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
+% % %                                                             rotPart_FT.*ifftshift(iRotWdg), ...
+% % %                                                             conj(iRotRef).*iMaxWedgeIfft,...
+% % %                                                             peakMask_tmp, peakCOM,useVals);
 
                                                           
                 % 2016-11-11 also took out (+ rXYZ) 
@@ -1379,17 +1473,29 @@ parfor iParProc = parVect
                                           1, 1, ...
                                           peakCoord+rXYZ]; 
               else
-                  rotPart_FT = BH_bandLimitCenterNormalize(...
+                
+                  rotPart_FT = BH_bandLimitCenterNormalize_halfGrid(...
                                             iTrimParticle.*volMask_tmp,...
-                                            bandpassFilt_tmp{rRef},volBinary_tmp,...
-                                            padCalc,flgPrecision);
-               
-                      [ iCCC, ~ ] = ...
+                                            bandpassFilt_tmp{rRef},bhFT,...
+                                            padCalc);       
+                  [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( rotPart_FT, ...
                                                            ref_FT1_tmp{iGold}{rRef},...
-                                                           ifftshift(iWedgeMask),...
+                                                           iWedgeMask(fftShiftMask),...
                                                            ref_WGT_tmp{iGold}{rRef}, ...
-                                                           wCCC_tmp{iRef});
+                                                           bh_global_zero_lag_score);                                          
+% % %                   rotPart_FT = BH_bandLimitCenterNormalize(...
+% % %                                             iTrimParticle.*volMask_tmp,...
+% % %                                             bandpassFilt_tmp{rRef},volBinary_tmp,...
+% % %                                             padCalc,flgPrecision);
+               
+% % %                       [ iCCC, ~ ] = ...
+% % %                                   BH_multi_xcf_Rotational( rotPart_FT, ...
+% % %                                                            ref_FT1_tmp{iGold}{rRef},...
+% % %                                                            ifftshift(iWedgeMask),...
+% % %                                                            ref_WGT_tmp{iGold}{rRef}, ...
+% % %                                                            bh_global_zero_lag_score);
+% % %                                                            wCCC_tmp{iRef});
 
 
                 cccStorage3(iRefine,:) = [rRef, rPart, ...
@@ -1412,31 +1518,17 @@ parfor iParProc = parVect
         try
           if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
             bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
-% % %             % Get the negative slope of the top ten CCC scores.
-% % %             topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear');
-% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
 
           else
             bestRotPeak = cccPreRefineSort(1,:);
             bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
-% % %             rowNum = min(size(cccPreRefineSort,1),10*nPeaks);
-% % %             topX = 1- 0.1.*(10-rowNum);
-% % %             % Get the negative slope of the top ten CCC scores.
-% % %             topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear');
-% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
 
           end
         catch
           fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
                 cccStorageRefine{iPeak}(iSubTomo,:)
           cccPreRefineSort(1,:)
-% % %                 rowNum = min(size(cccPreRefineSort,1),10*nPeaks)
-% % %                 topX = 1- 0.1.*(10-rowNum)
-% % %           fprintf('\nNow check the fits, first and second clause\n');
-% % %                 topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear')
-% % %           fprintf('\nSecond\n');
-% % %           topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear')
-% % %           error('Error in sorting the best peak in alignRaw');
+
         end
 
           finalRef  = bestRotPeak(1,1);
@@ -1452,48 +1544,63 @@ parfor iParProc = parVect
 
 
 
+          iTrimParticle = BH_padZeros3d(iParticle, 'inv', padWindow, 'GPU', 'single');
+     
+
+            % use transpose of RotMat
+            %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
+            %%% the last writing, but now switching to zeros
+            Rtr = RotMat';
+
+            % The eraseMask, if used, must be transformed into the
+            % rotated coordinate system
+           if isempty(eraseMask_tmp)     
+             useVals = [];
+           else
+            [ useVals ] = eraseResampler.interp3d( ...
+                                                       eraseMask_tmp, Rtr, -1.*finalrXYZest, ...
+                                                       'Bah', 'forward', sprintf('C%d',1));
+      
+             useVals = BH_padZeros3d(useVals,'fwd',eraseMaskPad,'GPU','single');
+
+           end
+
     
-                  iTrimParticle = ...
-                       iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                                   padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                                   padWindow(1,3) + 1:end - padWindow(2,3) );
-                                 
+           
+          [ ~, iRotRef ] = interpolator(ref_FT2_tmp{iGold}{iRef}, Rtr, finalrXYZest, ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true);             
+          [ ~, iRotWdg ] = interpolator(ref_WGT_rot{iGold}{iRef}, Rtr, [0,0,0], ...
+                                                     'Bah', 'forward', sprintf('C%d',1), true); 
  
-                    % use transpose of RotMat
-                    %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
-                    %%% the last writing, but now switching to zeros
-                    try
-                    iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{finalRef}, RotMat', ...
-                                            finalrXYZest, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                    iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{finalRef}, RotMat', ...
-                                            [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);    
-                    catch
-                      fprintf('\n\nFinal ref,part,phi,theta,psi %f %f %f %f %f\n\n',...
-                        bestRotPeak(:,1:5));
-                       bestRotPeak(1,1:5)
-                       fprintf('BreakPeak %d\n',breakPeak);
-                      error('errrorsoedfsdf')
-                    end
-                                        
-%                     iRotRef = ...
-%                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                       padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                       padWindow(1,3) + 1:end - padWindow(2,3) );                                          
 
 
-                    iRotRef = BH_bandLimitCenterNormalize(...
-                                                         iRotRef.*peakMask_tmp,...
-                                                         bandpassFiltREF_tmp{finalRef} ,peakBinary_tmp,...
-                                                         padCalc,flgPrecision);
-                                                       
-                    rotPart_FT = BH_bandLimitCenterNormalize(...
-                                 iTrimParticle.*peakMask_tmp,...
-                                 bandpassFilt_tmp{finalRef} ,peakBinary_tmp,padCalc,flgPrecision ); 
-                               
-                    [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                                                            rotPart_FT.*ifftshift(iRotWdg), ...
-                                                            conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+          iRotRef = BH_bandLimitCenterNormalize_halfGrid(...
+                                               iRotRef.*peakMask_tmp,...
+                                               bandpassFiltREF_tmp{finalRef},...
+                                               bhFT,padCalc);
+
+          rotPart_FT = BH_bandLimitCenterNormalize_halfGrid(...
+                       iTrimParticle.*peakMask_tmp,...
+                       bandpassFilt_tmp{finalRef} , bhFT,padCalc ); 
+
+          [ peakCoord ] =  BH_multi_xcf_Translational( ...
+                                                  rotPart_FT.*iRotWdg(fftShiftMask), ...
+                                                  conj(iRotRef).*iMaxWedgeIfft,...
+                                                  bhFT, peakCOM,useVals);
+                                                
+% % %           iRotRef = BH_bandLimitCenterNormalize(...
+% % %                                                iRotRef.*peakMask_tmp,...
+% % %                                                bandpassFiltREF_tmp{finalRef} ,peakBinary_tmp,...
+% % %                                                padCalc,flgPrecision);
+% % % 
+% % %           rotPart_FT = BH_bandLimitCenterNormalize(...
+% % %                        iTrimParticle.*peakMask_tmp,...
+% % %                        bandpassFilt_tmp{finalRef} ,peakBinary_tmp,padCalc,flgPrecision ); 
+% % % 
+% % %           [ peakCoord ] =  BH_multi_xcf_Translational( ...
+% % %                                                   rotPart_FT.*ifftshift(iRotWdg), ...
+% % %                                                   conj(iRotRef).*iMaxWedgeIfft,...
+% % %                                                   peakMask_tmp, peakCOM,useVals);
 
 % % %           end
 
@@ -1505,35 +1612,66 @@ parfor iParProc = parVect
           cccStorageBest{iPeak}(iSubTomo,:) = gather([bestRotPeak(1,1:7), ...
                                         peakCoord + finalrXYZest - shiftVAL]) ;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
+        % It is probably more useful see the shifts in the particle
+        % reference frame vs. the avg which was the original
+        if (bh_global_print_shifts_in_particle_basis)
+          printShifts = zeros(3,3);
+          printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
+          printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
+          printShifts(3,:) = RotMat * reshape(cccStorageBest{iPeak}(iSubTomo,end-2:end),3,1);
+        else
+          printShifts = [cccInitial(1,end-2:end); ...
+                         cccPreRefineSort(1,end-2:end);...
+                         cccStorageBest{iPeak}(iSubTomo,end-2:end)];
+        end
+        
+        % Print out in Angstrom
+        printShifts = printShifts .* pixelSize;
+          
 
         deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
         if (deltaCCC < 0) && (abs(deltaCCC) > 0.15*cccInitial(1,6))
           fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
-          fprintf(['\n%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',cccInitial(1,:),'PreRefine',cccStorageBest{iPeak}(iSubTomo,:));          
+          fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreRefine', iPeak,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));          
           cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
           
         end
 
+      else
+         printShifts = zeros(3,3);
+        cccInitial(1,:) = [1,particleIDX,0,0,0,0,1,0,0,0];
+        cccPreRefineSort(1,:) = [1,particleIDX,0,0,0,0,1,0,0,0];
+        cccStorageBest{iPeak}(iSubTomo,:)  = [1,particleIDX,0,0,0,0,1,0,0,0];       
+  
+      end % end of if use random - this makes sure that the dummy coords are printed to resume txt files.
+      
+      if (useRandom)
+      
         if (flgRefine)
-          fprintf(['\n%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',classIDX,cccInitial(1,:), ...
-                   'PreRefine', classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
-                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:end)], ...
-                   'PostRefine',classIDX,cccStorageBest{iPeak}(iSubTomo,:));
+          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:), ...
+                   'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
+                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
+                   'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         else
-          fprintf(['\n%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',classIDX,cccInitial(1,:),'PreRefine',classIDX,cccStorageBest{iPeak}(iSubTomo,:));
+          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         end
 
-    
+      end % only print the non-random values 
+      
       end % if condition on newly ignored particles
+      
       end
 
       if ~(rem(iSubTomo,100))
@@ -1544,15 +1682,15 @@ parfor iParProc = parVect
       end
 
 
-    iParticle = [];
-    iSymParti = [];
-    iTrimParticle = [];
-    iAsym = [];
-    iTrimAsym = [];
-    iWedgeMask = [];
-    rotPart_FT = [];
-    rotParticle = [];
-        end % end loop over possible peaks
+      iParticle = [];
+      iSymParti = [];
+      iTrimParticle = [];
+      iAsym = [];
+      iTrimAsym = [];
+      iWedgeMask = [];
+      rotPart_FT = [];
+      rotParticle = [];
+    end % end loop over possible peaks
     end % loop over subTomos
 
     
@@ -1615,7 +1753,7 @@ end
 %   save('bestAnglesTemp.mat', 'bestAngles');
  save('bestAngles.mat', 'bestAngles');
  
-  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks,rotConvention );
+  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks,rotConvention, randomSubset );
   masterTM.(cycleNumber).('RawAlign') = rawAlign;
   masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
 
