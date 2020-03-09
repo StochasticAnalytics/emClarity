@@ -84,6 +84,10 @@ if (justHighPass)
   bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
 end
 
+  fractionOfDose = TLT(:,14)/mean(TLT(:,14));
+  fractionOfElastics = exp(-1.*THICKNESS./( cosd(TLT(:,4)).*400 ));
+  fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
+  
 for iPrj = 1:d3
   
   if (justHighPass)
@@ -115,11 +119,9 @@ for iPrj = 1:d3
     iProjection = iProjection ./ rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
   end
   
-  fractionOfDose = TLT(iPrj,14)/mean(TLT(:,14));
-  fractionOfElastics = exp(-1.*THICKNESS/( cosd(TLT(iPrj,4))*400 ));
-  fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
+
   
-  iProjection = iProjection .* (fractionOfDose*fractionOfElastics);
+  iProjection = iProjection .* (fractionOfDose(iPrj)*fractionOfElastics(iPrj));
 
 %   if (useMask)
 %     meanVariance = meanVariance + rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
