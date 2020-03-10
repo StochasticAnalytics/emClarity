@@ -13,7 +13,7 @@ function [result, message] = evaluateOutput(TYPE, SIZE, METHOD, OPTION, OUTPUTCE
 % check the size, method and precision
 % if TYPE='fftshift', compare shift with fftshift
 % if TYPE='ifftshift', compare shift with ifftshift
-% if TYPE='half2full', compare with ifftn (same test as EMC_irfftn)
+% if TYPE='nc2nc', compare with ifftn (same test as EMC_irfftn)
 
 % if half SIZE, use the half2full option to recompute the full grid,
 % then compare with fftshift or ifftshift.
@@ -117,7 +117,7 @@ elseif strcmpi(TYPE, 'ifftshift')
     end
 end
 
-% half2full is tested in test_EMC_rfftn_and_irfftn
+% nc2nc is tested in test_EMC_rfftn_and_irfftn
 
 % You have passed the test, congratulation.
 result = 'passed';
@@ -127,7 +127,7 @@ end
 
 
 function test_default(testCase)
-types = {'fftshift'; 'ifftshift'; 'half2full'; "fftshift"; "ifftshift"; "half2full"};
+types = {'fftshift'; 'ifftshift'; 'nc2nc'; "fftshift"; "ifftshift"; "nc2nc"};
 sizes = [help_getRandomSizes(5, [500, 2000], '2d'); help_getRandomSizes(5, [50, 200], '3d')];
 methods = {'cpu'; 'gpu'};
 options = help_getBatchOption({'half', {true; false}; ...

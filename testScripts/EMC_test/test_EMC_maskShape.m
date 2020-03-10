@@ -72,15 +72,15 @@ function test_default_2d(testCase)
 
 shapes = {'rectangle'; 'sphere'; 'cylinder'};
 sizes = help_getRandomSizes(1, [50, 1000], '2d');
-radius = help_getRandomSizes(1, [10, 400], '2d');
+radius = [help_getRandomSizes(1, [10, 400], '2d'); [30.5,32.1]];
 method = {'cpu'; 'gpu'};
 
 kernel = [1.5e-06 0.00013 0.0044 0.054 0.24 0.4 0.24 0.054 0.0044 0.00013 1.5e-06];
 option = help_getBatchOption({'origin', {1; 2}; ...
                               'precision', {'single' ; 'double'}; ...
-                              'sym', {1;2;3;6}; ...
+                              'sym', {1;2;6}; ...
                               'kernel', {true;false;0;0.2;kernel}; ...
-                              'shift', help_getRandomSizes(1, [-100,100], '2d')});
+                              'shift', [help_getRandomSizes(1, [-100,100], '2d'); [30.5,-32.1]]});
 
 testCase.TestData.toTest = help_getBatch(shapes, sizes, radius, method, option, {false}, {false});
 EMC_runTest(testCase);
@@ -94,15 +94,15 @@ function test_default_3d(testCase)
 
 shapes = {'rectangle'; 'sphere'; 'cylinder'};
 sizes = help_getRandomSizes(1, [50, 200], '3d');
-radius = help_getRandomSizes(1, [10, 100], '3d');
+radius = [help_getRandomSizes(1, [10, 100], '3d'); [30.5,32.1,20.4]];
 method = {'cpu'; 'gpu'};
 
 kernel = [1.5e-06 0.00013 0.0044 0.054 0.24 0.4 0.24 0.054 0.0044 0.00013 1.5e-06];
 option = help_getBatchOption({'origin', {1; 2}; ...
                               'precision', {'single' ; 'double'}; ...
-                              'sym', {1;2;3;6}; ...
+                              'sym', {1;2;6}; ...
                               'kernel', {true;false;0;0.2;kernel}; ...
-                              'shift', help_getRandomSizes(1, [-100,100], '3d')});
+                              'shift', [help_getRandomSizes(1, [-100,100], '3d'); [-30.5,32.1,-20.4]]});
 
 testCase.TestData.toTest = help_getBatch(shapes, sizes, radius, method, option, {false}, {false});
 EMC_runTest(testCase);

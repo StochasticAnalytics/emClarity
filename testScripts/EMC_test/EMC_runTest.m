@@ -147,7 +147,7 @@ for iTest = 1:nbTests
 
     try
         % Run test.
-        outputs = cell(1, nargout(testCase.TestData.functionToTest));
+        outputs = cell(1, abs(nargout(testCase.TestData.functionToTest)));
         [outputs{:}] = testCase.TestData.functionToTest(testCase.TestData.toTest{iTest, 1:end-2});
 
         if testCase.TestData.toTest{iTest, end-1}  % an error was expected but wasn't raised.

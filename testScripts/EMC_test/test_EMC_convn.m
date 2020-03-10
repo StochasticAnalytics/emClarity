@@ -46,9 +46,10 @@ end
 
 % separable
 if EXTRA && isvector(KERNEL)
-   	out = EMC_convn(IMAGE, EMC_gaussianKernel(zeros(1, ndims(IMAGE)) + length(KERNEL), EXTRA, ...
-                    {'precision', actualPrecision; 'method', actualMethod}));
-  	if any(abs(out - convolvedImg) > 1e-6, 'all')
+    kSize = zeros(1, ndims(IMAGE)) + length(KERNEL);
+   	out = EMC_convn(IMAGE, ...
+                    EMC_gaussianKernel(kSize, EXTRA, actualMethod, {'precision', actualPrecision}));
+  	if any(abs(out - convolvedImg) > 1e-5, 'all')
       	message = 'separable kernel does not give the same results as standard kernel';
        	return
     end
@@ -69,27 +70,27 @@ sizesKernel = {[5,5];[6,6];[1,5];[5,1];[1,6];[6,1]};
 % cpu double
 sizes = help_getRandomSizes(2, [10,300], '2d');
 img = help_getBatch({'fixtureRand'}, {'cpu'}, {'double'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'double';'method','cpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'cpu'}, {{'precision', 'double'}});
 testCase.TestData.toTest = help_getBatch(img, kernel, {false}, sigma);
 
 % cpu single
 sizes = help_getRandomSizes(2, [10,300], '2d');
 img = help_getBatch({'fixtureRand'}, {'cpu'}, {'single'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'single';'method','cpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'cpu'}, {{'precision', 'single'}});
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, kernel, {false}, sigma)];
 
 % gpu double
 sizes = help_getRandomSizes(2, [10,300], '2d');
 img = help_getBatch({'fixtureRand'}, {'gpu'}, {'double'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'double';'method','gpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'gpu'}, {{'precision', 'double'}});
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, kernel, {false}, sigma)];
 
 % cpu single
 sizes = help_getRandomSizes(2, [10,300], '2d');
 img = help_getBatch({'fixtureRand'}, {'gpu'}, {'single'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'single';'method','gpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'gpu'}, {{'precision', 'single'}});
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, kernel, {false}, sigma)];
 
@@ -107,27 +108,27 @@ sizesKernel = {[5,5,5];[6,6,6];[1,5];[5,1];[1,6];[6,1]};
 % cpu double
 sizes = help_getRandomSizes(2, [10,300], '3d');
 img = help_getBatch({'fixtureRand'}, {'cpu'}, {'double'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'double';'method','cpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'cpu'}, {{'precision', 'double'}});
 testCase.TestData.toTest = help_getBatch(img, kernel, {false}, sigma);
 
 % cpu single
 sizes = help_getRandomSizes(2, [10,300], '3d');
 img = help_getBatch({'fixtureRand'}, {'cpu'}, {'single'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'single';'method','cpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'cpu'}, {{'precision', 'single'}});
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, kernel, {false}, sigma)];
 
 % gpu double
 sizes = help_getRandomSizes(2, [10,300], '3d');
 img = help_getBatch({'fixtureRand'}, {'gpu'}, {'double'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'double';'method','gpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'gpu'}, {{'precision', 'double'}});
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, kernel, {false}, sigma)];
 
 % cpu single
 sizes = help_getRandomSizes(2, [10,300], '3d');
 img = help_getBatch({'fixtureRand'}, {'gpu'}, {'single'}, sizes);
-kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {{'precision', 'single';'method','gpu'}});
+kernel = help_getBatch({'fixtureKernel'}, sizesKernel, sigma, {'gpu'}, {{'precision', 'single'}});
 testCase.TestData.toTest = [testCase.TestData.toTest; ...
                             help_getBatch(img, kernel, {false}, sigma)];
 
