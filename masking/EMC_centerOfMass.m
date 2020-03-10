@@ -1,19 +1,19 @@
 function COM = EMC_centerOfMass(IMAGE, ORIGIN)
 %
-% COM = EMC_centerOfMass(IMAGE, ORIGIN)
+% COM = EMC_centerOfMass(IMAGE, MASK, ORIGIN)
 % Compute the center of mass of real space 2d/3d IMAGE.
 %
 % Input:
-%   IMAGE (numeric):	2d/3d IMAGE.
+%   IMAGE (numeric):    2d/3d image.
 %
-%   ORIGIN (int):     	Origin convention; 0, 1 or 2;
+%   ORIGIN (int):       Origin convention; 0, 1 or 2;
 %                       The center of mass (COM) is relative to this origin.
-%                      	See EMC_coordVectors for more details.
+%                       See EMC_coordVectors for more details.
 %
 % Output:
 %   COM (row vector):   Center of mass of the IMAGE; 2d:[x,y] or 3d:[x,y,z]
 %                       NOTE: it has the same precision and method as the IMAGE.
-%                             Use EMC_setPrecision|cast and EMC_setMethod to cast/push|gather.
+%                             Use cast and EMC_setMethod to cast/push|gather.
 %
 % Other EMC-files required:
 %   EMC_getClass, EMC_coordVectors
