@@ -23,10 +23,14 @@ function OPTION = EMC_getOption(OPTION, ONLY, FILTER)
 % Created:  18Jan2020
 % Version:  v.1.0   unittest (TF, 20Jan2020).
 %           v.1.0.1 new error identifier convention (TF, 30Jan2020).
+%           v.1.0.2 clearer error message when the cell has not the correct size.
 %
 
 if iscell(OPTION)
     if ~isempty(OPTION)
+        if size(OPTION, 2) ~= 2
+            error('EMC:OPTION', 'OPTION should be a nx2 cell, got %s cell', mat2str(size(OPTION)))
+        end
         fields = OPTION(:, 1);
         OPTION = cell2struct(OPTION(:, 2), fields, 1);
         for idx = 1:numel(fields)
