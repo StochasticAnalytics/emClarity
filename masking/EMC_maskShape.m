@@ -3,65 +3,69 @@ function MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 % MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 % Create a real space mask of a given shape.
 %
+% WARNING: If SHAPE is 'rectangle' or 3d 'cylinder' (z only), the function has to operate
+%          in pixel space. As such, in these cases, origin=0 is not allowed. Moreover,
+%          the RADIUS and eventual shifts will be casted to the nearest integers.
+%
 % Input:
-%   SHAPE (str):                    'sphere', 'cylinder' or 'rectangle'.
-%                                   NOTE: If 'rectangle' or 3d 'cylinder' (z only), the function
-%                                         has to operate in pixel space. As such, in these cases,
-%                                         the RADIUS and eventual shifts must only be integers,
-%                                         and origin=0 is not allowed.
+%   SHAPE (str):                        'sphere', 'cylinder' or 'rectangle'.
 %
-%   SIZE (int vector):              Size (in pixel) of the mask to compute; [x, y, z] or [x, y].
-%                                   NOTE: [1, N] or [N, 1] is not allowed.
+%   SIZE (int vector):                  Size (in pixel) of the mask to compute; [x, y, z] or [x, y].
+%                                       NOTE: [1, N] or [N, 1] is not allowed.
 %
-%   RADIUS (int vector):            Radius of the shape to compute; [x, y, z] or [x, y].
-%                                   Should correspond to SIZE and be greater than 1.
+%   RADIUS (vector):                    Radius of the shape to compute; [x, y, z] or [x, y].
+%                                       Should correspond to SIZE and be greater than 1.
+%                                       NOTE: if SHAPE='rectangle' or 3d 'cylinder' casted to
+%                                             the nearest integers.
 %
-%   METHOD (str):                   Device to use; 'gpu' or 'cpu'.
+%   METHOD (str):                       Device to use; 'gpu' or 'cpu'.
 %
-%   OPTION (cell | struct):         Optional parameters.
-%                                   If cell: {field, value; ...}, note the ';' between parameters.
-%                                   NOTE: Can be empty.
-%                                   NOTE: Unknown fields will raise an error.
+%   OPTION (cell | struct):             Optional parameters.
+%                                       If cell: {field, value; ...}, note the ';' between parameters.
+%                                       NOTE: Can be empty.
+%                                       NOTE: Unknown fields will raise an error.
 %
-%     -> 'shift' (vector):          [x, y, z] or [x, y] shifts to apply in pixel.
-%                                   Should correspond to SIZE.
-%                                   NOTE: NaNs or Inf are not accepted.
-%                                   NOTE: positive shifts translate the shape to the right.
-%                                         negative shifts translate the shape to the left.
-%                                   default = no shifts
+%     -> 'shift' (vector):              [x, y, z] or [x, y] shifts to apply.
+%                                       Should correspond to SIZE.
+%                                       NOTE: NaNs or Inf are not accepted.
+%                                       NOTE: positive shifts translate the shape to the right.
+%                                             negative shifts translate the shape to the left.
+%                                       NOTE: if SHAPE='rectangle' or 3d 'cylinder' casted to
+%                                             the nearest integers.
+%                                       default = no shifts
 %
-%     -> 'origin' (int):            Origin convention - Center of the shape.
-%                                   0, 1 or 2; see EMC_coordVectors for more details.
-%                                   NOTE: origin=-1 is not allowed as this function is only for real
-%                                         space masks.
-%                                   default = 1
+%     -> 'origin' (int):                Origin convention - Center of the shape.
+%                                       0, 1 or 2; see EMC_coordVectors for more details.
+%                                       NOTE: origin=-1 is not allowed as this function is only for real
+%                                             space masks.
+%                                       NOTE: if SHAPE='rectangle' or 3d 'cylinder', origin=0 is not allowed.
+%                                       default = 1
 %
-%     -> 'kernel' (bool|float|vector):
-%                                   (gaussian) Kernel to convolve to the computed boolean mask.
-%                                   If bool: apply or not the default kernel.
-%                                   If float: the size of the kernel, in percentage (between 0 and 1) of
-%                                             pixels, relative to the smallest axis. The minimum size of
-%                                             the kernel is set to 9 pixels.
-%                                   If vector: row vector (1xn, n is odd) used as separable kernel to
-%                                              convolve with the boolean mask.
-%                                   NOTE: For the default kernels, the variance of the gaussian is
-%                                         automatically adjusted to keep the gaussian at ~0.5 at
-%                                         the middle of the kernel.
-%                                   NOTE: The kernel is imposing a minimum SIZE, which is equal to
-%                                         ceil(kernelSize/2)*2+1. With the default kernels, the
-%                                         minimum SIZE is 11.
-%                                   default = 0.04 (4% of min(SIZE))
+%     -> 'kernel' (bool|float|vector):  (gaussian) Kernel to convolve to the computed boolean mask.
+%                                       If bool: apply or not the default kernel.
+%                                       If float: the size of the kernel, in percentage (between 0
+%                                                 and 1) of pixels, relative to the smallest axis.
+%                                                 The minimum size of the kernel is set to 9 pixels.
+%                                       If vector: row vector (1xn, n is odd) used as separable kernel
+%                                                  to convolve with the boolean mask.
+%                                       NOTE: For the default kernels, the variance of the gaussian is
+%                                             automatically adjusted to keep the gaussian at ~0.5 at
+%                                             the middle of the kernel.
+%                                       NOTE: The kernel is imposing a minimum SIZE, which is equal to
+%                                             ceil(kernelSize/2)*2+1. With the default kernels, the
+%                                             minimum SIZE is 11.
+%                                       default = 0.04 (4% of min(SIZE))
 %
-%     -> 'sym' (int):               Restrict the mask to the first asymmetric unit.
-%                                   Should correspond to the central symmetry (positive int).
-%                                   If 1, return the full mask.
-%                                   default = 1
+%     -> 'sym' (int):                   Restrict the mask to the first asymmetric unit.
+%                                       Should correspond to the central symmetry (positive int).
+%                                       If 1, return the full mask.
+%                                       default = 1
 %
-%     -> 'precision' (str):         Precision of the output MASK; 'single' or 'double'.
-%                                   default = 'single'
+%     -> 'precision' (str):             Precision of the output MASK; 'single' or 'double'.
+%                                       default = 'single'
 %
 % Output:
-%   MASK (num array):               2d/3d mask with desired shape.
+%   MASK (num array):                   2d/3d mask with desired shape.
 %
 % Note:
 %   - If a kernel is applied, the function forces the edges of the mask to go to zeros.
@@ -72,7 +76,7 @@ function MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 %   [MASK] = EMC_maskShape('cylinder', [128,128,128], [30,30,30], 'gpu', {'shift',[0,10]})
 %
 % Other EMC-files required:
-%   EMC_setPrecision, EMC_setMethod, EMC_is3d, EMC_getOption, EMC_gaussianKernel,
+%   EMC_setMethod, EMC_is3d, EMC_getOption, EMC_gaussianKernel,
 %   EMC_limits, EMC_resize, EMC_coordVectors, EMC_coordGrids, EMC_convn
 %
 
@@ -82,6 +86,9 @@ function MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 %           v.1.1.1 even kernels are now accepted. If you use your own vector kernel,
 %                   it will be casted to the METHOD and precision before convolution (4Feb2020).
 %           v.1.1.2 SIZE, RADIUS and shifts must be row vectors (columns are illegal now) (4Feb2020).
+%           v.1.2   If SHAPE='rectangle', the RADIUS and eventual shifts are casted to the
+%                   nearest integers. If SHAPE='cylinder', the Z RADIUS and eventual Z shifts
+%                   are casted to the nearest integers (9Mar2020).
 %
 
 %% 
@@ -98,8 +105,7 @@ if flg.kernel
         % Keep the gaussian at ~0.5 at the middle of the roll off.
         middle = ceil(kernelSize / 2) / 2;
         sigma = sqrt(-1 * middle^2 / (2 * log(0.5)));
-        OPTION.kernel = EMC_gaussianKernel([1,kernelSize], sigma, {'precision', OPTION.precision; ...
-                                                                   'method', METHOD});
+        OPTION.kernel = EMC_gaussianKernel([1,kernelSize], sigma, METHOD, {'precision', OPTION.precision});
     else
         kernelSize = length(OPTION.kernel);
     end
@@ -134,7 +140,7 @@ if strcmpi(SHAPE, 'sphere')
     end
     
     % Cast from logical to float.
-    MASK = EMC_setPrecision(MASK, OPTION.precision);
+    MASK = cast(MASK, OPTION.precision);
     
 elseif strcmpi(SHAPE, 'cylinder')    
     % Adjust the radius for the same reason as explain with sphere/ellipsoids.
@@ -149,7 +155,7 @@ elseif strcmpi(SHAPE, 'cylinder')
                                                         'shift', OPTION.shift(1:2)});
 
         % Broadcaste in Z (the ellipsoid is invariant in Z <=> cylinder).
-        RADIUS(3) = RADIUS(3) + floor(kernelSize/2);  % adjust Z for blurring.
+        RADIUS(3) = round(RADIUS(3)) + floor(kernelSize/2);  % adjust Z for blurring.
         if flg.gpu
             vZ = zeros([1, 1, RADIUS(3) .*2 + 1], OPTION.precision, 'gpuArray');
         else
@@ -158,10 +164,11 @@ elseif strcmpi(SHAPE, 'cylinder')
         MASK = (vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2 + vZ <= 1;  % broadcast
 
         % Cast from logical to float.
-        MASK = EMC_setPrecision(MASK, OPTION.precision);
+        MASK = cast(MASK, OPTION.precision);
     
         % Resize the cylinder to the desired SIZE in Z, taking into account the z shift.
-        limits = EMC_limits(size(MASK), SIZE, {'origin', OPTION.origin; 'shift', [0,0,OPTION.shift(3)]});
+        OPTION.shift(3) = round(OPTION.shift(3));
+        limits = EMC_limits(size(MASK), SIZE, {'origin', OPTION.origin; 'shift', [0, 0, OPTION.shift(3)]});
         MASK = EMC_resize(MASK, limits, {'taper', false});
 
     else  % 2d Cylinder; this block is equivalent to SHAPE='sphere'.
@@ -171,12 +178,13 @@ elseif strcmpi(SHAPE, 'cylinder')
         MASK = (vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2 <= 1;
 
         % Cast from logical to float.
-        MASK = EMC_setPrecision(MASK, OPTION.precision);
+        MASK = cast(MASK, OPTION.precision);
     end
 
 elseif strcmpi(SHAPE, 'rectangle')
     % Adjust the radius for the convolution.
-    RADIUS = RADIUS + floor(kernelSize/2);
+    RADIUS = round(RADIUS) + floor(kernelSize/2);
+    OPTION.shift = round(OPTION.shift);
 
     if flg.gpu
         MASK = ones(RADIUS .*2 + 1, OPTION.precision, 'gpuArray');
@@ -225,9 +233,9 @@ if SIZE(1) == 1 || SIZE(2) == 1
     error('EMC:SIZE', 'SIZE should be the size of a 2d or 3d array, got size %s', mat2str(SIZE))
 end
 
-if ~isnumeric(RADIUS) || ~isvector(RADIUS) || ~all(RADIUS > 1) || any(rem(RADIUS,1)) || ...
+if ~isnumeric(RADIUS) || ~isvector(RADIUS) || ~all(RADIUS > 1) || ...
    ~isequal(size(SIZE), size(RADIUS)) || any(isinf(RADIUS))
-    error('EMC:RADIUS', 'RADIUS should be a vector of %d integers greater than 1', ndim)
+    error('EMC:RADIUS', 'RADIUS should be a numeric 1x%d vector with every element greater than 1', ndim)
 end
 
 if strcmpi(METHOD, 'gpu')
@@ -296,7 +304,7 @@ if isfield(OPTION, 'kernel')
             flg.kernel = true;
         end
     elseif isrow(OPTION.kernel) && isnumeric(OPTION.kernel)  % row vector
-        OPTION.kernel = EMC_setMethod(EMC_setPrecision(OPTION.kernel, OPTION.precision), METHOD);
+        OPTION.kernel = EMC_setMethod(cast(OPTION.kernel, OPTION.precision), METHOD);
         flg.kernel = true;
         flg.ownKernel = true;
     else
