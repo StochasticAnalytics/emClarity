@@ -51,7 +51,7 @@ end
 % h2f wrapper
 persistent wrap
 if isempty(wrap) || ~isequal(size(wrap), SIZE)
-    wrap = EMC_maskIndex('half2full', SIZE, method, {});
+    wrap = EMC_maskIndex('nc2nc', SIZE, method, {});
 end
 
 cR = floor(SIZE/2) + 1;  % center receiver
