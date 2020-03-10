@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # NOTE: You will also need to modify your emClarity/mexFiles/mexCompile.m
 #   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
 #   TODO set up a little configure script to do this and check other deps described below.
@@ -29,8 +30,8 @@ zip_location="NONE"
 
 #binaryOutName="${major}_${minor}_${bugss}_${shortHead}"
 #scriptOutName="mcr_v19a_${shortHead}"
-binaryOutName="testTomoCPR2"
-scriptOutName="testTomoCPR2_v19a"
+binaryOutName="testTmpDir"
+scriptOutName="testTmpDir_v19a"
 
 # You may need to modify this line. 
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
@@ -50,12 +51,16 @@ if [ -f emClarity ] ; then
   mv emClarity emClarity~
 fi
 
-# Matlab (mcc) complains if ther is an underscore in the name.
+#Matlab (mcc) complains if ther is an underscore in the name.
 #mv emClarity${binaryOutName} emClarity_${binaryOutName}
 
 {
 
 echo '#!/bin/bash'
+echo ''
+echo '# When this script is invoked, record the PID so that the EMC_tmpDir is deleted'
+echo '# even in the event of a crash. (With program script added from EMC_tmpDir.sh)'
+echo 'thisPID=$$'
 echo ''
 echo '#Please modify this line to point to the text file in your MCR root'
 echo '#where you pasted the lines suggested to add to LD_LIBRARY_PATH during install.'
@@ -68,8 +73,12 @@ echo '#emClarity_ROOT=/work/emClarity'
 echo 'emClarity_ROOT=/groups/grigorieff/home/himesb/thirdParty/emClarity'
 echo ''
 echo ''
-echo ''
-echo ''
+} > emClarity_${scriptOutName}
+
+cat EMC_tmpDir.sh >> emClarity_${scriptOutName}
+
+{
+echo ""
 echo 'if [ -f ${MCR_BASH} ]; then'
 echo '  source ${MCR_BASH}'
 echo 'else'
@@ -92,7 +101,7 @@ echo ''
 echo "\${emClarity_ROOT}/emClarity_${binaryOutName} \${argList}"
  
 
-} > emClarity_${scriptOutName}
+} >> emClarity_${scriptOutName}
 
 chmod a=wrx emClarity_${scriptOutName}
 
