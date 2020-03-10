@@ -41,7 +41,7 @@ function [TAPER] = EMC_taper(TYPE, NUMEL, OPTION)
 %     OUT (single): [1, 0.8, 0.6, 0.4, 0.2, 0]
 %
 % Other EMC-files required:
-%   EMC_getOption, EMC_setMethod, EMC_setPrecision
+%   EMC_getOption, EMC_setMethod
 %
 
 % Created:  18Jan2020, R2019a
@@ -132,6 +132,6 @@ else
 end
 
 % Cast to desired precision; push or gather if necessary.
-TAPER = EMC_setMethod(EMC_setPrecision(TAPER, OPTION.precision), OPTION.method);
+TAPER = EMC_setMethod(cast(TAPER, OPTION.precision), OPTION.method);
 
 end

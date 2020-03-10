@@ -58,7 +58,7 @@ function [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION)
 %   [~,y]   = EMC_coordVectors([1, 64], 'cpu', {'origin', -1; 'normalize',true});
 %
 % Other EMC-files required:
-%   EMC_is3d, EMC_getOption, EMC_setPrecision
+%   EMC_is3d, EMC_getOption
 %
 % See also EMC_is3d
 %
@@ -174,9 +174,9 @@ if OPTION.origin >= 0
     if isDim(1)
         if OPTION.half
             if OPTION.origin == 0 && ~mod(SIZE(1), 2)  % real center and even pixels
-                vX = 0.5:EMC_setPrecision((SIZE(1)/2), OPTION.precision);
+                vX = 0.5:cast((SIZE(1)/2), OPTION.precision);
             else
-                vX = 0:EMC_setPrecision(floor(SIZE(1)/2), OPTION.precision);
+                vX = 0:cast(floor(SIZE(1)/2), OPTION.precision);
             end
         else
             vX = (limits(1, 1) - OPTION.shift(1)):(limits(2, 1) - OPTION.shift(1));
@@ -192,7 +192,7 @@ if OPTION.origin >= 0
 else
     if isDim(1)
         if (OPTION.half)
-            vX = 0:EMC_setPrecision(floor(SIZE(1)/2), OPTION.precision);
+            vX = 0:cast(floor(SIZE(1)/2), OPTION.precision);
         else
             vX = [0:limits(2,1), limits(1,1):-1];
         end

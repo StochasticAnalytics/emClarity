@@ -68,7 +68,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 %   - [OUT] = EMC_resize(randn(64,64), [10,10,-5,0], {'value', 2; 'origin', -1})
 %
 % Other EMC-files required:
-%   EMC_setPrecision.m, EMC_getClass.m, EMC_is3d.m, EMC_getOption.m, EMC_isOnGpu, EMC_taper
+%   EMC_getClass.m, EMC_is3d.m, EMC_getOption.m, EMC_isOnGpu, EMC_taper
 %
 % See also EMC_limits.
 %
@@ -89,7 +89,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 
 % Short cut: nothing to do to the IMAGE, except maybe changing its precision.
 if ~flg.pad && ~flg.crop && ~(flg.taper && OPTION.force_taper)
-    OUT = EMC_setPrecision(IMAGE, OPTION.precision);
+    OUT = cast(IMAGE, OPTION.precision);
     return
 end
 
@@ -102,8 +102,8 @@ end
 
 % Option to pad with white gaussian noise.
 if flg.uniform
-    val = EMC_setPrecision(mean(IMAGE, 'all'), OPTION.precision);
-    std_ = EMC_setPrecision(std(IMAGE, 0, 'all'), OPTION.precision);
+    val = cast(mean(IMAGE, 'all'), OPTION.precision);
+    std_ = cast(std(IMAGE, 0, 'all'), OPTION.precision);
 else
     val = OPTION.value;
     std_ = nan;
@@ -156,7 +156,7 @@ if flg.is3d
             OUT(1:l(x),       end-r(y):end, end-r(z):end) = IMAGE(1:l(x),       end-r(y):end, end-r(z):end);
             OUT(end-r(x):end, end-r(y):end, end-r(z):end) = IMAGE(end-r(x):end, end-r(y):end, end-r(z):end);
         else
-            OUT = EMC_setPrecision(IMAGE, OPTION.precision);  % force_taper without pad or crop
+            OUT = cast(IMAGE, OPTION.precision);  % force_taper without pad or crop
         end
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
@@ -179,7 +179,7 @@ if flg.is3d
         elseif flg.crop
             OUT(:,:,:) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4), 1+crop(5):end-crop(6));
         else
-            OUT = EMC_setPrecision(IMAGE, OPTION.precision);  % force_taper without pad or crop
+            OUT = cast(IMAGE, OPTION.precision);  % force_taper without pad or crop
         end
     end
 else  % 2d
@@ -198,7 +198,7 @@ else  % 2d
             OUT(1:l(x),       end-r(y):end) = IMAGE(1:l(x),       end-r(y):end);
             OUT(end-r(x):end, end-r(y):end) = IMAGE(end-r(x):end, end-r(y):end);
         else
-            OUT = EMC_setPrecision(IMAGE, OPTION.precision);  % force_taper without pad or crop
+            OUT = cast(IMAGE, OPTION.precision);  % force_taper without pad or crop
         end
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
@@ -217,7 +217,7 @@ else  % 2d
         elseif flg.crop
             OUT(:,:) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4));
         else
-            OUT = EMC_setPrecision(IMAGE, OPTION.precision);  % force_taper without pad or crop
+            OUT = cast(IMAGE, OPTION.precision);  % force_taper without pad or crop
         end
     end
 end
@@ -404,11 +404,11 @@ if isfield(OPTION, 'value')
     if strcmpi(OPTION.value, 'uniform')
         flg.uniform = true;
     elseif strcmpi(OPTION.value, 'mean')
-        OPTION.value = EMC_setPrecision(mean(IMAGE, 'all'), OPTION.precision);
+        OPTION.value = cast(mean(IMAGE, 'all'), OPTION.precision);
         flg.uniform = false;
     elseif isnumeric(OPTION.value) && isscalar(OPTION.value)
         flg.uniform = false;
-        OPTION.value = EMC_setPrecision(OPTION.value, OPTION.precision);
+        OPTION.value = cast(OPTION.value, OPTION.precision);
         if ~flg.gpu && EMC_isOnGpu(OPTION.value)
             OPTION.value = gather(OPTION.value);
         end

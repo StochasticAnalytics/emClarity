@@ -27,8 +27,8 @@ function IMAGE = EMC_convn(IMAGE, KERNEL)
 % Example:
 %   - a = rand(1000,1000);
 %     % b and c are equal, up to the single/double precision accuracy.
-%     b = EMC_convn(a, EMC_gaussianKernel([5,5], 1, {}));  % classic kernel
-%     c = EMC_convn(a, EMC_gaussianKernel([1,5], 1, {}));  % separable kernel
+%     b = EMC_convn(a, EMC_gaussianKernel([5,5], 1, 'cpu', {}));  % classic kernel
+%     c = EMC_convn(a, EMC_gaussianKernel([1,5], 1, 'cpu', {}));  % separable kernel
 %
 % See also EMC_gaussianKernel
 %
