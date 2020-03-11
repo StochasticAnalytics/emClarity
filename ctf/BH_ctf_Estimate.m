@@ -111,7 +111,13 @@ catch
   end
 end
 
-
+% If true, then parameters will be adjusted to make this initial estimate
+% faster, since it is less critical to be exact.
+try
+  do_ctf_refine = pBH.('skip_ctf_refine');
+catch
+  do_ctf_refine = true;
+end
 
 PIXEL_SIZE = pBH.('PIXEL_SIZE');
 Cs = pBH.('Cs');
@@ -198,7 +204,11 @@ backGroundBuffer = 0.9985;
 try
   deltaZTolerance = pBH.('deltaZTolerance');
 catch
-  deltaZTolerance = 50e-9;
+  if (do_ctf_refine)
+    deltaZTolerance = 50e-9;
+  else
+    deltaZTolerance = 100e-9;
+  end 
 end
 
 try 
@@ -214,7 +224,11 @@ end
 try
   maxNumberOfTiles = pBH.('ctfMaxNumberOfTiles');
 catch
-  maxNumberOfTiles = 1e4;
+  if (do_ctf_refine)
+    maxNumberOfTiles = 3000;
+  else
+    maxNumberOfTiles = 10000;
+  end
 end
 
 % Starting at +/- 100nm
@@ -242,6 +256,7 @@ try
 catch
   paddedSize = 768;
 end
+
 padVAL = BH_multi_padVal([tileSize,tileSize], [paddedSize,paddedSize]);
 
 
@@ -502,7 +517,7 @@ for i = 1:d3
 
     % Padding to avoid interpolation artifacts
     
-    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*sizeODD);
+    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
 
@@ -531,12 +546,10 @@ for i = 1:d3
                                        BH_decomposeIMODxf(combinedXF);
 
 
-      bh_global_do_2d_fourier_interp     
-      
-      i
 
  if (bh_global_do_2d_fourier_interp)
-  combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+%   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+  combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
   combinedInverted = combinedInverted([1,2,4,5]);
   iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
  else
@@ -1121,9 +1134,14 @@ else
     
 end % end flgSkip
 
+if (do_ctf_refine)
+ % TODO should I restart the parallel pool
+ BH_ctf_Refine2(varargin{1},varargin{2});
+ 
+end
 
 
-end % end of flag resume (partially killed)
+end % end of ctf estimate function
 
 function [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, dualAxis)
 

@@ -123,13 +123,13 @@ if ~isempty(varargin)
         if ~isscalar(varargin{3}) && ~isnan(varargin{3})
             error('EMC:varargin', 'For a 2d case, vZ should be NaN')
         else
-            vX = EMC_setMethod(EMC_setPrecision(varargin{1}, OPTION.precision), METHOD);
-            vY = EMC_setMethod(EMC_setPrecision(varargin{2}, OPTION.precision), METHOD);
+            vX = EMC_setMethod(cast(varargin{1}, OPTION.precision), METHOD);
+            vY = EMC_setMethod(cast(varargin{2}, OPTION.precision), METHOD);
         end
     else
-        vX = EMC_setMethod(EMC_setPrecision(varargin{1}, OPTION.precision), METHOD);
-       	vY = EMC_setMethod(EMC_setPrecision(varargin{2}, OPTION.precision), METHOD);
-        vZ = EMC_setMethod(EMC_setPrecision(varargin{3}, OPTION.precision), METHOD);
+        vX = EMC_setMethod(cast(varargin{1}, OPTION.precision), METHOD);
+       	vY = EMC_setMethod(cast(varargin{2}, OPTION.precision), METHOD);
+        vZ = EMC_setMethod(cast(varargin{3}, OPTION.precision), METHOD);
     end
 
     if ~isnumeric(vX) || ~isrow(vX) || SIZE(1) ~= length(vX)
@@ -386,7 +386,7 @@ else
     OPTION.normalize = false;  % default
 end
 
-% precision is checked by EMC_coordVectors or EMC_setPrecision
+% precision is checked by EMC_coordVectors or cast
 if ~isfield(OPTION, 'precision')
     OPTION.precision = 'single';  % default
 end

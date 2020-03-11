@@ -181,7 +181,7 @@ flgImodErase = 0
       % For now just take based on tomogram (which will be larger than the true specimen thickness)
       %THICKNESS = recGeomForThickness.(sprintf('%s_1',STACK_PRFX));
       %THICKNESS = min(10,abs(THICKNESS(1,3)-THICKNESS(2,3)).*PIXEL_SIZE.*10^9);
-      THICKNESS = 10;
+      THICKNESS = 100;
 % Assuming all extreme pixels have already been removed from the stack.
 %PRJ_STACK = {sprintf('%s_local04_18.mrc',mjIDX)};%,sprintf('%s_local14_18.mrc',mjIDX),sprintf('%s_local24_18.mrc',mjIDX),sprintf('%s_local34_18.mrc',mjIDX)};
 nStacks = length(tlt);
@@ -441,13 +441,16 @@ system('mkdir -p aliStacks');
      
      iProjection = ...
                  single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep'));
-     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));         
+               
+     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));     
+
      largeOutliersMean= mean(iProjection(:));
      
      largeOutliersSTD = std(iProjection(:));
      largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
                          iProjection > largeOutliersMean + 6*largeOutliersSTD);
      iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
+
                   
 
   end
@@ -455,11 +458,13 @@ system('mkdir -p aliStacks');
   % Because the rotation/scaling and translation are done separately,
   % we must use a square transform; otherwise, a rotation angle dependent
   % anisotropic distortion (like mag distortion) is introduced.
-    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*sizeODD);
+    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
      
     iProjection = iProjection - mean(iProjection(:));
+    iProjection = iProjection ./ std(iProjection(:));
+
 
   if ( SuperResolution )
     iProjection = BH_padZeros3d(iProjection(1+osX:end,1+osY:end), ...
@@ -487,7 +492,8 @@ system('mkdir -p aliStacks');
        if (i == 1)
          fprintf('resampling at 2x padding with fourier interp\n');
        end
-      combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+%       combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+      combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
       combinedInverted = combinedInverted([1,2,4,5]);
       
       iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
@@ -515,7 +521,8 @@ system('mkdir -p aliStacks');
        if (i == 1)
          fprintf('resampling at 2x padding with fourier interp\n');
        end
-        mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+%         mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
+        mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
         mbEstInverted = mbEstInverted([1,2,4,5]);
         iProjection = BH_resample2d(iProjection,mbEstInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
       else

@@ -41,11 +41,16 @@ end
 % generally an option to multiply the hermitian conjugate side by -1 will
 % be needed.
 if (flg2d)
+  % Shift the mirrored vectors if even to keep the origin in the correct
+  % place.
+  sY = (1-mod(nY,2));
   fullXform(oX-1+isOdd:end,:,:) = halfXform;
-  fullXform(1:oX-2+isOdd,:) = halfXform(oX-1+isOdd:-1:2,nY:-1:1);
+  fullXform(1:oX-2+isOdd,1+sY:end) = halfXform(oX-1+isOdd:-1:2,nY:-1:1+sY);
 else
+  sY = (1-mod(nY,2));
+  sZ = (1-mod(nZ,2));
   fullXform(oX-1+isOdd:end,:,:) = halfXform;
-  fullXform(1:oX-2+isOdd,:,:) = halfXform(oX-1+isOdd:-1:2,nY:-1:1,nZ:-1:1);
+  fullXform(1:oX-2+isOdd,1+sY:end,1+sZ:end) = halfXform(oX-1+isOdd:-1:2,nY:-1:1+sY,nZ:-1:1+sZ);
 end
 
 clear halfXform

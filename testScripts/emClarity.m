@@ -80,6 +80,8 @@ if nArgs > 1 && notCheckHelp
     case 'combineProjects'
       % nothing to parse
       multiGPUs = 0;
+    case 'cleanTemplateSearch'
+      multiGPUs = 0;
     case 'autoAlign'
          
       autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_autoAlign.sh';
@@ -596,7 +598,7 @@ switch varargin{1}
            'min number neighbors (one less than expected is usually good)\n']);  
      else
     
-      BH_geometry_Constraints(varargin{2}, '0', varargin{3}, varargin{4}, varargin{5});
+      BH_geometry_Constraints(str2double(varargin{2}), '0', varargin{3}, varargin{4}, varargin{5});
 
      end
   otherwise
