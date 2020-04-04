@@ -11,6 +11,17 @@ try
 catch
   mapBackIter = 0;
 end
+
+
+% As long as the material coming into view at high tilt is at the same
+% plane and does not have wildly different image stats, using it could
+% improve the thon rings on tilted data. Zero will produce the "normal"
+% process, 1 will use the same area as the min tilt, 
+try 
+  fraction_of_extra_tilt_data = pBH.('fraction_of_extra_tilt_data')
+catch
+  fraction_of_extra_tilt_data = 0.25
+end
 % set the search ranges - should change ctf_est to save the parameters used so
 % this can be loaded automatically.
 
@@ -251,7 +262,7 @@ if (calcAvg)
                                                 1, ...
                                                 1, ...
                                                 x1, y1, Xnew, Ynew,coordShift,  ...
-                                                reScaleRealSpace,pixelSize);   
+                                                reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data);   
                                            
 
     end
@@ -704,7 +715,7 @@ end
 function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj, overlap, ...
                           iProjection, evalMask, ...
                           ddZ, x1, y1, Xnew, Ynew, coordShift,  ...
-                          reScaleRealSpace,pixelSize);
+                          reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data)
 
     DFo = TLT(iPrj,15);
 
@@ -715,21 +726,22 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
     
     oXprj = ceil((size(iProjection,1)+1)./2);
     % Don't worry about extending the edges for thickness
-    maxEval = cosd(TLT(iPrj,4)).*(size(iProjection,1)/2);% + maxZ./2*abs(sind(TLT(iPrj,4)));
+    half_width = (size(iProjection,1)/2);
+
+    maxEval = (fraction_of_extra_tilt_data + ...
+               cosd(TLT(iPrj,4)).*(1-fraction_of_extra_tilt_data)) .* half_width;
+
     iEvalMask = floor(oXprj-maxEval):ceil(oXprj+maxEval);
     
     % Since I'm enforcing Y-tilt axis, then this could be dramatically sped up
     % by resampling strips along the sampling
-% % % %      ftmp = fopen('tmp.txt','a');
-% % % %     fprintf(ftmp,'Pixel Size is %3.3e\n',pixelSize);
+
     for i = 1+tileSize/2:overlap:d1-tileSize/2
       iDeltaZ = (i - tiltOrigin)*pixelSize*-1.*tand(TLT(iPrj,4));
       if any(ismember(i-tileSize/2+1:i+tileSize/2,iEvalMask)) %evalMask(i,paddedSize/2+1)
        doSplineInterp=1;
 
-          %mag =  ((1+(ddZ(i,paddedSize/2+1)/DFo)).^0.5);
           mag =  (1+iDeltaZ./DFo).^0.5;
-% % % %           fprintf(ftmp,'defVal tilt %2.2f dx %d  %f %3.3e %3.3e \n',TLT(iPrj,4),i,mag,DFo,iDeltaZ);
           
           estSize = 2048;
           ctf1 = BH_ctfCalc(pixelSize,TLT(iPrj,17),TLT(iPrj,18),DFo,estSize,TLT(iPrj,19),-1,1);
@@ -744,7 +756,7 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
           % data, but will derive a formula to make sure the search is appropriate. Here we expect at most ~ 300 nm
           % deltaZ, the strongest difference is at the lowest defocus which is ~ 1500 nm, which gives an estimated mag
           % ~ 1.095
-          defRange = mag-.06:.001:mag+.06;
+          defRange = mag-.1:.001:mag+.1;
           nDef = length(defRange);
           scoreDef = zeros(nDef,1,'gpuArray'); 
           for iDef = 1:nDef
@@ -759,22 +771,15 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
           [~,maxCoord] = max(scoreDef);
           mag = defRange(maxCoord);
 
-          defRange = mag-.001:.00002:mag+.001;
+          defRange = mag-.01:.0001:mag+.01;
           nDef = length(defRange);
           scoreDef = zeros(nDef,1,'gpuArray');
           for iDef = 1:nDef
             ci = interpn([1:estSize/2]',ctf2(1:estSize/2),[1:estSize/2]'./defRange(iDef),'linear',0);
-            % Larger scalings will have zeros rather than extroplation, so%
- %            % don't let this influence the score.
- %           lastZero = find(abs(ci) > 0 , 1, 'last');
-            %fprintf(ftmp,'%d %d %d %d',size(ci),size(ctf1));
             scoreDef(iDef) = sum(ci(firstZero:end).*ctf1(firstZero:end))./sqrt(sum(ci(firstZero:end).^2).*sum(ctf1(firstZero:end).^2));
-
           end
           [~,maxCoord] = max(scoreDef);
 
-% % % %           fprintf(ftmp,'est %3.5e with score %3.5e refined to %3.5e\n', ...
-% % % %                                       mag,scoreDef(maxCoord),defRange(maxCoord));
           mag = defRange(maxCoord);
          
          
@@ -783,16 +788,6 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
            mag = 1
          end
          
-% % %          if (reScaleRealSpace)
-% % % 
-% % %            scaledStrip = interpn(x1,y1,( ...
-% % %                                  iProjection(i-tileSize/2+1:i+tileSize/2)), ...
-% % %                                  Xnew.*mag,Ynew.*mag,'linear',0);                               
-% % %            scaledStrip(isnan(scaledStrip)) = 0;
-% % %            scaledStrip = gpuArray(scaledStrip);
-% % %          else
-% % %            scaledStrip = iProjection(i-tileSize/2+1:i+tileSize/2,:); 
-% % %          end
          scaledStrip = iProjection(i-tileSize/2+1:i+tileSize/2,:); 
 
         for j = 1+tileSize/2:overlap:d2-tileSize/2    
@@ -829,12 +824,8 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
                     fftshift(abs(fftn(BH_padZeros3d(iTile,iPadVal(1,:),iPadVal(2,:), ...
                                            'GPU','single'))));
           end
-% % %           tmpTile = tmpTile+ abs(fftn(BH_padZeros3d(scaledStrip(:,...
-% % %                                               j-tileSize/2+1:j+tileSize/2),...
-% % %                                               padVAL(1,:),padVAL(2,:),...
-% % %                                               'GPU','singleTaper')));
-    
 
+   
           
     
         end
