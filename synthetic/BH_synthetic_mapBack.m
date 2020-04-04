@@ -19,6 +19,11 @@ METHOD = 'GPU';
 COLOR_MAP= '0';
 flgColorMap = 0;
 
+global bh_global_imodProjectionShifts;
+if isempty(bh_global_imodProjectionShifts)
+  bh_global_imodProjectionShifts = [ -0.5, -0.5, 0.5 ; -0.5, -0.5, 0; 0.5,0.5,1.0 ];
+end
+
 
 
 CYCLE = str2num(CYCLE);
@@ -44,7 +49,11 @@ samplingRate = pBH.('Ali_samplingRate');
 MOL_MASS = pBH.('particleMass');
 molMass = MOL_MASS.*(25/samplingRate); 
 
-
+try
+  tomoCPR_random_subset = pBH.('tomoCPR_randomSubset')
+catch
+  tomoCPR_random_subset = 1800
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018
 
@@ -1232,10 +1241,7 @@ end
 
     fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
     fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
-    [dU, dV] = BH_multi_gridCoordinates(CTFSIZE,'Cartesian',METHOD, ...
-                                                    {'none'},1,1,0);
-    dU = dU .* (2i*pi);
-    dV = dV .* (2i*pi);  
+
 
 
     
@@ -1302,27 +1308,28 @@ end
 
   
 
-    
     % Optionally restrict the search to a given number of fiducials:
+    nUniqueFids = numel(unique(fidList(:,2))); % I think the max val of this column should also be okay (+1)
+    
 %     nFidsTotal =  sum(fidList(:,5) == 1 );
-%     if bh_global_tomoCPR_random_subset == -1 || bh_global_tomoCPR_random_subset > nFidsTotal
-%       fprintf('Using all of the %d available fiducials\n',nFidsTotal);
-      useFidsIdx = true(nFidsTotal,1,'gpuArray');
-%     else
-%       fprintf('Using a random subset of %d fiducials from the %d available\n',...
-%         bh_global_tomoCPR_random_subset, nFidsTotal);
-%       keepFids = datasample(1:nFidsTotal,bh_global_tomoCPR_random_subset,'Replace',false);
-%       useFidsIdx = gpuArray(ismember(1:nFidsTotal,keepFids));
-%       
-%     end
+    if tomoCPR_random_subset == -1 || tomoCPR_random_subset > nFidsTotal
+      fprintf('Using all of the %d available fiducials\n',nUniqueFids);
+    else
+      fprintf('Using a random subset of %d fiducials from the %d available\n',...
+              tomoCPR_random_subset, nUniqueFids);
       
+      keepFids = datasample(0:nUniqueFids-1,tomoCPR_random_subset,'Replace',false);
+      fidList(~ismember(fidList(:,2),keepFids),2) = -9999;
+    end
+      
+
 parfor iPrj = 1:nPrjs     
 % for iPrj = 20;%1:nPrjs
 	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
 	    % to know what is going on here.
-
+      bhF = fourierTransformer(randn((tileSize(1)+2.*padTile(1)).*[1,1],'single','gpuArray'),'OddSizeOversampled');
 
       iMrcObj = MRCImage(tiltSeries,0);
       iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}),0);
@@ -1543,11 +1550,11 @@ parfor iPrj = 1:nPrjs
         
       for iFid = 1:size(wrkFid,1)
         
-        if ~useFidsIdx(iFid)
+        if wrkFid(iFid,2) == -9999
           if iFidLoop == 1+calcCTF
           % Only print out to file if doing the alignment
   %             fprintf('skipping due to mask eval\n');
-          fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), [3,-3], -9999);
+          fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), [-4,-4], -9999);
           end
           continue
         end
@@ -1656,18 +1663,24 @@ parfor iPrj = 1:nPrjs
                 dataTile = exp(1i.*angle(fftn(BH_padZeros3d(dataTile, padTile, padTile, METHOD, cccPrecision))));
                 refTile = exp(1i.*angle(conj((fftn(BH_padZeros3d(refTile, padTile, padTile, METHOD, cccPrecision))))));
               else
-                dataTile = fftn(BH_padZeros3d(dataTile, padTile, padTile, METHOD, cccPrecision));
-                refTile =  conj(fftn(BH_padZeros3d(refTile, padTile, padTile, METHOD, cccPrecision)));
+%                 dataTile = fftn(BH_padZeros3d(dataTile, padTile, padTile, METHOD, cccPrecision));
+%                 refTile =  conj(fftn(BH_padZeros3d(refTile, padTile, padTile, METHOD, cccPrecision)));
+                dataTile = (BH_padZeros3d(dataTile, padTile, padTile, 'GPU', 'single'));
+
+                refTile =  (BH_padZeros3d(refTile, padTile, padTile, 'GPU', 'single'));
+
               end
 
-              if (peakMultiplier > 1)
-                ccF = dataTile.*refTile
-                cccMap = real(ifftn(ccF .* (ccF./(abs(ccF)+0.01)).^(peakMultiplier-1)));
-              else
-                cccMap = real(ifftn(dataTile.*refTile));
-              end
+%               if (peakMultiplier > 1)
+%                 ccF = dataTile.*refTile
+%                 cccMap = real(ifftn(ccF .* (ccF./(abs(ccF)+0.01)).^(peakMultiplier-1)));
+%               else
+%                 cccMap = real(ifftn(dataTile.*refTile));
+                cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0).*conj(bhF.fwdFFT(refTile,1,0)),'fwd')));
+% 
+%               end
              
-              cccMap = cccMap(fftMask) .* peakMask;
+%               cccMap = cccMap(fftMask) .* peakMask;
 
               [~,maxMap] = max(cccMap(:));
 
