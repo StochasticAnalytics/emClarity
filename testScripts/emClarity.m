@@ -284,10 +284,20 @@ switch varargin{1}
     else
         emC_testParse(varargin{2})
         if length(varargin) == 3
-          BH_alignRaw3d(varargin{2}, varargin{3});
-          
+          if (useV2)
+            fprintf('Using experimental V2 of alignRaw3d\n');
+            BH_alignRaw3d_v2(varargin{2}, varargin{3});
+          else            
+            BH_alignRaw3d(varargin{2}, varargin{3});
+          end        
         else
-          BH_alignRaw3d(varargin{2}, varargin{3},varargin{4});
+          if (useV2)
+            fprintf('Using experimental V2 of alignRaw3d\n');
+
+            BH_alignRaw3d_v2(varargin{2}, varargin{3},varargin{4})
+          else
+            BH_alignRaw3d(varargin{2}, varargin{3},varargin{4});
+          end
         end
     end
     
@@ -698,6 +708,8 @@ try
     bh_global_save_tomoCPR_diagnostics = 0;
   end
   
+  global bh_global_imodProjectionShifts;
+  bh_global_imodProjectionShifts = [ -0.5, -0.5, 0.5 ; -0.5, -0.5, 0; 0.5,0.5,1.0 ];
   
 %%%%%%%%%%%%%%
 
@@ -770,12 +782,7 @@ try
     bh_global_kFactorScaling = 1.0;
   end
   
-  global bh_global_tomoCPR_random_subset;
-  try
-    bh_global_tomoCPR_random_subset = pBH.('tomoCPR_randomSubset');
-  catch
-    bh_global_tomoCPR_random_subset = 500;
-  end
+
   
   try
     bh_global_vol_est_scaling = pBH.('setParticleVolumeScaling');
@@ -816,14 +823,14 @@ try
   global bh_global_ML_compressByFactor;
   global bh_global_ML_angleTolerance;
   try
-    bh_global_ML_compressByFactor = pBH.('ML_compressByFactor')
+    bh_global_ML_compressByFactor = pBH.('ML_compressByFactor');
   catch
-    bh_global_ML_compressByFactor = 1.25
+    bh_global_ML_compressByFactor = 2.0;
   end
   try
-    bh_global_ML_angleTolerance = pBH.('ML_angleTolerance')
+    bh_global_ML_angleTolerance = pBH.('ML_angleTolerance');
   catch
-    bh_global_ML_angleTolerance = 5
+    bh_global_ML_angleTolerance = 5;
   end
   
   fprintf('nExpGlobals %2.2f maskLP, %2.2f maskThr, %2.2f pcaMaskThr\n', ...
