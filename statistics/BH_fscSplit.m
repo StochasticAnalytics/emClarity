@@ -58,8 +58,8 @@ for iTomo = 1:nTomograms
   % Load in the geometry for the tomogram, and get number of subTomos.
   positionList = geometry.(tomoList{iTomo});
 
+
   nSubTomos = size(positionList,1);
-  size(positionList,1)
   % Generate random half sets for fsc
   if (floorCeil)
     halfValue = floor(nSubTomos./2);
@@ -70,6 +70,18 @@ for iTomo = 1:nTomograms
   end
   
   
+  % Add randomized positions for ML intialization
+  if (nPeaks > 1)
+    positionList = repmat(positionList,1,nPeaks);
+    for iPeak = 1:nPeaks-1
+      
+      for iRand = 1:size(positionList,1)
+        positionList(iRand,[17:25] + 26*iPeak) = ...
+           reshape(BH_defineMatrix('rand','Bah','inv')*reshape(positionList(iRand,[17:25]),3,3),1,9);
+      end
+      
+    end  
+  end
   
   if (splitOnTomos)
     positionList(:,7:26:26*nPeaks) = 1 + floorCeil;
@@ -82,6 +94,8 @@ for iTomo = 1:nTomograms
     %numel(find(positionList(:,7)==1))
     % Update geometry
   end
+  
+
   geometry.(tomoList{iTomo}) = positionList;
   
   
