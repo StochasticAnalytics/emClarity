@@ -11,8 +11,10 @@ if (isTilt)
   % Expecting just the x,y,z for a tilt series and the binning. Also may
   % shift to have an odd dimension so that Imod origin is always the same.   
     binSize = floor(coords./samplingRate);
-    originFull = floor(coords./2) + 1;
-    originBin  = floor(binSize./2)+1;
+    binSize = binSize - (1-mod(binSize,2));
+    
+    originFull = floor(coords ./2) + 1;
+    originBin  = floor(binSize./2) + 1;
     % This is the shift we need to apply to the binned image to make sure
     % that the origin is in the same place.
     binShift = -1.*(samplingRate.*originBin - originFull) ./ samplingRate;
