@@ -25,8 +25,41 @@ tiltStart = 1;
 
 % Test David's new super sampling in reconstruction. No check that this
 % version (currently 4.10.40) is properly sourced.
-useSuperSample = 0;
+try
+  super_sample = pBH.('super_sample');
+  if (super_sample > 0)
+    [~,v] = system('cat $IMOD_DIR/VERSION');
+    v = split(v,'.');
+    if (str2num(v{1}) < 4 || (str2num(v{2}) <= 10 && str2num(v{3}) < 42))
+      fprintf('Warning: imod version is too old for supersampling\n');
+      super_sample = '';
+    else
+      super_sample = sprintf(' -SuperSampleFactor %d',super_sample);
+    end
+  else
+    super_sample = '';
+  end
 
+catch
+  super_sample = '';
+end
+
+
+try
+  expand_lines = pBH.('expand_lines');
+  if isempty(super_sample) || expand_lines == false
+    expand_lines = '';
+  else
+    expand_lines = ' -ExpandInputLines';
+  end
+catch
+  expand_lines = '';
+end
+
+if ~isempty(expand_lines)
+  fprintf('Currently, the expand_lines option seems to produce significant errors.\nDisabling\n');
+  expand_lines = '';
+end
 %default to cycle number zero for
 %determining mean z height of particles
 recWithoutMat = false;
@@ -44,7 +77,7 @@ if nargin > 2
       loadSubTomoMeta = false;
       % Default to on for subregion picking
       % If user has specified phakePhasePlate, don;t use ...otherwise
-      if isempty(bh_global_turn_on_phase_plate) || bh_global_turn_on_phase_plate == 0
+      if isempty(bh_global_turn_on_phase_plate(1)) || bh_global_turn_on_phase_plate(1) == 0
         bh_global_turn_on_phase_plate = [1,2]
       end
     end
@@ -126,7 +159,7 @@ else
 end
 fprintf('tmpCache is %s\n',tmpCache);
 system(sprintf('mkdir -p %s',tmpCache));
-
+system(sprintf('mkdir -p %s','cache')); % This should exist, but to be safe.
 if (recWithoutMat)
   if (loadSubTomoMeta)
     load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
@@ -223,7 +256,19 @@ end
 if (recWithoutMat)
   if (reconstructionParameters(1))
     tiltList{1} = varargin{2};
-    tomoList{1} = sprintf('%s_1',tiltList{1});
+    % We just need one valid subtomot
+    iTry = 1;
+    tomoList{1} = '';
+    while iTry < 25
+      if (isfield(masterTM.mapBackGeometry.tomoName,sprintf('%s_%d',tiltList{1},iTry)))
+        tomoList{1} = sprintf('%s_%d',tiltList{1},iTry);
+        break;
+      end
+      iTry = iTry + 1;
+    end
+    if isempty(tomoList{1})
+      error('Did not find a valid tomogram in the searchspace ->25');
+    end
   else
     % TODO set up a check on the recon folder to get what is needed for
     % templateSearch
@@ -488,6 +533,7 @@ parfor iGPU = 1:nGPUs
                                       
 
     if (recWithoutMat)
+
       avgZ = 0;
       surfaceFit = {0};
     else
@@ -496,8 +542,10 @@ parfor iGPU = 1:nGPUs
                                             iTomoList,nTomos, pixelSize, ...
                                             samplingRate, cycleNumber,...
                                             sectionList,0);
+  
     
     end
+    
     if ( shiftDefocusOrigin )
       fprintf('Using avgZ %3.3e nm as the defocus origin\n',avgZ*10^9);
     else
@@ -581,7 +629,9 @@ parfor iGPU = 1:nGPUs
    
       % Loop over tomos reconstructing section and appending a file to 
       for iT = 1:nTomos
-        iTomo = tomoNumber(iT);   
+
+          iTomo = tomoNumber(iT);   
+       
         if any(sectionList{iT}(iSection,:)+9999)
           
 
@@ -589,9 +639,13 @@ parfor iGPU = 1:nGPUs
           reconName = sprintf('%s/%s_ali%d_%d_%d.rec', ...
                               tmpCache,tiltList{iTilt},mapBackIter+1,iTomo,iSection);
 
-                     
+
           if (loadSubTomoMeta)
-            TA = sortrows(masterTM.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},iTomo)),1);
+            if (recWithoutMat)              
+              TA = sortrows(masterTM.tiltGeometry.(tomoList{1}),1);
+            else
+              TA = sortrows(masterTM.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},iTomo)),1);
+            end
             TA = TA(:,4);
           else
             if (mapBackIter)
@@ -646,23 +700,16 @@ parfor iGPU = 1:nGPUs
           tiltChunks(end) = iCoords(iTomo,3);
           totalSlices = [tiltChunks(1),tiltChunks(end)];
 
-          if (useSuperSample > 0)
+  
             
-            rCMD = sprintf(['tilt -SuperSampleFactor %d -ExpandInputLines -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
-                         '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
-                         useSuperSample, outputStack, reconName, rawTLT, gpuList(iGPU), ...
-                         iCoords(iTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
-                         iCoords(iTomo,5),sectionList{iT}(iSection,6));
+          rCMD = sprintf(['tilt %s %s -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
+                       '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
+                       super_sample, expand_lines, ...
+                       outputStack, reconName, rawTLT, gpuList(iGPU), ...
+                       iCoords(iTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
+                       iCoords(iTomo,5),sectionList{iT}(iSection,6));
                        
-          else
-            
-            rCMD = sprintf(['tilt -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
-             '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
-             outputStack, reconName, rawTLT, gpuList(iGPU), ...
-             iCoords(iTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
-             iCoords(iTomo,5),sectionList{iT}(iSection,6));
 
-          end
 
           % Explicitly set Radial to Nyquist         
           if (flgLocal)
@@ -1214,14 +1261,16 @@ for iPrj = 1:nPrjs
       if (phakePhasePlate(1) > 0)
          if numel(phakePhasePlate) == 2
            modPower = floor(phakePhasePlate(2));
+           SNR = rem(phakePhasePlate(2),1);
          else
           modPower = 1;
+          SNR = 1;
          end
          
         
-         [Hqz, ~] = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,1,1);
+         [Hqz, ~] = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,1,SNR);
 
-         Hqz = (-1).^modPower.*(phakePhasePlate(1).*Hqz).^modPower;
+         Hqz = (-1).^modPower.*(phakePhasePlate(1).*Hqz).^1;
  
 
          modHqz = [];
@@ -1281,7 +1330,7 @@ tomoNumber = zeros(nTomos,1);
 for iTomo = 1:nTomos
   % The tomograms may not be listed monotonically so explicitly get their
   % id number
-  tomoNumber(iTomo) = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;     
+  tomoNumber(iTomo) = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber    
   nZdZ = iCoords(tomoNumber(iTomo),[4,6]);
 
   % half the size in z plus the shift back to the microscope coords.
