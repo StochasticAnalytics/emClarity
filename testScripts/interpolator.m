@@ -9,6 +9,7 @@ classdef interpolator < handle
     % Symmetry matrices
     nSymMats;
     symmetry_matrices;
+    symmetry_type = '';
     % The resampled volume
 %     resampledVol;
   end
@@ -34,7 +35,7 @@ classdef interpolator < handle
                                                                  boolDirection);
       for iSym = 2:obj.nSymMats
        
-        symAngles = gather(obj.symmetry_matrices{iSym} * angles);
+        symAngles = gather(angles*obj.symmetry_matrices{iSym});
         resampledVol = resampledVol + mexXform3d(inputVol, ...
                                                  symAngles, ...
                                                  shifts, ...
@@ -79,7 +80,7 @@ classdef interpolator < handle
 %       resampledVol = zeros(size(inputVol), 'single', 'gpuArray');
       for iSym = 1:obj.nSymMats
        
-        symAngles = gather(obj.symmetry_matrices{iSym} * angles);
+        symAngles = gather(angles*obj.symmetry_matrices{iSym});
         if (iSym == 1)
         resampledVol =   mexXform3d(inputVol, ...
                                                  symAngles, ...
@@ -122,41 +123,46 @@ classdef interpolator < handle
     
    function [  ] = check_symmetry(obj, symmetry)
      
-     if (strcmpi(symmetry, 'C1'))
-       obj.symmetry_matrices = cell(1);
-       symmetry_type = 0;
-     elseif (strcmpi(symmetry, 'C2'))
-       obj.symmetry_matrices = cell(2);
-       symmetry_type = 0;
-     elseif (strcmpi(symmetry, 'C3'))
-        obj.symmetry_matrices = cell(3);
-        symmetry_type = 0;
-     elseif (strcmpi(symmetry, 'C4'))
-        obj.symmetry_matrices = cell(4);
-        symmetry_type = 0;
-      elseif (strcmpi(symmetry, 'C5'))
-        obj.symmetry_matrices = cell(5);
-        symmetry_type = 0;
-      elseif (strcmpi(symmetry, 'C6'))
-        obj.symmetry_matrices = cell(6);
-        symmetry_type = 0;
-     else
-       error('Only C1-6 have been implemented in the new interp class');
-     end
+     if isempty(obj.symmetry_type |  ~strcmpi(symmetry, obj.symmetry_type))
+       
+       if (strcmpi(symmetry, obj.symmetry_type))
+         return;
+       else
+         obj.symmetry_type = symmetry;
+%          warning('The requested symmetry (%s) is different from that initialized (%s)\n',symmetry,obj.symmetry_type);
+       end
+       
+       if (strcmpi(symmetry, 'C1'))
+         obj.symmetry_matrices = cell(1);
+       elseif (strcmpi(symmetry, 'C2'))
+         obj.symmetry_matrices = cell(2);
+       elseif (strcmpi(symmetry, 'C3'))
+          obj.symmetry_matrices = cell(3);
+       elseif (strcmpi(symmetry, 'C4'))
+          obj.symmetry_matrices = cell(4);
+        elseif (strcmpi(symmetry, 'C5'))
+          obj.symmetry_matrices = cell(5);
+        elseif (strcmpi(symmetry, 'C6'))
+          obj.symmetry_matrices = cell(6);
+       else
+         error('Only C1-6 have been implemented in the new interp class');
+       end
      
-     switch symmetry_type
-       case 0
+%      switch symmetry_type
+%        case 0
          obj.nSymMats = length(obj.symmetry_matrices);
          symInc = 360 / obj.nSymMats;
          for iSym = 0: obj.nSymMats - 1
           obj.symmetry_matrices{iSym + 1} = BH_defineMatrix([0,0,iSym.*symInc], 'Bah', 'forward');
          end
+%      end
      end
+
       
      
    end
    
-   function [ obj ] = deallocate(obj)
+   function [  ] = delete(obj)
      mexXform3d(obj.texObject, obj.cuArray);
      obj.symmetry_matrices = [];
      obj.nSymMats = [];
