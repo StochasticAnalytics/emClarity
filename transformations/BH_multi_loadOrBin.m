@@ -78,32 +78,21 @@ if samplingRate > 1
         iOriginHeader= [iHeader.xOrigin ./ samplingRate, ...
                         iHeader.yOrigin ./ samplingRate, ...
                         iHeader.zOrigin ./ samplingRate];  
-           
-        pixelSize = iHeader.cellDimensionX/iHeader.nX; % Assuming X/Y the same and Z might be incorrect.               
+                      
                       
         [binSize,binShift] = BH_multi_calcBinShift([iHeader.nX,iHeader.nY],1,samplingRate);
-        
-        % Gridding correction for the interpolation in the binning. Not
-        % sure this is quite right, but it looks much better. TODO FIXME
-        [ R ] = BH_multi_gridCoordinates([iHeader.nX,iHeader.nY],'Cartesian','GPU', {'none'},1,1,1);
-        R = sinc(R).^-2;
-        
+
         binSize = [binSize,iHeader.nZ];
         newStack = zeros(binSize,'single');
         for iPrj = 1:binSize(3)
           iProjection = gpuArray(getVolume(tiltObj,[],[],iPrj,'keep'));
           
           if (iPrj == 1)
-            bhF = fourierTransformer(iProjection,'OddSizeOversampled');
+            bhF = fourierTransformer(iProjection);
           end
           
-          iProjection = bhF.invFFT(bhF.fwdFFT(R.*iProjection,0,0,[1e-6,600,samplingRate*pixelSize,pixelSize]),2);
           
-          iProjection = BH_resample2d(iProjection,[0,0,0],binShift,'Bah','GPU','forward',1/samplingRate,binSize(1:2),bhF);
-              
-          
-%           iProjection = real(ifftn(ifftshift(BH_padZeros3d(fftshift(fftn(iProjection)),'fwd',padVal,'GPU','singleTaper'))));
-%           
+          iProjection = BH_resample2d(iProjection,[0,0,0],binShift,'Bah','GPU','forward',1/samplingRate,[binSize(1:2)],bhF);
 
 
           newStack(:,:,iPrj) = gather(iProjection);

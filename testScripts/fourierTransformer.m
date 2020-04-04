@@ -27,24 +27,14 @@ classdef fourierTransformer < handle
     indexCenterFWD = '';  
     indexCenterINV = ''
     
-    OddSizeOversampled = 0;
-    
     useFwdSwapForInverse; % works for even sized images
     
   end
   
   methods
     
-    function [obj, ft] = fourierTransformer(inputVol, varargin)
+    function [obj, ft] = fourierTransformer(inputVol)
       
-      
-      if nargin > 1
-        if (strcmpi(varargin{1},'OddSizeOversampled'))
-          obj.OddSizeOversampled = 1;
-        else
-          error('Did not recognize the extra argument when intializing the fourierTransformer');
-        end
-      end
       % Must be single and on gpu
       if ~isa(inputVol(1),'gpuArray')
         inputVol = gpuArray(single(inputVol));
@@ -64,8 +54,6 @@ classdef fourierTransformer < handle
       else
         obj.invTrim = int16(2);
       end
-      
-      % FIXME get rid of this.
       % Second condition checks for even dimensions which require an
       % explicit ifft mask
       if (sum(mod(obj.inputSize,2)))
@@ -84,8 +72,6 @@ classdef fourierTransformer < handle
       [ft] = fwdFFT(obj,inputVol);
 
       obj.normalization_factor = 1./sqrt(numel(inputVol));
-      
-     
       
     end
 
@@ -190,7 +176,7 @@ classdef fourierTransformer < handle
           [ obj.phaseCenter, dV ] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
                                     {'none'},1,0,0,{'halfgrid'});
           if (obj.inputSize(1) == obj.inputSize(2))
-            obj.phaseCenter = exp(-2i.*pi.*(obj.halfDimSize-obj.OddSizeOversampled).*(obj.phaseCenter+dV));
+            obj.phaseCenter = exp(-2i.*pi.*obj.halfDimSize.*(obj.phaseCenter+dV));
             clear dU dV
           else
             hX = floor(obj.inputSize(1)/2) + 1;
@@ -202,7 +188,7 @@ classdef fourierTransformer < handle
                                     {'none'},1,0,0,{'halfgrid'});
                                   obj.inputSize
           if (obj.inputSize(1) == obj.inputSize(2) == obj.inputSize(3))
-            obj.phaseCenter = exp(-2i.*pi.*(obj.halfDimSize-obj.OddSizeOversampled).*(obj.phaseCenter+dV+dW));
+            obj.phaseCenter = exp(-2i.*pi.*obj.halfDimSize.*(obj.phaseCenter+dV+dW));
             clear dU dV dW        
           else
             hX = floor(obj.inputSize(1)/2);% + 1;
@@ -235,9 +221,7 @@ classdef fourierTransformer < handle
       
       % Create the phase swap indices if needed
       if isempty(obj.indexCenterFWD)         
-%         obj.indexCenterFWD = BH_fftShift(window,obj.inputSize,1,'halfgrid');
-        obj.indexCenterFWD = EMC_maskIndex('fftshift', obj.inputSize, 'GPU', {'half',true});
-
+        obj.indexCenterFWD = BH_fftShift(window,obj.inputSize,1,'halfgrid');
       end
       
       inputVol = inputVol(obj.indexCenterFWD);
@@ -250,18 +234,17 @@ classdef fourierTransformer < handle
       % the peak is expected near the center.
       window = 0;
       
-%       if (obj.useFwdSwapForInverse)
-%         inputVol = obj.swapIndexFWD(inputVol);
-%       else
+      if (obj.useFwdSwapForInverse)
+        inputVol = obj.swapIndexFWD(inputVol);
+      else
         % Create the phase swap indices if needed
         if isempty(obj.indexCenterINV)         
-%           obj.indexCenterINV = BH_fftShift(window,-1.*obj.inputSize,1,'halfgrid');
-          obj.indexCenterINV = EMC_maskIndex('ifftshift', obj.inputSize, 'GPU', {'half',true});
+          obj.indexCenterINV = BH_fftShift(window,-1.*obj.inputSize,1,'halfgrid');
         end
         inputVol = inputVol(obj.indexCenterINV);
       end
 
-%     end
+    end
     
     function [inputVol] = fwdSwap(obj,inputVol)
       
