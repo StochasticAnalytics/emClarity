@@ -48,8 +48,22 @@ function [ ROTATION_MATRIX ] = BH_defineMatrix( ANGLES, CONVENTION, DIRECTION)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Convert from degrees to radians.
-angles = ANGLES.*(pi./180);
+if isnumeric(ANGLES(1))
+  % Convert from degrees to radians.
+  angles = ANGLES.*(pi./180);
+else
+  % Supply random angles
+  [randXYZ] = rand(1,3)-0.5;
+  % Normalize to unit sphere;
+  randXYZ = randXYZ ./ sqrt(sum(randXYZ.^2,2));
+  angles  = [atan2(randXYZ(2),randXYZ(1)), ...
+             acos(randXYZ(3)), ...
+             (2.*pi.*(rand(1) - 0.5))]; % between -pi/pi
+  
+  % Make sure to override conventions for consistency.
+  CONVENTION = 'Bah';
+  DIRECTION =  'inv';
+end
 
 %%%%%%%%%%%%%%%%%  Angle Definitions  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Creating the anonymous functions more than doubles the run time without.
