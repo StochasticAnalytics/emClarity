@@ -273,6 +273,9 @@ for iCtfGroup = 1:nCtfGroups
                                                 rSubTomo(1:9),positionList(iSubTomo,26)],...
                                                 TLT, reconGeometry, originPrj, ...
                                                 SAMPLING);
+                                              
+
+
 % % % 
 % % %       % For now just recreate the Hermitian pair
 % % %       nX = paddedSize(1);
@@ -280,6 +283,9 @@ for iCtfGroup = 1:nCtfGroups
 % % %       oX = floor(nX/2)+1;
 % % %       isOdd = mod(nX,2);
       [ rec{iGold}  ] = BH_multi_makeHermitian(SF3D, paddedSize, padScaling);
+      
+
+      
 % % %       try    
 % % %         tmpArray = zeros(paddedSize,'single','gpuArray');
 % % %         tmpArray(oX-1+isOdd:end,:,:) = SF3D;
