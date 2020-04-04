@@ -102,6 +102,8 @@ try
 catch
   nPeaks = 1;
 end
+
+
 mapBackIter = subTomoMeta.currentTomoCPR;
 
 if (CYCLE)
@@ -180,6 +182,19 @@ catch
   scaleCalcSize = 1.5;
 end
 
+global bh_global_ML_compressByFactor;
+global bh_global_ML_angleTolerance;
+if isempty(bh_global_ML_compressByFactor)
+  bh_global_ML_compressByFactor = 2.0;
+end
+if isempty(bh_global_ML_angleTolerance)
+  bh_global_ML_angleTolerance = 5;
+end
+  
+if (nPeaks > 1)
+  fprintf('For ML approach:\nUsing a compression factor %3.3f\nUsing an angulare tolerance of %3.3f degrees\n', ...
+          bh_global_ML_compressByFactor, bh_global_ML_angleTolerance);
+end
 % for now only turn on (optionally) in reference generation.
 
 classVector = cell(2,1);
@@ -386,7 +401,7 @@ end
 
 if ( loadTomo )
   limitToOne = loadTomo;
-    if (flgLimitToOneProcess)
+  if (flgLimitToOneProcess)
     limitToOne = min(limitToOne, flgLimitToOneProcess);
   end
 elseif interpOrder == 4
@@ -648,6 +663,30 @@ fscPAD = padCalc;%[floor(padVal./2); ceil((padVal)./2)]
 delete(gcp('nocreate'));
 parpool(nGPUs);
 
+% TODO need some way of only sending out the command for one tilt or
+% something to prevent collisions that result in no complete recon.
+
+tiltNameList = fieldnames(masterTM.mapBackGeometry);
+tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
+maxPerGPU = floor(length(tiltNameList)/nGPUs) + 1;
+wgtList = tomoList;
+for iGPU = 1:nGPUs
+  nThisGPU = 0;
+  for iParProc = iGPU:nGPUs:nParProcesses
+    for iTomo = iterList{iParProc}
+      iTilt = masterTM.mapBackGeometry.tomoName.(wgtList{iTomo}).tiltName;
+      if (any(ismember(tiltNameList,iTilt)) && nThisGPU < maxPerGPU)
+        nThisGPU = nThisGPU +1;
+        tiltNameList{ismember(tiltNameList,iTilt)} = 'continue';
+      else
+        wgtList{iTomo} = 'continue';
+      end
+    end
+  end
+end
+
+
+
 parfor iGPU = 1:nGPUs
 % % % % for iGPU = 1:nGPUs
   for iParProc = iGPU:nGPUs:nParProcesses
@@ -655,9 +694,12 @@ parfor iGPU = 1:nGPUs
     % prior to the main loop
     for iTomo = iterList{iParProc}
 
+      if strcmp(wgtList{iTomo}, 'continue')
+        continue;
+      end
 
 
-      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,tomoList{iTomo},samplingRate ,...
+      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iTomo},samplingRate ,...
                                 sizeCalc,geometry,cutPrecision,iGPU);
 
 
@@ -906,8 +948,10 @@ parfor iParProc = parVect
             [ peakWgt, sortedList ] = BH_weightAngCheckPeaks( ...
                                                positionList(iSubTomo,:),...
                                                nPeaks, symmetry,...
-                                               iSubTomo, tomoList{iTomo});
-            % Update any re-ordering or elimination                                 
+                                               iSubTomo, tomoList{iTomo},...
+                                               bh_global_ML_compressByFactor,...
+                                               bh_global_ML_angleTolerance);        
+          % Update any re-ordering or elimination                                 
             positionList(iSubTomo,:) = sortedList;                                 
           else
             peakWgt = 1;
