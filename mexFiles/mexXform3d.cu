@@ -46,12 +46,12 @@ __global__ void transformKernel_FWD(cudaTextureObject_t thisTexObj,
   {
 
     // First, put the origin at the center, rotate, then shift
-    u = (float)x - (float)(dims.x/2) + shifts.x + size_shift.x; 
-    v = (float)y - (float)(dims.y/2) + shifts.y + size_shift.y; 
-    w = (float)z - (float)(dims.z/2) + shifts.z + size_shift.z;
-    tu = u*rm_1.x + v*rm_1.y + w*rm_1.z; 
-    tv = u*rm_2.x + v*rm_2.y + w*rm_2.z;
-    tw = u*rm_3.x + v*rm_3.y + w*rm_3.z;
+    u = (float)x - (float)(dims.x/2) + shifts.x; 
+    v = (float)y - (float)(dims.y/2) + shifts.y; 
+    w = (float)z - (float)(dims.z/2) + shifts.z;
+    tu = u*rm_1.x + v*rm_1.y + w*rm_1.z + size_shift.x; 
+    tv = u*rm_2.x + v*rm_2.y + w*rm_2.z + size_shift.y;
+    tw = u*rm_3.x + v*rm_3.y + w*rm_3.z + size_shift.z;
   }
   else  
   {

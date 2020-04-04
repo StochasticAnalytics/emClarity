@@ -12,16 +12,6 @@
 %   TODO
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-global bh_global_print_shifts_in_particle_basis;
-if isempty(bh_global_print_shifts_in_particle_basis)
-  bh_global_print_shifts_in_particle_basis = true;
-end
-
-global bh_global_zero_lag_score;
-if isempty(bh_global_zero_lag_score)
-  bh_global_zero_lag_score = false
-end
-
 if (nargin ~= 2 && nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, [1,abs(ccc),2,weighted,3,abs(weighted)]')
 else
@@ -333,7 +323,7 @@ for iGold = 1:2
                                
   if (flgCenterRefCOM)
 % % % % % % %    [ comMask ] = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
-   [ comMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius, 'gpu', {'shift', maskCenter});
+   [ comMask ]  = EMC_maskShape(maskType, sizeMask, sizeMask, 'gpu', {'shift', maskCenter});
   end
                             
   % get boxSize 
@@ -755,7 +745,7 @@ parfor iParProc = parVect
     tomoName = tomoList{iTomo};
       %fprintf('gpu %d working on tomoName %s\n', iGPU, tomoName);
 
-%       tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
+      tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry_tmp.(tomoList{iTomo});
     
@@ -778,8 +768,8 @@ parfor iParProc = parVect
         maxWedgeIfft = maxWedgeMask;
 
         for iWdg = 1:length(maxWedgeMask)
-          if ~isempty(maxWedgeMask{iWdg})      
-            maxWedgeMask{iWdg} = (maxWedgeMask{iWdg} - min(maxWedgeMask{iWdg}(:))) + 1e-4;
+          if ~isempty(maxWedgeMask{iWdg})    
+            maxWedgeMask{iWdg} = (maxWedgeMask{iWdg} - min(maxWedgeMask{iWdg}(:))) + 1e-3;
             maxWedgeMask{iWdg} = maxWedgeMask{iWdg}.^softenWeight;
             maxWedgeIfft{iWdg} = ifftshift(maxWedgeMask{iWdg});
             
@@ -830,7 +820,6 @@ parfor iParProc = parVect
     end
     % reset for each tomogram
     wdgIDX = 0;
-
     
     for iSubTomo = 1:nSubTomos
       breakPeak = 0; % for try catch on cut out vols    
@@ -850,14 +839,12 @@ parfor iParProc = parVect
       end
       
 
-%         [~,iw1,iw2,iw3] = BH_resample3d(iMaxWedgeMask, eye(3), [0,0,0], ...
-%                               {'Bah',1,'linear',1,wdgBinary_tmp}, ...
-%                                                          'GPU', 'inv');  
-%         inputWgtVectors = {iw1,iw2,iw3};
-%         iw1 = []; iw2 = []; iw3 = [];
-                                        
-
-      
+        [~,iw1,iw2,iw3] = BH_resample3d(iMaxWedgeMask, eye(3), [0,0,0], ...
+                              {'Bah',1,'linear',1,wdgBinary_tmp}, ...
+                                                         'GPU', 'inv');  
+        inputWgtVectors = {iw1,iw2,iw3};
+        iw1 = []; iw2 = []; iw3 = [];
+                                                       
       for iPeak = 1:nPeaks
         if (breakPeak) 
           continue;
@@ -1549,55 +1536,35 @@ parfor iParProc = parVect
           cccStorageBest{iPeak}(iSubTomo,:) = gather([bestRotPeak(1,1:7), ...
                                         peakCoord + finalrXYZest - shiftVAL]) ;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  
-        % It is probably more useful see the shifts in the particle
-        % reference frame vs. the avg which was the original
-        if (bh_global_print_shifts_in_particle_basis)
-          printShifts = zeros(3,3);
-          printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
-          printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
-          printShifts(3,:) = RotMat * reshape(cccStorageBest{iPeak}(iSubTomo,end-2:end),3,1);
-        else
-          printShifts = [cccInitial(1,end-2:end); ...
-                         cccPreRefineSort(1,end-2:end);...
-                         cccStorageBest{iPeak}(iSubTomo,end-2:end)];
-        end
-        
-        % Print out in Angstrom
-        printShifts = printShifts .* pixelSize;
-          
 
         deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
         if (deltaCCC < 0) && (abs(deltaCCC) > 0.15*cccInitial(1,6))
           fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
-          fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',iPeak,cccInitial(1,1:end-3),printShifts(1,:),...
-                   'PreRefine', iPeak,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));          
+          fprintf(['\n%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',cccInitial(1,:),'PreRefine',cccStorageBest{iPeak}(iSubTomo,:));          
           cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
           
         end
 
         if (flgRefine)
-          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:), ...
-                   'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
-                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
-                   'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
+          fprintf(['\n%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',classIDX,cccInitial(1,:), ...
+                   'PreRefine', classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
+                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:end)], ...
+                   'PostRefine',classIDX,cccStorageBest{iPeak}(iSubTomo,:));
           
         else
-          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:),...
-                   'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
+          fprintf(['\n%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',classIDX,cccInitial(1,:),'PreRefine',classIDX,cccStorageBest{iPeak}(iSubTomo,:));
           
         end
 
     
       end % if condition on newly ignored particles
-      
       end
 
       if ~(rem(iSubTomo,100))
