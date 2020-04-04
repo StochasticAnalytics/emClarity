@@ -535,7 +535,7 @@ for i = 1:d3
 
 
   if (i == 1 && bh_global_do_2d_fourier_interp)
-    bhF = fourierTransformer(iProjection);
+    bhF = fourierTransformer(iProjection,'OddSizeOversampled');
   end
   
 
@@ -551,6 +551,8 @@ for i = 1:d3
 %   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
   combinedInverted = combinedInverted([1,2,4,5]);
+  
+
   iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
  else
    combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
@@ -582,9 +584,9 @@ if ( flgEraseBeads )
     beadList(:,1:2) = beadList(:,1:2) ./ scalePixelsBy;
     STACK = BH_eraseBeads(STACK,eraseRadius, beadList, sortrows(TLT,1));
 end 
-fprintf('here1\n')
+
 [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,PIXEL_SIZE*10^10,samplingMaskStack);
-fprintf('here1\n')
+
 
 SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
 SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);

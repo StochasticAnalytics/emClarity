@@ -68,7 +68,7 @@ end
 % loop, getting confused about whether it is a variable or a function.
 recGeomForThickness = subTomoMeta.reconGeometry;
 parfor iGPU = 1:nGPUs
-  for iTilt = 1:length(ITER_LIST{iGPU})
+%  for iTilt = 1:length(ITER_LIST{iGPU})
     
   if ( flgParallel )
     useGPU = iGPU;
@@ -77,6 +77,10 @@ parfor iGPU = 1:nGPUs
     useGPU = BH_multi_checkGPU(-1);
     gDev = gpuDevice(useGPU);
   end
+  
+  for iTilt = 1:length(ITER_LIST{iGPU})
+    
+
   STACK_PRFX = ITER_LIST{iGPU}{iTilt};
 
       
@@ -436,6 +440,7 @@ system('mkdir -p aliStacks');
     sizeODD = [d1,d2]-[osX,osY];
     
     
+    
     % If it is even sized, shift up one pixel so that the origin is in the middle
     % of the odd output here we can just read it in this way, unlike super res.
      
@@ -459,6 +464,8 @@ system('mkdir -p aliStacks');
   % we must use a square transform; otherwise, a rotation angle dependent
   % anisotropic distortion (like mag distortion) is introduced.
     sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
+    
+    
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
      
@@ -475,7 +482,7 @@ system('mkdir -p aliStacks');
   end
 
   if (i == 1 && bh_global_do_2d_fourier_interp)
-    bhF = fourierTransformer(iProjection);
+    bhF = fourierTransformer(iProjection,'OddSizeOversampled');
   end
     
 
@@ -495,7 +502,8 @@ system('mkdir -p aliStacks');
 %       combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
       combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
       combinedInverted = combinedInverted([1,2,4,5]);
-      
+
+
       iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
      else
        if (i == 1)
