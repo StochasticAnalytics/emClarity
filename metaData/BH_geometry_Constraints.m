@@ -5,7 +5,7 @@ flgCSV = 0;
 CYCLE = str2num(CYCLE);
 
 pixelSize = str2double(PARAMETER_FILE);
-if (isnan(pixelSize))
+% % % if (isnan(pixelSize))
   pixelSize = PARAMETER_FILE;
   flgCSV = 1;
   if ~isdir('convmap')
@@ -18,29 +18,29 @@ if (isnan(pixelSize))
   geom = strsplit(csvList)
   nModFiles = length(geom)-1
   
-else
-  pBH = BH_parseParameterFile(PARAMETER_FILE);
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-  pixelSize = pBH.('PIXEL_SIZE')*10^10
-  
-
-  cycleNumber = sprintf('cycle%0.3u', CYCLE);
-
-  if (CYCLE)
-    geom  = subTomoMeta.(cycleNumber).RawAlign;
-  else
-    if isfield(subTomoMeta.('cycle000'),'geometry_orig')
-      geom = subTomoMeta.('cycle000').('geometry_orig');
-    else
-      subTomoMeta.('cycle000').('geometry_orig') = ...
-      subTomoMeta.('cycle000').('geometry');
-      geom = subTomoMeta.('cycle000').('geometry_orig');
-    end
-  end
-  baseNum = fieldnames(geom);
-  nModFiles = length(baseNum);
-  binVal = pBH.('Tmp_samplingRate');
-end
+% % % else
+% % %   pBH = BH_parseParameterFile(PARAMETER_FILE);
+% % %   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+% % %   pixelSize = pBH.('PIXEL_SIZE')*10^10
+% % %   
+% % % 
+% % %   cycleNumber = sprintf('cycle%0.3u', CYCLE);
+% % % 
+% % %   if (CYCLE)
+% % %     geom  = subTomoMeta.(cycleNumber).RawAlign;
+% % %   else
+% % %     if isfield(subTomoMeta.('cycle000'),'geometry_orig')
+% % %       geom = subTomoMeta.('cycle000').('geometry_orig');
+% % %     else
+% % %       subTomoMeta.('cycle000').('geometry_orig') = ...
+% % %       subTomoMeta.('cycle000').('geometry');
+% % %       geom = subTomoMeta.('cycle000').('geometry_orig');
+% % %     end
+% % %   end
+% % %   baseNum = fieldnames(geom);
+% % %   nModFiles = length(baseNum);
+% % %   binVal = pBH.('Tmp_samplingRate');
+% % % end
 
 
 angCut

@@ -63,20 +63,25 @@ for iTomo = 1:nTomograms
    
     for iParticle = includeList'
      % assuming all classes are sequential, only discarded between cycles.
-
+      
      particleIDX =  positionList(iParticle,4 + 26*(iPeak-1));
-    
+      
      pIndex = find(newAlignment(:,2) == particleIDX);
 
+     
      newAngles = newAlignment(pIndex,[3:5] + 10*(iPeak-1));
-% % % % %      try
+    if isempty(pIndex)
+          positionList(iParticle,26 + 26*(iPeak-1)) = -9999;
+          fprintf('particle instance %d in catch clause rawAlignmentApply set to ignore\n',particleIDX);
+          continue
+    else
+ 
      classRot = BH_defineMatrix(newAngles,rotConvention,'inv');
+    end
 % % % % %      catch
     
       
-% % % % %       positionList(iParticle,26 + 26*(iPeak-1)) = -9999;
-% % % % %       fprintf('particlet %d in catch clause rawAlignmentApply set to ignore\n',particleIDX);
-% % % % %       continue
+
 % % % % %      end
      
   

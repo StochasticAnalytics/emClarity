@@ -330,9 +330,9 @@ end
 
 % direction
 if isfield(OPTION, 'direction')
-    if any(strmcpi(['inverse', 'inv'], OPTION.direction))
+    if any(strcmpi(['inverse', 'inv'], OPTION.direction))
         OPTION.direction = 'inverse';
-    elseif any(strmcpi([ 'forward', 'fwd'], OPTION.direction))
+    elseif any(strcmpi([ 'forward', 'fwd'], OPTION.direction))
         OPTION.direction = 'forward';
     else
         error('EMC:direction', "direction should be 'forward' or 'inverse'")

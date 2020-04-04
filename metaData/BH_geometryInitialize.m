@@ -439,9 +439,13 @@ parfor iGPU = 1:nGPUs
       for iSubTomo = 1:size(tmpSearchGeom,1)
 
         subTomoOrigin = fix(tmpSearchGeom(iSubTomo,11:13)./dupInTheLoop);
+        % Inserting random peaks in BH_fscSplit
+% % %         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
+% % %           tmpSearchGeom(iSubTomo,26:26:26*nPeaks) = -9999;
         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
-          tmpSearchGeom(iSubTomo,26:26:26*nPeaks) = -9999;
+          tmpSearchGeom(iSubTomo,26) = -9999;
         else
+% % %         else
         positionMatrix(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = 1;
         positionIDX(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = ...
                                                        tmpSearchGeom(iSubTomo, 4);
@@ -496,8 +500,10 @@ for iGPU = 1:nGPUs
     mapName = fileInfo{iTomo,2};
     tmpGeom = parResults{iGPU}.(mapName);
     
-    tmpGeom(:,9:26:26*nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
-                        subTomoMeta.('ctfGroupSize').(mapName)(2)),1,nPeaks);
+    % Inserting random peaks in BH_fscSPlit
+% % %     tmpGeom(:,9:26:26*nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
+% % %                         subTomoMeta.('ctfGroupSize').(mapName)(2)),1,nPeaks);
+    tmpGeom(:,9) = ceil(tmpGeom(:,11)./ subTomoMeta.('ctfGroupSize').(mapName)(2));
 
     % Sort so that CTFs can be left in main mem, and only pulled when needed and only
     % once per round of alignment.
@@ -505,7 +511,8 @@ for iGPU = 1:nGPUs
   
 
     for iSubTomo = 1:size(tmpGeom,1)
-      tmpGeom(iSubTomo, 4:26:26*nPeaks) = nIDX;
+% % %       tmpGeom(iSubTomo, 4:26:26*nPeaks) = nIDX;
+      tmpGeom(iSubTomo, 4) = nIDX;
 
       
       nIDX = nIDX +1; 
@@ -515,11 +522,11 @@ for iGPU = 1:nGPUs
     %tmpGeom(:,9) = ceil(tmpGeom(:,11)./ ...
     %                    subTomoMeta.('ctfGroupSize').(mapName)(2));
                       
-% % %     % Using my template matching, there should never be a tomo so close to
-% % %     % the edge for this to be problem, but when working with coordinates
-% % %     % from relion, I've noticed out of bounds conditions. Check explicitly
-% % %     % here.                                           
-% % %     tmpGeom( tmpGeom(:,9) == nCTFgroups + 1, 9 ) = nCTFgroups;
+    % Using my template matching, there should never be a tomo so close to
+    % the edge for this to be problem, but when working with coordinates
+    % from relion, I've noticed out of bounds conditions. Check explicitly
+    % here.                                           
+    tmpGeom( tmpGeom(:,9)> nCTFgroups, 9 ) = nCTFgroups;
     
     subTomoMeta.('cycle000').('geometry').(mapName) = tmpGeom;    
   end
