@@ -159,7 +159,11 @@ end
 outputPrefix   = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 %%%flgGold      = pBH.('flgGoldStandard');
 
-
+try
+  nPeaks = pBH.('nPeaks');
+catch
+  nPeaks = 1;
+end
 
 flgNorm = 0;% pBH.('flgNormalizeWMDs');
 try
@@ -271,26 +275,8 @@ for iGold = 1:2
 %   end
 
   try
-    if CYCLE == 0
 
-        sprintf('class_%d_Locations_NoA_%s', refName, halfSet);
-        imgNAME = sprintf('class_%d_Locations_NoA_%s', refName, halfSet);
 
- 
-
-      [ averageMotif{iGold} ] = BH_unStackMontage4d(1, ...
-                                   masterTM.(cycleNumber).(imgNAME){1}, ...
-                                   masterTM.(cycleNumber).(imgNAME){2},...
-                                   preSizeMask);
-      
-
-%       sprintf('%s_%s_class0_NoA_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)
-%       averageMotif{iGold} = gpuArray(single(getVolume(MRCImage( ...
-%                  sprintf('%s_%s_class0_NoA_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)))));
-
-    else
-%       averageMotif{iGold} = gpuArray((getVolume(MRCImage( ...
-%                   sprintf('%s_%s_class0_Raw_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)))));    
         imgNAME = sprintf('class_%d_Locations_Raw_%s', refName, halfSet);
  
 
@@ -298,10 +284,9 @@ for iGold = 1:2
                                    masterTM.(cycleNumber).(imgNAME){1}, ...
                                    masterTM.(cycleNumber).(imgNAME){2},...
                                    preSizeMask);
-    end
+
   catch
-%       averageMotif{iGold} = gpuArray((getVolume(MRCImage( ...
-%                 sprintf('%s_%s_class0_REF_%s.mrc', cycleNumber,pBH.('subTomoMeta'),halfSet)))));  
+
         imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
  
 
@@ -541,6 +526,17 @@ for iGold = 1:1+flgGold
       [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', -1 , randSet);
     end
   end
+  
+  % Extend the random subset to each peak if needed
+  if (nPeaks > 1)
+    for iTomo = 1:nTomograms
+      selectedList = geometry.(tomoList{iTomo})(:,8) > 0;
+      geometry.(tomoList{iTomo})(selectedList,8+26:26:nPeaks*26) = 1;
+      clear selectedList
+    end
+    nTOTAL = nTOTAL*nPeaks;
+    nSUBSET = nSUBSET*nPeaks;
+  end
 
   % Initialize array in main memory for pca
   clear dataMatrix tempDataMatrix 
@@ -579,6 +575,7 @@ for iGold = 1:1+flgGold
   nTemp = 1;
   nTempPrev = 0;
   idxList = zeros(1,nSUBSET);
+  peakList = zeros(1,nSUBSET);
 
   firstLoop = true;  sI = 1;
   nIgnored = 0;
@@ -636,7 +633,10 @@ for iGold = 1:1+flgGold
     sprintf('Working on %d/%d volumes %s\n',iTomo,nTomograms,tomoName)
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry.(tomoList{iTomo});
-    nSubTomos = size(positionList,1)
+    
+    % Loop over peaks inside each tomo to limit wedge mask xfer
+    positionList = positionList(positionList(:,26) ~= -9999,:);
+    nSubTomos = size(positionList,1);
 
 
     if (flgWMDs == 1)
@@ -667,27 +667,31 @@ for iGold = 1:1+flgGold
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
         wedgeMask = gpuArray(iTomoCTFs{wdgIDX});        
         % Weights are ctf^2
-        wedgeMask = sqrt(wedgeMask + min(wedgeMask(:) + 10e-6));
+        wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 1e-6);
 % %         SAVE_IMG(MRCImage(gather(wedgeMask)),'tmpWdg.mrc')
       end
-      
-      
-      % Check that the given subTomo is not to be ignored
+            
+      % Check that the given subTomo is not to be ignored - for now, treat
+      % all peaks as included. The assumption is that using this will be
+      % for initializing the project to get a good starting model. "True"
+      % classification will be done at a later stage after reducing to some
+      % subset of peaks. FIXME
       includeParticle = positionList(iSubTomo, 8);
       
 
       if (includeParticle) 
 
+        for iPeak = 0:nPeaks-1
 
         % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
         % and PEET. This also makes inplane shifts easier to see.
 
-        center = positionList(iSubTomo,11:13)./samplingRate;
-        angles = positionList(iSubTomo,17:25);
+        center = positionList(iSubTomo,[11:13]+26*iPeak)./samplingRate;
+        angles = positionList(iSubTomo,[17:25]+26*iPeak);
         
         % If flgGold there is no change, otherwise temporarily resample the
         % eve halfset to minimize differences due to orientaiton
-        if positionList(iSubTomo,7) == 1 
+        if positionList(iSubTomo,7) == 1 % This is true for all peaks 
           % TODO FIXME should this be the transpose of oddRot?
           angles = reshape(angles,3,3) * oddRot;
         end
@@ -711,14 +715,12 @@ for iGold = 1:1+flgGold
         if ~ischar(indVAL)
           % Read in and interpolate at single precision as the local values
           % in the interpolant suffer from any significant round off errors.
-          particleIDX = positionList(iSubTomo, 4);
-%           iparticle = volumeData(indVAL(1,1):indVAL(2,1), ...
-%                                  indVAL(1,2):indVAL(2,2), ...
-%                                  indVAL(1,3):indVAL(2,3));
+          particleIDX = positionList(iSubTomo, 4); % Same for all peaks
+
 
           if (flgCutOutVolumes)
-            iPeak = 1;
-            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
+            
+            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak+1);
             iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
                                                       [indVAL(1,1),indVAL(2,1)], ...
                                                       [indVAL(1,2),indVAL(2,2)], ...
@@ -790,7 +792,7 @@ for iGold = 1:1+flgGold
 
         if (keepTomo)
           idxList(1, nExtracted) = particleIDX;
-
+          peakList(1,nExtracted) = iPeak+1; % This probably is not necessary - it should be 1:nPEaks,1:nPeaks,1:nPeaks...
           nExtracted = nExtracted +1;
           nTemp = nTemp + 1;
 
@@ -806,23 +808,27 @@ for iGold = 1:1+flgGold
           end
         else
           nIgnored = nIgnored + 1;
-          masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26) = -9999;
+          masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
         end
 
 
       else
         nIgnored = nIgnored + 1;
-        masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26) = -9999;
+        masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
 
       end % end of ignore new particles
 
+        end % end of loop over peaks
+        
       end % end of ignore if statment
       if ~rem(iSubTomo,100)
-        fprintf('\nworking on %d/%d subTomo from %d/%d Tomo\n', ...
-                                           iSubTomo, nSubTomos, iTomo,nTomograms);
+        fprintf('\nworking on %d/%d subTomo peak %d/%d from %d/%d Tomo\n', ...
+                                           iSubTomo, nSubTomos,iPeak+1,nPeaks, iTomo,nTomograms);
 
         fprintf('Total nExtracted = %d\n', nExtracted-1);
-      end
+        fprintf('Total nIgnored = %d\n', nIgnored);
+
+     end
     end % end of the loop over subTomos
 
   clear volumeData
@@ -849,8 +855,10 @@ for iGold = 1:1+flgGold
   % Get rid of any zero vals from newly ignored particles which are there due to
   % pre-allocation. Assuming no zeros have found their way in anywhere else which
   % would be a major problem.
-
-  idxList = idxList((idxList~=0)');
+  cleanIDX = (idxList~=0)';
+  idxList = idxList(cleanIDX);
+  peakList = peakList(cleanIDX);
+  
   for iScale = 1:nScaleSpace
     dataMatrix{iScale} = dataMatrix{iScale}(:,1:size(idxList,2));
     % Center the rows
@@ -976,12 +984,12 @@ for iGold = 1:1+flgGold
       end
       
     end
-    save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList');
+    save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList');
   else
     if (randomSubset)
-      save(sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet),'U', 'idxList');
+      save(sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet),'U', 'idxList','peakList');
     else
-      save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList');
+      save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList');
     end
   end
   
@@ -991,14 +999,15 @@ for iGold = 1:1+flgGold
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear dataMatrix U S V coeffs eigMont eigMontSum
-gpuDevice(1);
+
 delete(gcp('nocreate'));
 
 % after resetting the device, bring back masks etc.
 
 
 end % end of loop over halfsets
-
+gpuDevice(1);
+delete(gcp('nocreate'));
 end % end of pca function
 
 

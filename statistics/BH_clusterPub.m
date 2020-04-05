@@ -60,6 +60,11 @@ else
   flgGold = 1;
 end
 
+try
+  nPeaks = pBH.('nPeaks');
+catch
+  nPeaks = 1;
+end
 
 featureVector = cell(2,1);
 if flgGold
@@ -93,7 +98,7 @@ nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
 % end
 
 try
-  flgFlattenEigs = pBH.('Pca_flattenEigs')
+  flgFlattenEigs = pBH.('Pca_flattenEigs');
 catch
   flgFlattenEigs=0;
 end
@@ -164,6 +169,12 @@ for iGold = 1:1+flgGold
     oldPca = load(coeffMatrix);
     coeffsUNTRIMMED = oldPca.coeffs
     idxList = oldPca.idxList;
+    if nPeaks > 1
+      peakList = oldPca.idxList;
+    else
+      peakList = [];
+    end
+    
     numParticles = oldPca.nTOTAL;
     clear oldPca;
   catch 
@@ -228,7 +239,6 @@ for iGold = 1:1+flgGold
     nClusters = clusterVector(iCluster);
     
 
-size(coeffMat')
       if strcmpi(kAlgorithm, 'kMeans')
         [class, classCenters, sumd, D] = kmeans(coeffMat', nClusters, ...
                                     'replicates', kReplicates, ...
@@ -256,7 +266,7 @@ size(coeffMat')
         [net, tr] = train(net, coeffMat);
         y = net(coeffMat)
         class = vec2ind(y)
-sumd=0
+
       else
         error('kAlgorithm must be kMeans, or kMedoids, not %s', kAlgorithm);
       end
@@ -334,6 +344,9 @@ sumd=0
 
       end
 
+      % This leaves each cluster untouched, but changes the cluster label
+      % such that the cluster lablelled 1 is also the most populated
+      % cluster.
       classCount = zeros(nClusters,1);
       for i = 1:nClusters
         % counts of class numbers
@@ -369,15 +382,30 @@ sumd=0
         includedClass = ( positionList(:,26) ~= -9999 & ismember(positionList(:,7),randSet));
         positionList(:,8) = includedClass;
         particleIDX = positionList( includedClass, 4);
+  
+         % Returns the lowest index where this is true
         [~, lIndClass] = ismember(particleIDX, idxList);
         [~, lIndPart]  = ismember(particleIDX, positionList(:,4));
 
         % for trouble shooting
         try
+      
+        if (nPeaks > 1) 
+          for thisIDX = 1:length(lIndClass)
+            for iPeak = 0:nPeaks-1
+              positionList(lIndPart(thisIDX), 26 + 26*iPeak) = class(lIndClass(thisIDX)+iPeak);
+%               fprintf('iTomo %d iSubtomo %d iPeak %d Class %d\n',iTomo,lIndPart(thisIDX),iPeak+1,class(lIndClass(thisIDX)+iPeak));
+            end
+          end
+          geometry.(tomoList{iTomo}) = positionList;
+          fprintf('Size iTomo %d %d\n',size(positionList));
+        else
           positionList(lIndPart, 26) = class(lIndClass);
           geometry.(tomoList{iTomo}) = positionList;
+          
+        end
         catch
-          save('ClusterLine221Err.mat')
+          save('ClusterLine391Err.mat')
           error('Caught error, saving workspace for evaluation.\n')
         end
       end
