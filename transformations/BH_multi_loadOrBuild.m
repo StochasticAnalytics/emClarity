@@ -32,12 +32,15 @@ end
 
 ctf = '';
 ali = 'ali';
+super_sample = '';
+expand_lines = '';
 if nargin > 8
-  ali = 'ctf';
-  ctf = '_ctf';
-end
+  if ~isempty(varargin{3})
+      super_sample = varargin{3};
+  end
   
-
+%   expand_lines = varargin{4}
+end
 
 !mkdir -p cache
 
@@ -142,6 +145,7 @@ elseif (doRecon)
     rCMD = sprintf(['-input %s -output %s -TILTFILE %s -UseGPU %d ', ...
                  '-WIDTH %d -SLICE %d,%d -THICKNESS %d -SHIFT %f,%f '],...
                  stack, recon, TLT, gpuIDX, rCoords(1:6));
+               
 
     % Explicitly set Radial to Nyquist         
     if (flgLocal)
@@ -154,8 +158,8 @@ elseif (doRecon)
       error('Did not find IMOD tilt funciton on path')
     else
       fprintf('Reconstructing from newly cached stack %s\n', stack); 
-      fprintf('%s\n',rCMD);
-      system(sprintf('tilt %s',rCMD));
+      fprintf('tilt %s %s %s\n',rCMD,super_sample,expand_lines)
+      system(sprintf('tilt %s %s %s',rCMD,super_sample,expand_lines));
     end       
 
   end

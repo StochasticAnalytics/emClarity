@@ -582,10 +582,6 @@ for iGold = 1:1+flgGold
   for iTomo = 1:nTomograms
 
 
-% % %     tomoName = sprintf('%s/%s%s',pathList.(tomoList{iTomo}),...
-% % %                                  tomoList{iTomo},...
-% % %                                  extList.(tomoList{iTomo}));
-
     tomoName = tomoList{iTomo};
     iGPU = 1;
    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;

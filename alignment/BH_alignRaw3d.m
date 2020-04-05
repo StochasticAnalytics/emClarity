@@ -12,6 +12,16 @@
 %   TODO
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+global bh_global_print_shifts_in_particle_basis;
+if isempty(bh_global_print_shifts_in_particle_basis)
+  bh_global_print_shifts_in_particle_basis = true;
+end
+
+global bh_global_zero_lag_score;
+if isempty(bh_global_zero_lag_score)
+  bh_global_zero_lag_score = false
+end
+
 if (nargin ~= 2 && nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, [1,abs(ccc),2,weighted,3,abs(weighted)]')
 else
@@ -323,7 +333,7 @@ for iGold = 1:2
                                
   if (flgCenterRefCOM)
 % % % % % % %    [ comMask ] = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
-   [ comMask ]  = EMC_maskShape(maskType, sizeMask, sizeMask, 'gpu', {'shift', maskCenter});
+   [ comMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius, 'gpu', {'shift', maskCenter});
   end
                             
   % get boxSize 
@@ -1505,35 +1515,55 @@ parfor iParProc = parVect
           cccStorageBest{iPeak}(iSubTomo,:) = gather([bestRotPeak(1,1:7), ...
                                         peakCoord + finalrXYZest - shiftVAL]) ;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
+        % It is probably more useful see the shifts in the particle
+        % reference frame vs. the avg which was the original
+        if (bh_global_print_shifts_in_particle_basis)
+          printShifts = zeros(3,3);
+          printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
+          printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
+          printShifts(3,:) = RotMat * reshape(cccStorageBest{iPeak}(iSubTomo,end-2:end),3,1);
+        else
+          printShifts = [cccInitial(1,end-2:end); ...
+                         cccPreRefineSort(1,end-2:end);...
+                         cccStorageBest{iPeak}(iSubTomo,end-2:end)];
+        end
+        
+        % Print out in Angstrom
+        printShifts = printShifts .* pixelSize;
+          
 
         deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
         if (deltaCCC < 0) && (abs(deltaCCC) > 0.15*cccInitial(1,6))
           fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
-          fprintf(['\n%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',cccInitial(1,:),'PreRefine',cccStorageBest{iPeak}(iSubTomo,:));          
+          fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreRefine', iPeak,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));          
           cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
           
         end
 
         if (flgRefine)
-          fprintf(['\n%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',classIDX,cccInitial(1,:), ...
-                   'PreRefine', classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
-                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:end)], ...
-                   'PostRefine',classIDX,cccStorageBest{iPeak}(iSubTomo,:));
+          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:), ...
+                   'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
+                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
+                   'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         else
-          fprintf(['\n%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                   '%s\t,%d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',classIDX,cccInitial(1,:),'PreRefine',classIDX,cccStorageBest{iPeak}(iSubTomo,:));
+          fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         end
 
     
       end % if condition on newly ignored particles
+      
       end
 
       if ~(rem(iSubTomo,100))

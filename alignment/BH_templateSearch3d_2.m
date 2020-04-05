@@ -52,6 +52,22 @@ catch
   tmpDecoy = 0
 end
 
+try
+  super_sample = pBH.('super_sample');
+  if (super_sample > 0)
+    [~,v] = system('cat $IMOD_DIR/VERSION');
+    v = split(v,'.');
+    if (str2num(v{1}) < 4 || (str2num(v{2}) <= 10 && str2num(v{3}) < 42))
+      fprintf('Warning: imod version is too old for supersampling\n');
+      super_sample = '';
+    else
+      super_sample = sprintf(' -SuperSampleFactor %d',super_sample);
+    end
+  else
+    super_sample = '';
+  end
+end
+
 if ( cmdLineThresh )
  peakThreshold = cmdLineThresh;
  fprintf('\nOverride peakThreshold from paramfile (%d) with cmd line arg (%d)\n\n',...
@@ -102,12 +118,30 @@ pixelSize = pixelSizeFULL.*samplingRate;
 
 % For testing
 try 
-  lowResCut = pBH.('lowResCut');
+  wantedCut = pBH.('lowResCut');
 catch
-  % Current default, which may be too conservative.
-  lowResCut = 40;
+  wantedCut = 28;
 end
 
+firstZero = 0;
+% Limit to the first zero if we are NOT using the CTF rec
+if (shouldBeCTF ~= 1)
+TLT = load(sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tomoName,mapBackIter+1));
+  def = mean(-1.*TLT(:,15))*10^6; %TODO if you switch to POSITIVEDEFOCUS this will be wrong
+  firstZero = -0.2*def^2 +5.2*def +11;
+
+  % Take the lower of firstZero lowResCut or Nyquist
+  lowResCut = max(wantedCut, firstZero);
+else
+  lowResCut = wantedCut;
+end
+
+if pixelSize*2 > lowResCut
+  fprintf('\nLimiting to Nyquist (%f) instead of user requested lowResCut %f Angstrom\n',pixelSize*2,lowResCut);
+  lowResCut = pixelSize*2;
+else
+  fprintf('\nUsing max (%f) of specified resolution cutoff of %f and first ctf zero %f Angstrom\n',lowResCut, wantedCut, firstZero);
+end
 
 
 mapPath = './cache';
@@ -121,12 +155,13 @@ reconCoords = recGeom(tomoNumber,:);
 clear recGeom
 
 
- [ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
-                                      reconCoords, mapBackIter, samplingRate,...
-                                      shouldBeCTF*gpuIDX, reconScaling,1,'','ctf'); 
-%[ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
-%                                     reconCoords, mapBackIter, samplingRate,...
-%                                     shouldBeCTF*gpuIDX, reconScaling,1); 
+%  [ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
+%                                       reconCoords, mapBackIter, samplingRate,...
+%                                       shouldBeCTF*gpuIDX, reconScaling,1,'','ctf'); 
+
+[ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
+                                    reconCoords, mapBackIter, samplingRate,...
+                                    shouldBeCTF*gpuIDX, reconScaling,1,'',super_sample); 
                                            
  
 % We'll handle image statistics locally, but first place the global environment
@@ -146,7 +181,7 @@ clear recGeom
 fprintf('size of provided template %d %d %d\n',size(template));
 trimTemp = BH_multi_padVal(size(template),ceil(2.0.*max(pBH.('Ali_mRadius')./pixelSizeFULL)));
 % template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
-SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
+% SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
 fprintf('size after trim to sqrt(2)*max(lattice radius) %d %d %d\n',size(template));
                             
@@ -291,7 +326,7 @@ end
 % % % fftw('planner','patient');
 % % % fftn(opt);
 % % % clear opt ans
-[ bhF ] = FFT(randn(sizeChunk, 'single','gpuArray'));
+[ bhF ] = fourierTransformer(randn(sizeChunk, 'single','gpuArray'));
 
 
 % Temp while testing new dose weighting
@@ -355,16 +390,16 @@ tomoCoords= zeros(nTomograms, 3, 'uint16');
 % In switching to the full 3D-sampling function the high pass is
 % already incorporated in the CTF. Still include one for very low
 % resolution to deal with gradients in the tomos.
-[ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 1e-3,600, ...
-                                              lowResCut,'cpu', pixelSize );
-                                          
-% if ~(shouldBeCTF)
-%   tomoBandpass = wedgeMask .* tomoBandpass;
-% end
-
-tomoBandpass = tomoBandpass(1:floor(size(tomoBandpass,1)/2)+1,:,:);
-bhF.bandpass = tomoBandpass; clear tomoBandpass
-clear wedgeMask
+% [ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 1e-3,600, ...
+%                                               lowResCut,'cpu', pixelSize );
+%                                           
+% % if ~(shouldBeCTF)
+% %   tomoBandpass = wedgeMask .* tomoBandpass;
+% % end
+% 
+% tomoBandpass = tomoBandpass(1:floor(size(tomoBandpass,1)/2)+1,:,:);
+% bhF.bandpass = tomoBandpass; clear tomoBandpass
+% clear wedgeMask
 
 try
   doMedFilt = pBH.('Tmp_medianFilter');
@@ -413,7 +448,8 @@ for  iX = 1:nIters(1)
 
 
 % % % % %     tomoChunk = real(ifftn(fftn(tomoChunk).*tomoBandpass));
-    tomoChunk = bhF.invFFT(bhF.fwdFFT(tomoChunk,0,0,1),2);
+    tomoChunk = bhF.invFFT(bhF.fwdFFT(tomoChunk,0,0,[1e-3,600, ...
+                                              lowResCut, pixelSize]),2);
     
 
     if doMedFilt
@@ -517,8 +553,8 @@ switch wedgeType
     error('wedgeType must be 1-4');
 end
 
-wedgeMask = gather(ifftshift(wedgeMask));
-tempBandpass = BH_bandpass3d(OUTPUT(1,:), 10e-4,1200,lowResCut,'cpu', pixelSize );
+% wedgeMask = gather(ifftshift(wedgeMask));
+% tempBandpass = BH_bandpass3d(OUTPUT(1,:), 10e-4,1200,lowResCut,'cpu', pixelSize );
             
 
 %                                      
@@ -537,6 +573,20 @@ ANGLE_LIST = zeros(nAngles(1),3, 'single');
 nComplete = 0;
 totalTime = 0;
 firstLoopOverTomo = true;
+
+    % Center the spectrum by multiplication not swapping
+    [dU,dV,dW] = BH_multi_gridCoordinates(size(tomoStack(:,:,:,1)),...
+                                         'Cartesian','GPU', ...
+                                          {'none'},1,1,0);
+                                        
+    swapQuadrants = exp((-2i*pi).*(dU.*(floor(size(dU,1)/2)+1) + ...
+                                  (dV.*(floor(size(dV,2)/2)+1) + ...          
+                                  (dW.*(floor(size(dW,3)/2)+1)))));  
+    clear dU dV dW
+    
+    swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
+
+                                                              
 for iAngle = 1:size(angleStep,1)
   
   theta = angleStep(iAngle,1);
@@ -593,7 +643,7 @@ for iAngle = 1:size(angleStep,1)
      % fftn(double(gpuArray))) ~ 2.5x faster than transfering a double
      % complex
 
-      tomoFou = bhF.fwdFFT(gpuArray(tomoStack(:,:,:,tomoIDX)));
+      tomoFou = swapQuadrants.*bhF.fwdFFT(gpuArray(tomoStack(:,:,:,tomoIDX)));
 
     for iAzimuth = 0:angleStep(iAngle,2)
 
@@ -681,43 +731,14 @@ for iAngle = 1:size(angleStep,1)
         end
 
 
-% % %         ccfmapFull = fftshift(real(single(ifftn(tomoFou.*conj(tempFou)))));
-% % %                                    
-% % % 
-% % %         ccfmap = ccfmapFull(vA(1,1) + 1:end - vA(2,1), ...
-% % %                             vA(1,2) + 1:end - vA(2,2), ...
-% % %                             vA(1,3) + 1:end - vA(2,3));
-        
-        % Even with local normalization, test with all padding and
-        % goodness.
-%         tomoNorm = ((sqrt(sum(sum(sum(abs(tomoFou).^2)))) ./ numel(tomoFou)));
-%        tempNorm = ((sqrt(sum(sum(sum(abs(tempFou).^2)))) ./ numel(tempFou)));
-        
-% % ./(sum(sum(sum((abs(tomoFou).*abs(tempFou)).^2))))
+
+
 %         ccfmap = BH_padZeros3d(fftshift(real(single(...
-%                                ifftn(tomoFou.*conj(tempFou) )))),...%./(tomoNorm.*tempNorm))))),...
-%                                trimValid(1,:),trimValid(2,:),'GPU','single');
-
-
-% t1 = bhF.invFFT(tomoFou,2);
-% t2 = bhF.invFFT(tempFou,2);
-% 
-% figure, imshow3D(real(gather(sqrt(abs(fftn(t1))))));
-% figure, imshow3D(real(gather(sqrt(abs(tomoFou)))));
-% 
-% figure, imshow3D(real(gather(sqrt(abs(fftn(t2))))));
-% figure, imshow3D(real(gather(sqrt(abs(tempFou)))));
-% figure, imshow3D(gather(t1));
-% figure, imshow3D(gather(t2));
-% figure, imshow3D(gather(real(ifftn(fftn(t1).*conj(fftn(t2))))));
-% figure, imshow3D(gather(real(bhF.invFFT(tomoFou.*conj(tempFou),2))))
-% 
-% 
-% error('sdf')
-
-        ccfmap = BH_padZeros3d(fftshift(real(single(...
-                               bhF.invFFT(tomoFou.*conj(tempFou),2)))),...%./(tomoNorm.*tempNorm))))),...
-                               trimValid(1,:),trimValid(2,:),'GPU','single');                             
+%                                bhF.invFFT(tomoFou.*conj(tempFou),2)))),...%./(tomoNorm.*tempNorm))))),...
+%                                trimValid(1,:),trimValid(2,:),'GPU','single');  
+        ccfmap = BH_padZeros3d((real(single(...
+                               bhF.invFFT(tomoFou.*conj(tempFou))))),...%./(tomoNorm.*tempNorm))))),...
+                               trimValid(1,:),trimValid(2,:),'GPU','single');
 %                              
 
         ccfmap = ccfmap ./ std(ccfmap(:));
@@ -994,7 +1015,7 @@ while nIncluded < areaPreFactor*prod(eraseMaskRadius)
 
 end
 
-while  n <= peakThreshold && MAX > highThr
+while  n <= 2*peakThreshold && MAX > highThr
 
 %
 % Some indicies come back as an error, even when they seem like the

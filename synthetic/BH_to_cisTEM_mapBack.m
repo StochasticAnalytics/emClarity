@@ -1,4 +1,4 @@
-function [ ] = BH_to_cisTEM_mapBack(PARAMETER_FILE, CYCLE, tiltStart, MAX_TILT_ANGLE, varargin)
+function [ ] = BH_to_cisTEM_mapBack(PARAMETER_FILE, CYCLE, symmetry, MAX_TILT_ANGLE, varargin)
 
 % Map back and align using the subtomograms as fiducial markers.
 
@@ -21,8 +21,7 @@ if isempty(bh_global_imodProjectionShifts)
 
 end
 
-symmetry='C3'
-
+tiltStart=1;
 % MAX_TILT_ANGLE = 9;
 CYCLE = str2num(CYCLE);
 

@@ -54,6 +54,12 @@ catch
   tmpDecoy = 0
 end
 
+try
+  scale_mip = pBH.('scale_mip');
+catch
+  scale_mip = false;
+end
+
 if ( cmdLineThresh )
  peakThreshold = cmdLineThresh;
  fprintf('\nOverride peakThreshold from paramfile (%d) with cmd line arg (%d)\n\n',...
@@ -106,24 +112,23 @@ pixelSize = pixelSizeFULL.*samplingRate;
   
 
 try 
-  lowResCut = pBH.('lowResCut');
-  if pixelSize*2 > lowResCut
-    fprintf('\nLimiting to Nyquist (%f) instead of user requested lowResCut %f Angstrom\n',pixelSize*2,lowResCut);
-    lowResCut = pixelSize*2;
-  else
-    fprintf('\nUsing specified resolution cutoff of %f Angstrom\n',lowResCut);
-  end
+  wantedCut = pBH.('lowResCut');
 catch
-  TLT = load(sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tomoName,mapBackIter+1));
-  def = mean(-1.*TLT(:,15))*10^6; %TODO if you switch to POSITIVEDEFOCUS this will be wrong
-  lowResCut = -0.2*def^2 +5.2*def +11;
-  if pixelSize*2 > lowResCut
-    fprintf('\nLimiting to Nyquist (%f) instead of the first zero of the CTF for lowResCut %f Angstrom\n',pixelSize*2,lowResCut);
-    lowResCut = pixelSize*2;
-  else
-    fprintf('\nUsing the first zero of the CTF for the resolution cutoff of %f Angstrom\n',lowResCut);
-  end
+  wantedCut = 28;
+end
 
+TLT = load(sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tomoName,mapBackIter+1));
+def = mean(-1.*TLT(:,15))*10^6; %TODO if you switch to POSITIVEDEFOCUS this will be wrong
+firstZero = -0.2*def^2 +5.2*def +11;
+  
+% Take the lower of firstZero lowResCut or Nyquist
+lowResCut = max(wantedCut, firstZero);
+
+if pixelSize*2 > lowResCut
+  fprintf('\nLimiting to Nyquist (%f) instead of user requested lowResCut %f Angstrom\n',pixelSize*2,lowResCut);
+  lowResCut = pixelSize*2;
+else
+  fprintf('\nUsing max (%f) of specified resolution cutoff of %f and first ctf zero %f Angstrom\n',lowResCut, wantedCut, firstZero);
 end
 
 
@@ -292,6 +297,12 @@ sizeTomo = size(tomogram);
 % Array for storing chunk results
 RESULTS_peak = zeros(sizeTomo, 'single'); 
 RESULTS_angle= zeros(sizeTomo, 'single');
+
+if (scale_mip)
+  RESULTS_sum = zeros(sizeTomo,'single');
+  RESULTS_sum_sq = zeros(sizeTomo,'single');
+end
+
 if ( tmpDecoy )
   RESULTS_decoy = RESULTS_peak;
 end
@@ -701,6 +712,8 @@ for iAngle = 1:size(angleStep,1)
 %         everything assuming this is the noise.
         ccfmap = ccfmap ./ std(ccfmap(:));
         
+
+        
         if ( tmpDecoy > 0 )
            tempFou = [];
            if (firstLoopOverAngle)
@@ -745,6 +758,10 @@ for iAngle = 1:size(angleStep,1)
             angTmp = zeros(size(magTmp), 'single','gpuArray');
             angTmp = angTmp + 1;
 
+            if (scale_mip)
+              sumTmp = ccfmap;
+              sumSqTmp = ccfmap.^2;
+            end
             firstLoopOverTomo  = false;
             firstLoopOverChunk = false;
             
@@ -785,7 +802,21 @@ for iAngle = 1:size(angleStep,1)
           magTmp(replaceTmp) = ccfmap(replaceTmp);
           angTmp(replaceTmp) = currentGlobalAngle;
           
-          
+          if (scale_mip)
+
+            sumTmp =   RESULTS_sum(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                   iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                   iCut(3):iCut(3)+sizeChunk(3)-1);
+            sumSqTmp = RESULTS_sum_sq(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                   iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                   iCut(3):iCut(3)+sizeChunk(3)-1);
+            sumTmp = gpuArray(sumTmp(vA(1,1) + 1:end - vA(2,1), ...
+                                     vA(1,2) + 1:end - vA(2,2), ...
+                                     vA(1,3) + 1:end - vA(2,3)));    
+            sumSqTmp = gpuArray(sumSqTmp(vA(1,1) + 1:end - vA(2,1), ...
+                                     vA(1,2) + 1:end - vA(2,2), ...
+                                     vA(1,3) + 1:end - vA(2,3)));                                 
+          end      
 
           intraLoopAngle = intraLoopAngle + 1;
           currentGlobalAngle = currentGlobalAngle + 1;
@@ -794,6 +825,10 @@ for iAngle = 1:size(angleStep,1)
         else
             % update higher values of ccfmap with new reference if applicable.
 
+            if (scale_mip)
+            sumTmp = sumTmp + ccfmap;
+            sumSqTmp = sumSqTmp + ccfmap.^2;
+          end  
 
             replaceTmp = ( magTmp < ccfmap );
 
@@ -808,6 +843,7 @@ for iAngle = 1:size(angleStep,1)
             clear replaceTmp
         end
       nComplete = nComplete + 1;
+      
       end
     end
 
@@ -832,7 +868,7 @@ for iAngle = 1:size(angleStep,1)
 
      RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
                   iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = magStoreTmp;
+                  iCut(3):iCut(3)+sizeChunk(3)-1) =  magStoreTmp;
                 
      clear magStoreTmp
 
@@ -840,6 +876,35 @@ for iAngle = 1:size(angleStep,1)
                   iCut(2):iCut(2)+sizeChunk(2)-1,...
                   iCut(3):iCut(3)+sizeChunk(3)-1) = angStoreTmp;
      clear angStoreTmp
+     
+     if (scale_mip)
+        sumStoreTmp =  RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                    iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                    iCut(3):iCut(3)+sizeChunk(3)-1);
+        sumSqStoreTmp = RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                    iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                    iCut(3):iCut(3)+sizeChunk(3)-1);
+
+
+        sumStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
+                    vA(1,2) + 1:end - vA(2,2), ...
+                    vA(1,3) + 1:end - vA(2,3)) = gather(sumTmp);
+        sumSqStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
+                    vA(1,2) + 1:end - vA(2,2), ...
+                    vA(1,3) + 1:end - vA(2,3)) = gather(sumSqTmp);
+
+
+         RESULTS_sum(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                      iCut(2):iCut(2)+sizeChunk(2)-1,...
+                      iCut(3):iCut(3)+sizeChunk(3)-1) =  sumStoreTmp;
+
+         clear sumStoreTmp
+
+        RESULTS_sum_sq(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                      iCut(2):iCut(2)+sizeChunk(2)-1,...
+                      iCut(3):iCut(3)+sizeChunk(3)-1) = sumSqStoreTmp;
+         clear sumSqStoreTmp
+    end
     
     if ( tmpDecoy )
     decoyStoreTmp =  RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
@@ -873,6 +938,17 @@ RESULTS_peak = RESULTS_peak(1+tomoPre(1):end-tomoPost(1),...
 RESULTS_angle = RESULTS_angle(1+tomoPre(1):end-tomoPost(1),...
                               1+tomoPre(2):end-tomoPost(2),...
                               1+tomoPre(3):end-tomoPost(3));
+ 
+if (scale_mip)                           
+  RESULTS_sum = RESULTS_sum(1+tomoPre(1):end-tomoPost(1),...
+                            1+tomoPre(2):end-tomoPost(2),...
+                            1+tomoPre(3):end-tomoPost(3)) ./ nComplete;   
+
+  RESULTS_sum_sq = RESULTS_sum_sq(1+tomoPre(1):end-tomoPost(1),...
+                            1+tomoPre(2):end-tomoPost(2),...
+                            1+tomoPre(3):end-tomoPost(3)) ./ nComplete;  
+end
+                            
 
 if ( tmpDecoy )
   RESULTS_decoy = RESULTS_decoy(1+tomoPre(1):end-tomoPost(1),...
@@ -902,6 +978,19 @@ anglesOUT  = sprintf('./%s/%s_angles.mrc',convTMPNAME,mapName);
 angleListOUT = sprintf('./%s/%s_angles.list',convTMPNAME,mapName);
 SAVE_IMG(MRCImage(mag),resultsOUT);
 SAVE_IMG(MRCImage(RESULTS_angle),anglesOUT);
+
+if (scale_mip)
+  scaledMipOUT = sprintf('./%s/%s_convmap_scaled.mrc',convTMPNAME,mapName);
+  VarEst = RESULTS_sum_sq - RESULTS_sum.^2;
+  nonZero = abs(VarEst(:)) > 1e-3;
+  SAVE_IMG(MRCImage(RESULTS_sum),sprintf('./%s/%s_convmap_sum.mrc',convTMPNAME,mapName));
+  SAVE_IMG(MRCImage(RESULTS_sum_sq),sprintf('./%s/%s_convmap_sumSq.mrc',convTMPNAME,mapName));
+  SAVE_IMG(MRCImage(VarEst),sprintf('./%s/%s_convmap_varEst.mrc',convTMPNAME,mapName));
+
+  VarEst(nonZero) = ( mag(nonZero) - RESULTS_sum(nonZero) ) ./ VarEst(nonZero);
+  SAVE_IMG(MRCImage(VarEst),scaledMipOUT);
+end
+  
 if ( tmpDecoy )
   decoyOUT = sprintf('./%s/%s_decoy.mrc',convTMPNAME,mapName);
   SAVE_IMG(MRCImage((RESULTS_decoy)),decoyOUT);
