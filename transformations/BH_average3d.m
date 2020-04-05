@@ -668,7 +668,7 @@ parpool(nGPUs);
 
 tiltNameList = fieldnames(masterTM.mapBackGeometry);
 tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
-maxPerGPU = floor(length(tiltNameList)/nGPUs) + 1;
+maxPerGPU = ceil(length(tiltNameList)/nGPUs) + 1;
 wgtList = tomoList;
 for iGPU = 1:nGPUs
   nThisGPU = 0;
