@@ -698,7 +698,7 @@ try
   try
     bh_global_do_2d_fourier_interp = pBH.('useFourierInterp');
   catch
-    bh_global_do_2d_fourier_interp = 0;
+    bh_global_do_2d_fourier_interp = 1;
   end
   
   global bh_global_save_tomoCPR_diagnostics;
