@@ -206,9 +206,11 @@ if (asymmetricRestriction)
   
   sectorMax = 2*pi/asymmetricRestriction * 1.025;
   angles = (angles > (2*pi-sectorMax/2) | angles < sectorMax/2);
-  gc = BH_multi_gaussian3d(-1.*size(angles),1.5);
-  mWindow = real(ifftn(fftn(angles.*fullMask).*gc));
-  clear gc
+% % %   gc = BH_multi_gaussian3d(-1.*size(angles),1.5);
+% % %   mWindow = real(ifftn(fftn(angles.*fullMask).*gc));
+  KERNEL = EMC_gaussianKernel([1,5], 1.5, 'gpu', {});
+  mWindow = EMC_convn(single(angles.*fullMask), KERNEL);
+  clear KERNEL
   mWindow = mWindow ./ max(angles(:));
   
 else
