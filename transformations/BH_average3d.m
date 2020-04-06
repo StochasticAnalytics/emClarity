@@ -1060,7 +1060,7 @@ parfor iParProc = parVect
             
             particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
             positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
-            SAVE_IMG(MRCImage(particleOUT),particleOUT_name,pixelSize);
+            SAVE_IMG(particleOUT,particleOUT_name,pixelSize);
             particleOUT =[];
           end
 
@@ -1373,32 +1373,32 @@ end
 
 
        
-if (doNotTrim) && (flgClassify)
-  % reduce z dimension to area focused on in classification
-  % taken from PCA mask values.
-  zCenter = (sizeMask(3)+1)./2 + pcaMaskCenter(3);
-  zLow = floor(zCenter - pcaMaskRadius(3));
-  zTop = zLow + 2.* pcaMaskRadius(3);
-  if zLow < 1
-    fprintf('setting Z-low from %d to 1\n', zLow);
-    zLow = 1;
-  end
-  if zTop > sizeMask(3) %%%size(filteredClass{iClassPos,iGold},3)
-    fprintf('setting Z-top from %d to sizeFiltAvg,3\n', zTop);
-    zTop = sizeMask(3); %%%size(filteredClass{iClassPos,iGold},3);
-  end
-  zLow = zLow;
-  zTop = zTop ; % note not 2nd indx, just adding a shift
-  sizeFilteredClass = [sizeMask(1),sizeMask(2),( zTop - zLow +1)]
-end
+% % % if (doNotTrim) && (flgClassify)
+% % %   % reduce z dimension to area focused on in classification
+% % %   % taken from PCA mask values.
+% % %   zCenter = (sizeMask(3)+1)./2 + pcaMaskCenter(3);
+% % %   zLow = floor(zCenter - pcaMaskRadius(3));
+% % %   zTop = zLow + 2.* pcaMaskRadius(3);
+% % %   if zLow < 1
+% % %     fprintf('setting Z-low from %d to 1\n', zLow);
+% % %     zLow = 1;
+% % %   end
+% % %   if zTop > sizeMask(3) %%%size(filteredClass{iClassPos,iGold},3)
+% % %     fprintf('setting Z-top from %d to sizeFiltAvg,3\n', zTop);
+% % %     zTop = sizeMask(3); %%%size(filteredClass{iClassPos,iGold},3);
+% % %   end
+% % %   zLow = zLow;
+% % %   zTop = zTop ; % note not 2nd indx, just adding a shift
+% % %   sizeFilteredClass = [sizeMask(1),sizeMask(2),( zTop - zLow +1)]
+% % % end
 
 for iClass = 1:maxClasses
   classStorage{iClass,1} = zeros(sizeMask, 'single');
   classStorage{iClass,2} = zeros(sizeMask, 'single');
-  if (doNotTrim) && (flgClassify)
-    filteredClass{iClass,1} = zeros(sizeFilteredClass, 'single');
-    filteredClass{iClass,2} = zeros(sizeFilteredClass, 'single');
-  end
+% % %   if (doNotTrim) && (flgClassify)
+% % %     filteredClass{iClass,1} = zeros(sizeFilteredClass, 'single');
+% % %     filteredClass{iClass,2} = zeros(sizeFilteredClass, 'single');
+% % %   end
 end
 
 if (eachTomo)
@@ -1414,7 +1414,7 @@ if (eachTomo)
       classTmp = avgTomoResults{iParProc}{nTomos};
       avgTomoResults{iParProc}{nTomos} = [];
 
-      SAVE_IMG(MRCImage(single(classTmp)),tomoName,pixelSize);
+      SAVE_IMG(classTmp,tomoName,pixelSize);
       clear classTmp
       nTomos = nTomos + 1; 
     end
@@ -1475,21 +1475,21 @@ for iClassPos = 1:maxClasses
         clear classAVG 
         fprintf('zeroing out classavg because of NaN values detected.\n')
       else
-        if (doNotTrim) && (flgClassify)
-          % lowpass according to Kms bandpass
-          bandpassFilt = double(BH_bandpass3d( sizeMask, 0.1,300,30, 'GPU',pixelSize));
-          
-          tmpFilt = BH_bandLimitCenterNormalize( ...
-                                             classStorage{iClassPos,iGold}.* ...
-                                             m, bandpassFilt, (m>0.95), ...
-                                             [0,0,0;0,0,0],'single');
-          tmpFilt = m.*real(ifftn(tmpFilt));
-          tmpFilt = tmpFilt(:,:,zLow:zTop  );  
-          tmpFilt = tmpFilt - mean(tmpFilt(:));
-          tmpFilt = tmpFilt ./ rms(tmpFilt(:));
-                          
-          filteredClass{iClassPos,iGold} = gather(tmpFilt);
-        end
+% % %         if (doNotTrim) && (flgClassify)
+% % %           % lowpass according to Kms bandpass
+% % %           bandpassFilt = BH_bandpass3d( sizeMask, 0.1,300,30, 'GPU',pixelSize);
+% % %           
+% % %           tmpFilt = BH_bandLimitCenterNormalize( ...
+% % %                                              classStorage{iClassPos,iGold}.* ...
+% % %                                              m, bandpassFilt, (m>0.95), ...
+% % %                                              [0,0,0;0,0,0],'single');
+% % %           tmpFilt = m.*real(ifftn(tmpFilt));
+% % %           tmpFilt = tmpFilt(:,:,zLow:zTop  );  
+% % %           tmpFilt = tmpFilt - mean(tmpFilt(:));
+% % %           tmpFilt = tmpFilt ./ rms(tmpFilt(:));
+% % %                           
+% % %           filteredClass{iClassPos,iGold} = gather(tmpFilt);
+% % %         end
 
         % Normalize the regular averages
         classStorage{iClassPos,iGold} = classStorage{iClassPos,iGold} - ...
@@ -1521,9 +1521,11 @@ end
 classListOut = 0;
 % % % if (flgGold) && strcmpi(STAGEofALIGNMENT, 'Cluster')
 if  strcmpi(STAGEofALIGNMENT, 'Cluster') && (flgClassify ~= -1)
-  [classListOut, geometry] = reorder_classes(filteredClass(:,1),filteredClass(:,2),maxClasses, geometry);
+% % %   [classListOut, geometry] = reorder_classes(filteredClass(:,1),filteredClass(:,2),maxClasses, geometry);
 
-  filteredClass(:,2) = filteredClass(classListOut(:,2), 2);
+% % %   filteredClass(:,2) = filteredClass(classListOut(:,2), 2);
+  [classListOut, geometry] = reorder_classes(avgVolume(:,1),avgVolume(:,2),maxClasses, geometry);
+
   avgVolume(:,2) = avgVolume(classListOut(:,2), 2);
   avgWedge(:,2) = avgWedge(classListOut(:,2), 2);
   
@@ -1576,7 +1578,7 @@ for iGold = 1:2-flgFinalAvg
       if (flgFinalAvg)
         system(sprintf('mv %s preHalfSetAli_%s',imout,imout));
       end
-      SAVE_IMG(MRCImage(gather(montOUT)), imout, pixelSize);
+      SAVE_IMG(montOUT, imout, pixelSize);
       %%%%%%%%
       [montOUT, imgLocations] = BH_montage4d(avgWedge(:,iGold), '');
      
@@ -1590,15 +1592,15 @@ for iGold = 1:2-flgFinalAvg
       if (flgFinalAvg)
         system(sprintf('mv %s preHalfSetAli_%s',imout,imout));
       end
-      SAVE_IMG(MRCImage(gather(montOUT)), imout);
+      SAVE_IMG(montOUT, imout);
       %%%%%%%%
-      if (doNotTrim) && (flgClassify)
-        [montOUT, ~] = BH_montage4d(filteredClass(:,iGold), '');
-        imout = sprintf('%s_filtered%d_%s_%s.mrc',outputPrefix, ...
-                                         className, fieldPrefix, halfSet);
-        SAVE_IMG(MRCImage(gather(montOUT)), imout,pixelSize);
-        
-      end
+% % %       if (doNotTrim) && (flgClassify)
+% % %         [montOUT, ~] = BH_montage4d(filteredClass(:,iGold), '');
+% % %         imout = sprintf('%s_filtered%d_%s_%s.mrc',outputPrefix, ...
+% % %                                          className, fieldPrefix, halfSet);
+% % %         SAVE_IMG(MRCImage(gather(montOUT)), imout,pixelSize);
+% % %         
+% % %       end
       
       if (saveClassSum > -1)
         imgCounts = gather([classVector{iGold}(1,:) ; nExtracted(:,iGold)']);
@@ -1609,7 +1611,7 @@ for iGold = 1:2-flgFinalAvg
         imout = sprintf('%s_class%d_%s_%s_NoWgt.mrc',outputPrefix, ...
                                            saveClassSum, 'Raw', halfSet);
         classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'Raw', halfSet);                        
-        SAVE_IMG(MRCImage(gather(montOUT)), imout,pixelSize);
+        SAVE_IMG(montOUT, imout,pixelSize);
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
 
         [montOUT, imgLocations] = BH_montage4d(classWgtSum(iGold), '');
@@ -1617,7 +1619,7 @@ for iGold = 1:2-flgFinalAvg
         imout = sprintf('%s_class%d_%s_%s_Wgt.mrc',outputPrefix, ...
                                            saveClassSum, 'Raw', halfSet);
         classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'Raw', halfSet);
-        SAVE_IMG(MRCImage(gather(montOUT)), imout,pixelSize);
+        SAVE_IMG(montOUT, imout,pixelSize);
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
 
       end
@@ -1822,7 +1824,7 @@ if ~( flgEstSNR )
           imout = sprintf('%s_class%d_%s_bFact-%d.mrc',outputPrefix, ...
                                className, 'final',pBH.('Fsc_bfactor')(iBfactor));
 
-          SAVE_IMG(MRCImage(gather(refTMP{iBfactor})), imout, pixelSize);
+          SAVE_IMG(refTMP{iBfactor}, imout, pixelSize);
         end
       else
 
@@ -1832,7 +1834,7 @@ if ~( flgEstSNR )
         classOut = sprintf('class_%d_Locations_%s_%s', className,fieldPrefix, halfSet);                        
 
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
-        SAVE_IMG(MRCImage(gather(montOUT)), imout, pixelSize);
+        SAVE_IMG(montOUT, imout, pixelSize);
       end
       %%%%%%%
     end
