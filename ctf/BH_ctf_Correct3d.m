@@ -1289,6 +1289,7 @@ for iPrj = 1:nPrjs
      tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
    
 %      try
+
      linearIDX =  unique(sub2ind([d1,d2],tX(tmpMask),tY(tmpMask)));
 %      catch
 % 
@@ -1423,9 +1424,9 @@ for iT = 1:nTomos
     y = y - tomoOrigin(2) + micOrigin(2);
 
 
-    xFull{iSection} = [xFull{iSection} x(inSectionIDX)];
-    yFull{iSection} = [yFull{iSection} y(inSectionIDX)];
-    zFull{iSection} = [zFull{iSection} zList(inSectionIDX)];
+    xFull{iSection} = [xFull{iSection} ; x(inSectionIDX)];
+    yFull{iSection} = [yFull{iSection} ; y(inSectionIDX)];
+    zFull{iSection} = [zFull{iSection} ; zList(inSectionIDX)];
 
 
 

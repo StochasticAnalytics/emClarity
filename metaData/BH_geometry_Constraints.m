@@ -1,12 +1,22 @@
-function BH_geometry_Constraints(PARAMETER_FILE, CYCLE, distCut, angCut, latticeNumber)
+function BH_geometry_Constraints(PARAMETER_FILE, CYCLE, distCut, angCut, latticeNumber, varargin)
 
 
 flgCSV = 0;
 CYCLE = str2num(CYCLE);
 
-pixelSize = str2double(PARAMETER_FILE);
+
+
+% pixelSize = str2double(PARAMETER_FILE);
 % % % if (isnan(pixelSize))
   pixelSize = PARAMETER_FILE;
+  
+if nargin < 6
+  flgCentroid = false;
+else
+  flgCentroid = true;
+  avgRadius = str2num(varargin{1})./pixelSize;
+end
+
   flgCSV = 1;
   if ~isdir('convmap')
     error('No convmap directory found');
@@ -15,8 +25,16 @@ pixelSize = str2double(PARAMETER_FILE);
   if (failedCSV)
     error('Did not find your csv files in convmap folder');
   end
-  geom = strsplit(csvList)
-  nModFiles = length(geom)-1
+  geom = strsplit(csvList);
+  
+  keepCSV = true(1,length(geom));
+  for iCSV = 1:length(keepCSV)
+    if isempty(geom{iCSV})
+      keepCSV(iCSV) = false;
+    end
+  end
+  geom = geom(keepCSV)
+  nModFiles = length(geom)
   
 % % % else
 % % %   pBH = BH_parseParameterFile(PARAMETER_FILE);
@@ -62,14 +80,35 @@ for i = 1:nModFiles
 
   if flgCSV
     listIN = gpuArray(load(geom{i}));
+    if (flgCentroid)
+      [~,p,~]= fileparts(geom{i});
+      b = strsplit(p,'_');
+      reconName = strjoin(b(1:end-1),'_')
+      reconDims = load(sprintf('recon/%s_recon.txt',reconName));
+      reconOrigin = reshape(floor(reconDims(1:3)./2) + 1,1,3);
+    end
   else
-      listIN = gpuArray(geom.(baseNum{i}));
+    listIN = gpuArray(geom.(baseNum{i}));
   end
 
 nVol = size(listIN,1);
 keepList = zeros(nVol,1);
 
 
+if (flgCentroid)
+  % First loop over and get rid of any points that are not directed
+  % radially outward.
+    
+    for iPt = 1:nVol
+      particleAxis = reshape(listIN(iPt,17:25),3,3)*[0;0;1];
+      particleCoords = listIN(iPt,11:13) - reconOrigin;
+      particleNorm = norm(particleCoords);
+      if (particleNorm > avgRadius || dot(particleCoords./particleNorm, particleAxis) < 0.5)
+        listIN(iPt,26) = -9999 ;
+      end
+      
+    end
+end
 
   for iPt = 1:nVol
     

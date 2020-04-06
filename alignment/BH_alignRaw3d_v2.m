@@ -843,7 +843,7 @@ parfor iParProc = parVect
         iMaxWedgeMask = []; iMaxWedgeIfft = [];
         iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
         iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});  
-     
+        imgWdgInterpolator = '';
           [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
 
       end
@@ -951,6 +951,9 @@ parfor iParProc = parVect
 
         
         % Just use C1 to initialize, whether or not this is the final
+        refInterpolator = '';
+        refWdgInterpolator= '';
+        particleInterpolator= '';
         [refInterpolator, ~] = interpolator(gpuArray(ref_FT2_tmp{1}{1}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
         refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{iGold}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
         particleInterpolator = interpolator(iparticle,[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);

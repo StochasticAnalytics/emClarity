@@ -4,8 +4,8 @@ classdef interpolator < handle
   
   properties
     % Pointers to underlying cuda objects
-    texObject;
-    cuArray;
+    texObject = '';
+    cuArray = '';
     % Symmetry matrices
     nSymMats;
     symmetry_matrices;
@@ -163,11 +163,13 @@ classdef interpolator < handle
    end
    
    function [  ] = delete(obj)
-     mexXform3d(obj.texObject, obj.cuArray);
+     if ~isempty(obj.texObject) && ~isempty(obj.cuArray)
+      mexXform3d(obj.texObject, obj.cuArray);
+     end
      obj.symmetry_matrices = [];
      obj.nSymMats = [];
-     obj.cuArray = [];
-     obj.texObject = [];
+     obj.cuArray = '';
+     obj.texObject = '';
    end
    
   end

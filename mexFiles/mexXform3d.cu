@@ -72,7 +72,7 @@ __global__ void transformKernel_FWD(cudaTextureObject_t thisTexObj,
   tv += 0.5f;
   tw += 0.5f;
 
-  if (tu < 0 | tv < 0 | tw < 0 | tu > 1 - 1/(float)dims.x | tv > 1 - 1/(float)dims.y | tw > 1 - 1/(float)dims.z)
+  if (tu < 0 | tv < 0 | tw < 0 | tu >= 1 - 1/(float)dims.x | tv >= 1 - 1/(float)dims.y | tw >= 1 - 1/(float)dims.z)
   {
 
     outputData[ (z*dims.y + y) * dims.x + x ] = extrapVal;
@@ -118,7 +118,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     checkCudaErrors(cudaDestroyTextureObject(*tex));
 
     cuArray = (cudaArray_t *) mxGetData(prhs[1]);
-//    mexPrintf(" cuArray in deallocate %p %p %p\n", cuArray, &cuArray, *cuArray);
+//     mexPrintf(" cuArray in deallocate %p %p %p\n", cuArray, &cuArray, *cuArray);
     checkCudaErrors(cudaFreeArray(*cuArray));
 
 //   mxFree(tex);
