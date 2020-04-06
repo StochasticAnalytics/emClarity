@@ -66,6 +66,9 @@ try
   else
     super_sample = '';
   end
+catch
+  super_sample = '';
+  expand_lines = '';
 end
 
 if ( cmdLineThresh )

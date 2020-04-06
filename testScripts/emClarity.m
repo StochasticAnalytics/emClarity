@@ -180,7 +180,11 @@ switch varargin{1}
       fprintf(['\npixelSize CYCLE distanceCutoff (Ang) angleCutoff (Deg) N-neighbors\n']);
     else
       %emC_testParse(varargin{2})
-      BH_geometry_Constraints(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
+      if length(varargin) == 6
+        BH_geometry_Constraints(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
+      else
+        BH_geometry_Constraints(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6},varargin{7});
+      end
     end    
     
     
