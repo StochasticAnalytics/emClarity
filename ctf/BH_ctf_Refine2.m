@@ -12,6 +12,14 @@ catch
   mapBackIter = 0;
 end
 
+try
+  testNoRefine = pBH.('force_no_defocus_stretch');
+catch
+  testNoRefine = false;
+end
+if (testNoRefine)
+  fprintf('\nWarning force_no_defocus_stretch is only for testing!\n\n');
+end
 
 % As long as the material coming into view at high tilt is at the same
 % plane and does not have wildly different image stats, using it could
@@ -262,7 +270,7 @@ if (calcAvg)
                                                 1, ...
                                                 1, ...
                                                 x1, y1, Xnew, Ynew,coordShift,  ...
-                                                reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data);   
+                                                reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine);   
                                            
 
     end
@@ -715,7 +723,7 @@ end
 function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj, overlap, ...
                           iProjection, evalMask, ...
                           ddZ, x1, y1, Xnew, Ynew, coordShift,  ...
-                          reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data)
+                          reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine)
 
     DFo = TLT(iPrj,15);
 
@@ -783,7 +791,7 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
           mag = defRange(maxCoord);
          
          
-         testNoRefine = 0;
+%          testNoRefine = 0;
          if (testNoRefine)
            mag = 1
          end

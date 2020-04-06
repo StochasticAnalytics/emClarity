@@ -86,6 +86,15 @@ catch
   CUTPADDING=20
 end
 
+try
+  force_no_symmetry = pBH.('force_no_symmetry');
+catch
+  force_no_symmetry = false;
+end
+if (force_no_symmetry)
+  fprintf('\nWarning, overriding symmetry in the alignment. THis is just for benchmarking\n');
+end
+
 maxGoldStandard = subTomoMeta.('maxGoldStandard');
 
 
@@ -1016,7 +1025,11 @@ parfor iParProc = parVect
              
 
                 % Assuming if class specific symmetry, then some not just 1
+                if (force_no_symmetry)
+                  symmetry = 1;
+                else
                   symmetry = classSymmetry{iGold}(1, classPosition);
+                end
                   %fprintf('Symmetry confirmation %d\n',symmetry);
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
 %                                                   estPeakCoord,...
@@ -1330,7 +1343,11 @@ parfor iParProc = parVect
               case 2
             
                % Assuming if class specific symmetry, then some not just 1
+               if (force_no_symmetry)
+                 symmetry = 1;
+               else
                 symmetry = classSymmetry{iGold}(1, classPosition);
+               end
 
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
 %                                                   rXYZ,...
