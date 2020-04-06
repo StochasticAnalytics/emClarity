@@ -992,7 +992,7 @@ end
 fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
                      prefix,STACK_PRFX,mapBackIter+1,suffix);
 inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
-                     prefix,STACK_PRFX,mapBackIter+1,suffix,samplingRate);
+                     STACK_PRFX,mapBackIter+1,suffix,samplingRate);
 if ~exist(inputStack, 'file')
   BH_multi_loadOrBin(fullStack,-1.*samplingRate,2,flgMedianFilter);
 end
@@ -1376,6 +1376,12 @@ yFull = cell(nSections,1);
 zFull = cell(nSections,1);
 surfaceFit = cell(nSections,1);
 
+% Initialize with empty arrays
+for iSection = 1:nSections
+  xFull{iSection} = [];
+  yFull{iSection} = [];
+  zFull{iSection} = [];
+end 
 
 for iT = 1:nTomos
   iTomo = tomoNumber(iT);
@@ -1404,9 +1410,6 @@ for iT = 1:nTomos
           
   for iSection = 1:nSections
     
-    xFull{iSection} = [];
-    yFull{iSection} = [];
-    zFull{iSection} = [];
 
     iSecOrigin = sectionList{iT}(iSection,6);
     iSecRadius = sectionList{iT}(iSection,5)/2;

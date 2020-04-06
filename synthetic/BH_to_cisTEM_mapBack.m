@@ -734,7 +734,7 @@ fclose(starFile);
   '1\n', ...
   '0\n', ...
   '%3.3f\n', ... pixel size
-  '%0.4d\n', ... molecularMass'
+  '%4.4f\n', ... molecularMass'
   '%3.3f\n', ... inermask ang
   '%3.3f\n', ... outermas ang
   '0.0\n', ... rec res limit
@@ -789,7 +789,7 @@ fclose(starFile);
   '0\n', ...Last particle to refine (0 = last in stack) [0]    : 
   '1.0\n',...Percent of particles to use (1 = all) [1.0]        : 
   '%3.3f\n', ... pixel size
-  '%0.4d\n', ... molecularMass'
+  '%4.4f\n', ... molecularMass'
   '%3.3f\n', ... inermask ang
   '%3.3f\n', ... outermas ang
   '300.0\n',...Low resolution limit (A) [300.0]                   : 
@@ -855,7 +855,7 @@ fclose(starFile);
   '1\n', ...
   '0\n', ...
   '%3.3f\n', ... pixel size
-  '%0.4d\n', ... molecularMass'
+  '%4.4f\n', ... molecularMass'
   '%3.3f\n', ... inermask ang
   '%3.3f\n', ... outermas ang
   '0.0\n', ... rec res limit

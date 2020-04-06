@@ -11,7 +11,9 @@ NYQ = ceil((CTFSIZE+1)/2);
 pixelSize = pixelSize*10^10;
 
 if resCutOff <= 2*pixelSize
-  resCutOff = 2.55*pixelSize
+  % As Thomas points out, maybe this should have been something like 2.05
+  % which might be worth exploring.
+  resCutOff = 2.55*pixelSize;
 end
 
 [ rad ] = BH_multi_gridCoordinates([CTFSIZE,1],'Cylindrical','GPU',{'none'},1,0,1);
