@@ -54,6 +54,7 @@ end
 
 doHalfGrid = 0;
 extrapVal = 0;
+returnComplex = false;
 if nargin == 9
   if isa(varargin{1},'fourierTransformer')
     doHalfGrid = 1;
@@ -61,9 +62,10 @@ if nargin == 9
     hgMAG = 1/MAG; MAG = 1;
     
     if length(varargin) > 1
-      extrapVal = varargin{2};
-      if ~isnumeric(extrapVal)
-        error('Extrapolation value passed to resample2d is non numeric!')
+      if isnumeric(extrapVal)
+        extrapVal = varargin{2};
+      else
+        returnComplex = true;
       end
     end
   elseif isnan(varargin{1})
@@ -134,6 +136,9 @@ end
 
 % In case the image is being expanded, pad accordingly (only for real space
 
+if (returnComplex && (size(stackIN) ~= SIZEOUT))
+  error('To return complex the input and output sizes should be the same.');
+end
 
 [ trimVal ] = BH_multi_padVal( size(stackIN), SIZEOUT );
 padLow = trimVal(1,:);
@@ -205,8 +210,14 @@ if ( useGPU )
     end
     
 
+    if (returnComplex)
+     TRANS_IMAGE = varargin{1}.invSwap(TRANS_IMAGE);
+                               
+    else
      TRANS_IMAGE = BH_padZeros3d( varargin{1}.invFFT(varargin{1}.invSwap(TRANS_IMAGE),2),...
-                                trimVal(1,:),trimVal(2,:),'GPU','single');
+                                trimVal(1,:),trimVal(2,:),'GPU','single');      
+    end
+    
 
   else
     
