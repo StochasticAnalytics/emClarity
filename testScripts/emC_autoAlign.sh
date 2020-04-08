@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #Some fixed values that may be edited, but seem to be generally good:
-
+echo "here"
   # Resolution cutoff is best to be at or slightly lower resolution than the first zero of the CTF
   # TODO add input option for defocus value estimate, and calculate the first zero automatically.
   # This would also facilitate a quick handedness check prior to full ctf estimation.
@@ -13,7 +13,7 @@
   MAX_SAMPLING_RATE=3.0
   MIN_SAMPLING_RATE=10.0
   ITERATIONS_PER_BIN=3
-  TILT_OPTION=5
+
   MAG_OPTION=5
   tiltAngleOffset=0.0
 
@@ -28,7 +28,7 @@
 foundCmdLineArgs=false
 
 
-
+echo "here"
 inp=${1}
 pixelSize=${2}
 tiltAxisRotation=${3}
@@ -39,15 +39,17 @@ nX=${7}
 nY=${8}
 nZ=${9}
 ext=${10}
-
+echo "here"
+TILT_OPTION=${11}
+echo "here"
 echo $pwd
-
+iEcho=1
 iter=1;
 echo " $binHigh $binInc $binLow"
 echo "$(seq $binHigh $binInc $binLow)"
 for iBin in $(seq $binHigh $binInc $binLow) ; do 
 #if [[ $iter -gt 3 ]] ; then exit 1; fi
-
+echo $iEcho && iEcho=$(($iEcho+1))
   lpCut=$(echo "print(${iBin}*${pixelSize}/${RESOLUTION_CUTOFF})" | python)
   hpCut=$(echo "print(${iBin}*${pixelSize}/${LOW_RES_CUTOFF})" | python)
   echo -e "\n\n lp cutoff $RESOLUTION_CUTOFF , $lpCut, hp cutoff $hpCut\n\n"
@@ -72,7 +74,7 @@ for iBin in $(seq $binHigh $binInc $binLow) ; do
       ptOverlap=0.5
 
     fi
-
+echo $iEcho && iEcho=$(($iEcho+1))
     firstIterShiftLimit=10
     if [[ $iter -ge 2 ]] ; then
       limitShifts=$(echo "print(int(${firstIterShiftLimit}/$iter)+1)" | python)
@@ -88,7 +90,7 @@ for iBin in $(seq $binHigh $binInc $binLow) ; do
 
     cd ${wDir}
 
-
+echo $iEcho && iEcho=$(($iEcho+1))
     if [[ ${iter} -eq 1 ]] ; then
       # open up etomo to run through to visually inspect ccd removal and get the 
       # alignment to be sane. assuming tilts in header or manually extracted.
@@ -150,7 +152,7 @@ for iBin in $(seq $binHigh $binInc $binLow) ; do
         -CumulativeCorrelation \
         -AngleOffset ${tiltAngleOffset}
         	
-
+echo $iEcho && iEcho=$(($iEcho+1))
 
       xftoxg -nfit 0 ${pName}.prexf ${pName}.inpXF
 
@@ -161,7 +163,7 @@ for iBin in $(seq $binHigh $binInc $binLow) ; do
 
       continue
     else
-
+echo $iEcho && iEcho=$(($iEcho+1))
       # TODO shouldn't this be set in the first iter? Make it persist.
       if [[ -f ../../$(basename ${inp} .mrc).rawtlt ]] ; then
         inp=$(basename ${inp} .mrc)
@@ -193,7 +195,7 @@ for iBin in $(seq $binHigh $binInc $binLow) ; do
 
     fi # if condition on first iteration or not
       
-
+echo $iEcho && iEcho=$(($iEcho+1))
     newstack \
       -InputFile	${pName}.st \
       -OutputFile ${pName}.preali \

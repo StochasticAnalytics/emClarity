@@ -1,0 +1,76 @@
+#!/bin/bash
+
+baseName=${1}
+NX=${2}
+NY=${3}
+thickness=${4}
+bead_size=${5}
+
+newstack \
+  -InputFile	${baseName}.fixed \
+  -OutputFile	${baseName}_3dfind.ali \
+  -TransformFile	${baseName}.xf \
+  -ImagesAreBinned	1.0 \
+  -BinByFactor	15 
+
+
+
+tilt \
+  -InputProjections ${baseName}_3dfind.ali \
+  -OutputFile ${baseName}_3dfind.rec \
+  -IMAGEBINNED 15 \
+  -TILTFILE ${baseName}.tlt \
+  -LOCALFILE ${baseName}.local \
+  -THICKNESS ${thickness} \
+  -RADIAL 0.35,0.035 \
+  -FalloffIsTrueSigma 1 \
+  -XAXISTILT 0.0 \
+  -LOG 0.0 \
+  -SCALE 0.0,250.0 \
+  -MODE 2 \
+  -UseGPU 0 \
+  -ActionIfGPUFails 1,2 \
+  -OFFSET 0.0 \
+  -SHIFT 0.0 0.0 \
+  -PERPENDICULAR \
+  -FULLIMAGE ${NX},${NY} \ 
+
+
+
+findbeads3d \
+  -InputFile	${baseName}_3dfind.rec \
+  -OutputFile	${baseName}_3dfind.mod \
+  -BeadSize	${bead_size} \
+  -MinRelativeStrength	0.05 \
+  -StorageThreshold	0.0 \
+  -MinSpacing	0.9 \
+  -BinningOfVolume	15
+
+
+
+tilt \
+  -InputProjections ${baseName}_3dfind.ali \
+  -OutputFile ${baseName}.erase \
+  -IMAGEBINNED 15 \
+  -TILTFILE ${baseName}.tlt \
+  -LOCALFILE ${baseName}.local \
+  -THICKNESS ${thickness} \
+  -RADIAL 0.35,0.035 \
+  -FalloffIsTrueSigma 1 \
+  -XAXISTILT 0.0 \
+  -LOG 0.0 \
+  -SCALE 0.0,250.0 \
+  -UseGPU 0 \
+  -ActionIfGPUFails 1,2 \
+  -OFFSET 0.0 \
+  -SHIFT 0.0,0.0 \
+  -ProjectModel ${baseName}_3dfind.mod \
+  -FULLIMAGE ${NX},${NY} \
+  -PERPENDICULAR  \
+  -MODE 2 
+
+rm *~
+rm ${baseName}_3dfind.rec
+#rm ${baseName}_3dfind.ali
+rm ${baseName}_3dfind.mod
+

@@ -1,4 +1,4 @@
-function [ ] = BH_runAutoAlign(runPath,stackIN,tiltAngles,pixelSize,imgRotation)
+function [ ] = BH_runAutoAlign(runPath,findBeadsPath,stackIN,tiltAngles,pixelSize,imgRotation,varargin)
 %Run auto tiltseries alignment. For now, basically a script
 %  sadf
 
@@ -9,12 +9,17 @@ function [ ] = BH_runAutoAlign(runPath,stackIN,tiltAngles,pixelSize,imgRotation)
   MIN_SAMPLING_RATE=10.0;
   ITERATIONS_PER_BIN=3;
   CLEAN_UP_RESULTS=false;
-  TILT_OPTION=5;
   MAG_OPTION=5;
   tiltAngleOffset=0.0;
   
   imgRotation = str2num(imgRotation);
   pixelSize = str2num(pixelSize);
+  
+if nargin > 5
+  TILT_OPTION = varargin{1}
+else
+  TILT_OPTION = '0'
+end
 
 inputStack = single(getVolume(MRCImage(stackIN)));
 
@@ -23,6 +28,7 @@ inputStack = single(getVolume(MRCImage(stackIN)));
 fixedName = sprintf('fixedStacks/%s.fixed.rot',baseName);
 
 [~,tiltName,tiltExt] = fileparts(tiltAngles);
+startDir = pwd;
 wrkDir = sprintf('emC_autoAlign_%s', baseName);
 system(sprintf('mkdir -p %s',wrkDir));
 system(sprintf('mkdir -p fixedStacks'));
@@ -72,9 +78,12 @@ rotFile = fopen('preRotXf.xf','w');
 fprintf(rotFile,'%6.3f %6.3f %6.3f %6.3f 0.0 0.0\n',rotMat);
 fclose(rotFile);
 
+
+
+                                     
 system('pwd')
-fprintf('%s\n',runPath);
-system(sprintf('%s %s %f %f %d %d %d %d %d %d %s> ./.autoAliLog_%s.txt',...
+fprintf('Running %s\n',runPath);
+system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d > ./.autoAliLog_%s.txt',...
                                                    runPath, ...
                                                    baseName, ...
                                                    pixelSize, ...
@@ -82,7 +91,22 @@ system(sprintf('%s %s %f %f %d %d %d %d %d %d %s> ./.autoAliLog_%s.txt',...
                                                    binHigh, ...
                                                    binLow, ...
                                                    binInc,...
-                                                   nX,nY,nZ,ext));
+                                                   nX,nY,nZ,ext,...
+                                                   TILT_OPTION,baseName));
+    
+cd(sprintf('%s',startDir));
 
+system(sprintf('rm %s',fixedName));
+
+if strcmpi(TILT_OPTION,'0')
+  % If not fitting tilt angles we need a copy of them with .tlt
+   system(sprintf('cp %s fixedStacks/%s.tlt',tiltAngles,tiltName));
+end
+
+cd fixedStacks
+system(sprintf('%s %s %d %d %d %d', findBeadsPath, baseName,...
+                                       nX,nY,3000,...
+                                       ceil(1.05*100/pixelSize)));
+cd ..
 end
 

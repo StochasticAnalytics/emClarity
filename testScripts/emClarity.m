@@ -22,6 +22,11 @@ if isdeployed
   emC_autoAliPath = sprintf('%s%s',ctfroot,emC_autoAliPath);
 end
 
+emC_findBeadsPath='/groups/grigorieff/home/himesb/work/emClarity/testScripts/emC_findBeads.sh';
+if isdeployed
+  emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
+end
+
 emC_ctfFindPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind';
 if isdeployed
   emC_ctfFindPath = sprintf('%s%s',ctfroot,emC_ctfFindPath);
@@ -29,6 +34,7 @@ end
 
 setenv('EMC_CTFFIND',emC_ctfFindPath);
 setenv('EMC_AUTOALIGN',emC_autoAliPath);
+setenv('EMC_FINDBEADS',emC_findBeadsPath);
 
 if strcmp(varargin{2},'gui')
   emClarityApp;
@@ -110,7 +116,11 @@ if nArgs > 1 && notCheckHelp
         error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
       end
 
-      BH_runAutoAlign(getenv('EMCAUTOALIGN'),varargin{2},varargin{3},varargin{4},varargin{5});
+      if length(varargin) == 6
+        BH_runAutoAlign(getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
+      else
+        BH_runAutoAlign(getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{2},varargin{3},varargin{4},varargin{5});
+      end
            
       return
 
