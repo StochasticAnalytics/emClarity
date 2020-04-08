@@ -17,21 +17,22 @@ post="_${shortHead}"
 outName="$(basename ${mFile} .m)${post}"
 
 # For naming. If you are compiling your own version, use something descriptive in teh
-# bugss line. e.g. buggs=5testingFeature
+# bugs line. e.g. buggs=5testingFeature
 major=1
 minor=5
-bugss=0
+bugs=0
+nightly=0
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
-#zip_location="~/tmp"
-zip_location="NONE"
+zip_location="~/tmp"
+#zip_location="NONE"
 
 
-#binaryOutName="${major}_${minor}_${bugss}_${shortHead}"
-#scriptOutName="mcr_v19a_${shortHead}"
-binaryOutName="LTS_fix_${shortHead}"
-scriptOutName="LTS_fix_${shortHead}_v19a"
+binaryOutName="${major}_${minor}_${bugs}_${nightly}"
+scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
+#binaryOutName="LTS_fix_${shortHead}"
+#scriptOutName="LTS_fix_${shortHead}_v19a"
 
 # You may need to modify this line. 
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
@@ -118,9 +119,9 @@ mv emClarity_${binaryOutName} ../bin
 cp -rp ../docs ../bin
 cd ..
 if [[ ${zip_location} != "NONE" ]]; then
-  zip -r emClarity_${major}.${minor}.${bugss}.zip bin
-  mv emClarity_${major}.${minor}.${bugss}.zip ${zip_location}
-  rm -r bin/*
+  zip -r emClarity_${major}.${minor}.${bugs}.${nightly}.zip bin
+  mv emClarity_${major}.${minor}.${bugs}.${nightly}.zip ${zip_location}
+  rm -r bin
 fi
 
 
