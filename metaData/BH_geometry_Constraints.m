@@ -14,7 +14,12 @@ if nargin < 6
   flgCentroid = false;
 else
   flgCentroid = true;
-  avgRadius = str2num(varargin{1})./pixelSize;
+  avgRadius = str2num(varargin{1});
+  if avgRadius == 1
+    avgRadius = [0,avgRadius./pixelSize];
+  else
+    avgRadius = [avgRadius(1)./pixelSize,avgRadius(2)./pixelSize];
+  end
 end
 
   flgCSV = 1;
@@ -103,7 +108,7 @@ if (flgCentroid)
       particleAxis = reshape(listIN(iPt,17:25),3,3)*[0;0;1];
       particleCoords = listIN(iPt,11:13) - reconOrigin;
       particleNorm = norm(particleCoords);
-      if (particleNorm > avgRadius || dot(particleCoords./particleNorm, particleAxis) < 0.5)
+      if (particleNorm > avgRadius(2) || particleNorm < avgRadius(1) || dot(particleCoords./particleNorm, particleAxis) < 0.75)
         listIN(iPt,26) = -9999 ;
       end
       
