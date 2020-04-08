@@ -1,5 +1,6 @@
 mexFiles/
 mexFiles/compiled
+!mexFiles/compiled/emC_autoAlign.sh
 bin/
 testScripts/EMC_test/logTest/
 testScripts/EMC_test/logPerf/
