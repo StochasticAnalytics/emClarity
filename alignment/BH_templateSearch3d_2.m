@@ -112,6 +112,17 @@ catch
   nPeaks = 1;
 end
 
+ignore_threshold = false;
+try
+  max_tries = pBH.('max_peaks');
+  if max_tries < 0
+    max_tries = abs(max_tries);
+    ignore_threshold = true;
+  end
+catch
+  max_tries = 10000;
+end
+
 pixelSizeFULL = pBH.('PIXEL_SIZE').*10^10;
 if pBH.('SuperResolution')
   pixelSizeFULL = pixelSizeFULL * 2;
@@ -1018,7 +1029,13 @@ while nIncluded < areaPreFactor*prod(eraseMaskRadius)
 
 end
 
-while  n <= 2*peakThreshold && MAX > highThr
+if ignore_threshold
+  highThr = 0;
+end
+
+this_try = 0;
+while n <= 2.*peakThreshold && (this_try < max_tries) && MAX > highThr
+this_try = this_try + 1;
 
 %
 % Some indicies come back as an error, even when they seem like the

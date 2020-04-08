@@ -60,6 +60,12 @@ catch
   scale_mip = false;
 end
 
+try
+  max_tries = pBH.('max_peaks');
+catch
+  max_tries = 10000;
+end
+
 if ( cmdLineThresh )
  peakThreshold = cmdLineThresh;
  fprintf('\nOverride peakThreshold from paramfile (%d) with cmd line arg (%d)\n\n',...
@@ -1060,9 +1066,9 @@ while nIncluded < areaPreFactor*prod(eraseMaskRadius)
   end
 
 end
-
-while  n <= peakThreshold % && MAX > highThr
-
+this_try = 0;
+while  n <= peakThreshold && (this_try < max_tries)
+this_try = this_try + 1;
 
 %
 % Some indicies come back as an error, even when they seem like the
