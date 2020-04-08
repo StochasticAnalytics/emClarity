@@ -19,12 +19,12 @@ setenv('MATLAB_SHELL','/bin/bash');
 % FIXME! The dependencies are linked on the wiki.
 emC_autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/testScripts/emC_autoAlign.sh';
 if isdeployed
-  emC_autoAliPath = sprintf('%s%s',ctfroot,autoAliPath);
+  emC_autoAliPath = sprintf('%s%s',ctfroot,emC_autoAliPath);
 end
 
 emC_ctfFindPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind';
 if isdeployed
-  emC_ctfFindPath = sprintf('%s%s',ctfroot,ctfFindPath);
+  emC_ctfFindPath = sprintf('%s%s',ctfroot,emC_ctfFindPath);
 end
 
 setenv('EMC_CTFFIND',emC_ctfFindPath);
