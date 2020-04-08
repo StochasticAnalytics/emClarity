@@ -14,6 +14,22 @@ cmdIN = sprintf('emClarity %s ',varargin{1});
 setenv('MATLAB_SHELL','/bin/bash');
 [sysERR] = system('mkdir -p logFile');
 
+% These paths are fine in the compiled version, but if you are compiling on
+% your own, you will need to edit. If you have a better solution, please
+% FIXME! The dependencies are linked on the wiki.
+emC_autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/testScripts/emC_autoAlign.sh';
+if isdeployed
+  emC_autoAliPath = sprintf('%s%s',ctfroot,autoAliPath);
+end
+
+emC_ctfFindPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind';
+if isdeployed
+  emC_ctfFindPath = sprintf('%s%s',ctfroot,ctfFindPath);
+end
+
+setenv('EMC_CTFFIND',emC_ctfFindPath);
+setenv('EMC_AUTOALIGN',emC_autoAliPath);
+
 if strcmp(varargin{2},'gui')
   emClarityApp;
   return
@@ -83,11 +99,7 @@ if nArgs > 1 && notCheckHelp
     case 'cleanTemplateSearch'
       multiGPUs = 0;
     case 'autoAlign'
-         
-      autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_autoAlign.sh';
-      if isdeployed
-        autoAliPath = sprintf('%s%s',ctfroot,autoAliPath);
-      end
+     
   
       if ~exist(varargin{3}, 'file')
         fprintf('Did not find your .rawtlt file %s\n',varargin{3});
@@ -97,8 +109,8 @@ if nArgs > 1 && notCheckHelp
         fprintf('Did not find your .st file %s\n',varargin{2});
         error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
       end
-      
-      BH_runAutoAlign(autoAliPath,varargin{2},varargin{3},varargin{4},varargin{5});
+
+      BH_runAutoAlign(getenv('EMCAUTOALIGN'),varargin{2},varargin{3},varargin{4},varargin{5});
            
       return
 
@@ -642,6 +654,10 @@ function [ pBH  ] = emC_testParse( paramTest )
 try
   pBH = BH_parseParameterFile( paramTest );
   
+  
+
+
+
   %%%%%%%% GLOBALS  %%%%%%%%%%%%%%%%%%%%
 
   % These variables are to maintain some flexibility for parameters that have

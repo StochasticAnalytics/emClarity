@@ -825,7 +825,10 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
             tmpTile(oX-oupSize(1,1):oX+oupSize(1,2)-1, ...
                     oY-oupSize(2,1):oY+oupSize(2,2)-1) + ...
                     fftshift(abs(fftn(BH_padZeros3d(iTile,iPadVal(1,:),iPadVal(2,:), ...
-                                           'GPU','singleTaper'))));
+                                           'GPU','single'))));
+                                         % Using singleTaper here produces
+                                         % a grid like artifact. Test
+                                         % switch for EMC functions
           
 
    

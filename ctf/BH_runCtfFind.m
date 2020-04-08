@@ -11,10 +11,7 @@ system('mkdir -p fixedStacks/ctf/forCtfFind');
 rng('shuffle');
 randPrfx = sprintf('%s_%d',tltName,randi(1e6,[1,1]));
 
-ctfFindPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind';
-if isdeployed
-  ctfFindPath = sprintf('%s%s',ctfroot,ctfFindPath);
-end
+ctfFindPath = getenv('EMC_CTFFIND');
 
 fprintf('%s\n',ctfFindPath);% split the stack up
 fullStack = getVolume(MRCImage(stackName));
