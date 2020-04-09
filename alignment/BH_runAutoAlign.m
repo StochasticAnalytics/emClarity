@@ -1,24 +1,43 @@
-function [ ] = BH_runAutoAlign(runPath,findBeadsPath,stackIN,tiltAngles,pixelSize,imgRotation,varargin)
+function [ ] = BH_runAutoAlign(PARAMETER_FILE, runPath,findBeadsPath,stackIN,tiltAngles,imgRotation)
 %Run auto tiltseries alignment. For now, basically a script
 %  sadf
 
+% TODO add options for experimenting.
+pBH = BH_parseParameterFile(PARAMETER_FILE);
+
+pixelSize = pBH.('PIXEL_SIZE').*10^10;
+imgRotation = str2num(imgRotation);
+
+
+try 
+  RESOLUTION_CUTOFF = pBH.('autoAli_max_resolution');
+catch
   RESOLUTION_CUTOFF=18;
+end
+try
+  MAX_SAMPLING_RATE = pBH.('autoAli_max_sampling_rate');
+catch
+  MAX_SAMPLING_RATE = 3.0;
+end
+try
+  PATCH_SIZE_FACTOR = pBH.('autoAli_max_sampling_rate');
+catch
+  PATCH_SIZE_FACTOR = 4;
+end
+
   LOW_RES_CUTOFF=800;
-  PATCH_SIZE=3600 ;
-  MAX_SAMPLING_RATE=3.0;
   MIN_SAMPLING_RATE=10.0;
   ITERATIONS_PER_BIN=3;
   CLEAN_UP_RESULTS=false;
   MAG_OPTION=5;
   tiltAngleOffset=0.0;
+  TILT_OPTION = 0;
+
   
-  imgRotation = str2num(imgRotation);
-  pixelSize = str2num(pixelSize);
   
-if nargin > 5
-  TILT_OPTION = varargin{1}
+if nargin > 6
+  MAX_SAMPLING_RATE = str2double(varargin{1})
 else
-  TILT_OPTION = '0'
 end
 
 inputStack = single(getVolume(MRCImage(stackIN)));
@@ -34,7 +53,7 @@ system(sprintf('mkdir -p %s',wrkDir));
 system(sprintf('mkdir -p fixedStacks'));
 
 cd('fixedStacks');
-system(sprintf('ln -s ../%s %s.fixed',stackIN,baseName));
+system(sprintf('ln -s %s/%s %s.fixed',startDir,stackIN,baseName));
 cd('../');
 
 
@@ -56,18 +75,20 @@ rotMat = [cosd(imgRotation),-1*sind(imgRotation),sind(imgRotation),cosd(imgRotat
 [nX,nY,nZ] = size(inputStack);
 fprintf('Preprocessing tilt-series\n');
 
-gradientAliasFilter = BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize);
-%                      gradientAliasFilter = {BH_bandpass3d(1.*[nX,nY,1],0,0,0,'GPU','nyquistHigh'),...
-%                        BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize)};
+% gradientAliasFilter = BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize);
+                     gradientAliasFilter = {BH_bandpass3d(1.*[nX,nY,1],0,0,0,'GPU','nyquistHigh'),...
+                       BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize)};
 medianFilter = 3;
 for iPrj = 1:nZ
 %   tmpPrj = BH_preProcessStack(gpuArray(inputStack(:,:,iPrj)),gradientAliasFilter,medianFilter);
-  tmpPrj = real(ifftn(fftn(gpuArray(inputStack(:,:,iPrj))).*gradientAliasFilter));
+  tmpPrj = real(ifftn(fftn(gpuArray(inputStack(:,:,iPrj))).*gradientAliasFilter{1}));
+  tmpPrj = medfilt2(tmpPrj,medianFilter.*[1,1]);
+  tmpPrj = real(ifftn(fftn(tmpPrj).*gradientAliasFilter{2}));
   tmpPrj = BH_resample2d(tmpPrj,rotMat,[0,0],'Bah','GPU','forward',1,size(tmpPrj));
   inputStack(:,:,iPrj) = gather(tmpPrj);
 end
-fprintf('finished reprocessing tilt-series\n');
-SAVE_IMG(MRCImage(gather(inputStack)),fixedName,pixelSize);
+fprintf('finished preprocessing tilt-series\n');
+SAVE_IMG(inputStack,fixedName,pixelSize);
 
 clear tmpPrj inputStack
 
@@ -79,11 +100,7 @@ fprintf(rotFile,'%6.3f %6.3f %6.3f %6.3f 0.0 0.0\n',rotMat);
 fclose(rotFile);
 
 
-
-                                     
-system('pwd')
-fprintf('Running %s\n',runPath);
-system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d > ./.autoAliLog_%s.txt',...
+fprintf('%s %s %f %f %d %d %d %d %d %d %s %d > ./.autoAliLog_%s.txt',...
                                                    runPath, ...
                                                    baseName, ...
                                                    pixelSize, ...
@@ -92,7 +109,21 @@ system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d > ./.autoAliLog_%s.txt',...
                                                    binLow, ...
                                                    binInc,...
                                                    nX,nY,nZ,ext,...
-                                                   TILT_OPTION,baseName));
+                                                   TILT_OPTION,baseName);
+                                             
+                                     
+system('pwd')
+fprintf('Running %s\n',runPath);
+system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d > ./emC_autoAliLog_%s.txt',...
+                                                   runPath, ...
+                                                   baseName, ...
+                                                   pixelSize, ...
+                                                   imgRotation, ...
+                                                   binHigh, ...
+                                                   binLow, ...
+                                                   binInc,...
+                                                   nX,nY,nZ,ext,...
+                                                   PATCH_SIZE_FACTOR,baseName));
     
 cd(sprintf('%s',startDir));
 

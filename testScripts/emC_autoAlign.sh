@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #Some fixed values that may be edited, but seem to be generally good:
-echo "here"
+
   # Resolution cutoff is best to be at or slightly lower resolution than the first zero of the CTF
   # TODO add input option for defocus value estimate, and calculate the first zero automatically.
   # This would also facilitate a quick handedness check prior to full ctf estimation.
@@ -28,7 +28,7 @@ echo "here"
 foundCmdLineArgs=false
 
 
-echo "here"
+
 inp=${1}
 pixelSize=${2}
 tiltAxisRotation=${3}
@@ -39,9 +39,13 @@ nX=${7}
 nY=${8}
 nZ=${9}
 ext=${10}
-echo "here"
-TILT_OPTION=${11}
-echo "here"
+PATCH_SIZE_FACTOR=${11}
+
+TILT_OPTION=0
+
+echo -e "Input file $inp\npixelSize $pixelSize\ntiltAxisRotation $tiltAxisRotation\n"
+echo -e "binHigh $binHigh\nbinLow $binLow\nnX $nX\nnY $nY\nnZ $nZ\next $ext\nTILT_OPTION $TILT_OPTION\n\n"
+
 echo $pwd
 iEcho=1
 iter=1;
@@ -59,7 +63,8 @@ echo $iEcho && iEcho=$(($iEcho+1))
     echo " ${iBin}"
     if [[ ${iter} -lt 4 ]] ; then
 
-      ptSize=$(echo "print(int(${nX}/($iter*${iBin})))" | python)
+      ptSizeX=$(echo "print(int(${nX}/($iter*${iBin})))" | python)
+      ptSizeY=$(echo "print(int(${nY}/($iter*${iBin})))" | python)
       ptBorder=64
       ptOverlap=0.5
       # For each binning the pixel shifts are limited to 50 A * iBin
@@ -69,7 +74,8 @@ echo $iEcho && iEcho=$(($iEcho+1))
 #      ptOverlap=0.5
 #      limitShifts=$(echo "print int(150.0/($iter*${pixelSize}))"  | python)
     else
-      ptSize=$(echo "print(int(${nX}/($iBin*3.)))" | python)
+      ptSizeX=$(echo "print(int(${nX}/($iBin*${PATCH_SIZE_FACTOR}.)))" | python)
+      ptSizeY=$(echo "print(int(${nY}/($iBin*${PATCH_SIZE_FACTOR}.)))" | python) 
       ptBorder=64
       ptOverlap=0.5
 
@@ -227,7 +233,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
      echo "-FilterSigma2	0.05 \ "
      echo "-ShiftLimitsXandY ${limitShifts},${limitShifts} \ "
      echo "-PadsInXandY	128,128 \ "
-     echo "-SizeOfPatchesXandY	${ptSize},${ptSize} \ "
+     echo "-SizeOfPatchesXandY	${ptSizeX},${ptSizeY} \ "
      echo "-BordersInXandY ${ptBorder},${ptBorder} \ "
      echo "-CorrelationCoefficient \ "
      echo "-RotationAngle	0.0 \ "
@@ -248,7 +254,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
       -FilterSigma2	0.05 \
       -ShiftLimitsXandY ${limitShifts},${limitShifts} \
       -PadsInXandY	128,128 \
-      -SizeOfPatchesXandY	${ptSize},${ptSize} \
+      -SizeOfPatchesXandY	${ptSizeX},${ptSizeY} \
       -BordersInXandY ${ptBorder},${ptBorder} \
       -CorrelationCoefficient \
       -RotationAngle	0.0 \
@@ -300,7 +306,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
         -ShiftZFromOriginal      1 \
         -LocalAlignments	\
         -OutputLocalFile	${pName}_local.xf \
-        -TargetPatchSizeXandY	${ptSize},${ptSize} \
+        -TargetPatchSizeXandY	${ptSizeX},${ptSizeY} \
         -MinSizeOrOverlapXandY	0.5,0.5 \
         -MinFidsTotalAndEachSurface	8,3 \
         -FixXYZCoordinates	1 \

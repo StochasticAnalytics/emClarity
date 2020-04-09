@@ -104,25 +104,6 @@ if nArgs > 1 && notCheckHelp
       multiGPUs = 0;
     case 'cleanTemplateSearch'
       multiGPUs = 0;
-    case 'autoAlign'
-     
-  
-      if ~exist(varargin{3}, 'file')
-        fprintf('Did not find your .rawtlt file %s\n',varargin{3});
-        error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
-      end
-      if ~exist(varargin{2}, 'file')
-        fprintf('Did not find your .st file %s\n',varargin{2});
-        error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
-      end
-
-      if length(varargin) == 6
-        BH_runAutoAlign(getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
-      else
-        BH_runAutoAlign(getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{2},varargin{3},varargin{4},varargin{5});
-      end
-           
-      return
 
     otherwise
       pBH = emC_testParse(varargin{2});
@@ -209,7 +190,25 @@ switch varargin{1}
       end
     end    
     
-    
+    case 'autoAlign'
+     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+       length(varargin) ~= 5
+      fprintf(['\nparam.m stackName tiltFile tilt-axis Rotation\n']);
+     else
+      emC_testParse(varargin{2}) 
+      if ~exist(varargin{4}, 'file')
+        fprintf('Did not find your .rawtlt file %s\n',varargin{3});
+        error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
+      end
+      if ~exist(varargin{3}, 'file')
+        fprintf('Did not find your .st file %s\n',varargin{2});
+        error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
+      end
+
+        BH_runAutoAlign(varargin{2},getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{3},varargin{4},varargin{5});  
+           
+      return
+     end
   case 'skip'
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
        length(varargin) ~= 3
