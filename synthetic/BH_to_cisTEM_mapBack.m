@@ -58,7 +58,7 @@ else
 
 end
 % baseFile = sprintf('%s_%d_%2.2f_preShift_%2.2f_%2.2f_%2.2f_postShift_%2.2f_%2.2f_prjVect_%2.2f_%2.2f_%2.2f','microShiftsFollowup',MAX_TILT_ANGLE, preShift, postShift, prjVectorShift);
-baseFile = sprintf('%s_%d_%2.2f','tiltAngleSweep_old',MAX_TILT_ANGLE);
+baseFile = sprintf('%s_%d_%2.2f','withZeroedXF_IPFirst',MAX_TILT_ANGLE);
 
 useFixedNotAliStack = false;
 
@@ -275,14 +275,14 @@ for iTiltSeries = tiltStart:nTiltSeries
     else
           % 20190509 - I think this is royally screwing things up FIXME
     % Commenting this out invalidates the defocus vals
-%       xfTLT = zeros(size(TLT,1),6);
-%       xfTLT(:,[1,4]) = 1.0;
-%       fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT');
-%       fclose(iXF);
-      
-      xfTLT = sortrows(TLT(:,[1,7:10,2,3],1));
-      fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT(:,2:7)');
+      xfTLT = zeros(size(TLT,1),6);
+      xfTLT(:,[1,4]) = 1.0;
+      fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT');
       fclose(iXF);
+      
+%       xfTLT = sortrows(TLT(:,[1,7:10,2,3],1));
+%       fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT(:,2:7)');
+%       fclose(iXF);
     end
     
   
@@ -644,7 +644,8 @@ for iTiltSeries = tiltStart:nTiltSeries
         else
           
           
-          rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
+%           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
+          rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','forwardVector');
 
           rotFull = rTilt*reshape(wrkPar(iFid,7:15),3,3);
         end
@@ -771,7 +772,7 @@ fclose(starFile);
   pause(3)
   system(sprintf('./%s_rec.sh',baseFile));
   
-  
+ return 
   %%%%%%%%%%%%%%%%%%%%%%%%%
   % Refine
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%

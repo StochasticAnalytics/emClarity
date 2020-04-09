@@ -573,12 +573,17 @@ end
     iXFName = sprintf('%smapBack%d/%s_align.XF',mbOUT{1:3});
     iXF = fopen(iXFName,'w');
     
-    % 20190509 - I think this is royally screwing things up FIXME
-    % Commenting this out invalidates the defocus vals
-    xfTLT = sortrows(TLT(:,[1,7:10,2,3],1));
-    fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT(:,2:7)');
-    fclose(iXF);
+%     % 20190509 - I think this is royally screwing things up FIXME
+%     % Commenting this out invalidates the defocus vals
+%     xfTLT = sortrows(TLT(:,[1,7:10,2,3],1));
+%     fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT(:,2:7)');
+%     fclose(iXF);
     
+      xfTLT = zeros(size(TLT,1),6);
+      xfTLT(:,[1,4]) = 1.0;
+      fprintf(iXF,'%f %f %f %f %f %f\n',xfTLT');
+      fclose(iXF);
+      
     positionList = geometry.(tomoList{iTomo});
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;

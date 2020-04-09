@@ -17,12 +17,12 @@ setenv('MATLAB_SHELL','/bin/bash');
 % These paths are fine in the compiled version, but if you are compiling on
 % your own, you will need to edit. If you have a better solution, please
 % FIXME! The dependencies are linked on the wiki.
-emC_autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/testScripts/emC_autoAlign.sh';
+emC_autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/alignment/emC_autoAlign';
 if isdeployed
   emC_autoAliPath = sprintf('%s%s',ctfroot,emC_autoAliPath);
 end
 
-emC_findBeadsPath='/groups/grigorieff/home/himesb/work/emClarity/testScripts/emC_findBeads.sh';
+emC_findBeadsPath='/groups/grigorieff/home/himesb/work/emClarity/alignment/emC_findBeads';
 if isdeployed
   emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
 end
@@ -31,6 +31,9 @@ emC_ctfFindPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled
 if isdeployed
   emC_ctfFindPath = sprintf('%s%s',ctfroot,emC_ctfFindPath);
 end
+
+system(sprintf('%s -1',emC_autoAliPath));
+system(sprintf('%s -1',emC_findBeadsPath));
 
 setenv('EMC_CTFFIND',emC_ctfFindPath);
 setenv('EMC_AUTOALIGN',emC_autoAliPath);

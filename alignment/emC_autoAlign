@@ -1,5 +1,6 @@
 #!/bin/bash
 
+if [[ $1 -eq -1 ]] ; then echo "ali check" ; exit 0; fi
 #Some fixed values that may be edited, but seem to be generally good:
 
   # Resolution cutoff is best to be at or slightly lower resolution than the first zero of the CTF

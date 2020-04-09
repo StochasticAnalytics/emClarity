@@ -38,7 +38,8 @@ scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 
-matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ../mexFiles/compiled/emC_ctfFind -a ./emC_autoAlign.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+emC_ROOT=${HOME}/work/emClarity
+matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ${emC_ROOT}/mexFiles/compiled/emC_ctfFind -a ${emC_ROOT}/alignment/emC_autoAlign -a ${emC_ROOT}/alignment/emC_findBeads -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
