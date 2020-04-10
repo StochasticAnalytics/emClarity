@@ -668,15 +668,14 @@ parpool(nGPUs);
 
 tiltNameList = fieldnames(masterTM.mapBackGeometry);
 tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
-maxPerGPU = ceil(length(tiltNameList)/nGPUs) + 1;
 wgtList = tomoList;
+
 for iGPU = 1:nGPUs
   nThisGPU = 0;
   for iParProc = iGPU:nGPUs:nParProcesses
     for iTomo = iterList{iParProc}
       iTilt = masterTM.mapBackGeometry.tomoName.(wgtList{iTomo}).tiltName;
-      if (any(ismember(tiltNameList,iTilt)) && nThisGPU < maxPerGPU)
-        nThisGPU = nThisGPU +1;
+      if (any(ismember(tiltNameList,iTilt)))
         tiltNameList{ismember(tiltNameList,iTilt)} = 'continue';
       else
         wgtList{iTomo} = 'continue';
@@ -684,26 +683,21 @@ for iGPU = 1:nGPUs
     end
   end
 end
-
+wgtList=wgtList(~ismember(wgtList,'continue'));
+maxPerGPU = ceil(length(wgtList)/nGPUs) + 1;
 
 
 parfor iGPU = 1:nGPUs
 % % % % for iGPU = 1:nGPUs
-  for iParProc = iGPU:nGPUs:nParProcesses
+  for iParProc = iGPU:maxPerGPU:length(wgtList)
     % Caclulating weights takes up a lot of memory, so do all that are necessary
     % prior to the main loop
-    for iTomo = iterList{iParProc}
-
-      if strcmp(wgtList{iTomo}, 'continue')
-        continue;
-      end
-
 
       BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iTomo},samplingRate ,...
                                 sizeCalc,geometry,cutPrecision,iGPU);
 
 
-    end
+    
   end
 end
 
