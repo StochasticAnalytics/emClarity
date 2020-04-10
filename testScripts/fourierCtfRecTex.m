@@ -45,22 +45,27 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
 
   if ( flgTesting )
     % These will just go in the object properties
-    rawtlt = -60:3:60;
-    nTilts = length(rawtlt);
+    rawtlt = single(-45:3:60);
+    nTilts = uint32(length(rawtlt));
     TLT = zeros(nTilts,23,'single','gpuArray');
     TLT(:,4) = rawtlt;
     TLT(:,1) = 1:length(rawtlt);
     % 12,13 = astigmatism = 0
     % def,pix,cs,wl,ampcont
-    TLT(:,[15,16,17,18,19]) = repmat([-1.2e-6,2.0e-10,2.7e-3,1.969e-12,1e-1],nTilts,1);
-    TLT(:,11) = [[41:-1:20,1:19].*3]';
+    pixelSize = single(2.0);
+    defocus = single(12000);
+    CS = single(2.7);
+    WL = single(0.01969);
+    AC = single(0.1);
+    TLT(:,[15,16,17,18,19]) = repmat([-defocus*10^-10,pixelSize*10^-10,CS*10^-3,WL*10^-10,AC],single(nTilts),1);
+    TLT(:,11) = TLT(:,1).*3;%%[[41:-1:20,1:19].*3]';
     iThickness = 75;
     samplingRate = 1;
     fractionOfDose =1;
     fractionOfElastics = exp(-1.*iThickness/( cosd(TLT(:,4))*400 ));
-    doHalfGrid = 1;
+    doHalfGrid = true;
     centerGrid = 1;
-    reconGeometry = wantedSize;
+    reconGeometry = (wantedSize);
     reconShift = [0,0,0];
     originPrj = wantedSize;
     originPrj = ceil((originPrj+1)./2);
@@ -76,6 +81,13 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
     % we want to rotate back, so take the transpose to invert.
     particleRotMat = BH_defineMatrix([0,0,0],'Bah','forward'); 
     prjVector = [0,0,0] - originVol + reconShift + [0.0,0.0,1.0];
+    
+    defocusAst = single(0);
+    exposure = gather(single(TLT(:,11)));
+    a = mexSF3D(false,true,uint32(wantedSize),pixelSize,WL,CS,defocus, ...
+            defocus,defocusAst,AC,nTilts,rawtlt,exposure,gather(single(fractionOfElastics.*fractionOfDose)),int16(1));
+          a = a ./ max(a(:));
+          SAVE_IMG(a,'testInside.mrc');
   else
     % These will just go in the object properties
     reconShift = reconGeometry(2,:);
@@ -94,6 +106,8 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
     prjVector = positionList(11:13) - originVol + reconShift + [0.0,0.0,1.0];
     % We want the origin of the subTomogram in the tilted image to calculate
     % a defocus offset.
+    
+
   end
 
   nZpad = 9;

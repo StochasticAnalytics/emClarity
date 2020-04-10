@@ -77,4 +77,4 @@ struct ctfParams {
 
 // Kernel defs
 
-__global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered);
+__global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered, bool radial_weight, float total_exposure);
