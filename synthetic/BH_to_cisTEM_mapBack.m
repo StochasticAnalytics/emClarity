@@ -1,4 +1,4 @@
-function [ ] = BH_to_cisTEM_mapBack(PARAMETER_FILE, CYCLE, symmetry, MAX_TILT_ANGLE, varargin)
+function [ ] = BH_to_cisTEM_mapBack(PARAMETER_FILE, CYCLE,outputName, symmetry, MAX_EXPOSURE, varargin)
 
 % Map back and align using the subtomograms as fiducial markers.
 
@@ -22,7 +22,7 @@ if isempty(bh_global_imodProjectionShifts)
 end
 
 tiltStart=1;
-% MAX_TILT_ANGLE = 9;
+% MAX_EXPOSURE = 9;
 CYCLE = str2num(CYCLE);
 
 if CYCLE < 0
@@ -36,7 +36,7 @@ pixelShift = -1;
 pixelMultiplier = 0;
 
 cacheAdd = '';
-if nargin > 4
+if nargin > 5
   preShift = varargin{1};
   postShift = varargin{2};
   prjVectorShift = varargin{3}';
@@ -57,8 +57,8 @@ else
   
 
 end
-% baseFile = sprintf('%s_%d_%2.2f_preShift_%2.2f_%2.2f_%2.2f_postShift_%2.2f_%2.2f_prjVect_%2.2f_%2.2f_%2.2f','microShiftsFollowup',MAX_TILT_ANGLE, preShift, postShift, prjVectorShift);
-baseFile = sprintf('%s_%d_%2.2f','withZeroedXF_IPFirst',MAX_TILT_ANGLE);
+% baseFile = sprintf('%s_%d_%2.2f_preShift_%2.2f_%2.2f_%2.2f_postShift_%2.2f_%2.2f_prjVect_%2.2f_%2.2f_%2.2f','microShiftsFollowup',MAX_EXPOSURE, preShift, postShift, prjVectorShift);
+baseFile = outputName; %sprintf('%s_%d_%2.2f','withZeroedXF_IPFirst',MAX_EXPOSURE);
 
 useFixedNotAliStack = false;
 
@@ -346,7 +346,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       for iPrj = 1:nPrjs
 
         iPrj_nat = find(TLT(:,1) == iPrj);
-        if (abs(TLT(iPrj_nat,4)) <= MAX_TILT_ANGLE)
+        if (abs(TLT(iPrj_nat,11)) <= MAX_EXPOSURE)
           nPrjsIncluded = nPrjsIncluded + 1;
 
 
@@ -596,7 +596,7 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   for iPrj = 1:nPrjs     
   
-    if (abs(TLT(iPrj,4)) > MAX_TILT_ANGLE)
+    if (abs(TLT(iPrj,11)) > MAX_EXPOSURE)
         continue;
     end
   
@@ -772,7 +772,7 @@ fclose(starFile);
   pause(3)
   system(sprintf('./%s_rec.sh',baseFile));
   
- return 
+  
   %%%%%%%%%%%%%%%%%%%%%%%%%
   % Refine
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%
