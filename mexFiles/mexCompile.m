@@ -9,11 +9,11 @@ inc = {'rotation_matrix.cpp','ctf.cu'};
 for i = 1:length(inc)
   inc{i} = sprintf('%sutils/%s',mexPATH,inc{i});
 end
-% mexFILE = 'mexFFT' 'mexXform2d';
+% mexFILE = 'mexFFT' 'mexXform2d' 'mexCTF',;
 if nargin > 0
   mexFILE = varargin;
 else
- mexFILE = {'mexCTF','mexFFT','mexXform3d','mexSF3D'};
+ mexFILE = {'mexFFT','mexXform3d','mexSF3D'};
 %  mexFILE = {'mexXform3d'};
 end
 

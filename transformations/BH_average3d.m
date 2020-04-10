@@ -693,7 +693,7 @@ parfor iGPU = 1:nGPUs
     % Caclulating weights takes up a lot of memory, so do all that are necessary
     % prior to the main loop
 
-      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iTomo},samplingRate ,...
+      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iParProc},samplingRate ,...
                                 sizeCalc,geometry,cutPrecision,iGPU);
 
 
