@@ -84,10 +84,7 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
     
     defocusAst = single(0);
     exposure = gather(single(TLT(:,11)));
-    a = mexSF3D(false,true,uint32(wantedSize),pixelSize,WL,CS,defocus, ...
-            defocus,defocusAst,AC,nTilts,rawtlt,exposure,gather(single(fractionOfElastics.*fractionOfDose)),int16(1));
-          a = a ./ max(a(:));
-          SAVE_IMG(a,'testInside.mrc');
+
   else
     % These will just go in the object properties
     reconShift = reconGeometry(2,:);

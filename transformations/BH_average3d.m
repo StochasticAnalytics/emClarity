@@ -182,6 +182,11 @@ catch
   scaleCalcSize = 1.5;
 end
 
+try
+  use_v2_SF3D = pBH.('use_v2_SF3D')
+catch
+  use_v2_SF3D = false
+end
 global bh_global_ML_compressByFactor;
 global bh_global_ML_angleTolerance;
 if isempty(bh_global_ML_compressByFactor)
@@ -660,44 +665,47 @@ padVal = minDIM - sizeMask;
 padVal = padVal .* (padVal > 0);
 fscPAD = padCalc;%[floor(padVal./2); ceil((padVal)./2)]
 
-delete(gcp('nocreate'));
-parpool(nGPUs);
+if ~(use_v2_SF3D)
+  
+  delete(gcp('nocreate'));
+  parpool(nGPUs);
 
-% TODO need some way of only sending out the command for one tilt or
-% something to prevent collisions that result in no complete recon.
+  % TODO need some way of only sending out the command for one tilt or
+  % something to prevent collisions that result in no complete recon.
 
-tiltNameList = fieldnames(masterTM.mapBackGeometry);
-tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
-wgtList = tomoList;
+  tiltNameList = fieldnames(masterTM.mapBackGeometry);
+  tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
+  wgtList = tomoList;
 
-for iGPU = 1:nGPUs
-  nThisGPU = 0;
-  for iParProc = iGPU:nGPUs:nParProcesses
-    for iTomo = iterList{iParProc}
-      iTilt = masterTM.mapBackGeometry.tomoName.(wgtList{iTomo}).tiltName;
-      if (any(ismember(tiltNameList,iTilt)))
-        tiltNameList{ismember(tiltNameList,iTilt)} = 'continue';
-      else
-        wgtList{iTomo} = 'continue';
+  for iGPU = 1:nGPUs
+    nThisGPU = 0;
+    for iParProc = iGPU:nGPUs:nParProcesses
+      for iTomo = iterList{iParProc}
+        iTilt = masterTM.mapBackGeometry.tomoName.(wgtList{iTomo}).tiltName;
+        if (any(ismember(tiltNameList,iTilt)))
+          tiltNameList{ismember(tiltNameList,iTilt)} = 'continue';
+        else
+          wgtList{iTomo} = 'continue';
+        end
       end
     end
   end
-end
-wgtList=wgtList(~ismember(wgtList,'continue'));
-maxPerGPU = ceil(length(wgtList)/nGPUs) + 1;
+  wgtList=wgtList(~ismember(wgtList,'continue'));
+  maxPerGPU = ceil(length(wgtList)/nGPUs) + 1;
 
 
-parfor iGPU = 1:nGPUs
-% % % % for iGPU = 1:nGPUs
-  for iParProc = iGPU:maxPerGPU:length(wgtList)
-    % Caclulating weights takes up a lot of memory, so do all that are necessary
-    % prior to the main loop
+  parfor iGPU = 1:nGPUs
+  % for iGPU = 1:nGPUs
+    for iParProc = iGPU:maxPerGPU:length(wgtList)
+      % Caclulating weights takes up a lot of memory, so do all that are necessary
+      % prior to the main loop
 
-      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iParProc},samplingRate ,...
-                                sizeCalc,geometry,cutPrecision,iGPU);
+        BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iParProc},samplingRate ,...
+                                  sizeCalc,geometry,cutPrecision,iGPU);
 
 
-    
+
+    end
   end
 end
 
@@ -742,7 +750,7 @@ end
 
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
-% % % for iParProc = parVect
+% for iParProc = parVect
 
     % Get the gpuIDX assigned to this process
     gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;
@@ -845,7 +853,7 @@ parfor iParProc = parVect
      volumeData = [];
    else
 
-    [ volumeData ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+    [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
                                      reconCoords, mapBackIter, ...
                                      samplingRate,iGPUidx,reconScaling,loadTomo); 
     
@@ -867,12 +875,7 @@ parfor iParProc = parVect
      wedgeMask = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
                                       ceil(sqrt(nCtfGroups)).*[1,1],'');     
                                     
-        if ~(singlePrecision)
-          wedgeMask = double(wedgeMask)
-        end
 
-
-    
 
     % Work on each class seperately pushing to main memory when finished.
      for iGold = 1:2-flgFinalAvg
@@ -956,6 +959,7 @@ parfor iParProc = parVect
         for iPeak = 1:nPeaks
           if peakWgt(iPeak) == -9999
             % Skip this peak
+            fprintf('skipping peak %d\n')
             continue
           end
            %Check that the given subTomo is not to be ignored
@@ -971,6 +975,19 @@ parfor iParProc = parVect
           if (flgFinalAvg)
             angles = reshape(angles,3,3)*oddRot;
           end
+          
+          TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
+
+          if iPeak == 1
+            if (use_v2_SF3D)
+              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
+                                                                center,reconGeometry);
+            else
+              iSF3D =  gpuArray(wedgeMask{wdgIDX});
+            end
+          end
+                                                       
+
           
           if (flgQualityWeight)
             iCCC = positionList(iSubTomo,[1]+26*(iPeak-1));
@@ -1073,7 +1090,7 @@ parfor iParProc = parVect
             iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],'Bah', 'GPU', 'forward');
             
             [ ref_FT ] = BH_bandLimitCenterNormalize(iRefIMG.*peakMask_tmp, ...
-                                                    fftshift(wedgeMask{wdgIDX}), ...
+                                                    fftshift(iSF3D), ...
                                                      peakBinary_tmp,padCalc,...
                                                      'single');
                                                
@@ -1161,8 +1178,9 @@ parfor iParProc = parVect
                                         'GPU',cutPrecision);  
                          
             end
+            
             % For now just leave linear interp, but test with spline
-            [ iWedgeMask ] = BH_resample3d(wedgeMask{wdgIDX}, ...
+            [ iWedgeMask ] = BH_resample3d(iSF3D, ...
                                            angles, [0,0,0], ...
                                            {'Bah',symmetry,'linear', ...
                                            1,interpMaskWdg_tmp}, ...
@@ -1242,11 +1260,11 @@ parfor iParProc = parVect
 
            fprintf('SubTomo %d from tomogram %s only sampled at %f\n',...
            iSubTomo, tomoList{iTomo}, 1-padVAL);
-           
+          
            % Flag the particle as ignored
-           positionList(iSubTomo, 26) = -9999;
+           positionList(iSubTomo, 26:26:26*nPeaks) = -9999;
            nIgnored = nIgnored + 1;
-
+           peakWgt(1:nPeaks) = -9999;
         
           end
     %       end

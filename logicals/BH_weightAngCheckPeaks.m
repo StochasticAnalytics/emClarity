@@ -98,7 +98,7 @@ peakWgt(peakKeep) = (peakScore(peakKeep) ./ max(peakScore(peakKeep))).^compressB
 peakWgt(peakKeep) = peakWgt(peakKeep) ./ sum(peakWgt(peakKeep));
 
 minScore = 1e-2;
-peakWgt(peakWgt < minScore) = -9999;
+peakWgt(peakWgt < minScore) = minScore;
 
 fprintf('Weighting %d volumes for st %d from tomo %s, ',nPeaks,iSubTomo,tomoName);
 fprintf('raw score [');

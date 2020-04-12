@@ -39,7 +39,7 @@ __global__ void sf3dKernel(float *outputData,
   if (y >= dims.y) { return ; }
   unsigned int z = blockIdx.z; //*blockDim.z + threadIdx.z;
   if (z >= dims.z) {  return ; }
-  float u,w,tv,tu,tw,zWeight,frequency_squared;
+  float u,w,tv,tu,tw,zWeight;
 
 
   // First calc the Z-dimension, and check that we are close enough to the plane
@@ -124,8 +124,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   float2 sinAcosA[*nTilts];
 
 
-  ctfParams b_ctf(*doHalfGrid,*doSqCTF,*pixelSize,*waveLength,*CS,*AmpContrast,
-                  *defocus1,  *defocus2, *defocusAst);
+
 
 ///* Check for proper number of arguments. TODO add checks on narg and types*/
 //  if ( ! mxGPUIsValidGPUData(prhs[0]) ) 
@@ -148,10 +147,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   dims     = make_uint3(wantedSize[0],wantedSize[1],wantedSize[2]);
   ctf_dims = make_uint2(wantedSize[0]*wanted_padding,wantedSize[1]*wanted_padding);
 
-  // Calculate this prior to any half-dim reduction
-  float2 fourierVoxelSize;
-  fourierVoxelSize = make_float2( 1.0f/(*pixelSize * (float)ctf_dims.x), 
-                                  1.0f/(*pixelSize * (float)ctf_dims.y));
+
 
   if (*doHalfGrid )
   {
@@ -229,10 +225,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   for (int iAng = 0 ; iAng < *nTilts ; iAng ++)
   {
 
+    // Calculate this prior to any half-dim reduction
+    float2 fourierVoxelSize;
+    fourierVoxelSize = make_float2( 1.0f/(pixelSize[iAng] * (float)ctf_dims.x), 
+                                    1.0f/(pixelSize[iAng] * (float)ctf_dims.y));
+
+    ctfParams b_ctf(*doHalfGrid,*doSqCTF,pixelSize[iAng],waveLength[iAng],CS[iAng],AmpContrast[iAng],
+                    defocus1[iAng],  defocus2[iAng], defocusAst[iAng]);
 
     // Create the 2d ctf
     ctf<<< ctfGrid, ctfBlock >>>(d_ctf_img, ctf_dims, o_ctf_dims, b_ctf, fourierVoxelSize,
-                                 calc_centered, radial_weight, exposure[iAng]);
+                                 calc_centered, occupancy[iAng], exposure[iAng]);
 
 
     // Put the ctf in tex2

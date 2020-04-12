@@ -41,7 +41,7 @@ distCut = str2num(distCut)./pixelSize;
 nNeighbors = str2num(latticeNumber);
 
 % FIXME from param file.
-nWorkers = 8;
+nWorkers = 20;
 delete(gcp('nocreate'));
 parpool(nWorkers);
 iterList = cell(nWorkers);
@@ -108,7 +108,7 @@ parfor iPar = 1:nWorkers
              if (abs(iDot) > 1 && abs(iDot) < 1.0001)
                iDot = fix(iDot);
              end
-=             iAngDiff = acosd(iDot);
+             iAngDiff = acosd(iDot);
              if abs(iAngDiff) < abs(angCut(2)) && abs(iAngDiff) > abs(angCut(1))
                nAngClose = nAngClose + 1;
              end

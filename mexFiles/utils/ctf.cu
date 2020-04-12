@@ -5,7 +5,6 @@
 const float   expA  = 0.24499f;
 const float   expB = -0.8325f;  // -1.66490f dividing by two here so I don't have to take the square root of the spatial frequency
 const float   expC = 2.81410f;
-const float   optD = 2.51284f;
 const float   kvScale = 1.0f; //FIXME for other voltages (0.8 for 200)
 
 // createb_ctf
@@ -26,7 +25,7 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
   float radius_sq;
   long output_IDX;
   float phi;
-  float weight = 1.0f;
+
 
   // TODO add centered calc
   output_IDX = y*dims.x + x;
@@ -47,7 +46,10 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
   // TODO this seems safe, buy could there be probs for x or y == 0??
   tmp_coord = (float)y*fourierVoxelSize.y;
   radius_sq = (float)x*fourierVoxelSize.x;
-  if (radial_weight) { ;}// FIXME 
+
+  // modify occupancy by Radial weight
+  radial_weight *= (fabsf((float)x) + 1.0f);
+
   phi = atan2f(tmp_coord,radius_sq); 
 
   radius_sq = radius_sq*radius_sq + tmp_coord*tmp_coord;
@@ -63,7 +65,7 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
     a[output_IDX] *= a[output_IDX];
   }
 
- a[output_IDX] *= expf(-0.5f * total_exposure / (kvScale *(expA * powf(radius_sq, expB) + expC)));
+ a[output_IDX] *= (radial_weight*expf(-0.5f * total_exposure / (kvScale *(expA * powf(radius_sq, expB) + expC))));
     
 }
 
