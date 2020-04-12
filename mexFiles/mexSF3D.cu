@@ -14,7 +14,7 @@
 // Texture reference for 2D float texture
 texture<float, 2, cudaReadModeElementType> tex;
 const float EXTRAPVAL = 0.0f;
-const int  slice_thickness_pixel_radius = 13; // TODO should
+const int  slice_thickness_pixel_radius = 7; // TODO should
 
 const float wanted_padding = 1.0; // oversample the 2d ctf
 
@@ -23,6 +23,7 @@ const float wanted_padding = 1.0; // oversample the 2d ctf
 //! @param outputData  output data in global memory
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void sf3dKernel(float *outputData,
+                           float *output_wgt,
                            uint3 dims,
                            float2 sinAcosA,
                            float extrapVal)
@@ -65,15 +66,17 @@ __global__ void sf3dKernel(float *outputData,
     tv = ((float)y - (float)dims.y/2) / (float)dims.y + 0.5f; 
 
     // TODO one of these is probably supposed to be inclusive
-    if (tu > 0 & tw > 0 & tu > 0 & tu < 1 - 1/(float)dims.x & tw < 1 - 1/(float)dims.z)
+    if (tu > 0 & tw > 0 & tv > 0 & tu < 1 - 1/(float)dims.x & tw < 1 - 1/(float)dims.z)
     {
-      // re-use u to calc a radial weight. Set u at origin to u(1) as in imod
-      if (u == 0) { u = 0.2; }
-      u /= (float)dims.x ;
+//      // re-use u to calc a radial weight. Set u at origin to u(1) as in imod
+//      if (u == 0) { u = 0.2; }
+//      u /= (float)dims.x ;
 
 
       // TODO The radial weighting and exposure weighting can, and probably should just be done on the 2d ctf prior to texturing
-      outputData[ (z*dims.y + y) * dims.x + x ] += ( zWeight * (fabsf(u)) * tex2D(tex, tu, tv));
+//      outputData[ idx ] += ( zWeight * (fabsf(u)) * tex2D(tex, tu, tv));
+      outputData[ (z*dims.y + y) * dims.x + x ] += ( zWeight * tex2D(tex, tu, tv));
+      output_wgt[ (z*dims.y + y) * dims.x + x ] += zWeight;
     }
   }
 
@@ -116,6 +119,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   int*   launch     = (int *) mxGetData(prhs[14]); // should be an int16 in matlab
 
   float * d_output_img = NULL;
+  float * d_output_wgt = NULL;
   float * d_ctf_img = NULL;
   uint3 dims;
   uint2 ctf_dims;
@@ -135,6 +139,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
   mxGPUArray * outputArray;
+  mxGPUArray * outputWeights;
 
   for (int iAng = 0; iAng < *nTilts; iAng++) 
   {
@@ -169,6 +174,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   mwSize output_dims = 3;
   mwSize output_size[3] = {dims.x, dims.y, dims.z};
 
+  // Allocate device memory for the weights
+  // Create MX array and init with zeros
+  outputWeights = mxGPUCreateGPUArray(output_dims,
+                                    output_size,
+                                    mxSINGLE_CLASS,
+                                    mxREAL,
+                                    MX_GPU_INITIALIZE_VALUES);
+
   // Create MX array and init with zeros
   outputArray = mxGPUCreateGPUArray(output_dims,
                                     output_size,
@@ -177,6 +190,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
                                     MX_GPU_INITIALIZE_VALUES);
 
   d_output_img = (float *)(mxGPUGetData(outputArray));
+  d_output_wgt = (float *)(mxGPUGetData(outputWeights));
 
   cudaArray *cuArray;
 
@@ -216,12 +230,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
                                  ctf_type,
                                  MX_GPU_INITIALIZE_VALUES);
 
-  d_ctf_img = (cufftReal *)(mxGPUGetData(outputArray));
+  d_ctf_img = (float *)(mxGPUGetData(ctfArray));
 
-  dim3 ctfBlock(32, 32, 1);
-  dim3 ctfGrid(ctf_dims.x / ctfBlock.x, ctf_dims.y / ctfBlock.y, 1);
-  bool calc_centered = true;
-  bool radial_weight = false;
+
+
+
+  // Would specifying a 3d grid speed up by improving drop out over a block?
+    int dimDist = 32;
+    dim3 threads_per_block = dim3(dimDist,dimDist,1); // max is 1024 threads/block for 2.x --> 7.5 compute capability
+    dim3 dimGrid = dim3((dims.x+dimDist-1) / dimDist,(dims.y+dimDist-1)/dimDist,dims.z);
+
+    dim3 ctfBlock(32, 32, 1);
+    dim3 ctfGrid((ctf_dims.x + ctfBlock.x - 1) / ctfBlock.x, (ctf_dims.y + ctfBlock.y - 1) / ctfBlock.y, 1);
+    bool calc_centered = true;
+
   for (int iAng = 0 ; iAng < *nTilts ; iAng ++)
   {
 
@@ -230,8 +252,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     fourierVoxelSize = make_float2( 1.0f/(pixelSize[iAng] * (float)ctf_dims.x), 
                                     1.0f/(pixelSize[iAng] * (float)ctf_dims.y));
 
+
+
     ctfParams b_ctf(*doHalfGrid,*doSqCTF,pixelSize[iAng],waveLength[iAng],CS[iAng],AmpContrast[iAng],
                     defocus1[iAng],  defocus2[iAng], defocusAst[iAng]);
+
 
     // Create the 2d ctf
     ctf<<< ctfGrid, ctfBlock >>>(d_ctf_img, ctf_dims, o_ctf_dims, b_ctf, fourierVoxelSize,
@@ -251,15 +276,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     checkCudaErrors(cudaBindTextureToArray(tex, cuArray, channelDesc));
 
     // Call the sf3d kernel
-    //TODO
+    sf3dKernel<<<dimGrid, threads_per_block >>>(d_output_img, d_output_wgt,
+                                                dims, sinAcosA[iAng],EXTRAPVAL);
 
-  // Would specifying a 3d grid speed up by improving drop out over a block?
-    int dimDist = 32;
-    dim3 threads_per_block = dim3(dimDist,dimDist,1); // max is 1024 threads/block for 2.x --> 7.5 compute capability
-    dim3 dimGrid = dim3((dims.x+dimDist-1) / dimDist,(dims.y+dimDist-1)/dimDist,dims.z);
-
-    sf3dKernel<<<dimGrid, threads_per_block >>>(d_output_img, dims,
-                                                  sinAcosA[iAng],EXTRAPVAL);
+    // FIXME if you could bin an array of texture objects, you could launch the sf3dKernel outside the loop once. 
   }
 
 
@@ -273,9 +293,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
   plhs[0] = mxGPUCreateMxArrayOnGPU(outputArray);
+  plhs[1] = mxGPUCreateMxArrayOnGPU(outputWeights);
+
 
 
   mxGPUDestroyGPUArray(outputArray);
+  mxGPUDestroyGPUArray(outputWeights);
 
 
 //  checkCudaErrors(cudaFree(d_input_img));
