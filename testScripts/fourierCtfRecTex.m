@@ -85,11 +85,22 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
     
     defocusAst = single(0);
     exposure = gather(single(TLT(:,11)));
-    [ iSF3D ] = BH_weightMaskMex(gather(uint32(wantedSize)), ...
+    [ SF3D] = BH_weightMaskMex(gather(uint32(wantedSize)), ...
                                  gather(single(samplingRate)),...
                                  gather(single(TLT)), ...
                                  gather(single([0,0,0])),gather(single([reconGeometry;0,0,0])));
-    SAVE_IMG(iSF3D,'test3d.mrc');
+                               
+                               tic
+  for i = 1:30
+        [ SF3D] = BH_weightMaskMex(gather(uint32(wantedSize)), ...
+                                 gather(single(samplingRate)),...
+                                 gather(single(TLT)), ...
+                                 gather(single([0,0,0])),gather(single([reconGeometry;0,0,0])));
+  end
+  toc/30
+                               
+
+    SAVE_IMG(SF3D,'test3d.mrc');
   else
     % These will just go in the object properties
     reconShift = reconGeometry(2,:);

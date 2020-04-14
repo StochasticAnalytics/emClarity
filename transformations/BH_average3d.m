@@ -749,8 +749,8 @@ for iGPU = 1:nGPUs
 end
 
 parVect = 1:nParProcesses;
-parfor iParProc = parVect
-% for iParProc = parVect
+% parfor iParProc = parVect
+for iParProc = parVect
 
     % Get the gpuIDX assigned to this process
     gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;
@@ -872,8 +872,10 @@ parfor iParProc = parVect
     iTiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName; 
     wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);
     nCtfGroups = ctfGroupList.(tomoList{1})(1);
+    if ~(use_v2_SF3D)
      wedgeMask = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
-                                      ceil(sqrt(nCtfGroups)).*[1,1],'');     
+                                      ceil(sqrt(nCtfGroups)).*[1,1],''); 
+    end
                                     
 
 

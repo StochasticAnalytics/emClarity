@@ -108,7 +108,8 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
   radius_sq = (float)x*fourierVoxelSize.x;
 
 //  // modify occupancy by Radial weight
-//  radial_weight *= (fabsf((float)x));
+  if (x == 0) { radial_weight *= 0.2f;}
+  else { radial_weight *= (fabsf((float)x)); }
 
   phi = atan2f(tmp_coord,radius_sq); 
 
@@ -120,13 +121,13 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
   // if you add the radial weighting you will need to fix this.
 
 
-  if (b_ctf.doSqCTF )
+  if (b_ctf.doSqCTF)
   {
     // Is this any better (or worse) than pow?
     a[output_IDX] *= a[output_IDX];
   }
 
- a[output_IDX] *= radial_weight* expf( (-0.5f * total_exposure) / (kvScale *(expA * powf(radius_sq, expB) + expC)));
+  a[output_IDX] *= radial_weight* expf( (-0.5f * total_exposure) / (kvScale *(expA * powf(radius_sq, expB) + expC)));
     
 }
 

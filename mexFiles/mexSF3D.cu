@@ -25,7 +25,6 @@ const float wanted_padding = 1.0; // oversample the 2d ctf
 //! @param outputData  output data in global memory
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void sf3dKernel(float *outputData,
-                           float *output_wgt,
                            float3 size_shift,
                            uint3 dims,
                            float2 sinAcosA,
@@ -79,7 +78,6 @@ __global__ void sf3dKernel(float *outputData,
       // TODO The radial weighting and exposure weighting can, and probably should just be done on the 2d ctf prior to texturing
 //      outputData[ idx ] += ( zWeight * (fabsf(u)) * tex2D(tex, tu, tv));
       outputData[ (z*dims.y + y) * dims.x + x ] += ( zWeight * tex2D(tex, tu, tv));
-      output_wgt[ (z*dims.y + y) * dims.x + x ] += zWeight;
     }
   }
 
@@ -122,7 +120,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   int*   launch     = (int *) mxGetData(prhs[14]); // should be an int16 in matlab
 
   float * d_output_img = NULL;
-  float * d_output_wgt = NULL;
   float * d_ctf_img = NULL;
   uint3 dims;
   uint2 ctf_dims;
@@ -142,7 +139,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
   mxGPUArray * outputArray;
-  mxGPUArray * outputWeights;
+
 
   for (int iAng = 0; iAng < *nTilts; iAng++) 
   {
@@ -169,8 +166,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 
-  long numel_output, numel_ctf;
-  numel_output = dims.x * dims.y  *dims.z * sizeof(float);
+  long  numel_ctf;
   numel_ctf    = ctf_dims.x * ctf_dims.y * sizeof(float);
 
   // Allocate device memory for result
@@ -178,12 +174,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   mwSize output_size[3] = {dims.x, dims.y, dims.z};
 
   // Allocate device memory for the weights
-  // Create MX array and init with zeros
-  outputWeights = mxGPUCreateGPUArray(output_dims,
-                                    output_size,
-                                    mxSINGLE_CLASS,
-                                    mxREAL,
-                                    MX_GPU_INITIALIZE_VALUES);
 
   // Create MX array and init with zeros
   outputArray = mxGPUCreateGPUArray(output_dims,
@@ -193,7 +183,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
                                     MX_GPU_INITIALIZE_VALUES);
 
   d_output_img = (float *)(mxGPUGetData(outputArray));
-  d_output_wgt = (float *)(mxGPUGetData(outputWeights));
 
   cudaArray *cuArray;
 
@@ -284,7 +273,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     checkCudaErrors(cudaBindTextureToArray(tex, cuArray, channelDesc));
 
     // Call the sf3d kernel
-    sf3dKernel<<<dimGrid, threads_per_block >>>(d_output_img, d_output_wgt, size_shift,
+    sf3dKernel<<<dimGrid, threads_per_block >>>(d_output_img, size_shift,
                                                 dims, sinAcosA[iAng],EXTRAPVAL);
 
     // Bind the array to the texture
@@ -304,12 +293,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
   plhs[0] = mxGPUCreateMxArrayOnGPU(outputArray);
-  plhs[1] = mxGPUCreateMxArrayOnGPU(outputWeights);
 
 
   checkCudaErrors(cudaFreeArray(cuArray));
   mxGPUDestroyGPUArray(outputArray);
-  mxGPUDestroyGPUArray(outputWeights);
+
   mxGPUDestroyGPUArray(ctfArray);
 
 

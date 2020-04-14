@@ -44,16 +44,17 @@ fractionOfElastics = exp(-1.*iThickness./( cosd(TLT(:,4)).*400 ));
 fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
 
 
- [SF3D, WGT] = mexSF3D(doHalfMask,doSqCTF,SIZE,pixelSize,iWavelength,iCs, ...
+ [SF3D] = mexSF3D(doHalfMask,doSqCTF,SIZE,pixelSize,iWavelength,iCs, ...
                 gather(single(iDefocus + iddF)), ...
                 gather(single(iDefocus - iddF)), ...
                 idPHI,iPhaseShift,nTilts,tiltAngles, ...
                 exposure,fractionOfElastics.*fractionOfDose,int16(1));
 
 
-SF3D = SF3D ./ (WGT+0.01);
-SF3D = SF3D - (min(SF3D(:)) + 1e-4);
-SF3D = SF3D ./ max(SF3D(:));
+% SF3D = SF3D ./ (WGT+0.01);
+SF3D = SF3D - (min(SF3D(:)) - 1e-4);
+% figure, hist(SF3D(:))
+% SF3D = SF3D ./ max(SF3D(:));
 
 end
 
