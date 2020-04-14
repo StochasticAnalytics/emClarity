@@ -749,8 +749,8 @@ for iGPU = 1:nGPUs
 end
 
 parVect = 1:nParProcesses;
-% parfor iParProc = parVect
-for iParProc = parVect
+parfor iParProc = parVect
+% for iParProc = parVect
 
     % Get the gpuIDX assigned to this process
     gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;

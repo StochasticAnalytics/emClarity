@@ -87,6 +87,12 @@ catch
 end
 
 try
+  use_v2_SF3D = pBH.('use_v2_SF3D')
+catch
+  use_v2_SF3D = false
+end
+
+try
   force_no_symmetry = pBH.('force_no_symmetry');
 catch
   force_no_symmetry = false;
@@ -332,8 +338,8 @@ for iGold = 1:2
                                    masterTM.(cycleNumber).(imgNAME){1}, ...
                                    masterTM.(cycleNumber).(imgNAME){2},...
                                    sizeWindow);
-                                 
-  [ wdgTMP ] = BH_unStackMontage4d(1:nReferences(iGold), ...
+
+    [ wdgTMP ] = BH_unStackMontage4d(1:nReferences(iGold), ...
                                 masterTM.(cycleNumber).(weightNAME){1},...
                                 masterTM.(cycleNumber).(weightNAME){2},...
                                 sizeCalc);
@@ -362,23 +368,30 @@ for iGold = 1:2
                                            {'Bah',1,'spline'},'cpu','inv');
       
       end
-      tWDG{n} = wdgTMP{iP}; wdgTMP{iP} = [];
-      tWDG{n} = tWDG{n} - min(tWDG{n}(:)) + 1e-6;
-      tWDG{n} = tWDG{n} ./ max(tWDG{n}(:));
+      
+   
+        tWDG{n} = wdgTMP{iP}; wdgTMP{iP} = [];
+        tWDG{n} = tWDG{n} - min(tWDG{n}(:)) + 1e-6;
+        tWDG{n} = tWDG{n} ./ max(tWDG{n}(:));
+   
       n = n + 1;
     end
   end
 
-  wdgPAD = BH_multi_padVal(size(tWDG{1}), sizeCalc)
-  for iWdg = 1:n-1
-    tWDG_r{iWdg} = BH_padZeros3d(tWDG{iWdg},wdgPAD(1,:),wdgPAD(2,:),...
-                                                           'cpu',flgPrecision);
-    tWDG{iWdg} = ifftshift(tWDG_r{iWdg});
-  end
+ 
+    wdgPAD = BH_multi_padVal(size(tWDG{1}), sizeCalc);
+    for iWdg = 1:n-1
+      tWDG_r{iWdg} = BH_padZeros3d(tWDG{iWdg},wdgPAD(1,:),wdgPAD(2,:),...
+                                                             'cpu',flgPrecision);
+      tWDG{iWdg} = ifftshift(tWDG_r{iWdg});
+    end
+
+    refWGT{iGold} = tWDG; clear tWDG wdgTMP
+    refWgtROT{iGold} = tWDG_r; clear tWDG_r
+ 
   
   refIMG{iGold} = tIMG ; clear tIMG refTMP
-  refWGT{iGold} = tWDG; clear tWDG wdgTMP
-  refWgtROT{iGold} = tWDG_r; clear tWDG_r
+
 
   clear comMask
   
@@ -635,28 +648,28 @@ system('mkdir -p alignResume');
 
 system(sprintf('mkdir -p alignResume/%s',outputPrefix));
 softenWeight = 1/sqrt(samplingRate);
-for iParProc = 1:nParProcesses
+if ~(use_v2_SF3D)
+  for iParProc = 1:nParProcesses
 
-  % Caclulating weights takes up a lot of memory, so do all that are necessary
-  % prior to the main loop -- CHANGE THE CHECK TO JUST READ THE HEADER NOT LOAD
-  % THE WEIGHT INTO GPU MEMORY
-  iParProc
-  iterList{iParProc}
-  for iTomo = iterList{iParProc}
-    
-    BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,tomoList{iTomo},samplingRate ,...
-                              sizeCalc,geometry,flgPrecision,1);
-                            
-     
+    % Caclulating weights takes up a lot of memory, so do all that are necessary
+    % prior to the main loop -- CHANGE THE CHECK TO JUST READ THE HEADER NOT LOAD
+    % THE WEIGHT INTO GPU MEMORY
+    for iTomo = iterList{iParProc}
+
+      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,tomoList{iTomo},samplingRate ,...
+                                sizeCalc,geometry,flgPrecision,1);
+
+
+    end
   end
+
+  % Clear all of the GPUs prior to entering the main processing loop
+  for iGPU = 1:nGPUs
+    g = gpuDevice(iGPU);
+    fprintf('\n\nClear gpu %d mem prior to main loop, %3.3e available\n\n',iGPU,g.AvailableMemory);
+    clear g
+  end   
 end
-  
-% Clear all of the GPUs prior to entering the main processing loop
-for iGPU = 1:nGPUs
-  g = gpuDevice(iGPU);
-  fprintf('\n\nClear gpu %d mem prior to main loop, %3.3e available\n\n',iGPU,g.AvailableMemory);
-  clear g
-end 
 
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
@@ -744,14 +757,14 @@ parfor iParProc = parVect
         if flgMultiRefAlignment <= 2
         ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
         ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
-        ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
-        ref_WGT_rot{iGold}{iRef} = gpuArray(refWgtROT{iGold}{iRef});
+          ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
+          ref_WGT_rot{iGold}{iRef} = gpuArray(refWgtROT{iGold}{iRef});
         else
         % Temp workaround, six big ribo refs crashing
         ref_FT1_tmp{iGold}{iRef} = (ref_FT1{iGold}{iRef});
         ref_FT2_tmp{iGold}{iRef} = (ref_FT2{iGold}{iRef});
-        ref_WGT_tmp{iGold}{iRef} = (refWGT{iGold}{iRef});
-        ref_WGT_rot{iGold}{iRef} = (refWgtROT{iGold}{iRef});
+          ref_WGT_tmp{iGold}{iRef} = (refWGT{iGold}{iRef});
+          ref_WGT_rot{iGold}{iRef} = (refWgtROT{iGold}{iRef});       
         end
       end
     end   
@@ -779,7 +792,8 @@ parfor iParProc = parVect
 
 
       iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
-      wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);       
+      if ~(use_v2_SF3D)
+        wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);       
 %         wgtName = sprintf('cache/%s_bin%d.wgt', tomoList{iTomo},...
 %                                                 samplingRate);
         maxWedgeMask = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
@@ -794,9 +808,10 @@ parfor iParProc = parVect
             
           end
         end
+        fprintf('loaded %s.\n',wgtName);
 
+      end
       
-      fprintf('loaded %s.\n',wgtName);
 
         
               % Can't clear inside the parfor, but make sure we don't have two tomograms
@@ -805,11 +820,12 @@ parfor iParProc = parVect
      tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
      tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
      reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+     TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
      
      if (flgCutOutVolumes)
        volumeData = [];
      else
-      [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+      [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
                                        reconCoords, mapBackIter, ...
                                        samplingRate,iGPUidx,reconScaling,loadTomo);  
        if ( loadTomo )
@@ -846,14 +862,17 @@ parfor iParProc = parVect
         % Geometry is sorted on this value so that tranfers are minimized,
         % as these can take up a lot of mem. For 9 ctf Groups on an 80s
         % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
+        if ~(use_v2_SF3D)
         wdgIDX = positionList(iSubTomo,9);
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
         % Avoid temporar
-        iMaxWedgeMask = []; iMaxWedgeIfft = [];
-        iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
-        iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});  
-        imgWdgInterpolator = '';
+
+          iMaxWedgeMask = []; iMaxWedgeIfft = [];
+          iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
+          iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});  
+          imgWdgInterpolator = '';
           [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+        end
 
       end
       
@@ -958,15 +977,23 @@ parfor iParProc = parVect
                                       padVAL(2,1:3), 'GPU', 'singleTaper');
          
 
-        
-        % Just use C1 to initialize, whether or not this is the final
-        refInterpolator = '';
-        refWdgInterpolator= '';
-        particleInterpolator= '';
-        [refInterpolator, ~] = interpolator(gpuArray(ref_FT2_tmp{1}{1}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-        refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{iGold}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
-        particleInterpolator = interpolator(iparticle,[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);
+        if (iPeak == 1)
+          if use_v2_SF3D
+            % For now excluding the soften weight.
+            [ iMaxWedgeMask ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
+                                                                center,reconGeometry);
+             iMaxWedgeIfft = ifftshift(iMaxWedgeMask);
+             [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
 
+          end
+          % Just use C1 to initialize, whether or not this is the final
+          refInterpolator = '';
+          refWdgInterpolator= '';
+          particleInterpolator= '';
+          [refInterpolator, ~] = interpolator(gpuArray(ref_FT2_tmp{1}{1}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+          refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{iGold}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
+          particleInterpolator = interpolator(iparticle,[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);
+        end
         
         for iAngle = 1:size(angleStep,1)
      
@@ -1636,6 +1663,11 @@ parfor iParProc = parVect
     rotPart_FT = [];
     rotParticle = [];
         end % end loop over possible peaks
+        
+        if use_v2_SF3D
+          iMaxWedgeMask = [];
+          iMaxWedgeIfft = [];
+        end
     end % loop over subTomos
 
     
