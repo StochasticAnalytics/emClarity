@@ -50,11 +50,16 @@ struct ctfParams {
   float defocus2; // Angstrom
   float astigmatism_angle; // from x-axis
 
+  float cs_term;
+  float df_term;
+
+
 	  __host__ __device__ ctfParams() : doHalfGrid(true), doSqCTF(false),
                                       pixelSize(0.0f), waveLength(0.0f), 
                                       CS(0.0f), amplitudeContrast(0.0f), 
                                       defocus1(0.0f), defocus2(0.0f), 
-                                      astigmatism_angle(0.0f) {}
+                                      astigmatism_angle(0.0f),
+                                      cs_term(0.0f), df_term(0.0f) {}
 	  __host__ __device__ ctfParams(bool doHalfGrid, bool doSqCTF,
                                   float pixelSize, float waveLength,
                                   float CS, float amplitudeContrast, 
@@ -66,7 +71,8 @@ struct ctfParams {
                                   amplitudeContrast(atanf(amplitudeContrast / 
                                                           sqrtf(1.0 - powf(amplitudeContrast, 2)))), // Convert ampContrast to phase shift TODO is this safe? 
                                   defocus1(0.5f*(df1+df2)), defocus2(0.5f*(df1-df2)), // Convert these to terms used in calc
-                                  astigmatism_angle(astigmatism_angle*PI/180.0f - (PI * (float)lrintf(astigmatism_angle/180.0f))) {} // enforce -90 to 90 convention
+                                  astigmatism_angle(astigmatism_angle*PI/180.0f - (PI * (float)lrintf(astigmatism_angle/180.0f))),
+                                  cs_term(PI * 0.5f * CS* 1e7 * powf(waveLength,3)), df_term(PI * waveLength) {} // enforce -90 to 90 convention
 
 
 
@@ -76,5 +82,5 @@ struct ctfParams {
 
 
 // Kernel defs
-
-__global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered, float radial_weight, float total_exposure);
+__global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered);
+__global__ void ctf(cufftReal* ctf, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered, float radial_weight, float total_exposure);

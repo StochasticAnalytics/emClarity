@@ -45,7 +45,7 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
 
   if ( flgTesting )
     % These will just go in the object properties
-    rawtlt = single(-45:3:60);
+    rawtlt = single(-60:3:60);
     nTilts = uint32(length(rawtlt));
     TLT = zeros(nTilts,23,'single','gpuArray');
     TLT(:,4) = rawtlt;
@@ -57,12 +57,13 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
     CS = single(2.7);
     WL = single(0.01969);
     AC = single(0.1);
-    TLT(:,[15,16,17,18,19]) = repmat([-defocus*10^-10,pixelSize*10^-10,CS*10^-3,WL*10^-10,AC],single(nTilts),1);
-    TLT(:,11) = TLT(:,1).*3;%%[[41:-1:20,1:19].*3]';
+    TLT(:,[12,13,14,15,16,17,18,19]) = repmat([1e-7,pi/4,1,-defocus*10^-10,pixelSize*10^-10,CS*10^-3,WL*10^-10,AC],single(nTilts),1);
+    TLT(:,11) = TLT(:,1).*2;%%[[41:-1:20,1:19].*3]';
     iThickness = 75;
     samplingRate = 1;
     fractionOfDose =1;
-    fractionOfElastics = exp(-1.*iThickness/( cosd(TLT(:,4))*400 ));
+    fractionOfElastics = exp(-1.*iThickness/( cosd(TLT(:,4)).*400 ));
+    fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
     doHalfGrid = true;
     centerGrid = 1;
     reconGeometry = (wantedSize);
@@ -84,7 +85,11 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
     
     defocusAst = single(0);
     exposure = gather(single(TLT(:,11)));
-
+    [ iSF3D ] = BH_weightMaskMex(gather(uint32(wantedSize)), ...
+                                 gather(single(samplingRate)),...
+                                 gather(single(TLT)), ...
+                                 gather(single([0,0,0])),gather(single([reconGeometry;0,0,0])));
+    SAVE_IMG(iSF3D,'test3d.mrc');
   else
     % These will just go in the object properties
     reconShift = reconGeometry(2,:);
@@ -128,6 +133,11 @@ function  [ reconstruction ] = fourierCtfRecTex(wantedSize, positionList, TLT, r
                                          
   [rad,phi] = BH_multi_gridCoordinates([d1,d2],'Cylindrical',...
                                            'GPU',{'none'},1,1,0,{'halfgrid'});    
+%   [X,Y,Z] = BH_multi_gridCoordinates([d1,d2,nZpad],'Cartesian',...
+%                                            'GPU',{'none'},0,1,0);
+%                                          
+%   [rad,phi] = BH_multi_gridCoordinates([d1,d2],'Cylindrical',...
+%                                            'GPU',{'none'},1,1,0); 
 
   % Assuming the pixel size is constant.
   rad = {(rad./ (samplingRate.*TLT(1,16).*10^10)),[1,1],1.*phi};
@@ -170,7 +180,14 @@ for iPrj = 1:size(TLT,1)
   % TODO add an option to check and oversample the CTF, then crop in real space, to fix aliasing probs.
 
   iCTF = (BH_ctfCalc(rad,TLT(iPrj,17),TLT(iPrj,18),iDefocus,[oX,d2],TLT(iPrj,19),-1)).^2;
-  
+%   SAVE_IMG(iCTF.*exposureWeight(:,:,TLT(iPrj,1)),'BHctf.mrc');
+%   iCTF = mexCTF(false,true,gather(int16(d1)),gather(int16(d2)),...
+%          gather(single(samplingRate.*TLT(iPrj,16)*10^10)),gather(single(TLT(iPrj,18)*10^10)),...
+%          gather(single(TLT(iPrj,17)*10^3)),gather(single(iDefocus(1)*-1*10^10)),...
+%          gather(single(iDefocus(2)*-1*10^10)),gather(single(iDefocus(3)*180/pi)),gather(single(TLT(iPrj,19))),true,...
+%          single(1.0), gather(single(TLT(iPrj,11))));
+%   SAVE_IMG(iCTF,'MExctf.mrc');
+%   error('iCTF')
   % In some cases we may be before the first zero. TODO fixme
   if (mean(iCTF(:)) < 0.25 )
     iCTF = iCTF.*0 + 1;

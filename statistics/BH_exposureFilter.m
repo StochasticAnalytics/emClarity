@@ -106,7 +106,7 @@ end
 % the cummulative dose, so precompute everything
 pixelSize = TILT_GEOMETRY(1,16).*SAMPLING;
 criticalDose =  kvScale.*(expA.* (criticalDose./pixelSize.*10^-10).^expB +expC);
-optimalDose = (optD.*criticalDose);
+% optimalDose = (optD.*criticalDose);
 
 % Precompute some values
 
@@ -141,11 +141,12 @@ for iPrj = 1:nPrjs
 % % %   end
 % exp((-0.5*CUMeDOSE)./criticalDose).* ...
 
-
-    optimalMask = ( (optimalDose>=CUMeDOSE) + exp(-optW*(CUMeDOSE-optimalDose)).*(optimalDose<CUMeDOSE) );
-    optimalMask(~isfinite(optimalMask)) = 1;
-    exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).*optimalMask;
-                                                
+% 
+%     optimalMask = ( (optimalDose>=CUMeDOSE) + exp(-optW*(CUMeDOSE-optimalDose)).*(optimalDose<CUMeDOSE) );
+%     optimalMask(~isfinite(optimalMask)) = 1;
+%     exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).*optimalMask;
+      exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose);
+                                   
 
 % % %     exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).* ...
 % % %                                                 (optimalDose>CUMeDOSE); 

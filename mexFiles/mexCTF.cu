@@ -23,12 +23,24 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   float* defocusAst =  (float*) mxGetData(prhs[9]);
   float* AmpContrast=  (float*) mxGetData(prhs[10]);
   bool calc_centered = false;
+  float* occupancy = NULL;
+  float* exposure = NULL;
+  bool use_weights = false;
 
-  if ( nrhs > 11) 
+  if ( nrhs == 12) 
   { 
     mexPrintf("Doing centered ctf calc\n");
     bool * tmp_bool = (bool *) mxGetData(prhs[11]);
     calc_centered = *tmp_bool;
+  }
+
+  if ( nrhs == 14) 
+  { 
+    bool * tmp_bool = (bool *) mxGetData(prhs[11]);
+    calc_centered = *tmp_bool;
+    use_weights = true;
+    occupancy = (float *) mxGetData(prhs[12]);
+    exposure = (float *) mxGetData(prhs[13]);
   }
 
 
@@ -78,16 +90,27 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
                                     MX_GPU_INITIALIZE_VALUES);
 
 
-  pOut = (cufftReal *)(mxGPUGetData(outputArray));
+  pOut = (float *)(mxGPUGetData(outputArray));
 
   ////////////////////
   dim3 dimBlock(32, 32, 1);
   dim3 dimGrid(dims.x / dimBlock.x, dims.y / dimBlock.y, 1);
 
-  mexPrintf("%d %d %d %d\n",dims.x, dims.y, o_dims.x, o_dims.y);
-  mexPrintf("%f %f\n",fourierVoxelSize.x, fourierVoxelSize.y);
+//  mexPrintf("%d %d %d %d\n",dims.x, dims.y, o_dims.x, o_dims.y);
+//  mexPrintf("%f %f\n",fourierVoxelSize.x, fourierVoxelSize.y);
+//  const  float t1 =  PI * 0.5f * b_ctf.CS* powf(b_ctf.waveLength,3);
+//  const  float t2  = PI * b_ctf.waveLength;
+//  mexPrintf("%f %f\n",t1,t2);
 
-  ctf<<< dimGrid, dimBlock >>>(pOut, dims, o_dims, b_ctf, fourierVoxelSize, calc_centered);
+//  if (use_weights)
+//  {
+//    ctf<<< dimGrid, dimBlock >>>(pOut, dims, o_dims, b_ctf, fourierVoxelSize, calc_centered,*occupancy,*exposure);
+//  }
+//  else
+//  {
+    ctf<<< dimGrid, dimBlock >>>(pOut, dims, o_dims, b_ctf, fourierVoxelSize, calc_centered);
+//  }
+
 
 
   plhs[0] = mxGPUCreateMxArrayOnGPU(outputArray);

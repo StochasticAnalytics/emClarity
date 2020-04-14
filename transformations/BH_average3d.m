@@ -696,7 +696,7 @@ if ~(use_v2_SF3D)
 
   parfor iGPU = 1:nGPUs
   % for iGPU = 1:nGPUs
-    for iParProc = iGPU:maxPerGPU:length(wgtList)
+    for iParProc = iGPU:nGPUs:length(wgtList)
       % Caclulating weights takes up a lot of memory, so do all that are necessary
       % prior to the main loop
 

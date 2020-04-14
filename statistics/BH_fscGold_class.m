@@ -283,7 +283,7 @@ if (flgAlignImages) && ~(flgJustFSC)
       padWGT = ifftshift(gpuArray(refWGT{iGold}{iLSQ}));
 
       [padWGT, wienerThreshold] = BH_multi_cRef_wgtCritical(padWGT);
- 
+     
       padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
       clear padWGT
       refIMG{iGold}{iLSQ} = BH_padZeros3d(gather(padIMG),trimLSQ(1,:),trimLSQ(2,:),'cpu','single');
@@ -375,9 +375,8 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
         shapeMask_1 = 1;
         shapeMask_2 = 1;
       end
-      
-      
-      particleVolume(iRef) = gather(mean(particleFraction1+particleFraction2));
+
+      particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
       pV1 = gather(pV1.*volMask{1});
       pV2 = gather(pV2.*volMask{2});
 
@@ -520,7 +519,7 @@ for iRef = 1:nReferences
       end
       
       
-      particleVolume(iRef) = gather(mean(particleFraction1+particleFraction2));
+      particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
       pV1 = gather(pV1.*volMask{1});
       pV2 = gather(pV2.*volMask{2});
      

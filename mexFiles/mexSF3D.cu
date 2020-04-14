@@ -14,7 +14,9 @@
 // Texture reference for 2D float texture
 texture<float, 2, cudaReadModeElementType> tex;
 const float EXTRAPVAL = 0.0f;
-const int  slice_thickness_pixel_radius = 7; // TODO should
+const float  slice_thickness_pixel_radius = 4; // TODO should
+const float cosine_edge_arg = PI / (float)slice_thickness_pixel_radius;
+const float cosine_edge_norm = 1.0f / 4.0f;
 
 const float wanted_padding = 1.0; // oversample the 2d ctf
 
@@ -24,6 +26,7 @@ const float wanted_padding = 1.0; // oversample the 2d ctf
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void sf3dKernel(float *outputData,
                            float *output_wgt,
+                           float3 size_shift,
                            uint3 dims,
                            float2 sinAcosA,
                            float extrapVal)
@@ -34,11 +37,11 @@ __global__ void sf3dKernel(float *outputData,
   //   0, 1, 0,
   //  -s, 0, c]
 
-  unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
   if (x >= dims.x) { return ; }
-  unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
   if (y >= dims.y) { return ; }
-  unsigned int z = blockIdx.z; //*blockDim.z + threadIdx.z;
+  int z = blockIdx.z*blockDim.z + threadIdx.z;
   if (z >= dims.z) {  return ; }
   float u,w,tv,tu,tw,zWeight;
 
@@ -46,14 +49,14 @@ __global__ void sf3dKernel(float *outputData,
   // First calc the Z-dimension, and check that we are close enough to the plane
   u = (float)x - (float)dims.x/2;
   w = (float)z - (float)dims.z/2;
-  tw = -u*sinAcosA.x + w*sinAcosA.y;
+  tw = -u*sinAcosA.x + w*sinAcosA.y + size_shift.z;
 
   if (tw >= -slice_thickness_pixel_radius & tw <= slice_thickness_pixel_radius)
   {
     // FIXME this should approximate a sinc
-    zWeight = 0.5 + 0.5*cosf(tw*PI/(float)(slice_thickness_pixel_radius+1.0f));
+    zWeight = (0.5 + 0.5*cosf(tw * cosine_edge_arg )) * cosine_edge_norm;
 
-    tu =  u*sinAcosA.y + w*sinAcosA.x; 
+    tu =  u*sinAcosA.y + w*sinAcosA.x + size_shift.x; 
     tu /= (float)dims.x; // Normalized coords
     tw /= (float)dims.z;
     
@@ -63,7 +66,7 @@ __global__ void sf3dKernel(float *outputData,
 
     tu += 0.5f;
     tw += 0.5f;
-    tv = ((float)y - (float)dims.y/2) / (float)dims.y + 0.5f; 
+    tv = ((float)y - (float)dims.y/2 + size_shift.y) / (float)dims.y + 0.5f; 
 
     // TODO one of these is probably supposed to be inclusive
     if (tu > 0 & tw > 0 & tv > 0 & tu < 1 - 1/(float)dims.x & tw < 1 - 1/(float)dims.z)
@@ -144,7 +147,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   for (int iAng = 0; iAng < *nTilts; iAng++) 
   {
 
-    sinAcosA[iAng] = make_float2(sinf(tiltAngle[iAng]*PI/180.0f),cosf(tiltAngle[iAng]*PI/180.0f));
+    sinAcosA[iAng] = make_float2(sinf(-tiltAngle[iAng]*PI/180.0f),cosf(-tiltAngle[iAng]*PI/180.0f));
 
   }
     
@@ -244,6 +247,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     dim3 ctfGrid((ctf_dims.x + ctfBlock.x - 1) / ctfBlock.x, (ctf_dims.y + ctfBlock.y - 1) / ctfBlock.y, 1);
     bool calc_centered = true;
 
+  float3 size_shift = make_float3(0.0f, 0.0f, 0.0f);
+  if (IsEven(dims.x)) size_shift.x = 0.5f;
+  if (IsEven(dims.y)) size_shift.y = 0.5f;
+  if (IsEven(dims.z)) size_shift.z = 0.5f;
+
   for (int iAng = 0 ; iAng < *nTilts ; iAng ++)
   {
 
@@ -276,8 +284,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     checkCudaErrors(cudaBindTextureToArray(tex, cuArray, channelDesc));
 
     // Call the sf3d kernel
-    sf3dKernel<<<dimGrid, threads_per_block >>>(d_output_img, d_output_wgt,
+    sf3dKernel<<<dimGrid, threads_per_block >>>(d_output_img, d_output_wgt, size_shift,
                                                 dims, sinAcosA[iAng],EXTRAPVAL);
+
+    // Bind the array to the texture
+    checkCudaErrors(cudaUnbindTexture(tex));
 
     // FIXME if you could bin an array of texture objects, you could launch the sf3dKernel outside the loop once. 
   }
@@ -296,9 +307,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   plhs[1] = mxGPUCreateMxArrayOnGPU(outputWeights);
 
 
-
+  checkCudaErrors(cudaFreeArray(cuArray));
   mxGPUDestroyGPUArray(outputArray);
   mxGPUDestroyGPUArray(outputWeights);
+  mxGPUDestroyGPUArray(ctfArray);
 
 
 //  checkCudaErrors(cudaFree(d_input_img));

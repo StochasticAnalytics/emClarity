@@ -4,7 +4,7 @@ function [sf3d,wienerThreshold] = BH_multi_cRef_wgtCritical(sf3d)
 %   Detailed explanation goes here
 
   startingMax = max(sf3d(:));
-  valAtZero = max(10,0.1*startingMax); % ~ value at zero sampling (a bit less after the subtraction to keep the
+  valAtZero = max(10,0.05*startingMax); % ~ value at zero sampling (a bit less after the subtraction to keep the
                   % value at minNumSampled unchanged with a smooth transition.
                   
   wienerThreshold = (1.5.*(median(sf3d(sf3d(:)>valAtZero))-valAtZero));

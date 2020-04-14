@@ -1,4 +1,4 @@
-function BH_geometry_Constraints(PARAMETER_FILE, CYCLE, distCut, angCut, latticeNumber, varargin)
+function BH_geometry_Constraints(PARAMETER_FILE, nWorkers, distCut, angCut, latticeNumber, varargin)
 
 
 
@@ -41,7 +41,7 @@ distCut = str2num(distCut)./pixelSize;
 nNeighbors = str2num(latticeNumber);
 
 % FIXME from param file.
-nWorkers = 20;
+nWorkers = str2double(nWorkers);
 delete(gcp('nocreate'));
 parpool(nWorkers);
 iterList = cell(nWorkers);
