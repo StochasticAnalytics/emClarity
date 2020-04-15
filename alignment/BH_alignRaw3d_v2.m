@@ -983,6 +983,7 @@ parfor iParProc = parVect
             [ iMaxWedgeMask ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
                                                                 center,reconGeometry);
              iMaxWedgeIfft = ifftshift(iMaxWedgeMask);
+             imgWdgInterpolator = '';
              [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
 
           end

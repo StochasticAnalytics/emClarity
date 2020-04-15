@@ -284,7 +284,9 @@ if (flgAlignImages) && ~(flgJustFSC)
 
       [padWGT, wienerThreshold] = BH_multi_cRef_wgtCritical(padWGT);
      
-      padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
+%       padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
+      padIMG = real(ifftn(padIMG./(padWGT+100)));
+
       clear padWGT
       refIMG{iGold}{iLSQ} = BH_padZeros3d(gather(padIMG),trimLSQ(1,:),trimLSQ(2,:),'cpu','single');
       clear padIMG 
@@ -580,8 +582,8 @@ for iRef = 1:nReferences
     % shell is bound. the 10 in the divisor is set in the calc_shells function,.
     binDiv = ceil(1.5*padDIM(1)^(1/3));
     shellInc = 0.5/(floor(padDIM(1)/binDiv)*pixelSize);
-    randCutoff = floor((1/(fscRandCutoffRes)-lowResShift)/ shellInc) * shellInc
-    fscTcutoff = (floor((1/(fscRandCutoffRes*.95)-lowResShift)/ shellInc)) * shellInc
+    randCutoff = floor((1/(fscRandCutoffRes)-lowResShift)/ shellInc) * shellInc;
+    fscTcutoff = (floor((1/(fscRandCutoffRes*.95)-lowResShift)/ shellInc)) * shellInc;
     %Calculate the fsc on phase randomized masked volumes.
     [randGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(padDIM.*[1,1,1], 'Cartesian', ...
                                                        'cpu', {'none'}, 1, 0, 1 );
@@ -659,13 +661,7 @@ for iRef = 1:nReferences
 
   
   for iFSC = 1:size(shellsFSC,2)
-    f = particleVolume(iRef);
-    if 1/f < minimumParticleVolume
-       f = 1/minimumParticleVolume;
-       fprintf('\n\nWarning the particle volume estimate is probably too low at %f, capping to %f\n',1/particleVolume(iRef),1/f);
-       fprintf('\nPlease look at the envelope mask in your FSC folder (shapeMask), and also check that there is no sharp drop at the end of your FSC\n');
-       fprintf('\nEmail Ben if you have questions and for methods to play with\n');
-    end
+    f = 2.* particleVolume(iRef);
     fscUnMasked = shellsFSC(:,iFSC);
     firstZero = find(shellsFSC(:,iFSC)<0.001,1,'first')-1;
     % The abs() isn't in the paper, but is in the cisTEM code.
@@ -1166,7 +1162,7 @@ shellsNsamples = zeros(bin, nIters, 'gpuArray');
 shellsPOWER = zeros(bin, nIters, 'gpuArray');
 
 for iCalc = 1:nIters
-  iCalc
+  
   if iCalc ==1 
     iConeMask = 1;
   else

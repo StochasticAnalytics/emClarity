@@ -72,16 +72,17 @@ __global__ void transformKernel_FWD(cudaTextureObject_t thisTexObj,
   tv += 0.5f;
   tw += 0.5f;
 
-  if (tu < 0 | tv < 0 | tw < 0 | tu >= 1 - 1/(float)dims.x | tv >= 1 - 1/(float)dims.y | tw >= 1 - 1/(float)dims.z)
-  {
+//  if (tu < 0 | tv < 0 | tw < 0 | tu >= 1 - 1/(float)dims.x | tv >= 1 - 1/(float)dims.y | tw >= 1 - 1/(float)dims.z)
+//  {
 
-    outputData[ (z*dims.y + y) * dims.x + x ] = extrapVal;
-  }
-  else
-  {
+//    outputData[ (z*dims.y + y) * dims.x + x ] = extrapVal;
+//  }
+//  else
+//  {
+//    outputData[ (z*dims.y + y) * dims.x + x ] = tex3D<float>(thisTexObj, tu, tv, tw);
+//  }
+    // cudaAddressModeBorder returns 0.0 for out of bounds reads.
     outputData[ (z*dims.y + y) * dims.x + x ] = tex3D<float>(thisTexObj, tu, tv, tw);
-  }
-
 }
 
 
@@ -270,9 +271,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     texDesc.filterMode = cudaFilterModeLinear;
     texDesc.readMode = cudaReadModeElementType;
     texDesc.normalizedCoords = 1;
-    texDesc.addressMode[0] = cudaAddressModeClamp;
-    texDesc.addressMode[1] = cudaAddressModeClamp;
-    texDesc.addressMode[2] = cudaAddressModeClamp;
+    texDesc.addressMode[0] = cudaAddressModeBorder; //cudaAddressModeClamp;
+    texDesc.addressMode[1] = cudaAddressModeBorder; //cudaAddressModeClamp;
+    texDesc.addressMode[2] = cudaAddressModeBorder; //cudaAddressModeClamp;
 
     
 

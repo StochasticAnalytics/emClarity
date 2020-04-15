@@ -58,16 +58,17 @@ for iTomo = 1:nTomograms
     positionList = inputGeometry.(tomoList{iTomo});
     newAlignment = alignmentGeometry.(tomoList{iTomo});
 
+    if ~isempty(newAlignment)
+      
  for iPeak = 1:nPeaks   
     includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999);
    
     for iParticle = includeList'
      % assuming all classes are sequential, only discarded between cycles.
-      
      particleIDX =  positionList(iParticle,4 + 26*(iPeak-1));
       
      pIndex = find(newAlignment(:,2) == particleIDX);
-
+    
      
      newAngles = newAlignment(pIndex,[3:5] + 10*(iPeak-1));
     if isempty(pIndex)
@@ -100,6 +101,7 @@ for iTomo = 1:nTomograms
 
     end
  end % loop over peaks
+    end
     inputGeometry.(tomoList{iTomo}) = positionList;
 end
 

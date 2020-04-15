@@ -156,6 +156,12 @@ try
 catch
   scaleCalcSize = 1.5;
 end
+
+try
+  use_v2_SF3D = pBH.('use_v2_SF3D')
+catch
+  use_v2_SF3D = false
+end
 outputPrefix   = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 %%%flgGold      = pBH.('flgGoldStandard');
 
@@ -587,11 +593,13 @@ for iGold = 1:1+flgGold
    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
    tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
    reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+   TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
+
  
     if (flgCutOutVolumes)
      volumeData = [];
     else
-      [ volumeData ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+      [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
                                     reconCoords, mapBackIter, ...
                                     samplingRate, iGPU, reconScaling,0); 
         volHeader = getHeader(volumeData);                              
@@ -603,24 +611,28 @@ for iGold = 1:1+flgGold
       wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);       
 %       wgtName = sprintf('cache/%s_bin%d.wgt', tomoList{iTomo},...
 %                                               samplingRate);
-      iTomoCTFs = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
-                                        ceil(sqrt(nCtfGroups)).*[1,1],'');
-      padWdg = BH_multi_padVal(sizeMask,size(iTomoCTFs{1}));
-      [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(iTomoCTFs{1}), ...
-                                                        'Cartesian',...
-                                                        'GPU',{'none'},1,0,1);
-      radialGrid = radialGrid ./ pixelSize;
 
+      if ~(use_v2_SF3D)
+        iTomoCTFs = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
+                                          ceil(sqrt(nCtfGroups)).*[1,1],'');
 
-      if ~(flgRefIsPadded)
-        for iScale = 1:nScaleSpace
-          avgMotif_FT{iGold, iScale} = BH_padZeros3d(avgMotif_FT{iGold, iScale},...
-                                                     padWdg(1,:),padWdg(2,:),...
-                                                     'GPU','single',0,1);
+        padWdg = BH_multi_padVal(sizeMask,size(iTomoCTFs{1}));
+        [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(iTomoCTFs{1}), ...
+                                                          'Cartesian',...
+                                                          'GPU',{'none'},1,0,1);
+        radialGrid = radialGrid ./ pixelSize;
+      
+
+        if ~(flgRefIsPadded)
+          for iScale = 1:nScaleSpace
+            avgMotif_FT{iGold, iScale} = BH_padZeros3d(avgMotif_FT{iGold, iScale},...
+                                                       padWdg(1,:),padWdg(2,:),...
+                                                       'GPU','single',0,1);
+          end
+          flgRefIsPadded = 1;
         end
-        flgRefIsPadded = 1;
+      
       end
-    
  
 
         
@@ -635,7 +647,7 @@ for iGold = 1:1+flgGold
     nSubTomos = size(positionList,1);
 
 
-    if (flgWMDs == 1)
+    if (flgWMDs == 0)
       % Make a wedge mask that can be interpolated with no extrapolation for
       % calculating wedge weighting in class average alignment. 
 
@@ -655,16 +667,20 @@ for iGold = 1:1+flgGold
     
     for iSubTomo = 1:nSubTomos
       %%%%% %%%%%
-      if (wdgIDX ~= positionList(iSubTomo,9))
-        % Geometry is sorted on this value so that tranfers are minimized,
-        % as these can take up a lot of mem. For 9 ctf Groups on an 80s
-        % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
-        wdgIDX = positionList(iSubTomo,9);
-        fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
-        wedgeMask = gpuArray(iTomoCTFs{wdgIDX});        
-        % Weights are ctf^2
-        wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 1e-6);
-% %         SAVE_IMG(MRCImage(gather(wedgeMask)),'tmpWdg.mrc')
+      
+      if ~(use_v2_SF3D)
+
+        if (wdgIDX ~= positionList(iSubTomo,9))
+          % Geometry is sorted on this value so that tranfers are minimized,
+          % as these can take up a lot of mem. For 9 ctf Groups on an 80s
+          % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
+          wdgIDX = positionList(iSubTomo,9);
+          fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
+          wedgeMask = gpuArray(iTomoCTFs{wdgIDX});        
+          % Weights are ctf^2
+          wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 1e-6);
+  % %         SAVE_IMG(MRCImage(gather(wedgeMask)),'tmpWdg.mrc')
+        end
       end
             
       % Check that the given subTomo is not to be ignored - for now, treat
@@ -684,6 +700,15 @@ for iGold = 1:1+flgGold
 
         center = positionList(iSubTomo,[11:13]+26*iPeak)./samplingRate;
         angles = positionList(iSubTomo,[17:25]+26*iPeak);
+        
+      
+        if (use_v2_SF3D && iPeak == 0)
+          fprintf('calculating SF3D %d \n',iSubTomo);
+          radialGrid = '';
+          padWdg = [0,0,0;0,0,0];
+          [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
+                                          TLT, center,reconGeometry);
+        end
         
         % If flgGold there is no change, otherwise temporarily resample the
         % eve halfset to minimize differences due to orientaiton

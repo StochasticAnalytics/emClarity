@@ -182,7 +182,7 @@ function [ fsc3D, weights ] = calc_anisoFSC(fscParams, radialGrid, weights, bFac
     iFSCclean = fit(osX,iFSCfit(osX).*iForceMask,'cubicSpline');
     
 
-      iFSC = reshape(iFSCclean(radialGrid),size(radialGrid));
+      
 
     if ( nCones )
       coneOrientation = BH_defineMatrix(coneList{iCone},'Bah','invVector');
@@ -210,10 +210,13 @@ function [ fsc3D, weights ] = calc_anisoFSC(fscParams, radialGrid, weights, bFac
 
 
          
-    iFSC = iConeMask .* iFSC .* radialBinary;
-  
+    iConeMask = iConeMask & radialBinary;
+    iFSC = iConeMask; 
+    iFSC(iConeMask) = fnval(iFSCclean,radialGrid(iConeMask));
     fsc3D = fsc3D + iFSC;
-   
+    
+
+    
    
     
     clear iFSC iConeMask radius height

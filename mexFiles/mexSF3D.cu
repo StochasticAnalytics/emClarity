@@ -13,12 +13,10 @@
 
 // Texture reference for 2D float texture
 texture<float, 2, cudaReadModeElementType> tex;
-const float EXTRAPVAL = 0.0f;
 const float  slice_thickness_pixel_radius = 4; // TODO should
 const float cosine_edge_arg = PI / (float)slice_thickness_pixel_radius;
 const float cosine_edge_norm = 1.0f / 4.0f;
 
-const float wanted_padding = 1.0; // oversample the 2d ctf
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Transform an image using texture lookups
@@ -27,8 +25,8 @@ const float wanted_padding = 1.0; // oversample the 2d ctf
 __global__ void sf3dKernel(float *outputData,
                            float3 size_shift,
                            uint3 dims,
-                           float2 sinAcosA,
-                           float extrapVal)
+                           float2 sinAcosA
+                           )
 {
 
   // Assuming a single-Y-axis tilt such that the rotation is
@@ -48,11 +46,11 @@ __global__ void sf3dKernel(float *outputData,
   // First calc the Z-dimension, and check that we are close enough to the plane
   u = (float)x - (float)dims.x/2;
   tw_pre = -u*sinAcosA.x + size_shift.z;
-  tv = ((float)y - (float)dims.y/2 + size_shift.y) / (float)dims.y + 0.5f;
+  tv = ((float)y - (float)(dims.y/2) + size_shift.y) / (float)dims.y + 0.5f;
 
   for (int z = 0; z < dims.z; z++)
   {
-    w = (float)z - (float)dims.z/2;
+    w = (float)z - (float)(dims.z/2);
     tw = tw_pre + w*sinAcosA.y;
 
     if (tw < -slice_thickness_pixel_radius | tw > slice_thickness_pixel_radius)
@@ -75,11 +73,6 @@ __global__ void sf3dKernel(float *outputData,
       tw += 0.5f;
        
 
-      // TODO one of these is probably supposed to be inclusive
-      if (tu <= 0  | tu > 1 - 1/(float)dims.x )
-      {
-        continue;
-      }
       outputData[ (z*dims.y + y) * dims.x + x ] += ( zWeight * tex2D(tex, tu, tv));
   }
 
@@ -93,8 +86,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 {
 
 
-  // Initialize the MathWorks GPU API.
-  mxInitGPU();
+//  // Initialize the MathWorks GPU API.
+//  mxInitGPU();
 
   // TODO if these aren't typed properly in the mex call, I can't cast them appropriatley here
   // TODO general angles, here assume single-Y-axis tilt
@@ -131,28 +124,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 
-
-///* Check for proper number of arguments. TODO add checks on narg and types*/
-//  if ( ! mxGPUIsValidGPUData(prhs[0]) ) 
-//  {
-//      mexErrMsgIdAndTxt("MATLAB:mexFFT:rhs",
-//          "This inputArray is not valid gpudata.");
-//  }
-
-
   mxGPUArray * outputArray;
 
-
+  float sin_t = 0.0f;
+  float cos_t = 0.0f;
   for (int iAng = 0; iAng < *nTilts; iAng++) 
   {
 
-    sinAcosA[iAng] = make_float2(sinf(-tiltAngle[iAng]*PI/180.0f),cosf(-tiltAngle[iAng]*PI/180.0f));
+    sincosf( deg_2_rad(-tiltAngle[iAng]), &sin_t, &cos_t);
+    sinAcosA[iAng] = make_float2(sin_t, cos_t);
 
   }
     
 
   dims     = make_uint3(wantedSize[0],wantedSize[1],wantedSize[2]);
-  ctf_dims = make_uint2(wantedSize[0]*wanted_padding,wantedSize[1]*wanted_padding);
+  ctf_dims = make_uint2(wantedSize[0],wantedSize[1]);
 
 
 
@@ -168,8 +154,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 
-  long  numel_ctf;
-  numel_ctf    = ctf_dims.x * ctf_dims.y * sizeof(float);
 
   // Allocate device memory for result
   mwSize output_dims = 3;
@@ -194,15 +178,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 //  mexit(__LINE__);
-  checkCudaErrors(cudaMallocArray(&cuArray,
+  (cudaMallocArray(&cuArray,
                                   &channelDesc,
                                   ctf_dims.x,
                                   ctf_dims.y));
 
   // Set texture parameters
   // cudaAddressModeWrap cudaAddressModeClamp cudaAddressModeMirror cudaAddressModeBorder
-  tex.addressMode[0] = cudaAddressModeClamp;
-  tex.addressMode[1] = cudaAddressModeClamp;
+  tex.addressMode[0] = cudaAddressModeBorder;
+  tex.addressMode[1] = cudaAddressModeBorder;
 
   tex.filterMode = cudaFilterModeLinear;
 
@@ -245,13 +229,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   if (IsEven(dims.y)) size_shift.y = 0.5f;
   if (IsEven(dims.z)) size_shift.z = 0.5f;
 
+    // Calculate this prior to any half-dim reduction
+    float2 fourierVoxelSize;
+    fourierVoxelSize = make_float2( 1.0f/(pixelSize[0] * (float)ctf_dims.x), 
+                                    1.0f/(pixelSize[0] * (float)ctf_dims.y));
+
+
   for (int iAng = 0 ; iAng < *nTilts ; iAng ++)
   {
 
-    // Calculate this prior to any half-dim reduction
-    float2 fourierVoxelSize;
-    fourierVoxelSize = make_float2( 1.0f/(pixelSize[iAng] * (float)ctf_dims.x), 
-                                    1.0f/(pixelSize[iAng] * (float)ctf_dims.y));
+    if (iAng > 0)
+    {
+      fourierVoxelSize.x = 1.0f/(pixelSize[iAng] * (float)ctf_dims.x);
+      fourierVoxelSize.y = 1.0f/(pixelSize[iAng] * (float)ctf_dims.y);
+    }
 
 
 
@@ -265,29 +256,29 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
     // Put the ctf in tex2
-    checkCudaErrors(cudaMemcpyToArray(cuArray,
+    (cudaMemcpyToArray(cuArray,
                                       0,
                                       0,
                                       d_ctf_img,
-                                      numel_ctf,
+                                      (long)(ctf_dims.x * ctf_dims.y * sizeof(float)),
                                       cudaMemcpyDeviceToDevice));
 
     
     // Bind the array to the texture
-    checkCudaErrors(cudaBindTextureToArray(tex, cuArray, channelDesc));
+    (cudaBindTextureToArray(tex, cuArray, channelDesc));
 
     // Call the sf3d kernel
     sf3dKernel<<<dimGrid, threads_per_block,0,cudaStreamPerThread >>>(d_output_img, size_shift,
-                                                dims, sinAcosA[iAng],EXTRAPVAL);
+                                                dims, sinAcosA[iAng]);
 
 
 
     // FIXME if you could bin an array of texture objects, you could launch the sf3dKernel outside the loop once. 
   }
 
-  checkCudaErrors(cudaStreamSynchronize(cudaStreamPerThread));
-    // Bind the array to the texture
-    checkCudaErrors(cudaUnbindTexture(tex));
+  (cudaStreamSynchronize(cudaStreamPerThread));
+
+//    (cudaUnbindTexture(tex));
 
 
 
@@ -299,14 +290,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   plhs[0] = mxGPUCreateMxArrayOnGPU(outputArray);
 
 
-  checkCudaErrors(cudaFreeArray(cuArray));
+  (cudaFreeArray(cuArray));
   mxGPUDestroyGPUArray(outputArray);
 
   mxGPUDestroyGPUArray(ctfArray);
 
 
-//  checkCudaErrors(cudaFree(d_input_img));
-//  checkCudaErrors(cudaFree(d_output_img));
+//  (cudaFree(d_input_img));
+//  (cudaFree(d_output_img));
 
 
 }

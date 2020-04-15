@@ -177,7 +177,7 @@ clear recGeom
                                     reconCoords, mapBackIter, samplingRate,...
                                     shouldBeCTF*gpuIDX, reconScaling,1,'',super_sample); 
                                            
- 
+
 % We'll handle image statistics locally, but first place the global environment
 % into a predictible range
 
@@ -188,7 +188,7 @@ clear recGeom
                             
 
                             
-                            
+
                             
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
@@ -312,10 +312,10 @@ fprintf('-----\n');
 
 size(tomogram)
 
-% [ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
-%                                              'cpu', 'singleTaper','rand');
-tomogram = padarray(tomogram,tomoPre,'symmetric','pre');
-tomogram = padarray(tomogram,tomoPost,'symmetric','post');
+[ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
+                                             'cpu', 'singleTaper',mean(tomogram(:)));
+% tomogram = padarray(tomogram,tomoPre,'symmetric','pre');
+% tomogram = padarray(tomogram,tomoPost,'symmetric','post');
 sizeTomo = size(tomogram);
 
 
@@ -354,33 +354,33 @@ kVal = 0;
 [ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' );
 
 
-
-switch wedgeType
-  case 1
-    % make a binary wedge
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'binaryWedgeGPU',particleThickness,...
-                                                 1, 1, samplingRate);
-  case 2
-    % make a non-CTF wedge
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'applyMask',particleThickness,...
-                                                 2, 1, samplingRate);   
-  case 3
-    % make a CTF without exposure weight
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'applyMask',particleThickness,...
-                                                 3, 1, samplingRate);   
-  case 4
-    % make a wedge with full-ctf
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'applyMask',particleThickness,...
-                                                 4, 1, samplingRate);  
-  otherwise
-    error('wedgeType must be 1-4');
-end
-
-wedgeMask = (ifftshift(wedgeMask));
+% 
+% switch wedgeType
+%   case 1
+%     % make a binary wedge
+%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+%                    'binaryWedgeGPU',particleThickness,...
+%                                                  1, 1, samplingRate);
+%   case 2
+%     % make a non-CTF wedge
+%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+%                    'applyMask',particleThickness,...
+%                                                  2, 1, samplingRate);   
+%   case 3
+%     % make a CTF without exposure weight
+%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+%                    'applyMask',particleThickness,...
+%                                                  3, 1, samplingRate);   
+%   case 4
+%     % make a wedge with full-ctf
+%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
+%                    'applyMask',particleThickness,...
+%                                                  4, 1, samplingRate);  
+%   otherwise
+%     error('wedgeType must be 1-4');
+% end
+% 
+% wedgeMask = (ifftshift(wedgeMask));
 %                                      
 % % Now just using the mask to calculate the power remaining in the template,
 % % without actually applying.
@@ -394,7 +394,7 @@ nTomograms = prod(nIters);
 
 
 tomoStack = zeros([sizeChunk,nTomograms], 'single');
-tomoNonZero = zeros(nTomograms,6,'uint64');
+% tomoNonZero = zeros(nTomograms,6,'uint64');
 
 % backgroundVol = zeros(sizeChunk,'single');
 tomoCoords= zeros(nTomograms, 3, 'uint16');
@@ -481,24 +481,24 @@ for  iX = 1:nIters(1)
       end
     end
 
-    % Handle all mean centering and rms normalization in local window
-    
-    [ averageMask, flgOOM ] = BH_movingAverage(tomoChunk, statsRadius); 
-   
-    if isa(tomoChunk(1),'gpuArray') && flgOOM
-      tomoChunk = gather(tomoChunk);
-    end
-
-    
-    
-    tomoChunk= tomoChunk - averageMask; clear averageMask 
-
-    [ rmsMask ] = BH_movingRMS(tomoChunk, statsRadius);
+%     % Handle all mean centering and rms normalization in local window
+%     
+%     [ averageMask, flgOOM ] = BH_movingAverage(tomoChunk, statsRadius); 
+%    
+%     if isa(tomoChunk(1),'gpuArray') && flgOOM
+%       tomoChunk = gather(tomoChunk);
+%     end
+% 
+%     
+%     
+%     tomoChunk= tomoChunk - averageMask; clear averageMask 
+% 
+%     [ rmsMask ] = BH_movingRMS(tomoChunk, statsRadius);
     
   
-
+      
 % % % % %     if ( shouldBeCTF == 1 )
-      tomoStack(:,:,:,tomoIDX) = gather((1.*tomoChunk ./ rmsMask).*validAreaMask);
+% % % % %       tomoStack(:,:,:,tomoIDX) = gather((1.*tomoChunk ./ rmsMask).*validAreaMask);
 % % % % %     else 
 % % % % %       % Using the non-ctf corrected stack since we limit toA all practical
 % % % % %       % defocus (<8um) should be entirely negative, so just flip in real
@@ -510,12 +510,15 @@ for  iX = 1:nIters(1)
 
     clear rmsMask
 
-
-    fullX = fullX + sum(sum(sum(tomoStack(:,:,:,tomoIDX))));
-    fullX2 = fullX2 + sum(sum(sum(tomoStack(:,:,:,tomoIDX).^2)));
-    fullnX = fullnX + prod(sizeChunk);
+    tomoChunk = tomoChunk .* (-1*shouldBeCTF); % This is backwards, but I don't know why
+    fullX = fullX + gather(sum(tomoChunk(:)));
+    fullX2 = fullX2 + gather(sum(tomoChunk(:).^2));
+    fullnX = fullnX + gather(prod(sizeChunk));
 
     tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
+    
+    tomoStack(:,:,:,tomoIDX) = gather(tomoChunk);
+
     tomoIDX = tomoIDX + 1;
 
       
@@ -538,46 +541,6 @@ clear tomoWedgeMask averagingMask rmsMask bandpassFilter statBinary validAreaMas
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 kVal = 0;
-
-[ OUTPUT ] = BH_multi_iterator( [sizeTempBIN;kVal.*[1,1,1]], 'extrapolate' );
-
-
-switch wedgeType
-  case 1
-    % make a binary wedge
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'binaryWedgeGPU',particleThickness,...
-                                                 1, 1, samplingRate);
-  case 2
-    % make a non-CTF wedge
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'applyMask',particleThickness,...
-                                                 2, 1, samplingRate);   
-  case 3
-    % make a CTF without exposure weight
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'applyMask',particleThickness,...
-                                                 3, 1, samplingRate);   
-  case 4
-    % make a wedge with full-ctf
-    [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-                   'applyMask',particleThickness,...
-                                                 4, 1, samplingRate);  
-  otherwise
-    error('wedgeType must be 1-4');
-end
-
-% wedgeMask = gather(ifftshift(wedgeMask));
-% tempBandpass = BH_bandpass3d(OUTPUT(1,:), 10e-4,1200,lowResCut,'cpu', pixelSize );
-            
-
-%                                      
-% % Now just using the mask to calculate the power remaining in the template,
-% % without actually applying.
-% wedgeMask = gather(find(ifftshift(wedgeMask)));
-        
-
-        
 
 
     
@@ -612,18 +575,11 @@ for iAngle = 1:size(angleStep,1)
   else
      phiStep = angleStep(iAngle,3);
   end
-     phiStep = angleStep(iAngle,3);
   
-%   bhF.to_cpu;
-%   gpuDevice(useGPU);
-%   bhF.to_GPU;
-  
-  %numRefIter = nAngles(1);
+
   numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
   tempImg = gpuArray(templateBIN); %%%%% NEW switch to bin
-%   tempWdg = gpuArray(wedgeMask);
-%   tempBnd = gpuArray(tempBandpass);
-%   tempBandpass = gpuArray(tomoBandpass);
+
   
   interpolationNormFactor = sum(abs(tempImg(:)).^2);
 
@@ -632,8 +588,6 @@ for iAngle = 1:size(angleStep,1)
   % Calculate all references for each out of plane tilt only once
   referenceStack = zeros([sizeTempBIN,numRefIter], 'single', 'gpuArray');
                                                          
-  
-
   tomoIDX = 1;
   firstLoopOverAngle = true;
   % Iterate over the tomogram pulling each chunk one at a time.
@@ -654,10 +608,9 @@ for iAngle = 1:size(angleStep,1)
                           ,iAngle,size(angleStep,1), tomoIDX,nTomograms);
 
 
-     % fftn(double(gpuArray))) ~ 2.5x faster than transfering a double
-     % complex
+ 
 
-      tomoFou = swapQuadrants.*bhF.fwdFFT(gpuArray(tomoStack(:,:,:,tomoIDX)));
+     tomoFou = swapQuadrants.*bhF.fwdFFT(gpuArray(tomoStack(:,:,:,tomoIDX)));
 
     for iAzimuth = 0:angleStep(iAngle,2)
 

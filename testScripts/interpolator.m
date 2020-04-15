@@ -132,21 +132,14 @@ classdef interpolator < handle
 %          warning('The requested symmetry (%s) is different from that initialized (%s)\n',symmetry,obj.symmetry_type);
        end
        
-       if (strcmpi(symmetry, 'C1'))
-         obj.symmetry_matrices = cell(1);
-       elseif (strcmpi(symmetry, 'C2'))
-         obj.symmetry_matrices = cell(2);
-       elseif (strcmpi(symmetry, 'C3'))
-          obj.symmetry_matrices = cell(3);
-       elseif (strcmpi(symmetry, 'C4'))
-          obj.symmetry_matrices = cell(4);
-        elseif (strcmpi(symmetry, 'C5'))
-          obj.symmetry_matrices = cell(5);
-        elseif (strcmpi(symmetry, 'C6'))
-          obj.symmetry_matrices = cell(6);
-       else
-         error('Only C1-6 have been implemented in the new interp class');
+       symSplit = strsplit(symmetry, 'C');
+       if length(symSplit) ~= 2
+         error('Only CX symmetry is implemented');
        end
+       
+   
+        obj.symmetry_matrices = cell(str2double(symSplit{2}),1);
+  
      
 %      switch symmetry_type
 %        case 0
