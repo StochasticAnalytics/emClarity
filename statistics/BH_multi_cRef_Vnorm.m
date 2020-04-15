@@ -170,8 +170,9 @@ function [ fsc3D, weights ] = calc_anisoFSC(fscParams, radialGrid, weights, bFac
 
   for iCone = firstCone:nCones
     iCone
-    iFSCfit = fit(fscParams{1}(:,1), ...
-               fscParams{2}(:,iCone+1), 'cubicSpline');
+
+    iFSCfit = csape(fscParams{1}(:,1),fscParams{2}(:,iCone+1),'variational');
+
              
     % Don't lowpass in-case of FSC calculation
     if any(bFactor)         
@@ -179,8 +180,8 @@ function [ fsc3D, weights ] = calc_anisoFSC(fscParams, radialGrid, weights, bFac
     else
       iForceMask = 1
     end
-    iFSCclean = fit(osX,iFSCfit(osX).*iForceMask,'cubicSpline');
     
+    iFSCclean = csape(osX,fnval(iFSCfit,osX).*iForceMask,'variational');
 
       
 
