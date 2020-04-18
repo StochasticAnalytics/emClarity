@@ -221,24 +221,8 @@ echo $iEcho && iEcho=$(($iEcho+1))
 
     {
      echo '#!/bin/bash'
-     echo 'tiltxcorr \'
-     echo "-OverlapOfPatchesXandY	${ptOverlap},${ptOverlap} \ "
-     echo "-IterateCorrelations	1 \ "
-     echo "-ImagesAreBinned	${iBin} \ "
-     echo "-InputFile	${pName}.preali \ "
-     echo "-OutputFile	${pName}_pt.fid \ "
-     echo "-PrealignmentTransformFile	${pName}.prexg \ "
-     echo "-TiltFile	${pName}.rawtlt \ "
-     echo "-FilterSigma1	${hpCut} \ "
-     echo "-FilterRadius2	${lpCut} \ "
-     echo "-FilterSigma2	0.05 \ "
-     echo "-ShiftLimitsXandY ${limitShifts},${limitShifts} \ "
-     echo "-PadsInXandY	128,128 \ "
-     echo "-SizeOfPatchesXandY	${ptSizeX},${ptSizeY} \ "
-     echo "-BordersInXandY ${ptBorder},${ptBorder} \ "
-     echo "-CorrelationCoefficient \ "
-     echo "-RotationAngle	0.0 \ "
-     echo "-AngleOffset ${tiltAngleOffset} "
+     echo ''
+     echo "\${EMC_TILTXCORR} -OverlapOfPatchesXandY	${ptOverlap},${ptOverlap} -IterateCorrelations	1 -ImagesAreBinned	${iBin} -InputFile	${pName}.preali -OutputFile	${pName}_pt.fid -PrealignmentTransformFile	${pName}.prexg -TiltFile	${pName}.rawtlt -FilterSigma1	${hpCut} -FilterRadius2	${lpCut} -FilterSigma2	0.05 -ShiftLimitsXandY ${limitShifts},${limitShifts} -PadsInXandY	128,128 -SizeOfPatchesXandY	${ptSizeX},${ptSizeY} -BordersInXandY ${ptBorder},${ptBorder} -CorrelationCoefficient -RotationAngle	0.0 -AngleOffset ${tiltAngleOffset}"
     } > ./.${inp}_xcorr.sh
     # For some reason specifying BordersInXorY or RotationAngle would terminate
     # input. Get rid of the former, and put rotation at the end.
@@ -276,6 +260,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
     # the default tilt group from 5 --> 8 to address the low angle switch.
     if [[ $iter -gt 2 ]] ; then
 
+      echo "${EMC_TILTALIGN} -ModelFile	${pName}.fid -ImageFile	${pName}.preali -ImagesAreBinned	${iBin} -OutputModelFile	${pName}.3dmod -OutputResidualFile	${pName}.resid -OutputFidXYZFile	${pName}fid.xyz -OutputTiltFile	${pName}.tlt -OutputTransformFile	${pName}.tltxf_nonScaled -RotationAngle	0.0 -TiltFile	${pName}.rawtlt -AngleOffset ${tiltAngleOffset} -RotOption	1 -RotDefaultGrouping	3 -TiltOption	${TILT_OPTION} -TiltDefaultGrouping	3 -MagOption	${MAG_OPTION} -MagDefaultGrouping	3 -BeamTiltOption	0 -ResidualReportCriterion	1.0 -SurfacesToAnalyze	0 -MetroFactor	0.25 -MaximumCycles	1000 -KFactorScaling	1.0 -NoSeparateTiltGroups	2 -AxisZShift	1000 -ShiftZFromOriginal      1 -LocalAlignments	-OutputLocalFile	${pName}_local.xf -TargetPatchSizeXandY	${ptSizeX},${ptSizeY} -MinSizeOrOverlapXandY	0.5,0.5 -MinFidsTotalAndEachSurface	8,3 -FixXYZCoordinates	1 -LocalRotOption	1 -LocalRotDefaultGrouping	6 -LocalTiltOption	0 -LocalTiltDefaultGrouping	6 -LocalMagOption	1 -LocalMagDefaultGrouping	7  -AngleOffset ${tiltAngleOffset} > tiltAlign.log" > ./.${inp}_tilalign.sh
       # Run with local
       tiltalign \
         -ModelFile	${pName}.fid \

@@ -246,7 +246,7 @@ end
 
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize)
+                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize,'FSC')
                                 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
                                        BH_multi_validArea(  maskSize, maskRadius, scaleCalcSize )

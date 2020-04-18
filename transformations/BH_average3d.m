@@ -116,7 +116,6 @@ else
   fprintf('No quality weighting in the initial cycle after template matching\n');
   flgQualityWeight = 0;
 end
-
 % Experimental downweighting of higher frequency info farther from focus.
 % Could also consider filtering pre reconstruction
 try 
@@ -960,8 +959,8 @@ parfor iParProc = parVect
             
         for iPeak = 1:nPeaks
           if peakWgt(iPeak) == -9999
+            positionList(iSubTomo, 26*iPeak) = -9999;
             % Skip this peak
-            fprintf('skipping peak %d\n')
             continue
           end
            %Check that the given subTomo is not to be ignored
@@ -1189,8 +1188,8 @@ parfor iParProc = parVect
                                            'GPU','inv');          
 
 
-            iParticle = iParticle -  mean(double(iParticle(interpMask_tmpBinary)));
-            iParticle = iParticle ./  rms(double(iParticle(interpMask_tmpBinary)));            
+            iParticle = iParticle -  mean(iParticle(interpMask_tmpBinary));
+            iParticle = iParticle ./  rms(iParticle(interpMask_tmpBinary));            
             iParticle = iParticle .* interpMask_tmp;
             if (flgQualityWeight)
                          
@@ -1212,13 +1211,14 @@ parfor iParProc = parVect
         
           
          
-          trimAvg =  mean(double(iParticle(:)));
-          if isnan(trimAvg)
+          trimAvg =  mean(iParticle(:));
+          
+          if ~isfinite(trimAvg)
            fprintf('SubTomo %d from tomogram %s as Nan mean\n',...
            iSubTomo, tomoList{iTomo});
            iParticle(:,:,:) = 0;
            % Flag the particle as ignored
-           positionList(iSubTomo, 26) = -9999;
+           positionList(iSubTomo, 26:26:nPeaks*26) = -9999;
           else
 % % %             iParticle = iParticle -  mean(double(iParticle(:)));
 % % %             iParticle = iParticle .*  rms(double(iParticle(:)));

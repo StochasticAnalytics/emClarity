@@ -6,8 +6,7 @@ function [ ] = BH_runAutoAlign(PARAMETER_FILE, runPath,findBeadsPath,stackIN,til
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 
 pixelSize = pBH.('PIXEL_SIZE').*10^10;
-imgRotation = str2num(imgRotation);
-
+imgRotation = str2double(imgRotation);
 
 try 
   RESOLUTION_CUTOFF = pBH.('autoAli_max_resolution');
@@ -53,13 +52,13 @@ system(sprintf('mkdir -p %s',wrkDir));
 system(sprintf('mkdir -p fixedStacks'));
 
 cd('fixedStacks');
-system(sprintf('ln -s %s/%s %s.fixed',startDir,stackIN,baseName));
+system(sprintf('ln -sf %s/%s %s.fixed',startDir,stackIN,baseName));
 cd('../');
 
 
 
 if ~strcmp(tiltExt,'.rawtlt')
-  system(sprintf('ln -s %s %s.rawtlt',tiltAngles,tiltName));
+  system(sprintf('ln -sf %s %s.rawtlt',tiltAngles,tiltName));
 end
 
 binHigh=ceil(MIN_SAMPLING_RATE ./ pixelSize);

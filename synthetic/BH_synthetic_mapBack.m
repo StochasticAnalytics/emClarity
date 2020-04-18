@@ -24,10 +24,13 @@ if isempty(bh_global_imodProjectionShifts)
   bh_global_imodProjectionShifts = [ -0.5, -0.5, 0.5 ; -0.5, -0.5, 0; 0.5,0.5,1.0 ];
 end
 
-
-
-CYCLE = str2num(CYCLE);
-
+  preShift = bh_global_imodProjectionShifts(1,:);
+  postShift = bh_global_imodProjectionShifts(2,1:2);
+  prjVectorShift = bh_global_imodProjectionShifts(3,:)';
+  pixelShift = -1;
+  pixelMultiplier = 0;
+	
+CYCLE= str2double(CYCLE);
 if CYCLE < 0
   % Additional node, for now you'll have to manually copy the results.
   % Writes the runAlignments.sh to runAlignments_alt.sh which manually cat
@@ -109,13 +112,19 @@ catch
   % All early tests were Opt 5 (linear mapping) Default Grouping 5
   tiltAliOption = [5,5,5,5];
 end
-  
+
+
 try
-  peakMultiplier = pBH.('peakMultiplier')
+  peak_mask_fraction =  pBH.('peak_mask_fraction')
 catch
-  peakMultiplier = 0
+  peak_mask_fraction = 0.2
 end
 
+try
+  use_MCF =  pBH.('use_MCF')
+catch
+  use_MCF = 0
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -161,8 +170,8 @@ mapBackIter = subTomoMeta.currentTomoCPR;
 
 
 % Add error check onrange for reasonable values.
-ctfRange = pBH.('tomoCprDefocusRange'); 
-ctfInc = pBH.('tomoCprDefocusStep');
+ctfRange = pBH.('tomoCprDefocusRange')*10^10; 
+ctfInc = pBH.('tomoCprDefocusStep')*10^10;
 
 calcCTF = pBH.('tomoCprDefocusRefine');
 
@@ -347,7 +356,7 @@ end
   
   %PARTICLE_RADIUS = floor(mean(pBH.('particleRadius')./pixelSize));
   % TODO, is this too restricted?
-  peakSearchRad = floor(0.2*PARTICLE_RADIUS.*[1,1]);
+  peakSearchRad = floor(peak_mask_fraction*PARTICLE_RADIUS.*[1,1]);
   try
     lowPassCutoff = pBH.('tomoCprLowPass');
     fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.',...
@@ -554,6 +563,13 @@ end
     TLT = tiltGeometry.(tomoList{iTomo});
 
     
+    doseList = TLT(:,[1,11]);
+    postExposure = doseList(:,2)';
+    [sorted_doseList, doseIDX] = sortrows(doseList,2);
+    preExposure = diff(sorted_doseList(:,2));
+    preExposure = [preExposure; preExposure(end)];
+    preExposure = postExposure - preExposure(doseIDX)';
+    
     % Extract a "defocus file" for tilt to calculate the defocus for each
     % fiducial also considering the local alignment. If this works, I can
     % get rid of defAng 
@@ -696,12 +712,12 @@ end
     for iSubTomo = 1:nSubTomos
 
 
+% 
+%       prjVector = (positionList(iSubTomo,11:13)./samplingRate + binShift) - ...
+%                                           originVol + reconShift;
+%                                         
       rSubTomo = reshape(positionList(iSubTomo,17:25),3,3);
-
-
-
-      prjVector = (positionList(iSubTomo,11:13)./samplingRate + binShift) - ...
-                                          originVol + reconShift;
+      prjVector = (positionList(iSubTomo,11:13)./samplingRate) - originVol + reconShift;
                                        
       
       if (nRefs > 1)
@@ -713,8 +729,8 @@ end
 
 
 % % %       prjVector = prjVector + [0.5,0.0,-0.5];
-      prjVector = prjVector + [0.0,0.0,1.0];
-      
+%       prjVector = prjVector + [0.0,0.0,1.0];
+      prjVector = prjVector - preShift;
       recVector = (originPrj + [0,0,ceil((reconstructionSize(3)+1)/2)] + prjVector); % subTomo origin relative to reconLowerLeft
 
       %Resample a copy of the average to match the position in the tomogram
@@ -799,32 +815,31 @@ end
 
        
         % Reproject using tilt, so just save the 3d coords. 
-       fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]', fidIDX);
-       fprintf(coordSTART,'%d %d %d %0.4f %0.4f %0.4f\n',fidIDX+1, tomoNumber,positionList(iSubTomo,4) ,samplingRate.*(prjVector' + [originRec(1),originRec(2),originRec(3)]'));
+       fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]'- prjVectorShift([1,3,2]), fidIDX);
 
         for iPrj = 1:nPrjs
-
+          
+          iPrj_nat = find(TLT(:,1) == iPrj);
           % imod is indexing from zero
-          zCoord = TLT(iPrj,1) - 1; 
+          % imod is indexing from zero
+          zCoord = iPrj_nat; 
+
+          rTilt = BH_defineMatrix([90,1.*TLT(iPrj_nat,4),-90],'Bah','forwardVector');
+          
+          prjCoords = rTilt*prjVector';
+
+          fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15));
+%           d1 = -1.*((samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15)) - TLT(iPrj_nat,12))*10^10;
+%           d2 = -1.*((samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15)) + TLT(iPrj_nat,12))*10^10;
+          
+          d1 = -1.*(samplingRate.*prjVector(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15))*10^9; % Defocus value adjusted for Z coordinate in the tomogram. nm
+          d2 = TLT(iPrj_nat,12)*10^9; % half astigmatism value
+
+          fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n',fidIDX, tomoNumber,positionList(iSubTomo,4),d1,d2,180./pi.*TLT(iPrj_nat,13),reshape(rSubTomo,1,9) , preExposure(iPrj_nat), postExposure(iPrj_nat),positionList(iSubTomo,7));
+
           % These shifts are a record of transformation from the raw data, but here
           % we are comparing with [CTF] corrected data, from which the
           % reconstructino was made directly
-
-
-          rTilt = BH_defineMatrix([90,1.*TLT(iPrj,4),-90],'Bah','forwardVector');
-
-           R = rTilt;
-  
-
-          % The prjCoords are relative to the origin of the tilt series, but the
-          % model needs to be relative to lower left, but the shift vector to do
-          % this must be transformed for each tilt.
-
-          shiftCoords = originPrj';
-
-         prjCoords = R*prjVector';
-
-          fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj,15));
 
         end % loop over tilt projections      
 
@@ -1185,35 +1200,23 @@ end
       system(sprintf('rm %smapBack%d/%s.tmpRot%d',mbOUT{1:3},iSave));  
     end
 
-    fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
-    foundNans = sum(isnan(fidList(:,3)));
-    if (foundNans)
-      fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);
-      fprintf('The only confirmed case that produced this were NaNs in the fixedStacks/tiltN.local file.\n');
-      error("Exiting");
-    end
-%     defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
-        defList = load(sprintf('%smapBack%d/%s.defAng',mbOUT{1:3}));
+    
+  fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
+  parList = load(sprintf('%smapBack%d/%s.coord_start',mbOUT{1:3}));
+  defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
 
+  
+  %   Need to shift again from the model coordinate system
+  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(prjVectorShift(1:2)', size(fidList,1),1);  
+  foundNans = sum(isnan(fidList(:,3)));
+  if (foundNans)
+    fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);
+    fprintf('The only confirmed case that produced this were NaNs in the fixedStacks/tiltN.local file.\n');
+    error("Exiting");
+  end
 
-
-
-    % results.
-
-    % I am pretty sure that the existing first column is the fiducial id
-    % incremented from zero. This step could be removed and indexed over i
-    % + 1 in later steps. (or saved as indexed from one, but I don't
-    % remember what that would effect.)
-    % Now from zero: fidIDX, X, Y, iPrj(0)
-%     fidList = [1:size(fidList,1);fidList']';
-%     defList = [1:size(defList,1);defList']';
-%     defList = defList(:,[1,7,3]);
-%     defList(:,[1,3]) = defList(:,[1,3]) - 1;
-%     defList(:,2) = defList(:,2).*(-1*10^-9);
-     defList = defList(:,[1,3,2]);
-     % Give every instance of each fiducial a unique identifier.
-     fidList = [1:size(fidList,1);fidList']';
-%     defList = [1:size(defList,1);defList']';
+  % Give every instance of each fiducial a unique identifier.
+  fidList = [1:size(fidList,1);fidList']';
 
 
     % for center of mass
@@ -1225,37 +1228,24 @@ end
     particlePad = 1.5;
     tileRadius = floor(particlePad.*PARTICLE_RADIUS);
     tileSize = (2.*tileRadius + 1).*[1,1];
-    padTile = floor(PARTICLE_RADIUS./1 .*[1,1]);
-%     padCTF = 3.*padTile; 
-%     CTFSIZE = BH_multi_iterator([1 + 2* tileRadius + 6.*padTile,1], 'fourier')
+    
     CTFSIZE = BH_multi_iterator([2.*tileSize,1], 'fourier');
 
     CTFSIZE = CTFSIZE(1:2);
+    ctfOrigin = floor(CTFSIZE) + 1;
+
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
    
     if (eraseMask)
-      peakMask = BH_mask3d(eraseMaskType,(tileSize(1)+2.*padTile(1)).*[1,1],eraseMaskRadius,[0,0],'2d');
-      peakMaskDefSearch = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
-      peakMask(peakMask < 0.99) = 0;
-      peakMaskDef(peakMaskDefSearch < 0.99) = 0;
+      peakMask = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
     else
-      peakMask = BH_mask3d('sphere',(tileSize(1)+2.*padTile(1)).*[1,1],peakSearchRad,[0,0],'2d');
-      peakMaskDefSearch = BH_mask3d('sphere',CTFSIZE,peakSearchRad,[0,0],'2d');
+      peakMask = BH_mask3d('sphere',CTFSIZE,peakSearchRad,[0,0],'2d');      
     end
-
-    fftMask = BH_fftShift(0,(tileSize(1)+2.*padTile(1)).*[1,1],1);
-    fftMaskDefSearch = BH_fftShift(0,CTFSIZE,1);
-
-
-
     
-%     [ peakMask ] = BH_multi_randomizeTaper(peakMask);
-
-    tileOrigin = ceil((size(peakMask)+1)./2);
-    defSearchOrigin = ceil((size(peakMaskDefSearch)+1)./2);
-%     bandPassFilter = BH_bandpass3d([tileSize+2.*padCTF,1], 0,0,lowPassCutoff,METHOD,pixelSize);
-    bandPassFilter = BH_bandpass3d([CTFSIZE,1], 0,0,lowPassCutoff,METHOD,pixelSize);
+    peakMask(peakMask < 0.99) = 0;
+    
+    
     
     bandPassPrj = BH_bandpass3d([sTX,sTY,1],0,0,lowPassCutoff,'cpu',pixelSize);
 
@@ -1289,35 +1279,20 @@ end
     defocusCCC = cell(nPrjs,1);
     expectedDefocusPerFiducial=cell(nPrjs,1);
 
-    nFidsTotal = numel(unique(fidList(:,2)))
 
-    for iPrj = 1:nPrjs
-      % I must specify the number of fiducials somehwere else, replace the
-      % unique when there is time.
-      defocusShifts{iPrj} = 0;
-      defocusCCC{iPrj} = zeros(nDefTotal, nFidsTotal,'single');
-      expectedDefocusPerFiducial{iPrj} = zeros(nDefTotal,nFidsTotal,'single');
+    if samplingRate > 1
+      tiltSeries = sprintf('%scache/%s_ali%d_bin%d.fixed',CWD,tiltName,mapBackIter+1,samplingRate);
+    else
+      tiltSeries = sprintf('%saliStacks/%s_ali%d.fixed',CWD,tiltName,mapBackIter+1);
     end
-    
-    
-
-      if samplingRate > 1
-
-        tiltSeries = sprintf('%scache/%s_ali%d_bin%d.fixed',CWD,tiltName,mapBackIter+1,samplingRate)
-        
-      else
-
-        tiltSeries = sprintf('%saliStacks/%s_ali%d.fixed',CWD,tiltName,mapBackIter+1)
-        
-      end
 
   
 
     % Optionally restrict the search to a given number of fiducials:
     nUniqueFids = numel(unique(fidList(:,2))); % I think the max val of this column should also be okay (+1)
-    
+    nFidsTotal = nUniqueFids;
 %     nFidsTotal =  sum(fidList(:,5) == 1 );
-    if tomoCPR_random_subset == -1 || tomoCPR_random_subset > nFidsTotal
+    if tomoCPR_random_subset == -1 || tomoCPR_random_subset > nUniqueFids
       fprintf('Using all of the %d available fiducials\n',nUniqueFids);
     else
       fprintf('Using a random subset of %d fiducials from the %d available\n',...
@@ -1325,23 +1300,33 @@ end
       
       keepFids = datasample(0:nUniqueFids-1,tomoCPR_random_subset,'Replace',false);
       fidList(~ismember(fidList(:,2),keepFids),2) = -9999;
+      nFidsTotal = tomoCPR_random_subset;
     end
+    
       
+    for iPrj = 1:nPrjs
+      % I must specify the number of fiducials somehwere else, replace the
+      % unique when there is time.
+      defocusShifts{iPrj} = 0;
+      defocusCCC{iPrj} = zeros(nDefTotal, nFidsTotal,'single');
+      expectedDefocusPerFiducial{iPrj} = zeros(nDefTotal,nFidsTotal,'single');
+    end
+ 
+    %Put back into a natural order
+    TLT = sortrows(TLT,1);
 
-parfor iPrj = 1:nPrjs     
-% for iPrj = 20;%1:nPrjs
+parfor iPrj = 1:nPrjs  
+
+% for iPrj = 11;%1:nPrjs
 	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
 	    % to know what is going on here.
-      bhF = fourierTransformer(randn((tileSize(1)+2.*padTile(1)).*[1,1],'single','gpuArray'),'OddSizeOversampled');
+      bhF = fourierTransformer(randn(CTFSIZE,'single','gpuArray'),'OddSizeOversampled');
 
       iMrcObj = MRCImage(tiltSeries,0);
       iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}),0);
-
-      % Matching the "natural" or sequential order 
-      iTLT = find(TLT(:,1) == iPrj);
-     
+   
       tic
       while toc < 300
         try
@@ -1398,9 +1383,8 @@ parfor iPrj = 1:nPrjs
       dataRMS = BH_movingRMS(dataPrj-dataAVG,eSize);
       mRms = mean(dataRMS(:))
       sRms = rms(dataRMS(:)-mRms)
-      
-      
-      
+        
+      % FIXME 
       if (whitenProjections)
         whitenBP = [2*PARTICLE_RADIUS,lowPassCutoff,pixelSize,PARTICLE_RADIUS];
         [dataPrj,NPS] = BH_whitenNoiseSpectrum(dataPrj,'',whitenBP,1);
@@ -1427,14 +1411,14 @@ parfor iPrj = 1:nPrjs
 
       dataRMS = [];
                                   
-      meanDef = TLT(iTLT,15);          
-      defAst = TLT(iTLT,12);
-      angAst = TLT(iTLT,13);
-      defVect = [meanDef - defAst, meanDef + defAst, angAst];
+      mean_defocus = TLT(iPrj,15);          
+      half_astigmatism = TLT(iPrj,12);
+      angle_astigmatism = TLT(iPrj,13);
+      defVect = [mean_defocus - half_astigmatism, mean_defocus + half_astigmatism, angle_astigmatism];
       
-      [Hqz, HqzUnMod] = BH_ctfCalc(TLT(iTLT,16).*samplingRate,TLT(iTLT,17), ...
-                                   TLT(iTLT,18),defVect,size(refPrj), ...
-                                   1.*TLT(iTLT,19),-0.15);
+      [Hqz, HqzUnMod] = BH_ctfCalc(TLT(iPrj,16).*samplingRate,TLT(iPrj,17), ...
+                                   TLT(iPrj,18),defVect,size(refPrj), ...
+                                   1.*TLT(iPrj,19),-0.15);
 
       Hqz = gather(Hqz);
       
@@ -1470,7 +1454,7 @@ parfor iPrj = 1:nPrjs
       estPeak = [mRx, mRy] - originPrj(1:2) + [comPRJX, comPRJY];
       glbList = fopen(sprintf('%smapBack%d/%s_%03d.global',mbOUT{1:3},iPrj),'w');
     % Add unique indicies to prevent ambiquity when comparing with paral
-      fprintf(glbList,'%f  degree tilt at %f %f\n', TLT(iTLT,4),estPeak);
+      fprintf(glbList,'%f  degree tilt at %f %f\n', TLT(iPrj,4),estPeak);
       dataPrj = BH_resample2d(dataPrj,[0,0,0],[estPeak,0],'Bah',METHOD,'inv',1,size(dataPrj));
       %mapBack%d, imshow3D(gather(fftshift(real(ifftn(fftn(dataPrj).*conj(fftn(refPrj)))))));
 
@@ -1490,18 +1474,12 @@ parfor iPrj = 1:nPrjs
       % the angles supplied sorted from (-) --> (+) 
       wrkPrjIDX = ( fidList(:,5) == iPrj - 1 );
       wrkFid = fidList(wrkPrjIDX,:);
-      % The defocus list is ordered like the TLT info which is not
-      % sequential, so it needs it's own logical.
-      wrkDefIDX = ( defList(:,3) == iPrj - 1 );
-      wrkDef = defList(wrkDefIDX,:);
-      
+      wrkPar = parList(wrkPrjIDX,:);
+     
+      wrkDefAngTilt = defList(wrkPrjIDX,[7,6,5]);
+    
       coordOUT = fopen(sprintf('%smapBack%d/%s_%03d.coordFIT',mbOUT{1:3},iPrj),'w');
-% % defInter = fopen(sprintf('%smapBack%d/%s%s_%03d.defInter',mbOUT{1:3},outCTF,iPrj),'w');
-      [radialForCTF,phi,~,~,~,~] = BH_multi_gridCoordinates([CTFSIZE,1],'Cylindrical',METHOD,{'none'},1,0,0);
 
-
-      radialForCTF = {radialForCTF./(pixelSize.*10^-10),0,phi};
-      phi = [];
 
       calcPeakShifts = 1;
  
@@ -1510,41 +1488,13 @@ parfor iPrj = 1:nPrjs
         % should probably calculate the low pass closer to the first zero.
         % Here again just assuming < 8um. Also need a check in case the
         % lowPassCutoff is too low to produce meaningful ctf comparison.
-        ctfMask = BH_bandpass3d([CTFSIZE,1],10^-1,40,max(5,2*pixelSize),METHOD,pixelSize);
-        % Testing an additional translational step which requires full fft
-        % band mask for just the hermitian symmetry
-        ctfMask(:,ceil((CTFSIZE(1)+1)/2):end) = 0;
- %       ctfMask = ctfMask(1:floor(CTFSIZE(1)/2)+1,:)
+        ctfMask = BH_bandpass3d([CTFSIZE,1],10^-1,40,max(5,2*pixelSize),'GPU',pixelSize);
+        ctfMask = ctfMask(1:floor(CTFSIZE(1)/2)+1,:);
         ctfMask = (ctfMask > 10^-2 );
         
         % find range of defocus for this projection.
 
-        defToCheck = min(wrkDef(:,2))-ctfRange-ctfInc:ctfInc:max(wrkDef(:,2))+ctfRange+ctfInc;
-        nCTFs = length(defToCheck);
-        if strcmpi(METHOD,'GPU')
-          ctfStack = zeros(sum(ctfMask(:)),nCTFs,'single','gpuArray');
-        else
-          ctfStack = zeros(sum(ctfMask(:)),nCTFs,'single');
-        end % % %         else
-  
-% % % % %         if strcmpi(METHOD,'GPU')
-% % % % %           ctfStack = zeros([CTFSIZE,nCTFs],'single','gpuArray');
-% % % % %         else
-% % % % %           ctfStack = zeros([CTFSIZE,nCTFs],'single');
-% % % % %         end
-% % % % %         
-        for iCTF = 1:nCTFs
-          defAst = TLT(iTLT,12);
-          angAst = TLT(iTLT,13);
-          defVect = [defToCheck(iCTF) - defAst, defToCheck(iCTF) + defAst, angAst];
-          [Hqz, ~] = BH_ctfCalc(radialForCTF,TLT(iTLT,17),TLT(iTLT,18), ...
-                                    defVect, ...
-                                    CTFSIZE, ...
-                                    -1.*TLT(iTLT,19), ...
-                                    -1.0);
-          ctfStack(:,iCTF) = Hqz(ctfMask);
-          
-        end
+
         
         % Set peakShift calculation to false, this is set to be true after
         % the first loop.
@@ -1553,7 +1503,7 @@ parfor iPrj = 1:nPrjs
       
       for iFidLoop = 1:1+calcCTF
         
-      for iFid = 1:size(wrkFid,1)
+      for iFid = 1:size(wrkFid,1) 
         
         if wrkFid(iFid,2) == -9999
           if iFidLoop == 1+calcCTF
@@ -1564,8 +1514,17 @@ parfor iPrj = 1:nPrjs
           continue
         end
 
-        ox = floor(wrkFid(iFid,3)) - tileRadius;
-        oy = floor(wrkFid(iFid,4)) - tileRadius;
+        pixelX = wrkFid(iFid,3) - pixelShift + postShift(1);
+        pixelY = wrkFid(iFid,4) - pixelShift + postShift(2);
+      
+        ox = floor(pixelX) - tileRadius;
+        oy = floor(pixelY) - tileRadius;     
+   
+        sx = pixelX - floor(pixelX);
+        sy = pixelY - floor(pixelY);
+      
+%         ox = floor(wrkFid(iFid,3)) - tileRadius;
+%         oy = floor(wrkFid(iFid,4)) - tileRadius;
         oxEval = [floor(wrkFid(iFid,3) - PARTICLE_RADIUS),floor(wrkFid(iFid,3) + PARTICLE_RADIUS)];
         oyEval = [floor(wrkFid(iFid,4) - PARTICLE_RADIUS),floor(wrkFid(iFid,4) + PARTICLE_RADIUS)];
         % it would be good to try a smaller tile.
@@ -1609,159 +1568,130 @@ parfor iPrj = 1:nPrjs
         dataTile = dataTile./rms(dataTile(:));
         refTile = refTile ./ rms(refTile(:));
 
-        dataTile = BH_padZeros3d(dataTile,padCTF(1,:),padCTF(2,:), ...
-                                                 METHOD,cccPrecisionTaper); 
+        dataTile = BH_padZeros3d(dataTile,'fwd',padCTF, ...
+                                                 'GPU','singleTaper'); 
 
-        refTile = BH_padZeros3d(refTile,padCTF(1,:),padCTF(2,:), ...
-                                                 METHOD,cccPrecisionTaper);  
+        refTile = BH_padZeros3d(refTile,'fwd',padCTF, ...
+                                                 'GPU','singleTaper');  
+                                               
+                                                       
                             
         if (calcPeakShifts)               
-          % The original idea was to adjust the mean defocus applied as
-          % will be done in the ctf correction. The shifts in XY depend
-          % strongly on the defocus, and there is no reason to anticipate
-          % the sample to move uniformly (the entire point of this
-          % program.) Try shifting by max scoring defocus per fiducial, and
-          % maybe eventually correcting that way too.
-
-          meanDef = wrkDef(iFid,2) + expectedDefocusPerFiducial{iPrj}(1,iFid);
-          defAst = TLT(iTLT,12);
-          angAst = TLT(iTLT,13);
-          defVect = [meanDef - defAst, meanDef + defAst, angAst];
-
-          % If true, sets the ampCont to -ampCont which tells ctfCalc to use
-          % an envelope function on the CTF.
-          flgDampen = 0;
-          [Hqz, HqzUnMod] = BH_ctfCalc(radialForCTF,TLT(iTLT,17),TLT(iTLT,18), ...
-                                      defVect, ...
-                                      CTFSIZE, ...
-                                      TLT(iTLT,19).*(1-2*flgDampen), ...
-                                      -0.15);
-
-          refTile = real(ifftn(fftn(refTile).*Hqz.*bandPassFilter));
-          dataTile = real(ifftn(fftn(dataTile).*bandPassFilter));
-                
-          refTile =  BH_padZeros3d(refTile,-1.*padCTF(1,:), ...
-                                           -1.*padCTF(2,:),METHOD, ...
-                                                              cccPrecision);            
 
 
-          dataTile =  BH_padZeros3d(dataTile,-1.*padCTF(1,:), ...
-                                           -1.*padCTF(2,:),METHOD, ...
-                                                              cccPrecision);  
+          df1 = (wrkDefAngTilt(iFid,1) + wrkPar(iFid,5)) * 10;
+          df2 = (wrkDefAngTilt(iFid,1) - wrkPar(iFid,5)) * 10;
+          dfA = wrkPar(iFid,6);     
+          
+          iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(TLT(iPrj,16)*10^10),single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),single(df1),single(df2),single(dfA),single(TLT(iPrj,18)));
 
-        try
-            dataTile = dataTile - mean(dataTile(:));
-            rmsData = rms(dataTile(:));
-            dataTile = dataTile ./ rmsData;
-
-            refTile = refTile - mean(refTile(:));
-            rmsRef = rms(refTile(:));
-            refTile = refTile ./ rmsRef;
-
-
-            % There shouldn't be out of bounds, but since the data is masked, there
-            % might be occassional zero values
-            if ( rmsData && rmsRef )
-
-              phaseOnly = 0;
-              if (phaseOnly)
-                dataTile = exp(1i.*angle(fftn(BH_padZeros3d(dataTile, padTile, padTile, METHOD, cccPrecision))));
-                refTile = exp(1i.*angle(conj((fftn(BH_padZeros3d(refTile, padTile, padTile, METHOD, cccPrecision))))));
-              else
-%                 dataTile = fftn(BH_padZeros3d(dataTile, padTile, padTile, METHOD, cccPrecision));
-%                 refTile =  conj(fftn(BH_padZeros3d(refTile, padTile, padTile, METHOD, cccPrecision)));
-                dataTile = (BH_padZeros3d(dataTile, padTile, padTile, 'GPU', 'single'));
-
-                refTile =  (BH_padZeros3d(refTile, padTile, padTile, 'GPU', 'single'));
-
-              end
-
-%               if (peakMultiplier > 1)
-%                 ccF = dataTile.*refTile
-%                 cccMap = real(ifftn(ccF .* (ccF./(abs(ccF)+0.01)).^(peakMultiplier-1)));
-%               else
-%                 cccMap = real(ifftn(dataTile.*refTile));
-                cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0).*conj(bhF.fwdFFT(refTile,1,0)),'fwd')));
-% 
-%               end
-             
-%               cccMap = cccMap(fftMask) .* peakMask;
-
-              [~,maxMap] = max(cccMap(:));
-
-              [mMx, mMy] = ind2sub(size(cccMap), maxMap);
-
-
-              cccMap = cccMap(mMx-COM:mMx+COM, mMy-COM:mMy+COM);
-
-              cccMap = cccMap - min(cccMap(:));
-
-              comMapX = sum(sum(bx.*cccMap))./sum(cccMap(:));
-              comMapY = sum(sum(by.*cccMap))./sum(cccMap(:));
-
-                 % peak in Map is where query is relative to ref, dXY then is the shift
-                 % needed to move the predicted position to the measured.
-     %           dXY = -1.*[mRx,mRy] + -1.*[comRefX,comRefY]+[mMx,mMy]+[comMapX,comMapY];
-                % Data moved from a position of estPeak, so add this to dXY
-                if (peakMultiplier > 1)
-                  dXY = ([mMx,mMy]+[comMapX,comMapY] - tileOrigin(1:2))./peakMultiplier + estPeak;                  
-                else
-                  dXY = [mMx,mMy]+[comMapX,comMapY] - tileOrigin(1:2)+ estPeak;                  
-                end
-     %           dXY = dXY + estPeak;
-     
-      
-
-                fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), dXY, wrkFid(iFid,5));
+          try
+            
+            
+            if (use_MCF)            
+              cccMap = bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0).*iCTF);
+              cccMap = peakMask.*(bhF.invFFT(bhF.swapPhase(cccMap ./sqrt((abs(cccMap)+0.001)),'fwd')));
             else
-              fprintf('rms is out for this tile %d %d\n',rmsData,rmsRef);
-              fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), [0,0], -9999);
-            end % if condition on name
+              cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
+            end            
+
+            [~,maxMap] = max(cccMap(:));
+
+            [mMx, mMy] = ind2sub(size(cccMap), maxMap);
+
+            cccMap = cccMap(mMx-COM:mMx+COM, mMy-COM:mMy+COM);
+
+            cccMap = cccMap - min(cccMap(:));
+
+            comMapX = sum(sum(bx.*cccMap))./sum(cccMap(:));
+            comMapY = sum(sum(by.*cccMap))./sum(cccMap(:));
+
+            % peak in Map is where query is relative to ref, dXY then is the shift
+            % needed to move the predicted position to the measured.
+            % Data moved from a position of estPeak, so add this to dXY
+
+            dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak;                  
+            fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), dXY, wrkFid(iFid,5));
 
           catch
-%             fprintf('falling out of the try/catch over peak search\n');
             fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), [-1,-1], -9999);
           end
         
        
         else
+           
  
-          [~,meanIDX] = min(abs(defToCheck-wrkDef(iFid,2)));
-          
- 
-          iData  = fftn(dataTile);
-          iData(1) = 0;
+% % %           iData  = bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[10^-1,40,max(5,2*pixelSize),pixelSize]),'fwd');
           iData = iData(ctfMask);
+          iDataNorm = sum(abs(iData(:)).^2);
+%           iData = iData ./ sum(abs(iData(ctfMask)).^2);
 
-          iRef = conj(fftn(refTile));
-          iRef(1) = 0;
+
+
+          iRef = conj(bhF.fwdFFT(refTile,1,0,[10^-1,40,max(5,2*pixelSize),pixelSize])); 
           iRef = iRef(ctfMask);
 
-          for iCTF = -nToCheck:nToCheck
-
-            iRefCTF = iRef.*ctfStack(:,meanIDX+iCTF);
-            iDataCTF = iData;
-
-            
+          
+          df1 = (wrkDefAngTilt(iFid,1) + wrkPar(iFid,5)) * 10;
+          df2 = (wrkDefAngTilt(iFid,1) - wrkPar(iFid,5)) * 10;
+          dfA = wrkPar(iFid,6);
+% % %           worst = 10
+% % %           best = -10
+% % %           scoreW = [0,0]
+% % %           scoreB = [0,0]
+          for deltaCTF = 1:nDefTotal
+            iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(TLT(iPrj,16)*10^10), ...
+                          single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
+                          single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
+          
+            iRefCTF =  iRef.* iCTF(ctfMask);            
             iRefNorm  = sum(abs(iRefCTF(:)).^2);
-            iDataNorm = sum(abs(iDataCTF(:)).^2);
 
+                     
 
-            iCCC = real(sum(iRefCTF.*iData))./sqrt(iDataNorm.*iRefNorm);
-             
-            defocusCCC{iPrj}(iCTF+nToCheck+1,iFid) = gather(iCCC);
+            iCCC = real(sum(iRefCTF(ctfMask).*iDataCTF(ctfMask)))./sqrt(iDataNorm.*iRefNorm);  
+% % %             if iCCC < worst
+% % %               worst = iCCC;
+% % %               scoreW = [deltaCTF,iCCC];
+% % %             end
+% % %             if iCCC > best
+% % %               best = iCCC
+% % %               scoreB = [deltaCTF,iCCC];
+% % %             end
+            defocusCCC{iPrj}(deltaCTF,iFid) = gather(iCCC);
+% % %             fprintf('For %3.3e found ccc %3.3e\n',df1 + defShiftVect(deltaCTF),iCCC);
+            
+%             title({'CCC',sprintf('CCC %3.3f',iCCC)});
 
           end
-%           [mDef,mDefC] = max(defocusCCC{iPrj}(:,iFid));
-%                       fprintf('%d %3.3e %3.3e %3.3f \n',iFid, ...
-%               defToCheck(meanIDX),defToCheck(mDefC-1 -nToCheck),iCCC);
+% % %           deltaCTF  = scoreW(1);
+% % %           scoreW
+% % %           iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(TLT(iPrj,16)*10^10), ...
+% % %                           single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
+% % %                           single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
+% % %             iRefCTF =  iRef.* iCTF;            
+% % %             iRefNorm  = sum(abs(iRefCTF(ctfMask)).^2);
+% % %                      
+% % %             figure, imshow3D( peakMask.*real(bhF.invFFT(iData.*iRefCTF./iRefNorm,2)));
+% % %           df1 + defShiftVect(deltaCTF)
+% % %           
+% % %           deltaCTF  = scoreB(1);
+% % %           scoreB
+% % %           iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(TLT(iPrj,16)*10^10), ...
+% % %                           single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
+% % %                           single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
+% % %             iRefCTF =  iRef.* iCTF;            
+% % %             iRefNorm  = sum(abs(iRefCTF(ctfMask)).^2);
+% % %                      
+% % %             figure, imshow3D( peakMask.*real(bhF.invFFT(iData.*iRefCTF./iRefNorm,2)));
+% % %             df1 + defShiftVect(deltaCTF)
+% % %             error('defocusSweep');
         end
       end % end of loop over fiducials
 
      [imDef,imDefC] = max(defocusCCC{iPrj});
      expectedDefocus = mean(ctfInc.*(imDefC-(nToCheck+1)));
      defocusShifts{iPrj} = expectedDefocus;
-
 
       % First identify expected value for each fiducial. The distriution of
       % maximums has much greater variance than the distribution of

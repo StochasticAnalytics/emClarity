@@ -4,6 +4,8 @@
 # NOTE: You will also need to modify your emClarity/mexFiles/mexCompile.m
 #   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
 #   TODO set up a little configure script to do this and check other deps described below.
+# NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
+export emC_DEPS="/groups/grigorieff/home/himesb/work/emC_dependencies"
 
 # This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
@@ -21,7 +23,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=0
-nightly=8
+nightly=9
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -37,9 +39,12 @@ scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
 # You may need to modify this line. 
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
+imodStaticIncludes=""
+EMC_ROOT=${HOME}/work/emClarity
 
-emC_ROOT=${HOME}/work/emClarity
-matlab19a -nosplash -nodisplay -nojvm -r "mexCompile ; mcc -m  ${mFile}  -a fitInMap.py -a ${emC_ROOT}/mexFiles/compiled/emC_ctfFind -a ${emC_ROOT}/alignment/emC_autoAlign -a ${emC_ROOT}/alignment/emC_findBeads -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+
+#mexCompile ;
+matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
@@ -72,9 +77,26 @@ echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
 echo '#emClarity_ROOT=/work/emClarity'
-echo 'emClarity_ROOT=/groups/grigorieff/home/himesb/thirdParty/emClarity'
+echo 'export emClarity_ROOT=/groups/grigorieff/home/himesb/work/emClarity'
 echo ''
 echo ''
+echo '# In order to prevent conflicts with external IMOD or cisTEM binaries, run an '
+echo '# your ineractive matlab session through this script.'
+echo 'if [[ ${1} == "int" || ${1} == "interactive" ]] ; then'
+echo '  echo "Running an interactive matlab session through emClarity"'
+echo '  matlabCommand=${2}'
+#echo '  resetImodDir=${IMOD_DIR}'
+#echo '  unset IMOD_DIR'
+#echo '  unset AUTODOC_DIR'
+#echo '  export IMOD_DIR=${emClarity_ROOT}/bin/deps'
+#echo '  export AUTODOC_DIR=${emClarity_ROOT}/bin/deps/autodoc'
+echo '  export IMOD_FORCE_OMP_THREADS=8'
+echo '  ${matlabCommand}'
+echo '  # Return IMOD to its original state'
+#echo '  unset IMOD_DIR'
+#echo '  unset AUTODOC_DIR'
+#echo '  IMOD_DIR=${resetImodDir}'
+echo 'fi'
 } > emClarity_${scriptOutName}
 
 cat EMC_tmpDir.sh >> emClarity_${scriptOutName}
@@ -100,14 +122,40 @@ echo '  argList="${argList} ${token}"'
 echo '  shift'
 echo 'done'
 echo ''
+#echo 'resetImodDir=${IMOD_DIR}'
+#echo 'unset IMOD_DIR'
+#echo 'export IMOD_DIR=${emClarity_ROOT}/bin/deps'
 echo "\${emClarity_ROOT}/emClarity_${binaryOutName} \${argList}"
+#echo 'export IMOD_DIR=${resetImodDir}'
  
 
 } >> emClarity_${scriptOutName}
 
 chmod a=wrx emClarity_${scriptOutName}
 
+# Collect the emClarity binary dependencies
 mkdir -p ../bin
+mkdir -p ../bin/deps
+#mkdir -p ../bin/deps/autodoc
+#mkdir -p ../bin/deps/com
+#mkdir -p ../bin/deps/bin
+#mkdir -p ../bin/deps/bin/realbin
+#cp -ru ${emC_DEPS}/deps/bin/realbin/* ../bin/deps/bin/realbin
+#cp -ru ${emC_DEPS}/deps/com/* ../bin/deps/com
+
+#cp -ru ${emC_DEPS}/deps/VERSION ../bin/deps
+#cp -ru ${emC_DEPS}/deps/imodDeps.txt ../bin/deps
+cp -ru ${emC_DEPS}/deps/cisTEMDeps.txt ../bin/deps
+#cd ../bin/deps/autodoc
+#cat ../imodDeps.txt | while read dep ; do
+#  cp -u ${emC_DEPS}/deps/autodoc/${dep}.adoc .
+#  ln -sf ${dep}.adoc emC_${dep}.adoc
+#done
+cd ${EMC_ROOT}/testScripts
+cat ../bin/deps/cisTEMDeps.txt | while read dep ; do
+  cp -u ${emC_DEPS}/emC_${dep} ../bin/deps
+done
+
 mv emClarity_${scriptOutName} ../bin
 mv emClarity_${binaryOutName} ../bin
 
@@ -122,7 +170,6 @@ cd ..
 if [[ ${zip_location} != "NONE" ]]; then
   zip -r emClarity_${major}.${minor}.${bugs}.${nightly}.zip bin
   mv emClarity_${major}.${minor}.${bugs}.${nightly}.zip ${zip_location}
-#  rm -r bin
 fi
 
 

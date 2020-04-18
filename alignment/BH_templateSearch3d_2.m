@@ -962,6 +962,7 @@ n = 1;
 
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
+rmInt = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],'Bah','forward','C1');
 
 maskCutOff = 0.999;
 nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
@@ -1034,11 +1035,6 @@ end
               sum(sum(sum(magBox.*cmZ))) ] ./ sum(magBox(:));
 
 
-
-%     cenP = [ (c(1)+cMass(1)-1) - sizeTomo(1)./2 ,...
-%              (c(2)+cMass(2)-1) - sizeTomo(2)./2 ,...
-%              (c(3)+cMass(3)-1) - sizeTomo(3)./2 ];
-
     % Switching from centered to lower left coordinates and subtracting the
     % padding 
     
@@ -1046,39 +1042,64 @@ end
 
     
 
-    % If the most frequent peak is unique use it;
-    [peakM, ~, peakC] = mode(angBox(:));
-    if length(peakC) == 1 && peakM
-      % Need to ensure the mode is none zero which is possible.
-      peakMat(n,4:6) = ANGLE_LIST(peakM,:);
-      topPeak = peakM;
-    else
+% % %     % If the most frequent peak is unique use it;
+% % %     [peakM, ~, peakC] = mode(angBox(:));
+% % %     if length(peakC) == 1 && peakM
+% % %       % Need to ensure the mode is none zero which is possible.
+% % %       peakMat(n,4:6) = ANGLE_LIST(peakM,:);
+% % %       topPeak = peakM;
+% % %     else
       % Otherwise use the value at the max for the peak val;
       peakMat(n,4:6) = ANGLE_LIST(Ang(coord),:);
       topPeak = Ang(coord);
-    end
+% % %     end
     peakMat(n,1:3) = gather(samplingRate.*cenP);
     
     if nPeaks > 1
-      oldPeaks = ( angBox == topPeak );
-      
+      possible_angles = gather(magBox);
+      possible_angles(angBox == topPeak) = 0; 
+      nRandom = 2;
       for iPeak = 2:nPeaks
-        [peakM, ~, ~] = mode(angBox(~oldPeaks));
-        % There could be redundancy, as given by peakC, but just take the
-        % first value given by peak M.
-        peakMat(n,[1:3]+10*(iPeak-1)) = gather(samplingRate.*cenP);
-        peakMat(n,[4:6]+10*(iPeak-1)) = ANGLE_LIST(peakM,:);
         
-         oldPeaks = ( angBox == peakM | oldPeaks );
+        useRandom = false;
+        
+        if any(possible_angles ~= 0)
+          [~, cAng] = max(possible_angles(:))
+          topPeak = angBox(cAng)
+          possible_angles(angBox == topPeak) = 0; 
+          Ang(cAng)
+          if topPeak <= 0 || Ang(cAng) <= 0
+            useRandom = true;
+          else
+            iAngles =  ANGLE_LIST(Ang(cAng),:);
+          end
+        else
+          useRandom = true;
+        end
+        
+        if useRandom
+          % If we've used up all the possible peaks, just insert a random
+          % Incrementally far from the original
+          iAngles = [ randn(1) .* (nRandom.^2) + peakMat(n,1), ...
+                      randn(1) .* (nRandom.^2) + peakMat(n,2), ...
+                      randn(1) .* (nRandom.^2) + peakMat(n,3)];
+          if nRandom < 10
+            nRandom = nRandom + 1; 
+          end
+        end
+        peakMat(n,[1:3]+10*(iPeak-1)) = gather(samplingRate.*cenP);
+        peakMat(n,[4:6]+10*(iPeak-1)) = iAngles;
+        
+% % %          oldPeaks = ( angBox == peakM | oldPeaks );
         
       end
       
     end
 
-      
 
    
-    rmMask = BH_resample3d(removalMask,peakMat(n,4:6),[0,0,0],'Bah','GPU','forward');
+%     rmMask = BH_resample3d(removalMask,peakMat(n,4:6),[0,0,0],'Bah','GPU','forward');
+    rmMask = rmInt.interp3d(removalMask,gather(peakMat(n,4:6)),[0,0,0],'Bah','forward','C1');
     % Invert after resampling so that zeros introduced by not extrapolating
     % the corners are swapped to ones, i.e. not removed.
 %     rmMask = (1-rmMask);

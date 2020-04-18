@@ -17,27 +17,31 @@ setenv('MATLAB_SHELL','/bin/bash');
 % These paths are fine in the compiled version, but if you are compiling on
 % your own, you will need to edit. If you have a better solution, please
 % FIXME! The dependencies are linked on the wiki.
-emC_autoAliPath='/groups/grigorieff/home/himesb/work/emClarity/alignment/emC_autoAlign';
+emClarity_ROOT=getenv('emClarity_ROOT');
+if isempty(emClarity_ROOT)
+  error('emClarity_ROOT is not set properly in your run script');
+end
+
+emC_autoAliPath=sprintf('%s/alignment/emC_autoAlign',emClarity_ROOT);
 if isdeployed
   emC_autoAliPath = sprintf('%s%s',ctfroot,emC_autoAliPath);
 end
 
-emC_findBeadsPath='/groups/grigorieff/home/himesb/work/emClarity/alignment/emC_findBeads';
+emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emClarity_ROOT);
 if isdeployed
   emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
 end
 
-emC_ctfFindPath='/groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctfFind';
-if isdeployed
-  emC_ctfFindPath = sprintf('%s%s',ctfroot,emC_ctfFindPath);
-end
-
-system(sprintf('%s -1',emC_autoAliPath));
-system(sprintf('%s -1',emC_findBeadsPath));
-
-setenv('EMC_CTFFIND',emC_ctfFindPath);
 setenv('EMC_AUTOALIGN',emC_autoAliPath);
 setenv('EMC_FINDBEADS',emC_findBeadsPath);
+
+emC_cisTEMDepPath=sprintf('%s/bin/deps',emClarity_ROOT)
+emC_cisTEM_deps = importdata(sprintf('%s/cisTEMDeps.txt',emC_cisTEMDepPath));
+for iDep = 1:length(emC_cisTEM_deps)
+  setenv(sprintf('EMC_%s',upper(emC_cisTEM_deps{iDep})), sprintf('%s/emC_%s',emC_cisTEMDepPath,emC_cisTEM_deps{iDep}));
+end
+
+
 
 if strcmp(varargin{2},'gui')
   emClarityApp;
@@ -539,54 +543,7 @@ switch varargin{1}
   case 'combineProjects'
     BH_combineProjects(varargin{1},varargin(2:end));
     
-  case 'calcWeights'
-    
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
-       (length(varargin) < 5 && length(varargin) > 7 )
-      fprintf(['\nparam.m\n',...
-               'cycle number\n',...
-               'name prefix\n',...
-               'symmetry (in plane) [gpuIDX]']);
-    else
-      if length(varargin) == 5
-         emC_testParse(varargin{2})
-         BH_weightMask_dpRUN(varargin{2},str2double(varargin{3}),varargin{4}, ...
-                                                     str2double(varargin{5}));
-      elseif length(varargin) == 6
-         emC_testParse(varargin{2})
-         BH_weightMask_dpRUN(varargin{2},str2double(varargin{3}),varargin{4}, ...
-                                 str2double(varargin{5}),str2double(varargin{6}));  
-      elseif length(varargin) == 7
-         emC_testParse(varargin{2})
-         BH_weightMask_dpRUN(varargin{2},str2double(varargin{3}),varargin{4}, ...
-                                 str2double(varargin{5}), ...
-                                 [str2double(varargin{6}),str2double(varargin{7})]);                                 
-      end  
-    end
-    
-    
-% % %   case 'templateSearch'
-% % %     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
-% % %        (length(varargin) ~= 7 && length(varargin) ~= 8)
-% % %        fprintf(['\nparam.m\n',...
-% % %            'tomoName\n',...
-% % %            'tomoNumber\n', ...
-% % %            'template name\n',...
-% % %            'symmetry\n',...
-% % %            '[threshold override]\n',...
-% % %            'gpuIDX.\n']);
-% % %     else
-% % %       wedgeType = 2;
-% % %       if length(varargin) == 7
-% % %         BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
-% % %                            varargin{5}, varargin{6},wedgeType,varargin{7});
-% % %       else
-% % %         BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
-% % %                            varargin{5}, varargin{6},wedgeType, ...
-% % %                            varargin{7},varargin{8});
-% % %       end
-% % %     end
-    
+
   case 'templateSearch'
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
        ~ismember(length(varargin),[7,8])
@@ -638,6 +595,18 @@ switch varargin{1}
     
       BH_geometry_Constraints(str2double(varargin{2}), '0', varargin{3}, varargin{4}, varargin{5});
 
+     end
+     
+  case 'reconstruct'
+     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+       length(varargin) ~= 6
+       fprintf(['\paramterfile\n',...
+           'cycle #\n',...
+           'output prefix\n', ...
+           'symmetry (C1)\n',...
+           'max exposure (e/A^2)\n']);  
+     else
+       BH_to_cisTEM_mapBack(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
      end
   otherwise
     error('command --%s-- not recognized. Try "help" for a list.', varargin{1})

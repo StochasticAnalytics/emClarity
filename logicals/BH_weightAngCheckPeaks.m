@@ -14,8 +14,6 @@ function [ peakWgt, sortedList ] = BH_weightAngCheckPeaks(positionList, nPeaks, 
 includedPeaks = reshape(find(positionList(26:26:26*nPeaks) ~= -9999),[],1);
 excludedPeaks = reshape(find(positionList(26:26:26*nPeaks) == -9999),[],1);
 peakWgt = zeros(nPeaks,1);
-
-
 sortedList = zeros(size(positionList));
 
 if numel(includedPeaks) == 1
@@ -90,15 +88,18 @@ end
 
 % FIXME change this to a proper angular difference.
 
+minScore = 1e-2;
 
-peakKeep = ( peakWgt~=-9999 );
-peakScore = sortedList(1:26:26*nPeaks);
+peakScore = sortedList(1:26:26*nPeaks)';
+peakKeep = ( peakWgt~=-9999 & abs(peakScore) > minScore);
 peakScore(~peakKeep) = -9999;
 peakWgt(peakKeep) = (peakScore(peakKeep) ./ max(peakScore(peakKeep))).^compressByFactor;
 peakWgt(peakKeep) = peakWgt(peakKeep) ./ sum(peakWgt(peakKeep));
-
-minScore = 1e-2;
-peakWgt(peakWgt < minScore) = minScore;
+peakWgt = real(peakWgt);
+peakWgt(peakWgt < minScore & peakKeep) = -9999;
+if any(isnan(peakWgt))
+  error('Found a nan in the re-weighted peaks')
+end
 
 fprintf('Weighting %d volumes for st %d from tomo %s, ',nPeaks,iSubTomo,tomoName);
 fprintf('raw score [');

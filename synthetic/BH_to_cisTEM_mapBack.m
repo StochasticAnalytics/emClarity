@@ -21,9 +21,10 @@ if isempty(bh_global_imodProjectionShifts)
 
 end
 
-tiltStart=1;
-% MAX_EXPOSURE = 9;
-CYCLE = str2num(CYCLE);
+
+tiltStart=1; 
+MAX_EXPOSURE = str2double(MAX_EXPOSURE);
+CYCLE = str2double(CYCLE);
 
 if CYCLE < 0
   CYCLE = abs(CYCLE);
@@ -66,18 +67,11 @@ cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 reconScaling = 1;
-samplingRate = pBH.('Ali_samplingRate');
+samplingRate = 1; % Always working at full binning. pBH.('Ali_samplingRate');
 
-% check for a fixed version of tilt
-[~,v] = system('cat $IMOD_DIR/VERSION');
-v = split(v,'.');
-if (str2num(v{1}) < 4 || (str2num(v{2}) <= 10 && str2num(v{3}) < 42))
-  fixedTiltProjection = false;
-  fprintf('\n\nDid not find a new version of IMOD, manually fixing the defocus values.\n\n');
-  pause(2);
-else
-  fixedTiltProjection = true;
-end
+load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+resForFitting = 1.3*mean(subTomoMeta.currentResForDefocusError);
+
 
 nGPUs = pBH.('nGPUs');
 pInfo = parcluster();
@@ -495,25 +489,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
   
 %   Need to shift again from the model coordinate system
-  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(prjVectorShift(1:2)', size(fidList,1),1);
-  
-  if ~(fixedTiltProjection)
-  
-    % Right now the pixel size in imod is being ignored, so the adjustments
-    % made are in pixels. Manually convert them.
-    defBase = load(sprintf('%smapBack%d/%s_align.defocus',mbOUT{1:3}));
-    for iDef = 1:size(defBase,1)
-      D0 = defBase(iDef);
-      defLogical = (defList(:,3) == iDef);
-      D0_subTomo = parList(defLogical,4);
-      defList(defLogical,7)  = ((defList(defLogical,7) - D0) .* (pixelSize / 10)) + D0_subTomo;
-    end
-    % Save a copy for inspection
-    defFile = fopen(sprintf('%smapBack%d/%s.defAngTilt_fixed',mbOUT{1:3}),'w');
-    fprintf(defFile,'%-8.4d %-8.4d %-8.4d %-8.4f %-8.4f %-8.4f %-8.4f\n', defList');
-    fclose(defFile);
-  end
-  
+  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(prjVectorShift(1:2)', size(fidList,1),1);  
   foundNans = sum(isnan(fidList(:,3)));
   if (foundNans)
     fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);
@@ -798,11 +774,11 @@ fclose(starFile);
   '%3.3f\n', ... inermask ang
   '%3.3f\n', ... outermas ang
   '300.0\n',...Low resolution limit (A) [300.0]                   : 
-  '8.0\n',...High resolution limit (A) [8.0]                    : 
+  '%3.3f\n',...High resolution limit (A) [8.0]                    : 
   '0.0\n',...Resolution limit for signed CC (A) (0.0 = max [0.0]                                              : 
   '0.0\n',...Res limit for classification (A) (0.0 = max) [0.0] : 
   '0.0\n',...Mask radius for global search (A) (0.0 = max)[100.0]                                            : 
-  '8.0\n',...Approx. resolution limit for search (A) [8]        : 
+  '%3.3f\n',...Approx. resolution limit for search (A) [8]        : 
   '0.0\n',...Angular step (0.0 = set automatically) [0.0]       : 
   '20\n',...Number of top hits to refine [20]                  : 
   '10\n',...Search range in X (A) (0.0 = 0.5 * mask radius)[12]                                               : 
@@ -832,7 +808,8 @@ fclose(starFile);
   '%2.2d\n', ...Max. threads to use for calculation [36]           : 
    ], baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
      symmetry,pBH.('PIXEL_SIZE')*10^10, ...
-     pBH.('particleMass')*10^3, 0.0, mean(pBH.('Ali_mRadius')), maxThreads); 
+     pBH.('particleMass')*10^3, 0.0, mean(pBH.('Ali_mRadius')), ...
+     resForFitting,resForFitting,maxThreads); 
   
     fprintf(refineScript, '\neof\n'); 
     fclose(refineScript);

@@ -47,7 +47,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   ctfParams b_ctf(*doHalfGrid,*doSqCTF,*pixelSize,*waveLength,*CS,*AmpContrast,
                   *defocus1,  *defocus2, *defocusAst);
 
-  mexPrintf("%f %f %f %f\n",*defocus1,*defocus2,b_ctf.defocus1,b_ctf.defocus2);
+//  mexPrintf("%f %f %f %f\n",*defocus1,*defocus2,b_ctf.defocus1,b_ctf.defocus2);
   uint2 dims;
   uint2 o_dims;
 
@@ -94,7 +94,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
   ////////////////////
   dim3 dimBlock(32, 32, 1);
-  dim3 dimGrid(dims.x / dimBlock.x, dims.y / dimBlock.y, 1);
+  dim3 dimGrid((dims.x + dimBlock.x -1) / dimBlock.x, (dims.y + dimBlock.y -1) / dimBlock.y, 1);
 
 //  mexPrintf("%d %d %d %d\n",dims.x, dims.y, o_dims.x, o_dims.y);
 //  mexPrintf("%f %f\n",fourierVoxelSize.x, fourierVoxelSize.y);

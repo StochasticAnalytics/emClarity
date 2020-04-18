@@ -292,7 +292,9 @@ end
 
 
 
-
+if nGPUs > nTomogramsTotal
+  nGPUs = nTomogramsTotal
+end
 
 
 iterList = cell(nGPUs,1);
@@ -428,24 +430,24 @@ parfor iGPU = 1:nGPUs
 %      end
   
 
-
     % Assuming that 
     if (flgLookForPoints)
+      
       positionMatrix = zeros(sx, sy, sz, 'single', 'gpuArray');
       positionIDX    = zeros(sx, sy, sz, 'uint32');
 
 
       % Make a volume with ones in the position of the centers of the tomos.
+      
       for iSubTomo = 1:size(tmpSearchGeom,1)
-
+        
         subTomoOrigin = fix(tmpSearchGeom(iSubTomo,11:13)./dupInTheLoop);
-        % Inserting random peaks in BH_fscSplit
-% % %         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
-% % %           tmpSearchGeom(iSubTomo,26:26:26*nPeaks) = -9999;
         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
-          tmpSearchGeom(iSubTomo,26) = -9999;
+          tmpSearchGeom(iSubTomo,26:26:26*nPeaks) = -9999;
+%         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
+%           tmpSearchGeom(iSubTomo,26) = -9999;
+%         else
         else
-% % %         else
         positionMatrix(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = 1;
         positionIDX(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = ...
                                                        tmpSearchGeom(iSubTomo, 4);
@@ -458,9 +460,10 @@ parfor iGPU = 1:nGPUs
       % any retained positions to 2.
 
       for iSubTomo = 1:size(modGeom,1)
-        
-        subTomoOrigin = fix(modGeom(iSubTomo,:))
+
+        subTomoOrigin = fix(modGeom(iSubTomo,:));
         if all(subTomoOrigin > 1) && all([sx,sy,sz] > subTomoOrigin)
+
           positionMatrix(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = ...
           positionMatrix(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) + 1;
         end % sometimes a point gets moved out of bounds.
@@ -469,7 +472,6 @@ parfor iGPU = 1:nGPUs
       % Convolve positionmatrix with duplicate mask. Just in case there are
       % rounding errors at any point use convolution to check a neighborhood of
       % +/- 1 pixel.
-
 
       overlapMatrix = convn(positionMatrix, gpuArray(dupMask), 'same');
      
@@ -482,6 +484,7 @@ parfor iGPU = 1:nGPUs
       sum(idxList(:))
       sum(ismember(tmpSearchGeom(:,4), idxList))
     else
+
       tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom;
     end
   
@@ -500,10 +503,9 @@ for iGPU = 1:nGPUs
     mapName = fileInfo{iTomo,2};
     tmpGeom = parResults{iGPU}.(mapName);
     
-    % Inserting random peaks in BH_fscSPlit
-% % %     tmpGeom(:,9:26:26*nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
-% % %                         subTomoMeta.('ctfGroupSize').(mapName)(2)),1,nPeaks);
-    tmpGeom(:,9) = ceil(tmpGeom(:,11)./ subTomoMeta.('ctfGroupSize').(mapName)(2));
+    tmpGeom(:,9:26:26*nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
+                        subTomoMeta.('ctfGroupSize').(mapName)(2)),1,nPeaks);
+%     tmpGeom(:,9) = ceil(tmpGeom(:,11)./ subTomoMeta.('ctfGroupSize').(mapName)(2));
 
     % Sort so that CTFs can be left in main mem, and only pulled when needed and only
     % once per round of alignment.
@@ -511,8 +513,8 @@ for iGPU = 1:nGPUs
   
 
     for iSubTomo = 1:size(tmpGeom,1)
-% % %       tmpGeom(iSubTomo, 4:26:26*nPeaks) = nIDX;
-      tmpGeom(iSubTomo, 4) = nIDX;
+      tmpGeom(iSubTomo, 4:26:26*nPeaks) = nIDX;
+%       tmpGeom(iSubTomo, 4) = nIDX;
 
       
       nIDX = nIDX +1; 
