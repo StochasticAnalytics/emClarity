@@ -98,6 +98,8 @@ classdef fourierTransformer < handle
       % 3 - Bandpass filter ( or a 1 )
       doBandpass = false;
       doCenter = false;
+      doCTF = false;
+
       if nargin > 2
         doNorm   = varargin{1};
         doCenter = varargin{2};       
@@ -106,16 +108,26 @@ classdef fourierTransformer < handle
           doBandpass = true;     
           obj.makeBandPass(size(inputVol),varargin{3})
           
-        end      
+        end   
+        
+        if length(varargin) > 3
+          doCTF = true;
+        end
 
       else
         doNorm = 0;
       end
+
       
       if isempty([obj.plan_FWD,obj.plan_INV])
         [ ft, obj.plan_FWD, obj.plan_INV ] = mexFFT(inputVol,obj.invTrim);
       else
         [ ft ] = mexFFT(inputVol,obj.invTrim,obj.plan_FWD, obj.plan_INV);    
+      end
+      
+      
+      if (doCTF)
+        ft = ft .* varargin{4};
       end
       
       if (doNorm && ~doCenter)

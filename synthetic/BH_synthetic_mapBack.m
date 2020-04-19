@@ -95,7 +95,7 @@ end
 
 % Used to calc defocus values using tilt instead of manually. Convention
 % diff.
-  flgInvertTiltAngles = 1;
+  flgInvertTiltAngles = 0;
 
 
 try
@@ -117,7 +117,7 @@ end
 try
   peak_mask_fraction =  pBH.('peak_mask_fraction')
 catch
-  peak_mask_fraction = 0.2
+  peak_mask_fraction = 0.5
 end
 
 try
@@ -372,7 +372,10 @@ end
     fprintf('Using an internatlly determined lowpass cutoff of %3.3f Ang\n.',...
             lowPassCutoff);
   end
-  
+  if lowPassCutoff < 2* pixelSize
+    fprintf('Psych, the cutoff is being set to Nyquist');
+    lowPassCutoff = 2*pixelSize;
+  end
   % TODO how smooth should the solutions really be - should multiple
   % results be run and compared?
   nFiducialsPerPatch = ceil(100./sqrt(molMass))
@@ -510,7 +513,7 @@ end
     
   backgroundName = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec',CWD,tiltNameList{iTiltSeries},1, samplingRate);
   emClarity('a','ctf','3d',PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries},'dummy');
-   
+
    % re-initialize the parpool for each tilt series to free up mem.
    delete(gcp('nocreate'))
    parpool(nWorkers);
@@ -1163,7 +1166,7 @@ end
                           'EOF'],tiltList{1}, mbOUT{1:3}, maxZ, ...
                                  mbOUT{1:3},...
                                  mbOUT{1:3},...
-                                 pixelSize./1, flgInvertTiltAngles,... % Ang --> nm
+                                 pixelSize./10, flgInvertTiltAngles,... % Ang --> nm
                                  mbOUT{1:3},...
                                  mbOUT{1:3},...
                                  mbOUT{1:3},...
@@ -1232,11 +1235,10 @@ end
     CTFSIZE = BH_multi_iterator([2.*tileSize,1], 'fourier');
 
     CTFSIZE = CTFSIZE(1:2);
-    ctfOrigin = floor(CTFSIZE) + 1;
+    ctfOrigin = floor(CTFSIZE./2) + 1;
 
     padCTF = BH_multi_padVal(tileSize,CTFSIZE);
     
-   
     if (eraseMask)
       peakMask = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
     else
@@ -1255,9 +1257,6 @@ end
     for iPrj = 1:nPrjs
       evalMaskCell{iPrj} = zeros(gather([sTX,sTY,1]),'uint8');
     end
-
-    cccPrecisionTaper = 'singleTaper';
-    cccPrecision = 'single';
 
     % Any large shifts should be obvious in the original alignment, so only
     % look around +/- this value
@@ -1317,7 +1316,7 @@ end
 
 parfor iPrj = 1:nPrjs  
 
-% for iPrj = 11;%1:nPrjs
+% for iPrj = 20;%1:nPrjs
 	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
@@ -1500,6 +1499,7 @@ parfor iPrj = 1:nPrjs
         % the first loop.
         calcPeakShifts = 0;
       end
+      nLook = 1;
       
       for iFidLoop = 1:1+calcCTF
         
@@ -1520,8 +1520,8 @@ parfor iPrj = 1:nPrjs
         ox = floor(pixelX) - tileRadius;
         oy = floor(pixelY) - tileRadius;     
    
-        sx = pixelX - floor(pixelX);
-        sy = pixelY - floor(pixelY);
+        sx = pixelMultiplier*(pixelX - floor(pixelX));
+        sy = pixelMultiplier*(pixelY - floor(pixelY));
       
 %         ox = floor(wrkFid(iFid,3)) - tileRadius;
 %         oy = floor(wrkFid(iFid,4)) - tileRadius;
@@ -1581,19 +1581,20 @@ parfor iPrj = 1:nPrjs
 
           df1 = (wrkDefAngTilt(iFid,1) + wrkPar(iFid,5)) * 10;
           df2 = (wrkDefAngTilt(iFid,1) - wrkPar(iFid,5)) * 10;
-          dfA = wrkPar(iFid,6);     
+          dfA = wrkPar(iFid,6);
           
-          iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(TLT(iPrj,16)*10^10),single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),single(df1),single(df2),single(dfA),single(TLT(iPrj,18)));
+          iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate.*TLT(iPrj,16)*10^10),single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),single(df1),single(df2),single(dfA),single(TLT(iPrj,18)));
 
           try
             
-            
             if (use_MCF)            
-              cccMap = bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0).*iCTF);
+              cccMap = bhF.fwdFFT(dataTile,1,1,[0.01,600,2*lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,1,'',iCTF));
               cccMap = peakMask.*(bhF.invFFT(bhF.swapPhase(cccMap ./sqrt((abs(cccMap)+0.001)),'fwd')));
             else
-              cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
-            end            
+% % % % %               cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
+              cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,0,1,[0.01,600,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,0,1,[0.01,600,lowPassCutoff,pixelSize],iCTF)),'fwd')));
+        
+            end        
 
             [~,maxMap] = max(cccMap(:));
 
@@ -1610,7 +1611,8 @@ parfor iPrj = 1:nPrjs
             % needed to move the predicted position to the measured.
             % Data moved from a position of estPeak, so add this to dXY
 
-            dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak;                  
+            dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak - [sx,sy];  
+            
             fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), dXY, wrkFid(iFid,5));
 
           catch
@@ -1640,7 +1642,7 @@ parfor iPrj = 1:nPrjs
 % % %           scoreW = [0,0]
 % % %           scoreB = [0,0]
           for deltaCTF = 1:nDefTotal
-            iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(TLT(iPrj,16)*10^10), ...
+            iCTF = mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),samplingRate*single(TLT(iPrj,16)*10^10), ...
                           single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
                           single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
           
@@ -1817,11 +1819,11 @@ parfor iPrj = 1:nPrjs
     for iPrj = 1:nPrjs
       % Create a file that has the X,Y,defocus positions for all fiducials
       % in each tilt to use in ctf correction.
-      wrkDefIDX = ( defList(:,3) == iPrj - 1 );
       wrkFidIDX = ( fidList(:,4) == iPrj - 1 );
-      fDefFull(wrkFidIDX,5) = defList(wrkDefIDX,2) + defocusShifts{iPrj};
+      fDefFull(wrkFidIDX,5) = defList(wrkFidIDX,7) + defocusShifts{iPrj};
     end
-    
+       
+  
     fDefFull = fDefFull(fDefFull(:,4)~=-9999,:);
     fFull = fFull(fFull(:,4)~=-9999,:);
     fCombine = fCombine(fCombine(:,4)~=-9999,:);

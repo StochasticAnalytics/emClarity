@@ -22,8 +22,8 @@ outName="$(basename ${mFile} .m)${post}"
 # bugs line. e.g. buggs=5testingFeature
 major=1
 minor=5
-bugs=0
-nightly=9
+bugs=tomoCPR
+nightly=0
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -110,7 +110,7 @@ echo '  echo "Did not find your mcr_bash file, did you fill it in above?"'
 echo '  exit 1'
 echo 'fi'
 echo ''
-echo "if [ ! -f \${emClarity_ROOT}/emClarity_${binaryOutName} ]; then"
+echo "if [ ! -f \${emClarity_ROOT}/bin/emClarity_${binaryOutName} ]; then"
 echo '  echo "Did not find the binary on the path, did you fill it in above?"'
 echo '  exit 1'
 echo 'fi'
@@ -125,7 +125,7 @@ echo ''
 #echo 'resetImodDir=${IMOD_DIR}'
 #echo 'unset IMOD_DIR'
 #echo 'export IMOD_DIR=${emClarity_ROOT}/bin/deps'
-echo "\${emClarity_ROOT}/emClarity_${binaryOutName} \${argList}"
+echo "\${emClarity_ROOT}/bin/emClarity_${binaryOutName} \${argList}"
 #echo 'export IMOD_DIR=${resetImodDir}'
  
 

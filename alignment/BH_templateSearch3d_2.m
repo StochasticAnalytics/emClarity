@@ -99,7 +99,7 @@ end
 try
   eraseMaskRadius = pBH.('Peak_mRadius');
 catch
-  eraseMaskRadius = 0.75.*latticeRadius;
+  eraseMaskRadius = 1.0.*latticeRadius;
 end
 
 
@@ -897,7 +897,7 @@ clear bhF
 
 % scale the magnitude of the results to be 0 : 1
 szK = latticeRadius;%floor(0.8.*szM);
-rmDim = max(max(eraseMaskRadius),max(szK)).*[1,1,1];
+rmDim = max(max(eraseMaskRadius),max(szK)).*[1,1,1]+7;
 mag = RESULTS_peak; clear RESULTS_peak
 % Normalize so the difference if using a decoy makes sense. The input decoy
 % should have the same power, so I'm not sure why this is needed, but it is
@@ -963,11 +963,10 @@ n = 1;
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
 rmInt = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],'Bah','forward','C1');
-
-maskCutOff = 0.999;
+maskCutOff = 0.98;
 nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
 nTries = 0;
-if strcmpi(eraseMaskType,'rectangle');
+if strcmpi(eraseMaskType,'rectangle')
   areaPreFactor = 0;
 else
   areaPreFactor = (4/3*pi);
@@ -1064,8 +1063,8 @@ end
         useRandom = false;
         
         if any(possible_angles ~= 0)
-          [~, cAng] = max(possible_angles(:))
-          topPeak = angBox(cAng)
+          [~, cAng] = max(possible_angles(:));
+          topPeak = angBox(cAng);
           possible_angles(angBox == topPeak) = 0; 
           Ang(cAng)
           if topPeak <= 0 || Ang(cAng) <= 0
@@ -1100,6 +1099,7 @@ end
    
 %     rmMask = BH_resample3d(removalMask,peakMat(n,4:6),[0,0,0],'Bah','GPU','forward');
     rmMask = rmInt.interp3d(removalMask,gather(peakMat(n,4:6)),[0,0,0],'Bah','forward','C1');
+
     % Invert after resampling so that zeros introduced by not extrapolating
     % the corners are swapped to ones, i.e. not removed.
 %     rmMask = (1-rmMask);
