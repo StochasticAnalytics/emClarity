@@ -30,19 +30,12 @@ else
                                     subTomoMeta.currentCycle);
  % fprintf('%s/n',updateCMD);
   nGPUs = pBH.('nGPUs');
-  STACK_LIST_tmp = fieldnames(subTomoMeta.mapBackGeometry);
-  STACK_LIST_tmp = STACK_LIST_tmp(~ismember(STACK_LIST_tmp,'tomoName'));
   ITER_LIST = cell(nGPUs,1);
-  nST = 1; STACK_LIST = {};
-  for iStack = 1:length(STACK_LIST_tmp)
-    if subTomoMeta.mapBackGeometry.(STACK_LIST_tmp{iStack}).nTomos
-      STACK_LIST{nST} = STACK_LIST_tmp{iStack};
-      nST = nST +1;
-    end
-  end
+
+  [STACK_LIST, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
   clear STACK_LIST_tmp
   for iGPU = 1:nGPUs
-    ITER_LIST{iGPU} = STACK_LIST(iGPU:nGPUs:length(STACK_LIST));
+    ITER_LIST{iGPU} = STACK_LIST(iGPU:nGPUs:nTiltSeries);
   end
 end
 

@@ -19,7 +19,7 @@ end
 
 global bh_global_zero_lag_score;
 if isempty(bh_global_zero_lag_score)
-  bh_global_zero_lag_score = false
+  bh_global_zero_lag_score = false;
 end
 
 if (nargin ~= 2 && nargin ~= 3)
@@ -28,7 +28,6 @@ else
   parentFunc = mfilename;
   resumeVars = struct();
 end
-
 if nargin == 3
   
   flgWeightCCC = str2double(varargin{1});
@@ -43,21 +42,23 @@ cpuVar = struct();
 GPUVar = struct();
 
 startTime =  clock;
-CYCLE = str2num(CYCLE); 
-if CYCLE < 0
+CYCLE = str2num(CYCLE);
+cycle_numerator = '';
+cycle_denominator ='';
+  flgStartThird = 0;
+  flgReverseOrder = 0;
+if numel(CYCLE) == 3
+  cycle_numerator = CYCLE(2);
+  cycle_denominator = CYCLE(3);
+  CYCLE = CYCLE(1);
+  flgStartThird = true;
+elseif CYCLE < 0
   % Simple option to process in reverse order so that the load can be run on two
   % physically distinct systems at once.
   flgReverseOrder = 1;
   flgStartThird = 0;
   CYCLE = abs(CYCLE);
-elseif mod(CYCLE,1)
-  % 3.3 starts at the third position i.e. circshift( iterList, -2)
-  flgStartThird = int32((abs(CYCLE)-round(abs(CYCLE)))*100)-1
-  flgReverseOrder = 0;
-  CYCLE = floor(CYCLE);
-else
-  flgStartThird = 0;
-  flgReverseOrder = 0;
+
 end
 
 
@@ -71,6 +72,12 @@ try
   nPeaks = pBH.('nPeaks');
 catch
   nPeaks = 1;
+end
+
+try 
+  track_stats = pBH.('track_stats');
+catch
+  track_stats = false;
 end
 
 try
@@ -294,10 +301,11 @@ elseif ( flgStartThird )
   for iParProc = 1:nParProcesses
     % Note the use of floor is more like ceiling here (rounds away from
     % zero)
-    iterList{iParProc} = circshift((iterList{iParProc}),-1*flgStartThird);
-    iterList{iParProc}
+    nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
+    fIDX = 1+(cycle_numerator - 1)*nParts;
+    lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
+    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX);
   end
-  
 end
 
 if any(peakSearch > maskRadius)
@@ -423,14 +431,24 @@ clear fftPlanner
 % % % % % % %   [ peakMask] = gather(BH_mask3d('sphere', sizeWindow, [1,1,1].*max(peakSearch), maskCenter));
   [ peakMask ]  = gather(EMC_maskShape('sphere', sizeWindow, [1,1,1].*floor(max(peakSearch)), 'gpu', {'shift', maskCenter}));
 
+  stat_mask = [];
   if (eraseMask)
     % Mask could be smaller than the normal taper would allow, so instead
     % of thresholding a normal mask, take this alt route.
     eraseMask = ones(ceil(2.*eraseMaskRadius),'single');
     padEraseMask = BH_multi_padVal(size(eraseMask),sizeCalc);
     eraseMask = BH_padZeros3d(eraseMask,padEraseMask(1,:),padEraseMask(2,:),'cpu','single');
+    if track_stats
+      stat_mask =  single(find(eraseMask > 0.95));
+    end
     eraseMask = single(find(eraseMask < 1));
+
+      
   else
+     if track_stats
+      stat_mask =   gather(EMC_maskShape('sphere', sizeCalc, [1,1,1].*floor(max(peakSearch)), 'gpu', {'shift', maskCenter}));
+      stat_mask = single(find(stat_mask > 0.95));
+    end
     eraseMask = [];
   end
   
@@ -596,9 +614,9 @@ for iGold = 1:2
 
   % Save a montage of the masked reference & shape masks if requested.
 
-  maskedOUTFILE = sprintf('%s_maskedRef-mont_%s.mrc',outputPrefix,halfSet);
-  [ maskedReferences, ~ ] = BH_montage4d(refOUT, '');
-  SAVE_IMG(MRCImage(single(maskedReferences)), maskedOUTFILE);
+%   maskedOUTFILE = sprintf('%s_maskedRef-mont_%s.mrc',outputPrefix,halfSet);
+%   [ maskedReferences, ~ ] = BH_montage4d(refOUT, '');
+%   SAVE_IMG(MRCImage(single(maskedReferences)), maskedOUTFILE);
   
 
 end
@@ -627,6 +645,11 @@ angleStep(:,1)
 any(angleStep(:,1))
 nCount = 1;
 
+if sum(angleStep(:,2) > 0)
+  updateWeights = true;
+else
+  updateWeights = false;
+end
 firstLoop = true;
 nIgnored = 0;
 
@@ -670,10 +693,9 @@ if ~(use_v2_SF3D)
     clear g
   end   
 end
-
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
-% % % for iParProc = 1:nParProcesses
+% for iParProc = 1:nParProcesses
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
@@ -734,6 +756,12 @@ parfor iParProc = parVect
     peakBinary_tmp = single(find( peakMask_tmp > 0.01 )); 
     wdgBinary_tmp = gpuArray(wdgBinary);
     eraseMask_tmp = gpuArray(eraseMask);
+    
+    if (track_stats)
+      mip = struct();
+      mip.('mask') = gpuArray(stat_mask); 
+    end
+    
     
     wCCC_tmp = cell(length(wCCC));
     
@@ -857,22 +885,25 @@ parfor iParProc = parVect
     wdgIDX = 0;
     
     for iSubTomo = 1:nSubTomos
+      
+
+      make_SF3D = true;
       breakPeak = 0; % for try catch on cut out vols    
-      if (wdgIDX ~= positionList(iSubTomo,9))
+      if (wdgIDX ~= positionList(iSubTomo,9)) && ~(use_v2_SF3D)
         % Geometry is sorted on this value so that tranfers are minimized,
         % as these can take up a lot of mem. For 9 ctf Groups on an 80s
         % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
-        if ~(use_v2_SF3D)
+
         wdgIDX = positionList(iSubTomo,9);
         fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
         % Avoid temporar
 
-          iMaxWedgeMask = []; iMaxWedgeIfft = [];
-          iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
-          iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});  
-          imgWdgInterpolator = '';
-          [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-        end
+        iMaxWedgeMask = []; iMaxWedgeIfft = [];
+        iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
+        iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});  
+        imgWdgInterpolator = '';
+        [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+
 
       end
       
@@ -886,6 +917,15 @@ parfor iParProc = parVect
 
       
       for iPeak = 1:nPeaks
+        
+        if (track_stats)
+          measure_noise = true;
+          mip.('x') = {};
+          mip.('x2') = {};
+          mip.('N') = 0;
+%           mip.('X') = zeros(1,3,'single','gpuArray');
+%           mip.('X2') = zeros(3,3,'single','gpuArray');
+        end
         if (breakPeak) 
           continue;
         end
@@ -977,7 +1017,8 @@ parfor iParProc = parVect
                                       padVAL(2,1:3), 'GPU', 'singleTaper');
          
 
-        if (iPeak == 1)
+        if (make_SF3D)
+          make_SF3D = false;
           if use_v2_SF3D
             % For now excluding the soften weight.
             [ iMaxWedgeMask ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
@@ -1174,11 +1215,25 @@ parfor iParProc = parVect
                     rotPart_FT = BH_bandLimitCenterNormalize(...
                                  iTrimParticle.*peakMask_tmp,...
                                  bandpassFilt_tmp{iRef} ,peakBinary_tmp,padCalc,flgPrecision); 
-                               
-                    [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                                                            rotPart_FT.*ifftshift(iRotWdg), ...
-                                                            conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                      
+                    if (track_stats && measure_noise)
+
+
+                        [ ~, mip ] =  BH_multi_xcf_Translational_2( ...
+                                                                rotPart_FT, ...
+                                                                conj(iRotRef),...
+                                                                ifftshift(iRotWdg),...
+                                                                iMaxWedgeIfft,...                                                            
+                                                                peakMask_tmp, peakCOM,eraseMask_tmp,...
+                                                                mip);
+                                                              
+
+                    end
+                       [ peakCoord ] =  BH_multi_xcf_Translational( ...
+                                                              rotPart_FT.*ifftshift(iRotWdg), ...
+                                                              conj(iRotRef).*iMaxWedgeIfft,...
+                                                              peakMask_tmp, peakCOM,eraseMask_tmp);                   
+                    
 
                     cccStorageTrans(iRef,:) = [iRef, particleIDX, ...
                                                phi, theta, psi - phi, ...
@@ -1580,11 +1635,15 @@ parfor iParProc = parVect
                     rotPart_FT = BH_bandLimitCenterNormalize(...
                                  iTrimParticle.*peakMask_tmp,...
                                  bandpassFilt_tmp{finalRef} ,peakBinary_tmp,padCalc,flgPrecision ); 
-                               
-                    [ peakCoord ] =  BH_multi_xcf_Translational( ...
+                  
+
+                      [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                             rotPart_FT.*ifftshift(iRotWdg), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
                                                             peakMask_tmp, peakCOM,eraseMask_tmp);
+                    
+                      
+
 
 % % %           end
 
@@ -1625,6 +1684,27 @@ parfor iParProc = parVect
           
         end
 
+        if (track_stats)
+
+          if thetaInc > 0
+            cccStorageBest{iPeak}(iSubTomo,end-3) = gather(mean(mip.x , 'all')./std(mip.x,0,'all')./thetaInc);
+          else
+            cccStorageBest{iPeak}(iSubTomo,end-3) = 0;
+          end
+          
+%           % I'm not sold on what do do with this. The distribution over the
+%           % shift parameters doesn't really seem to make sense to me. There
+%           % are too many factors that can lead to large shifts (e.g.
+%           % tomoCPR) If we were searching the full angular space each
+%           % iteration, then this would make sense.
+%           mip_mean = mip.X./mip.N;
+%           mip_covar = mip.X2./mip.N - transpose(mip_mean)*(mip_mean);
+%           mip_covar_inv = mip_covar\eye(3);          
+%           gauss_norm = ((2.*pi).^(3/2).*abs(mip_covar)).^-1;
+%           gauss_exp = exp(-0.5.*(printShifts(2,:)-mip_mean)*mip_covar_inv*transpose(printShifts(2,:)-mip_mean));
+       
+        end
+        
         if (flgRefine)
           fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
                    '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
@@ -1720,28 +1800,33 @@ end % parfor
 
 
 
-save('bestAnglesResults.mat', 'bestAnglesResults');
-bestAngles = struct();
-for iParProc = 1:nParProcesses  
-  for iTomo = iterList{iParProc}
-    geometry.(tomoList{iTomo}) = geometryResults{iParProc}.(tomoList{iTomo});
-    bestAngles.(tomoList{iTomo}) = bestAnglesResults{iParProc}.(tomoList{iTomo});
-  end
-end
-%   save('bestAnglesTemp.mat', 'bestAngles');
- save('bestAngles.mat', 'bestAngles');
- 
-  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks,rotConvention );
-  masterTM.(cycleNumber).('RawAlign') = rawAlign;
-  masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
-
-clear bestAngles rawAlign
-subTomoMeta = masterTM;
 
 if ( flgReverseOrder || flgStartThird )
   fprintf('This reverse run will not write the metaData\n');
 else
+  
+  save('bestAnglesResults.mat', 'bestAnglesResults');
+  bestAngles = struct();
+  for iParProc = 1:nParProcesses  
+    for iTomo = iterList{iParProc}
+      geometry.(tomoList{iTomo}) = geometryResults{iParProc}.(tomoList{iTomo});
+      bestAngles.(tomoList{iTomo}) = bestAnglesResults{iParProc}.(tomoList{iTomo});
+    end
+  end
+%   save('bestAnglesTemp.mat', 'bestAngles');  
+   save('bestAngles.mat', 'bestAngles');
+ 
+  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks, rotConvention, updateWeights);
+  masterTM.(cycleNumber).('RawAlign') = rawAlign;
+  masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
+  masterTM.('updatedWeights') = true;
+
+  clear bestAngles rawAlign
+  subTomoMeta = masterTM;
   save(pBH.('subTomoMeta'), 'subTomoMeta');
+  
+
+
 end
 
 delete(gcp('nocreate'))

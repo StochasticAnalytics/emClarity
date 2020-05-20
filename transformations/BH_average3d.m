@@ -110,7 +110,7 @@ if (CYCLE)
   try
     flgQualityWeight = pBH.('flgQualityWeight');
   catch
-    flgQualityWeight = 4;
+    flgQualityWeight = 5;
   end
 else
   fprintf('No quality weighting in the initial cycle after template matching\n');
@@ -142,6 +142,24 @@ if (flgCutOutVolumes)
   end
 end
 
+try 
+  track_stats = pBH.('track_stats');
+catch
+  track_stats = false;
+end
+
+% The weights are only re-estimated for an out of plane search. Until this
+% happens, they are not valid.
+if (track_stats)
+  if isfield(subTomoMeta,'updatedWeights')
+    if subTomoMeta.updatedWeights == false
+      track_stats = false;
+    end
+  else
+    track_stats = false;
+  end
+end
+fprintf('track stats is %d\n',track_stats)
 
 flgClassify= pBH.('flgClassify');
 %%% For general release, I've disabled class average alignment and
@@ -386,6 +404,8 @@ fprintf('StOAlign = %s, fieldPrefix = %s\n', STAGEofALIGNMENT, fieldPrefix);
 flgCones     = pBH.('flgCones');
 
 try
+  % if > 1 keep this many subtomos
+  % if < 1 keep this fraction
   cccCutOff    = pBH.('flgCCCcutoff');
 catch
   cccCutOff = 0.0;
@@ -432,14 +452,7 @@ pixelSize = pixelSize .* samplingRate;
 peakSearch   = floor(0.85.*pBH.('particleRadius')./pixelSize)
 peakCOM      = [1,1,1].*3;
     
-if strcmp(cutPrecision, 'single')  
-  singlePrecision = true
-elseif strcmp(cutPrecision, 'double')
-  singlePrecision =false
-else
-  error('cutPrecision must be single or double')
-end
-  
+
 
   
 if ~(isfield(subTomoMeta,'currentCycle'))
@@ -700,7 +713,7 @@ if ~(use_v2_SF3D)
       % prior to the main loop
 
         BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iParProc},samplingRate ,...
-                                  sizeCalc,geometry,cutPrecision,iGPU);
+                                  sizeCalc,geometry,'single',iGPU);
 
 
 
@@ -709,37 +722,232 @@ if ~(use_v2_SF3D)
 end
 
 try
-  parpool(nParProcesses)
+  parpool(nParProcesses+1)
 catch
   delete(gcp('nocreate'))
-  parpool(nParProcesses)
+  parpool(nParProcesses+1)
 end
 
-
+maxCCC = 0;
+try
+  spike_prior = pBH.('spike_prior')
+catch
+  spike_prior = false
+end
+spike_info = struct();
+spike_info.('std_dev') = nan;
 if (flgQualityWeight)
 %get the average CCC for calculation of particle quality weighting.
 
     cccVect = [];
+    wgtVect = [];
+    angVect = [];
+    chiVect = [];
+%   positionList(:,1:26:26*nPeaks)  
+
+    if (spike_prior)
+
+      tiltList_tmp = fieldnames(masterTM.mapBackGeometry);
+      tiltList_tmp = tiltList_tmp(~ismember(tiltList_tmp,{'viewGroups','tomoName'}));
+      nST = 1; tiltList = {};
+      % First make sure this tilt actualy has tomos. Why is this here/
+      for iStack = 1:length(tiltList_tmp)
+        if masterTM.mapBackGeometry.(tiltList_tmp{iStack}).nTomos
+          tiltList{nST} = tiltList_tmp{iStack};
+          nST = nST +1;
+        end
+      end
+      
+
+      % Now loop over all of the tomograms. In the first loop get the
+      % distribution characterizing the sphericity of the data (if that's a
+      % word?) i.e. make sure no principle axes are way to big, due to
+      % points from adjacent virions that were not removed in
+      % cleanTemplateSearch.
+      f = fieldnames(masterTM.mapBackGeometry.tomoName);
+
+      for iTomo = 1:length(f)
+
+%         tiltName = masterTM.mapBackGeometry.tomoName.(f{iTomo}).tiltName;
+%         tomoNumber = masterTM.mapBackGeometry.tomoName.(f{iTomo}).tomoNumber;
+%         iCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+
+        tmpTomo = [];   
+        spike_info.(f{iTomo}).('angular_diff') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
+        spike_info.(f{iTomo}).('normal_distance') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
+
+        spike_info.(f{iTomo}).('angular_prob') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
+        spike_info.(f{iTomo}).('angular_weight') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
+
+        nSubTomos = size(geometry.(f{iTomo}) , 1);
+        particle_coords = zeros(nSubTomos .* nPeaks,8,'single');
+        nVol = 1;
+        for iSubTomo = 1:nSubTomos
+          for iPeak = 1:nPeaks
+            particle_coords(nVol,1:5) = geometry.(f{iTomo})(iSubTomo,[26,4,11:13]+(iPeak-1)*26);
+            nVol = nVol + 1;
+          end
+        end
+        % Logical size nsubtomos x nPeaks
+        positions_to_analyze = particle_coords(:,1) ~= -9999;
+        display_fit = false;
+        radial_shrink_factor = 2;
+
+
+        [ normal_vect, chi2 ] = BH_fit_ellipsoidal_prior(pixelSize .* particle_coords(positions_to_analyze,3:5), ...
+                                                               pBH.('particleRadius')(3), ...
+                                                               radial_shrink_factor, ...
+                                                               display_fit);
+
+        chiVect = [chiVect chi2];
+        particle_coords(positions_to_analyze,[6:8]) = [ normal_vect];
+        nVol = 1;
+        for iSubTomo = 1:nSubTomos
+          for iPeak = 1:nPeaks
+            if (particle_coords(nVol,1) ~= -9999)       
+              particleAxis = reshape(geometry.(f{iTomo})(iSubTomo,[17:25]+(iPeak-1)*26),3,3)*[0;0;1];
+              angularDiff = dot(particle_coords(nVol,6:8), particleAxis);
+              if (abs(angularDiff) > 1)
+                angularDiff = fix(angularDiff);
+              end
+              angularDiff = acosd(angularDiff);
+              spike_info.(f{iTomo}).('angular_diff')(iSubTomo,iPeak) = angularDiff;
+              tmpTomo = [tmpTomo, angularDiff]; 
+
+            end
+            nVol = nVol + 1;
+          end        
+        end
+
+        angVect = [angVect tmpTomo];
+      
+      end
+
+
+      spike_info.('std_dev') = std(angVect);
+      h = histogram(angVect,'Normalization','probability','BinMethod','fd');
+      hv = h.Values;
+%       [~,mc] = max(hv);
+%       hv(1:mc-1) = hv(mc);
+      hv = (hv ./ max(hv(:))) .^ 0.5; %(mean(chiVect)./std(chiVect).^2);
+      x = h.BinWidth:h.BinWidth:h.BinLimits(2);
+      v = 0:h.BinLimits(2)./1000:h.BinLimits(2);
+      spike_info.('angular_pdf') = griddedInterpolant(x,hv,'makima','linear');
+      figure('Visible','off'), bar(x,h.Values,'w'); hold on
+      plot(v,spike_info.('angular_pdf')(v),'b','linewidth',2)
+      sprintf(' %2.3f degrees',spike_info.('std_dev'))
+      
+      title(sprintf('Spike Angle Prior, std-dev %2.3f degrees',spike_info.('std_dev')));
+      file_out = sprintf('%s-spike-angle-prior.pdf', cycleNumber);
+      saveas(gcf, file_out,'pdf')
+      hold off;
+     
+ 
+      save('spike_hist.mat','angVect','chiVect');
+%       figure, 
+    end
+    
+    nVolumes = 0;
+    addedWeight = 0;
     for iParProc = 1:nParProcesses
       for iTomo = iterList{iParProc}              
-        positionList = geometry.(tomoList{iTomo});
-        cccVect = [cccVect ; positionList(positionList(:,26)~=-9999 & ...
-                                          positionList(:,1) >= cccCutOff,1)];
+        if (track_stats)
+          geometry.(tomoList{iTomo})(:,1:26:26*nPeaks) = geometry.(tomoList{iTomo})(:,1:26:26*nPeaks)./geometry.(tomoList{iTomo})(:,2:26:26*nPeaks);
+        end
+        
+        min_weight = 1e-6;
+        if (spike_prior)
+           for iSubTomo = 1:size(geometry.(tomoList{iTomo}) , 1)
+            peakList = false(nPeaks,1);
+            for iPeak = 1:nPeaks
+              if (geometry.(tomoList{iTomo})(iSubTomo,26*iPeak)~=-9999)
+                iWeight =    ...
+                  spike_info.('angular_pdf')(spike_info.(tomoList{iTomo}).('angular_diff')(iSubTomo,iPeak));
+                peakList(iPeak) = true;
+                if (iWeight < min_weight || ~isfinite(iWeight))
+                  iWeight = min_weight;
+                end
+        
+                spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,iPeak) = iWeight;
+
+                nVolumes = nVolumes + 1;
+                addedWeight = addedWeight + iWeight;
+              end
+            end  
+             spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,peakList) = ...
+             spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,peakList) ./ ...
+             sum(spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,peakList));
+             for iScoreMod = 1:nPeaks
+               if (peakList(iScoreMod))
+                geometry.(tomoList{iTomo})(iSubTomo,2 + 26*(iScoreMod-1)) = ...
+                  spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,iScoreMod);
+               end
+             end
+                  
+               
+             
+           end  
+          
+        end
+
+        keepVect = geometry.(tomoList{iTomo})(:,26:26:26*nPeaks)~=-9999 ;
+                 
+        tmpVect = geometry.(tomoList{iTomo})(:,1:26:26*nPeaks); 
+        
+
+
+        cccVect = [cccVect ; reshape(tmpVect(keepVect),[],1)];
+        tmpVect = geometry.(tomoList{iTomo})(:,2:26:26*nPeaks);    
+
+        wgtVect = [wgtVect ; reshape(tmpVect(keepVect),[],1)];
       end
     end
     
-    avgCCC = mean(cccVect);
-    maxCCC = max(cccVect);
-    median(cccVect)
     
-    fprintf('\navgCCC %0.3f\nmaxCCC%0.3f\nminCCC%0.3f\n',avgCCC,maxCCC,min(cccVect));
-    if abs(maxCCC) > 1
-      error('\n|maxCCC(%3.3f) | > 1, either fix the problem or turn of QualityWeighting.\n', maxCCC);
+    if (cccCutOff > 1.0)
+      sorted_ccc = sort(cccVect);
+      reqVol = int32(round(cccCutOff))
+      length(sorted_ccc) - reqVol
+      cccCutOff = sorted_ccc(length(sorted_ccc) - reqVol);
+      fprintf('Removing all volumes with score < %2.2f to return the requested %d volumes\n\n',cccCutOff,reqVol);
+    elseif (cccCutOff > 0.0)
+      sorted_ccc = sort(cccVect);
+      reqVol = cccCutoff;
+      cccCutOff = sorted_ccc(floor(length(cccVect).*(1 - reqVol)));
+      fprintf('Removing all volumes with score < %2.2f to return the requested percent %2.2f of possible volumes\n\n',cccCutOff,reqVol);
     end
+    
+    masterTM.(cycleNumber).('score_sigma') = std(cccVect);
+    if (spike_prior)
+%       spike_info.('normalization_factor') = 1;%nVolumes ./ (nPeaks * addedWeight);
+%       fprintf('From %d possible volumes the total weight is %3.3e\n',nVolumes,addedWeight);
+    end
+    avgCCC = mean(cccVect);
+
+
+
+    mean(wgtVect)
+    std(wgtVect)
+    maxCCC = max(cccVect);
+    mean(wgtVect)
+    median(wgtVect)
+    
+%     figure, hist(cccVect,29)
+%     figure, hist(wgtVect,29)
+%     figure, hist((wgtVect./median(wgtVect)).^weightScale,29)
+%     error('asdf')
+    
+    if (track_stats)
+      fprintf('Avgerage score is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,flgQualityWeight);
+    else
+      fprintf('Avgerage CCC is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,flgQualityWeight);  
+    end
+
    
 else
   maxCCC = [];
   avgCCC = [];
+  masterTM.(cycleNumber).('score_sigma') = 1;
 end
 
 % % Clear all of the GPUs prior to entering the main processing loop
@@ -885,12 +1093,12 @@ parfor iParProc = parVect
       for iClassPos = 1:size(classVector{iGold},2)
         
   
-        iTempParticleODD = zeros(sizeMask,cutPrecision,'gpuArray');
-        iTempWedgeODD = zeros(sizeCalc,cutPrecision,'gpuArray');
+        iTempParticleODD = zeros(sizeMask,'single','gpuArray');
+        iTempWedgeODD = zeros(sizeCalc,'single','gpuArray');
         
        
-          iTempParticleEVE = zeros(sizeMask,cutPrecision,'gpuArray');      
-          iTempWedgeEVE = zeros(sizeCalc,cutPrecision,'gpuArray');
+          iTempParticleEVE = zeros(sizeMask,'single','gpuArray');      
+          iTempWedgeEVE = zeros(sizeCalc,'single','gpuArray');
          
 
         iClassIDX = classVector{iGold}(1,iClassPos);
@@ -945,18 +1153,21 @@ parfor iParProc = parVect
              
             [ peakWgt, sortedList ] = BH_weightAngCheckPeaks( ...
                                                positionList(iSubTomo,:),...
-                                               nPeaks, symmetry,...
+                                               nPeaks,  ...
+                                               masterTM.(cycleNumber).('score_sigma') ,...
                                                iSubTomo, tomoList{iTomo},...
-                                               bh_global_ML_compressByFactor,...
-                                               bh_global_ML_angleTolerance);        
+                                               track_stats);        
           % Update any re-ordering or elimination                                 
             positionList(iSubTomo,:) = sortedList;                                 
           else
             peakWgt = 1;
           end
+          
+% %           if (spike_prior)
+% %             peakWgt = peakWgt.*spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,1).*spike_info.('normalization_factor');
+% %           end
 
 
-            
         for iPeak = 1:nPeaks
           if peakWgt(iPeak) == -9999
             positionList(iSubTomo, 26*iPeak) = -9999;
@@ -993,16 +1204,20 @@ parfor iParProc = parVect
           if (flgQualityWeight)
             iCCC = positionList(iSubTomo,[1]+26*(iPeak-1));
           
-            if iCCC < avgCCC
-              % Downweight higher frequency in all subTomos with iCCC below the mean
-              iBfactor = -1.*(flgQualityWeight.*(acosd(iCCC) - acosd(avgCCC)))^2;
-              iCCCweight = exp(iBfactor.*cccWeight);   
-             
+            if (track_stats)
+                % Downweight higher frequency in all subTomos with iCCC below the mean
+                iBfactor = (flgQualityWeight.*(iCCC - maxCCC)./4)
+                iCCCweight = exp(iBfactor.*cccWeight);   
             else
-           
-              iCCCweight=1;
-             % iBfactor = -1.*flgQualityWeightAbove.*(acosd(iCCC) - acosd(avgCCC));
-             % iCCCweight = exp(iBfactor.*cccWeight);
+              if iCCC < avgCCC
+                % Downweight higher frequency in all subTomos with iCCC below the mean
+                iBfactor = -1.*(flgQualityWeight.*(acosd(iCCC) - acosd(avgCCC)))^2;
+                iCCCweight = exp(iBfactor.*cccWeight);   
+
+              else
+                iCCCweight=1;
+              end              
+              
             end
             
             if ( any(flgFilterDefocus))
@@ -1059,7 +1274,7 @@ parfor iParProc = parVect
 
             
             [ iParticle ] = BH_padZeros3d(iParticle,  padVAL(1,1:3), ...
-                                          padVAL(2,1:3), 'GPU', cutPrecision);
+                                          padVAL(2,1:3), 'GPU', 'single');
           
        
           
@@ -1068,7 +1283,7 @@ parfor iParProc = parVect
             % first!!! TODO add a flag to check this.
             
             particleOUT = BH_padZeros3d(gather(iParticle), CUTPADDING.*[1,1,1], ...
-                                          CUTPADDING.*[1,1,1], 'cpu', cutPrecision);
+                                          CUTPADDING.*[1,1,1], 'cpu', 'single');
             
             particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
             positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
@@ -1123,7 +1338,7 @@ parfor iParProc = parVect
             if interpOrder ==4 
               fprintf('experimental FFT interp\n');
               iParticle = fftn(BH_padZeros3d(iParticle, interpPad(1,:), ...
-                                          interpPad(2,:), 'GPU', cutPrecision));
+                                          interpPad(2,:), 'GPU', 'single'));
             
             
 
@@ -1144,7 +1359,7 @@ parfor iParProc = parVect
 % % %                                     {'Bah',1,interpM,1}, ...
 % % %                                     interpU,'inv'))), ...
 % % %                                             interpTrim(1,:),interpTrim(2,:),...
-% % %                                             'GPU',cutPrecision);
+% % %                                             'GPU','single');
 % % % 
 % % %                 end
 % % %                 iParticle = tmpPart ; tmpPart = [];
@@ -1154,7 +1369,7 @@ parfor iParProc = parVect
                                   {'Bah',symmetry,interpM,1}, ...
                                   interpU,'inv'))), ...
                                           interpTrim(1,:),interpTrim(2,:),...
-                                          'GPU',cutPrecision);  
+                                          'GPU','single');  
               else
               [ iParticle ] = BH_padZeros3d(real(ifftn( ...
                               BH_resample3d(iParticle, ...
@@ -1162,7 +1377,7 @@ parfor iParProc = parVect
                                   {'Bah',1,interpM,1}, ...
                                   interpU,'inv'))), ...
                                           interpTrim(1,:),interpTrim(2,:),...
-                                          'GPU',cutPrecision);              
+                                          'GPU','single');              
 
 
               end
@@ -1176,7 +1391,7 @@ parfor iParProc = parVect
 
               [ iParticle ] = BH_padZeros3d(iParticle, ...
                                         -1.*padWindow(1,:),-1.*padWindow(2,:),...
-                                        'GPU',cutPrecision);  
+                                        'GPU','single');  
                          
             end
             
@@ -1191,20 +1406,13 @@ parfor iParProc = parVect
             iParticle = iParticle -  mean(iParticle(interpMask_tmpBinary));
             iParticle = iParticle ./  rms(iParticle(interpMask_tmpBinary));            
             iParticle = iParticle .* interpMask_tmp;
-            if (flgQualityWeight)
+            if (flgQualityWeight && numel(iCCCweight) > 1)
                          
-              if (singlePrecision)
-                iParticle = real(ifftn(fftn(BH_padZeros3d(iParticle,...
-                                 padCalc(1,:),padCalc(2,:),'GPU','singleTaper')).*iCCCweight));
+              iParticle = real(ifftn(fftn(BH_padZeros3d(iParticle,...
+                                 'fwd',padCalc,'GPU','singleTaper')).*iCCCweight));
                                
-              else
-                iParticle = real(ifftn(fftn(BH_padZeros3d(iParticle,...
-                                 padCalc(1,:),padCalc(2,:),'GPU','doubleTaper')).*iCCCweight));
-              end  
-              
-              iParticle = iParticle(padCalc(1,1)+1 : end - padCalc(2,1), ...
-                                            padCalc(1,2)+1 : end - padCalc(2,2), ...
-                                            padCalc(1,3)+1 : end - padCalc(2,3) );
+              iParticle = BH_padZeros3d(iParticle,...
+                                 'inv',padCalc,'GPU','singleTaper');
                iWedgeMask = iWedgeMask .* fftshift(iCCCweight);
             end
            

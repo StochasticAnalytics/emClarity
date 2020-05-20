@@ -49,7 +49,7 @@ classdef interpolator < handle
       end
       
       if (useOnlyOnce)
-        obj.deallocate();
+        obj.delete();
       end
     
 

@@ -59,7 +59,17 @@ catch
   flgFscShapeMask = 1;
 end
 
+try
+  shape_mask_lowpass = pBH.('shape_mask_lowpass');
+catch
+  shape_mask_lowpass = 14; 
+end
 
+try
+  shape_mask_threshold = pBH.('shape_mask_threshold');
+catch
+  shape_mask_threshold = 2.4;
+end
 
 % Estimating the particle volume still occasionaly goes awry. Place a cap and return a cautionary message.
 
@@ -245,8 +255,11 @@ for iGold = 1:2
 end
 
 
+% [ maskType, maskSize, maskRadius, maskCenter ] = ...
+%                                   BH_multi_maskCheck(pBH, 'Ali', pixelSize,'FSC')
+                               
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize,'FSC')
+                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize)
                                 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
                                        BH_multi_validArea(  maskSize, maskRadius, scaleCalcSize )
@@ -358,21 +371,17 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
   nCount = 1;
   
   for iRef = 1:nReferences
+    
       fprintf('working on %d/ %d references FscGold\n', iRef, nReferences);
 
-      if (flgFscShapeMask)
-       
-% % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
-        [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true});
-%         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
-        shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-    
-% % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
-        [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true});
-        
-%         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
-        shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
 
+      [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
+      [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
+        
+
+      if (flgFscShapeMask)
+        shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
+        shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
       else
         shapeMask_1 = 1;
         shapeMask_2 = 1;
@@ -502,19 +511,13 @@ for iRef = 1:nReferences
     img1=IMG1;
     img2=IMG2;
     
-      if (flgFscShapeMask)
        
-% % % % % % %         [shapeMask_1, pV1] = BH_mask3d(refIMG{1}{iRef},pixelSize,'','');
-        [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true});
-%         shapeMask_1 = gather(BH_multi_randomizeTaper(shapeMask_1).^flgFscShapeMask);
-        shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-    
-% % % % % % %         [shapeMask_2,pV2] = BH_mask3d(refIMG{2}{iRef},pixelSize,'',''); 
-        [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true});
+      [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
+      [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
         
-%         shapeMask_2 = gather(BH_multi_randomizeTaper(shapeMask_2).^flgFscShapeMask);
+      if (flgFscShapeMask)
+        shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
         shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
-
       else
         shapeMask_1 = 1;
         shapeMask_2 = 1;
@@ -568,6 +571,11 @@ for iRef = 1:nReferences
   rad = single(rad)./pixelSize;
   
   if (flgFscShapeMask)
+    
+    %!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    % TODO add a flag since the phase randomized is not used in practice
+    %!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
    % Only need to calculate phase randomized masks if the fscShapeMask is
    % applied during the FSC calculation. If instead it is used to estimate
    % the particle volume (flgEstSolvent) then no mask is directly applied.

@@ -24,7 +24,11 @@ end
 
 tiltStart=1;
 MAX_EXPOSURE = str2double(MAX_EXPOSURE);
+if isnan(MAX_EXPOSURE)
+  error('MAX_EXPOSURE is nan - if running from an interactive matlab session, did you enter as a string?');
+end
 CYCLE = str2double(CYCLE);
+
 
 if CYCLE < 0
   CYCLE = abs(CYCLE);
@@ -694,7 +698,7 @@ fclose(starFile);
 
  SAVE_IMG(cat(3,output_cell{:}),sprintf('%s.mrc',baseFile),pixelSize);
  
- maxThreads = 36;
+ maxThreads = pBH.('nCpuCores');
 
  %%%%%%%%%%%%%%%%%%%%%%%%%%
  % Initial reconstruction

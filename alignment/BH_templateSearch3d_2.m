@@ -11,16 +11,17 @@ function []  = BH_templateSearch3d_2( PARAMETER_FILE,...
 
 
 
-
+ctf3dNoSubTomoMeta = false;
 if length(varargin) == 1
   % Allow for an override of the max number, useful when only a few tomos
   % have a strong feature like carbon that is hard to avoid.
-  cmdLineThresh = 0;
   gpuIDX = str2num(varargin{1});
 elseif length(varargin) == 2
-  cmdLineThresh = str2num(varargin{1});
-  gpuIDX = str2num(varargin{2});
+  gpuIDX = str2num(varargin{1});
+  ctf3dNoSubTomoMeta = true;
 end
+
+
   tomoNumber = str2num(tomoNumber);
 
 
@@ -34,17 +35,23 @@ SYMMETRY = str2num(SYMMETRY);
 startTime = clock ;
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
-try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-  mapBackIter = subTomoMeta.currentTomoCPR
-%   clear subTomoMeta
-  % Make sure we get a CTF corrected stack
-  shouldBeCTF = 1
-catch
-  mapBackIter = 0;
-  shouldBeCTF = -1;
+
+if ctf3dNoSubTomoMeta
+   mapBackIter = 0;
+  shouldBeCTF = 1;
+else
+  try
+    load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+    mapBackIter = subTomoMeta.currentTomoCPR
+  %   clear subTomoMeta
+    % Make sure we get a CTF corrected stack
+    shouldBeCTF = 1
+  catch
+    mapBackIter = 0;
+    shouldBeCTF = -1;
+  end
 end
-samplingRate  = pBH.('Tmp_samplingRate');
+  samplingRate  = pBH.('Tmp_samplingRate');
 
 try
   tmpDecoy = pBH.('templateDecoy')
@@ -71,13 +78,8 @@ catch
   expand_lines = '';
 end
 
-if ( cmdLineThresh )
- peakThreshold = cmdLineThresh;
- fprintf('\nOverride peakThreshold from paramfile (%d) with cmd line arg (%d)\n\n',...
-         cmdLineThresh, pBH.('Tmp_threshold'));
-else
  peakThreshold = pBH.('Tmp_threshold');
-end
+
 
 latticeRadius = pBH.('particleRadius');
 try
@@ -1053,6 +1055,8 @@ end
       topPeak = Ang(coord);
 % % %     end
     peakMat(n,1:3) = gather(samplingRate.*cenP);
+    peakMat(n,10) = gather(MAX);
+
     
     if nPeaks > 1
       possible_angles = gather(magBox);
@@ -1065,10 +1069,14 @@ end
         if any(possible_angles ~= 0)
           [~, cAng] = max(possible_angles(:));
           topPeak = angBox(cAng);
+          iSNR = gather(mean( possible_angles(angBox == topPeak)));
           possible_angles(angBox == topPeak) = 0; 
           Ang(cAng)
           if topPeak <= 0 || Ang(cAng) <= 0
             useRandom = true;
+            % If random set the SNR as a fraction of the mean of the
+            % previous peaks
+            iSNR = mean( peakMat(n,10:10:10*(iPeak-1)) ) .* 0.75;
           else
             iAngles =  ANGLE_LIST(Ang(cAng),:);
           end
@@ -1087,8 +1095,8 @@ end
           end
         end
         peakMat(n,[1:3]+10*(iPeak-1)) = gather(samplingRate.*cenP);
-        peakMat(n,[4:6]+10*(iPeak-1)) = iAngles;
-        
+        peakMat(n,[4:6]+10*(iPeak-1)) = iAngles;     
+        peakMat(n,10+10*(iPeak-1)) = iSNR;
 % % %          oldPeaks = ( angBox == peakM | oldPeaks );
         
       end
@@ -1111,7 +1119,7 @@ end
         c(2)-rmDim:c(2)+rmDim,...
         c(3)-rmDim:c(3)+rmDim) .* (rmMask< maskCutOff);
 
-    peakMat(n,10) = (gather(MAX) - Tmean)./Tstd; % record stds above mean
+% % %     peakMat(n,10) = (gather(MAX) - Tmean)./Tstd; % record stds above mean
     n = n + 1;
     
     if ~mod(n,100)

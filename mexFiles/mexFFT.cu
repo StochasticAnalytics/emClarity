@@ -81,7 +81,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
     if (numel_input == 1)
     {
-      mexPrintf("Destroying the plans\n");
+//      mexPrintf("Destroying the plans\n");
       cufftDestroy(*plan);
       cufftDestroy(*planInv);
       mxGPUDestroyGPUArray(inputArray);

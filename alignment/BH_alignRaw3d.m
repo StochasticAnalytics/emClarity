@@ -43,21 +43,24 @@ cpuVar = struct();
 GPUVar = struct();
 
 startTime =  clock;
-CYCLE = str2num(CYCLE); 
-if CYCLE < 0
+CYCLE = str2num(CYCLE);
+cycle_numerator = '';
+cycle_denominator ='';
+  flgStartThird = 0;
+  flgReverseOrder = 0;
+if numel(CYCLE) == 3
+  cycle_numerator = CYCLE(2);
+  cycle_denominator = CYCLE(3);
+  CYCLE = CYCLE(1);
+  flgStartThird = true;
+elseif CYCLE < 0
   % Simple option to process in reverse order so that the load can be run on two
   % physically distinct systems at once.
   flgReverseOrder = 1;
   flgStartThird = 0;
   CYCLE = abs(CYCLE);
-elseif mod(CYCLE,1)
-  % 3.3 starts at the third position i.e. circshift( iterList, -2)
-  flgStartThird = int32((abs(CYCLE)-round(abs(CYCLE)))*100)-1
-  flgReverseOrder = 0;
-  CYCLE = floor(CYCLE);
-else
-  flgStartThird = 0;
-  flgReverseOrder = 0;
+
+
 end
 
 
@@ -279,8 +282,10 @@ elseif ( flgStartThird )
   for iParProc = 1:nParProcesses
     % Note the use of floor is more like ceiling here (rounds away from
     % zero)
-    iterList{iParProc} = circshift((iterList{iParProc}),-1*flgStartThird);
-    iterList{iParProc}
+    nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
+    fIDX = 1+(cycle_numerator - 1)*nParts;
+    lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
+    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX);
   end
   
 end

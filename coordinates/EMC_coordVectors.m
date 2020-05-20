@@ -97,7 +97,7 @@ end
 if isfield(OPTION, 'shift')
     if ~isnumeric(OPTION.shift) || ~isrow(OPTION.shift)
         error('EMC:shift', ...
-              'OPTION.shift should be a vector of float|int, got %s', class(OPTION.shift))
+              'OPTION.shift should be a row vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
         error('EMC:shift', ...
               'OPTION.shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))

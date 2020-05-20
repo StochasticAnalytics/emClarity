@@ -8,7 +8,6 @@ cudaStart='';
 useV2 = false;
 cmdIN = sprintf('emClarity %s ',varargin{1});
 
-
 % first argument is the program to run or "help" to print a list of available
 % options.
 setenv('MATLAB_SHELL','/bin/bash');
@@ -40,7 +39,6 @@ emC_cisTEM_deps = importdata(sprintf('%s/cisTEMDeps.txt',emC_cisTEMDepPath));
 for iDep = 1:length(emC_cisTEM_deps)
   setenv(sprintf('EMC_%s',upper(emC_cisTEM_deps{iDep})), sprintf('%s/emC_%s',emC_cisTEMDepPath,emC_cisTEM_deps{iDep}));
 end
-
 
 
 if strcmp(varargin{2},'gui')
@@ -499,6 +497,8 @@ switch varargin{1}
       end
     end    
   case 'tomoCPR'
+    fprintf('In tomoCPR the MCR is %s\n',getenv('MCR_CACHE_ROOT'));
+
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
        ( length(varargin) < 3 || length(varargin) > 4 )
       fprintf(['\nparam.m\n',...
@@ -627,7 +627,6 @@ end
 
 
 
-
 function [ pBH  ] = emC_testParse( paramTest )
 % Try to parse the parameter file make sure it's okay.
 %
@@ -729,16 +728,7 @@ try
     bh_global_fast_scratch_disk='';
   end
   
-  if ~isempty(bh_global_fast_scratch_disk)
-    testFileName = sprintf('%s/thisEmCDiskCheck123456.txt',bh_global_fast_scratch_disk);
-    [writeError] = system(sprintf('echo a > %s',testFileName));
-    if (writeError)
-      fprintf('\nRan into an error trying to write to the fastScatchDisk %s\n',bh_global_fast_scratch_disk);
-    else
-      system(sprintf('rm %s',testFileName));
-      fprintf('Found and using your fastScratchDisk\n');
-    end
-  end
+
     
   try
     bh_global_ram_disk = pBH.('ramDisk');

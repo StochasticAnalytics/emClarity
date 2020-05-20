@@ -22,8 +22,8 @@ outName="$(basename ${mFile} .m)${post}"
 # bugs line. e.g. buggs=5testingFeature
 major=1
 minor=5
-bugs=tomoCPR
-nightly=0
+bugs=afterMove
+nightly=8
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -79,6 +79,12 @@ echo '#Please modify this line to point to the install for emClarity binary'
 echo '#emClarity_ROOT=/work/emClarity'
 echo 'export emClarity_ROOT=/groups/grigorieff/home/himesb/work/emClarity'
 echo ''
+
+} > emClarity_${scriptOutName}
+
+cat EMC_tmpDir.sh >> emClarity_${scriptOutName}
+
+{
 echo ''
 echo '# In order to prevent conflicts with external IMOD or cisTEM binaries, run an '
 echo '# your ineractive matlab session through this script.'
@@ -97,9 +103,8 @@ echo '  # Return IMOD to its original state'
 #echo '  unset AUTODOC_DIR'
 #echo '  IMOD_DIR=${resetImodDir}'
 echo 'fi'
-} > emClarity_${scriptOutName}
 
-cat EMC_tmpDir.sh >> emClarity_${scriptOutName}
+} >> emClarity_${scriptOutName}
 
 {
 echo ""
@@ -168,7 +173,7 @@ mv emClarity_${binaryOutName} ../bin
 cp -rp ../docs ../bin
 cd ..
 if [[ ${zip_location} != "NONE" ]]; then
-  zip -r emClarity_${major}.${minor}.${bugs}.${nightly}.zip bin
+  zip -r emClarity_${major}.${minor}.${bugs}.${nightly}.zip bin/emClarity_${scriptOutName} bin/emClarity_${binaryOutName}  bin/deps
   mv emClarity_${major}.${minor}.${bugs}.${nightly}.zip ${zip_location}
 fi
 

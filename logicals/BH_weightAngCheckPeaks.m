@@ -1,15 +1,16 @@
 function [ peakWgt, sortedList ] = BH_weightAngCheckPeaks(positionList, nPeaks, ...
-                                                          symmetry, iSubTomo, tomoName,...
-                                                          compressByFactor, ...
-                                                          angleTolerance)
+                                                          score_sigma, iSubTomo, tomoName,...
+                                                          track_stats)
+                                                          
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-% compressByFactor = 5;  
 % A larger tolerance would probably catch orientations that should
 % converege to the same value earlier on and therby save computation. For
 % testing, set a bit more conservatively.
-% angleTolerance = 5;
+angleTolerance = 5;
+compressByFactor = 2;  
+
 % Check that the class id is not set to ignore
 includedPeaks = reshape(find(positionList(26:26:26*nPeaks) ~= -9999),[],1);
 excludedPeaks = reshape(find(positionList(26:26:26*nPeaks) == -9999),[],1);
@@ -88,11 +89,15 @@ end
 
 % FIXME change this to a proper angular difference.
 
-minScore = 1e-2;
+minScore = 1e-1;
 
-peakScore = sortedList(1:26:26*nPeaks)';
+peakScore = sortedList(1:26:26*nPeaks)' ./ score_sigma;
 peakKeep = ( peakWgt~=-9999 & abs(peakScore) > minScore);
 peakScore(~peakKeep) = -9999;
+peakWgt(~peakKeep) = -9999;
+if (track_stats)
+  compressByFactor = sqrt(max(peakScore(peakKeep)));
+end
 peakWgt(peakKeep) = (peakScore(peakKeep) ./ max(peakScore(peakKeep))).^compressByFactor;
 peakWgt(peakKeep) = peakWgt(peakKeep) ./ sum(peakWgt(peakKeep));
 peakWgt = real(peakWgt);
@@ -101,16 +106,23 @@ if any(isnan(peakWgt))
   error('Found a nan in the re-weighted peaks')
 end
 
-fprintf('Weighting %d volumes for st %d from tomo %s, ',nPeaks,iSubTomo,tomoName);
-fprintf('raw score [');
-for i = 1:nPeaks
-  fprintf('%1.3f ', peakScore(i));
+if mod(iSubTomo,25)
+  
+  fprintf('Weighting %d volumes with cf %3.3f for st %d from tomo %s, ',nPeaks,compressByFactor,iSubTomo,tomoName);
+  fprintf('raw score [');
+  for i = 1:nPeaks
+    fprintf('%1.3f ', peakScore(i));
+  end
+  fprintf('] --> [');
+  for i = 1:nPeaks
+    fprintf('%1.3f ', peakWgt(i));
+  end
+  fprintf(']\n');
+
+  
 end
-fprintf('] --> [');
-for i = 1:nPeaks
-  fprintf('%1.3f ', peakWgt(i));
+
 end
-fprintf(']\n');
-          
-end
+
+
 

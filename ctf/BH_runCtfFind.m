@@ -21,10 +21,10 @@ for iPrj = 1:d3
   SAVE_IMG(MRCImage(fullStack(:,:,iPrj)),sprintf('fixedStacks/ctf/forCtfFind/%s_%d.mrc',randPrfx,iPrj));
 end
 
-% Check to make sure this hasn't alread been done
-if ~exist(sprintf('fixedStacks/ctf/%s_orig',tltName), 'file')
+% % Check to make sure this hasn't alread been done
+% if ~exist(sprintf('fixedStacks/ctf/%s_orig',tltName), 'file')
   system(sprintf('mv fixedStacks/ctf/%s fixedStacks/ctf/%s_orig',tltName,tltName));
-end
+% end
 
   tmpTLT = load(sprintf('fixedStacks/ctf/%s_orig',tltName));
   meanDefocus = mean(tmpTLT(:,15))*-1.0*10^10;

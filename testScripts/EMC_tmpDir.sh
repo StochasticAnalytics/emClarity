@@ -47,9 +47,9 @@ fi
 
 
 
-TMP_DIR_ID=emC_tmp_${RANDOM}
+TMP_DIR_ID=emC_tmp_${RANDOM}${RANDOM}
 
-# Set the MCR cache their
+# Set the MCR cache there
 unset MCR_CACHE_ROOT
 export MCR_CACHE_ROOT="${EMC_CACHE_DIR}/${TMP_DIR_ID}"
 

@@ -67,7 +67,7 @@ classdef fourierTransformer < handle
       
       % FIXME get rid of this.
       % Second condition checks for even dimensions which require an
-      % explicit ifft mask
+      % explicit ifft masksw
       if (sum(mod(obj.inputSize,2)))
         obj.useFwdSwapForInverse = false;
       else
@@ -195,7 +195,6 @@ classdef fourierTransformer < handle
     
     function [inputVol] = swapPhase(obj, inputVol, direction)
       
-
       % Create the phase swap indices if needed
       if isempty(obj.phaseCenter) 
         if obj.is2d
@@ -212,7 +211,6 @@ classdef fourierTransformer < handle
         else
           [ obj.phaseCenter, dV, dW] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
                                     {'none'},1,0,0,{'halfgrid'});
-                                  obj.inputSize
           if (obj.inputSize(1) == obj.inputSize(2) == obj.inputSize(3))
             obj.phaseCenter = exp(-2i.*pi.*(obj.halfDimSize-obj.OddSizeOversampled).*(obj.phaseCenter+dV+dW));
             clear dU dV dW        

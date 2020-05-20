@@ -3,8 +3,7 @@ function [  ] = BH_checkInstall(  )
 %   Detailed explanation goes here
 
 t = datetime;
-fOUT = fopen(sprintf('emClarity_checkInstall_%d%d%d.log', ...
-                      t.Hour,t.Minute,floor(t.Second)),'w');
+fOUT = fopen(sprintf('emClarity_checkInstall.txt','a'));
                     
 
 

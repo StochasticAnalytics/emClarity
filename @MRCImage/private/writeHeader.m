@@ -138,16 +138,16 @@ for iJunk = mRCImage.header.nLabels+1:10
   writeAndCheck(mRCImage.fid, char(zeros(1, 80)), 'uchar');
 end
 
+
 writeAndCheck(mRCImage.fid, mRCImage.extended, 'uchar');
 
 return
 
 % Simple error checking write
 function writeAndCheck(fid, matrix, precision)
-nElements = numel(matrix);
-count = fwrite(fid, matrix, precision);
-if count ~= nElements
-  PEETError('Matrix contains %d elements, but only wrote %d',          ...
-    nElements, count);
-end
+  nElements = numel(matrix);
+  count = fwrite(fid, matrix, precision);
+  if count ~= nElements
+    error('Matrix contains %d elements, but only wrote %d',nElements, count);
+  end
 return

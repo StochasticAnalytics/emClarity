@@ -67,7 +67,7 @@ reconstructionParameters = 0;
 
 loadSubTomoMeta = true;
 if nargin > 2
-  if ~isnan(str2num(varargin{1}))
+  if ~isempty(str2num(varargin{1}))
     reconstructionParameters = str2num(varargin{1});
     recWithoutMat = true;
     if length(varargin) > 2
@@ -84,7 +84,9 @@ if nargin > 2
   end
 elseif nargin > 1
   if strcmpi(varargin{1},'templateSearch')
-    recWithoutMat = true;
+    recWithoutMat = true
+    loadSubTomoMeta = false
+    bh_global_turn_on_phase_plate = 0
   else
     error('Extra argument to ctf 3d should be a vector [THICKNESS, BINNING] tiltN, or a string templateSearch');
   end
@@ -108,7 +110,8 @@ catch
   applyExposureFilter = 1;
 end
 
-
+% This will be set false if the reconstruction is for template matching or
+% for tomoCPR
 try
   useSurfaceFit = pBH.('useSurfaceFit')
 catch
@@ -132,6 +135,22 @@ fprintf('tiltweight is %f %f\n',tiltWeight);
 
 
 tmpCache= pBH.('fastScratchDisk');
+
+if strcmpi(tmpCache, 'ram') 
+  if isempty(getenv('EMC_CACHE_MEM'))
+    fprintf('Did not find a variable for EMC_CACHE_MEM\nSkipping ram\n');
+    tmpCache= '';
+  else
+    % I have no ideah how much is needed
+    if str2double(getenv('EMC_CACHE_MEM')) < 64
+      fprintf('There is only 64 Gb of cache on ramdisk, not using');
+      tmpCache = '';
+    else
+      tmpCache=getenv('MCR_CACHE_ROOT');
+      fprintf('Using the tmp EMC cache in ram at %s\n',tmpCache);
+    end
+  end
+end
 
 % Check to make sure it even exists
 if isempty(dir(tmpCache))
@@ -161,6 +180,7 @@ fprintf('tmpCache is %s\n',tmpCache);
 system(sprintf('mkdir -p %s',tmpCache));
 system(sprintf('mkdir -p %s','cache')); % This should exist, but to be safe.
 if (recWithoutMat)
+  useSurfaceFit = false;
   if (loadSubTomoMeta)
     load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
     mapBackIter = subTomoMeta.currentTomoCPR;
@@ -226,11 +246,28 @@ end
 if (reconstructionParameters(1))
   samplingRate = reconstructionParameters(2);
 else
-  samplingRate = pBH.('Ali_samplingRate');
-  resTarget = mean(masterTM.('currentResForDefocusError')*.5) 
-  if (flgWhitenPS(1))
-    flgWhitenPS(2) = resTarget;
+  if (loadSubTomoMeta)
+    samplingRate = pBH.('Ali_samplingRate');
+    % This number is used to roughly balance the trade off between
+    % achievable resolution, and run time during reconstruction as
+    % determined by the thickness of each 3d slab reconstructed. Given that
+    % we expect the resolution to improve beyond our current value, we
+    % multiply by 1/2, which gives a (only loosely optimized) resTarget.
+    resTarget = mean(masterTM.('currentResForDefocusError')*0.5);
+    if (flgWhitenPS(1))
+      flgWhitenPS(2) = resTarget;
+    end
+  else
+    % For template search
+    samplingRate = pBH.('Tmp_samplingRate');
+    try 
+      resTarget = pBH.('lowResCut');
+    catch
+      resTarget = 12;
+    end
+    
   end
+
 end
 
 
@@ -246,15 +283,16 @@ end
 pixelSize = pBH.('PIXEL_SIZE').*10^10 .* samplingRate;
 
 % if (recWithoutMat)
-%   reconstructionParameters(1) = reconstructionParameters(1) ./ pixelSize;
+%   reconstructionParameters(1) = ')(i) =(1) ./ pixelSize;
 % end
 
 if pBH.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
-
+nTomosPerTilt = 0;
+recGeom = 0;
 if (recWithoutMat)
-  if (reconstructionParameters(1))
+  if reconstructionParameters(1) && loadSubTomoMeta
     tiltList{1} = varargin{2};
     % We just need one valid subtomot
     iTry = 1;
@@ -272,6 +310,28 @@ if (recWithoutMat)
   else
     % TODO set up a check on the recon folder to get what is needed for
     % templateSearch
+    getCoords = dir('recon/*.coords');
+    nTilts = length(getCoords);
+    tiltList = cell(nTilts,1);
+    nTomosTotal = 0;
+    nTomosPerTilt = cell(nTilts,1);
+    recGeom = cell(nTilts,1);
+    for iStack = 1:nTilts
+      [ recGeom{iStack}, tiltName, nTomosPossible] = BH_multi_recGeom( sprintf('recon/%s',getCoords(iStack).name) ); 
+      nTomosTotal = nTomosTotal + nTomosPossible;
+      nTomosPerTilt{iStack} = nTomosPossible;
+      tiltList{iStack} = tiltName;     
+    end
+    
+    tomoList = cell(nTomosTotal,1);
+    nTomosAdd = 0;
+    for iStack = 1:nTilts
+      for iTomo = 1:nTomosPerTilt{iStack} 
+        tomoList{nTomosAdd+1} = sprintf('%s_%d',tiltName,iTomo);
+        nTomosAdd = nTomosAdd +1;
+      end
+    end
+
   end
 else
   tiltList_tmp = fieldnames(masterTM.mapBackGeometry);
@@ -300,10 +360,10 @@ for iGPU = 1:nGPUs
 end
 
 try
-  parpool(nGPUs) 
+  EMC_parpool(nGPUs) 
 catch
   delete(gcp('nocreate'))
-  parpool(nGPUs)
+  EMC_parpool(nGPUs)
 end
 
 % Instead of trying to do some imod_wait situation, just loop over the
@@ -314,7 +374,16 @@ for iGPU = 1:nGPUs
   for iTilt = iterList{gpuList(iGPU)}
     
     if (recWithoutMat)
-      nTomos = 1;
+      if (loadSubTomoMeta)
+        % tomoCPR
+        nTomos = 1;
+      else
+        % templaterch
+        nTomos  = nTomosPerTilt{iTilt};
+        iCoords = recGeom{iTilt};
+        iCoords(:,1:4) = fix(iCoords(:,1:4)./samplingRate);
+        iTomoList = cell(nTomos,1);        
+      end
     else
       nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
       iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords ./samplingRate;
@@ -382,32 +451,30 @@ end
 % All data is handled through disk i/o so everything unique created in the 
 % parfor is also destroyed there as well.
 parfor iGPU = 1:nGPUs
-% for iGPU = 1:nGPUs 
+%for iGPU = 1:nGPUs 
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt 
   for iTilt = iterList{gpuList(iGPU)}
     
     if (recWithoutMat)
-      nTomos = 1;
+      if (loadSubTomoMeta)
+        nTomos = 1;
+      else
+                % templaterch
+        nTomos  = nTomosPerTilt{iTilt};
+        iCoords = recGeom{iTilt};
+      end
     else
       nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
       iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords;
+    % FIXME
+    end
+    
+    if (recWithoutMat && ~loadSubTomoMeta) || ~recWithoutMat
       targetSizeY = diff(floor(iCoords(:,2:3)),1,2)+1;
       iCoords = iCoords ./ samplingRate;
-        % Get the tilt-series dimensions - This is terrible.
-        for iTomo = 1:length(tomoList)
-          if strcmp(tiltList{iTilt},masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
-            masterTM.tiltGeometry.(tomoList{iTomo})(1,20:21)
-            [tiltNY] = masterTM.tiltGeometry.(tomoList{iTomo})(1,21);
-            break
-          end
-        end
-
-%     [ binShift, ~ ] = BH_multi_calcBinShift( [tiltNX,tiltNY], 1, samplingRate);
       iCoords(:,1:4) = floor(iCoords(:,1:4));
-    iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
-
-    % FIXME
+      iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
     end
     iTomoList = cell(nTomos,1);
 
@@ -485,7 +552,7 @@ parfor iGPU = 1:nGPUs
       maskedStack = single(getVolume(MRCImage(inputStack)));  
             
       if (recWithoutMat)
-        if (reconstructionParameters(1))
+        if (reconstructionParameters(1) && loadSubTomoMeta)
           NX = size(maskedStack,1);
           NY = size(maskedStack,2);
 
@@ -495,7 +562,10 @@ parfor iGPU = 1:nGPUs
           iCoords = [NX,0,NY-1,NZ,0,0];
           tomoNumber = 1;
         else
-          % TODO deal with templateSearch
+          [ ~, maxZ, tomoNumber, ~ ] = calcAvgZ('dummy',iCoords,tiltList{iTilt}, ...
+                                            iTomoList,nTomos, pixelSize, ...
+                                            samplingRate, cycleNumber,...
+                                            0,1);        
         end
       else
         [ ~, maxZ, tomoNumber, ~ ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
@@ -504,7 +574,7 @@ parfor iGPU = 1:nGPUs
                                               0,1);
       end
      
-    if ( flg2dCTF || recWithoutMat)
+    if ( flg2dCTF || recWithoutMat && loadSubTomoMeta)
       nSections = 1;
       ctf3dDepth = maxZ * 10 ^ -9;
     else
@@ -533,9 +603,9 @@ parfor iGPU = 1:nGPUs
                                       
 
     if (recWithoutMat)
-
-      avgZ = 0;
-      surfaceFit = {0};
+        avgZ = 0;
+        surfaceFit = 0;
+ 
     else
       
     [ avgZ, maxZ, tomoNumber, surfaceFit ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
@@ -611,11 +681,12 @@ parfor iGPU = 1:nGPUs
        % like there is something odd about its use with a parfor loop
        % FIXME, when setting up the iterator, make clean copies for each
        % worker that are local in scope.e
+      
       [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixelSize,maskedStack,...
                                             maxZ*10/pixelSize,flgDampenAliasedFrequencies,...
                                             preCombDefocus,samplingRate,...
-                                            applyExposureFilter,surfaceFit{iSection},...
+                                            applyExposureFilter,surfaceFit,...
                                             useSurfaceFit,invertDose,bh_global_turn_on_phase_plate);  
       end
       % Write out the stack to the cache directory as a tmp file
@@ -649,13 +720,13 @@ parfor iGPU = 1:nGPUs
             TA = TA(:,4);
           else
             if (mapBackIter)
-              TA = sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt},...
-                                                         mapBackIter);      
+              TA = load(sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt},...
+                                                         mapBackIter));      
             else
-              TA = sprintf('%sfixedStacks/%s.tlt',CWD,tiltList{iTilt});
+              TA = load(sprintf('%sfixedStacks/%s.tlt',CWD,tiltList{iTilt}));
             end              
           end
-          
+      
           rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},iTomo);
           rawTLT_file = fopen(rawTLT, 'w');
           fprintf(rawTLT_file,'%f\n', TA');
@@ -1020,6 +1091,8 @@ halfSec = (nSec-1)/2;
 for iT = 1:length(tomoNumber)
   iTomo = tomoNumber(iT);
   % Origin + originshift
+
+  -1.*(ceil((iCoords(iTomo,4)+1)/2)-1) + iCoords(iTomo,6),
   reconRange = floor([-1.*(ceil((iCoords(iTomo,4)+1)/2)-1) + iCoords(iTomo,6),0]);
   reconRange(2) = reconRange(1) + iCoords(iTomo,4) - 1;
   nZ = 1;
@@ -1114,9 +1187,14 @@ function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
 
 
 % For sections with too few subTomos to fit, fall back
-if isnumeric(surfaceFit)
-  % i.e. not a fit object
-  useSurfaceFit = 0;
+
+if isa(surfaceFit,'cell')
+  surfaceFit = surfaceFit{iSection};  
+  if ~isa(surfaceFit,'sfit')
+    useSurfaceFit = false;
+  end
+else  
+  useSurfaceFit = false;
 end
 
 [d1,d2,nPrjs] = size(maskedStack);
@@ -1223,7 +1301,15 @@ for iPrj = 1:nPrjs
 
   if (useSurfaceFit)
     %rZ = (surfaceFit.p00 + surfaceFit.p10.*(rX+oX)) + surfaceFit.p01.*(rY+oY);
-    rZ = surfaceFit(rX,rY);
+    try
+      rZ = surfaceFit(rX,rY);
+    catch
+      d1
+      d2 
+      rX
+      rY
+      surfaceFit
+    end
   else
     rZ = zeros([d1,d2],'single','gpuArray');
   end
@@ -1331,8 +1417,14 @@ tomoNumber = zeros(nTomos,1);
 for iTomo = 1:nTomos
   % The tomograms may not be listed monotonically so explicitly get their
   % id number
-  tomoNumber(iTomo) = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber    
-  nZdZ = iCoords(tomoNumber(iTomo),[4,6]);
+
+  if isa(masterTM,'struct')
+    tomoNumber(iTomo) = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    nZdZ = iCoords(tomoNumber(iTomo),[4,6]);
+  else
+    tomoNumber(iTomo) = iTomo;
+    nZdZ = iCoords(iTomo,[4,6]);   
+  end
 
   % half the size in z plus the shift back to the microscope coords.
   sZneeded = 2.*ceil(nZdZ(1)/2+abs(nZdZ(2))+1);
