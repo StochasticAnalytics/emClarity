@@ -126,41 +126,37 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     return;
   }
 
-  if ( ! mxGPUIsValidGPUData(prhs[0])) 
+  if ( ! mxGPUIsValidGPUData(prhs[1])) 
   {
         mexErrMsgIdAndTxt("MATLAB:mexFFT:rhs", "Expected a 3d gpuarray.");  
   }
 
 
 
-    if ( nrhs > 4 )
-    {
-        tex    = (cudaTextureObject_t *) mxGetData(prhs[4]);   
-        make_texture_obj = false; 
+  if ( nrhs > 5 )
+  {
+      tex    = (cudaTextureObject_t *) mxGetData(prhs[5]);   
+      make_texture_obj = false; 
 
-    }
-        // This should be the input array or the the original arrays dims
-      mxGPUArray const * inputArray  = mxGPUCreateFromMxArray(prhs[0]);
-      mwSize const   input_dims = mxGPUGetNumberOfDimensions(inputArray);
-      mwSize const * input_size = mxGPUGetDimensions(inputArray);
-      mwSize const   numel_input = mxGPUGetNumberOfElements(inputArray);
-      mxComplexity   input_data_type = mxGPUGetComplexity(inputArray);
-    
+  }
 
-
-
+  // This should be the input array or the the original arrays dims
+  mxGPUArray const * inputArray  = mxGPUCreateFromMxArray(prhs[1]);
+  mwSize const   input_dims = mxGPUGetNumberOfDimensions(inputArray);
+  mxComplexity   input_data_type = mxGPUGetComplexity(inputArray);
   
+  size_t* input_size = (size_t *) mxGetData(prhs[0]);  
 
 
   mxGPUArray * outputArray;
 
   // The first arg is either a 3d or a pointer to the tex obj w/ previous 3d passed.
-  float *angles = (float *) mxGetData(prhs[1]);
+  float *angles = (float *) mxGetData(prhs[2]);
 
 
 
-  float *ts = (float *) mxGetData(prhs[2]);
-  doFwdXform = (bool *) mxGetData(prhs[3]);
+  float *ts = (float *) mxGetData(prhs[3]);
+  doFwdXform = (bool *) mxGetData(prhs[4]);
 
   if (*doFwdXform)
   {
