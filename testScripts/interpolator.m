@@ -34,7 +34,6 @@ classdef interpolator < handle
       
       % Set the input size
       obj.input_size = uint64((size(inputVol)));
-      obj.input_size 
       obj.dummy_vol = inputVol(1:2,1:2,1:2);
       
       [resampledVol, obj.texObject, obj.cuArray] = mexXform3d(obj.input_size,...

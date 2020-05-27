@@ -995,7 +995,7 @@ parfor iParProc = parVect
              % The unshifted mask is kept in texture mem until no longer
              % needed
              [imgWdgInterpolator, ~] = interpolator(iMaxWedgeIfft,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-             iMaxWedgeIfft = = ifftshift(iMaxWedgeMask);
+             iMaxWedgeIfft =ifftshift(iMaxWedgeIfft);
 
           end
           % Just use C1 to initialize, whether or not this is the final
@@ -1722,7 +1722,6 @@ parfor iParProc = parVect
         end % end loop over possible peaks
         
         if use_v2_SF3D
-          iMaxWedgeMask = [];
           iMaxWedgeIfft = [];
         end
     end % loop over subTomos

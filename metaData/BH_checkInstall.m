@@ -2,10 +2,13 @@ function [  ] = BH_checkInstall(  )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-t = datetime;
-fOUT = fopen(sprintf('emClarity_checkInstall.txt','a'));
-                    
 
+
+system(sprintf('%s/testScripts/BH_checkInstall.sh',getenv('emClarity_ROOT')));
+
+t = datetime;
+fOUT = fopen('emClarity_checkInstall.txt','a');
+                    
 
 [status, returnVal] = system('which chimera');
 
@@ -44,5 +47,6 @@ for iGPU = 1:nGPUs
 end
 
 fclose(fOUT);
+
 end
 
