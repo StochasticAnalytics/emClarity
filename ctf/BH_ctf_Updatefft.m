@@ -61,10 +61,10 @@ catch
 end
 
 try
-  ppool = parpool(nGPUs);
+  ppool = EMC_parpool(nGPUs);
 catch
   delete(gcp('nocreate'));
-  ppool = parpool(nGPUs);
+  ppool = EMC_parpool(nGPUs);
 end
 
 % For some reason matlab was geeking out about calling this in the parfor

@@ -182,11 +182,11 @@ for iGold = 1:1+flgGold
   end
   
   try
-    parpool(nCores);
+    EMC_parpool(nCores);
   catch
     delete(gcp('nocreate'));
     pause(3)
-    parpool(nCores);
+    EMC_parpool(nCores);
   end
 
   %%% experimental part of pcaMS

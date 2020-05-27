@@ -680,7 +680,7 @@ fscPAD = padCalc;%[floor(padVal./2); ceil((padVal)./2)]
 if ~(use_v2_SF3D)
   
   delete(gcp('nocreate'));
-  parpool(nGPUs);
+  EMC_parpool(nGPUs);
 
   % TODO need some way of only sending out the command for one tilt or
   % something to prevent collisions that result in no complete recon.
@@ -722,10 +722,10 @@ if ~(use_v2_SF3D)
 end
 
 try
-  parpool(nParProcesses+1)
+  EMC_parpool(nParProcesses+1)
 catch
   delete(gcp('nocreate'))
-  parpool(nParProcesses+1)
+  EMC_parpool(nParProcesses+1)
 end
 
 maxCCC = 0;
@@ -1888,10 +1888,10 @@ end
 
 
 try
-  parpool(nGPUs)
+  EMC_parpool(nGPUs)
 catch
   delete(gcp('nocreate'));
-  parpool(nGPUs)
+  EMC_parpool(nGPUs)
 end
 
 for iGPU = 1:nGPUs

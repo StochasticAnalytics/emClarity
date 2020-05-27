@@ -619,10 +619,10 @@ geometryResults   = cell(nParProcesses,1);
 
 
 try
-  parpool(nParProcesses+1)
+  EMC_parpool(nParProcesses+1)
 catch
   delete(gcp('nocreate'))
-  parpool(nParProcesses+1)
+  EMC_parpool(nParProcesses+1)
 end
 
 size(ref_FT2)

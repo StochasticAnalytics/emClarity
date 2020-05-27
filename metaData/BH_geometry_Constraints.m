@@ -46,7 +46,7 @@ nNeighbors = str2num(latticeNumber);
 % FIXME from param file.
 nWorkers = str2double(nWorkers);
 delete(gcp('nocreate'));
-parpool(nWorkers);
+EMC_parpool(nWorkers);
 
 
 iterList = cell(nWorkers);

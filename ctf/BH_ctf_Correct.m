@@ -49,10 +49,10 @@ pixelSize = pBH.('PIXEL_SIZE');
 !mkdir -p ctfStacks
 
 try 
-  parpool(nGPUs);
+  EMC_parpool(nGPUs);
 catch 
   delete(gcp('nocreate'));
-  parpool(nGPUs);
+  EMC_parpool(nGPUs);
 end
 
 

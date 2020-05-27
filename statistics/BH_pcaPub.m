@@ -900,10 +900,10 @@ for iGold = 1:1+flgGold
 
   %save('preparpoolSave.mat');
   try
-    parpool(nCores);
+    EMC_parpool(nCores);
   catch
     delete(gcp('nocreate'));
-    parpool(nCores);
+    EMC_parpool(nCores);
   end
 
   if (previousPCA)

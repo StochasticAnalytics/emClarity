@@ -613,7 +613,7 @@ maxWorkers = 7*nGPUs; % TODO get from paramFile
 nWorkers = min(nStrips,maxWorkers);
 whos
 delete(gcp('nocreate'))
-parpool(nWorkers);
+EMC_parpool(nWorkers);
 parfor iWorker = 1:nWorkers
   gpuDevice(gpuIDX);
 end

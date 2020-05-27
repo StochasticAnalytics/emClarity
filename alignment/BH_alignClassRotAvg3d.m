@@ -279,10 +279,10 @@ bestAnglesResults = cell(2,1);
 
 
 try
-  parpool(2)
+  EMC_parpool(2)
 catch
   delete(gcp('nocreate'))
-  parpool(2)
+  EMC_parpool(2)
 end
 
 parfor iGold = 1:2

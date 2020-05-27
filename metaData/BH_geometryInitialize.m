@@ -304,10 +304,10 @@ for iGPU = 1:nGPUs
 end
 
 try
-  parpool(nGPUs)
+  EMC_parpool(nGPUs)
 catch
   delete(gcp('nocreate'))
-  parpool(nGPUs)
+  EMC_parpool(nGPUs)
 end
 
 parResults = cell(nGPUs,1);

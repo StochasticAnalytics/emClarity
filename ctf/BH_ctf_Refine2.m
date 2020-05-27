@@ -254,10 +254,10 @@ if (calcAvg)
 
 
     try 
-     ppool = parpool(nWorkers);
+     ppool = EMC_parpool(nWorkers);
     catch 
         delete(gcp('nocreate'));
-        ppool = parpool(nWorkers);
+        ppool = EMC_parpool(nWorkers);
     end
 
     for iPrj = 1:d3
