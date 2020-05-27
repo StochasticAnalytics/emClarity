@@ -314,11 +314,7 @@ if any(peakSearch > maskRadius)
                                         maskRadius( (peakSearch > maskRadius) );
 end
 
-if ( any(classSymmetry{1}~=1) || any(classSymmetry{2}~=1) ) && flgSymmetrizeSubTomos
-  flgSymmetry = true
-else
-  flgSymmetry = false
-end
+
   
 % Read in the references.
 % Read in the references.
@@ -416,52 +412,29 @@ fftw('planner', 'exhaustive');
 fftn(fftPlanner);
 clear fftPlanner
 
-% Make a mask, and apply to the average motif && save a masked,
-% binned copy of the average for inspection. 
-% % % 
-% % %   [ volMask ] = gather(BH_mask3d(maskType, sizeMask, maskRadius, maskCenter));
-% % %     volBinary = (volMask >= 0.01);
 
-
-% In principle the window and mask could be different sizes, however, I
-% think I am currently forcing them to be the same.
 
   
-  % make rotationally invariant
-% % % % % % %   [ peakMask] = gather(BH_mask3d('sphere', sizeWindow, [1,1,1].*max(peakSearch), maskCenter));
-  [ peakMask ]  = gather(EMC_maskShape('sphere', sizeWindow, [1,1,1].*floor(max(peakSearch)), 'gpu', {'shift', maskCenter}));
+ 
 
   stat_mask = [];
   if (eraseMask)
-    % Mask could be smaller than the normal taper would allow, so instead
-    % of thresholding a normal mask, take this alt route.
-    eraseMask = ones(ceil(2.*eraseMaskRadius),'single');
-    padEraseMask = BH_multi_padVal(size(eraseMask),sizeCalc);
-    eraseMask = BH_padZeros3d(eraseMask,padEraseMask(1,:),padEraseMask(2,:),'cpu','single');
-    if track_stats
-      stat_mask =  single(find(eraseMask > 0.95));
-    end
-    eraseMask = single(find(eraseMask < 1));
+    peakMask = EMC_maskShape(eraseMaskType,sizeCalc,floor(eraseMaskRadius),'cpu',{'kernel',false});
 
+    if track_stats
+      stat_mask =  single(find(peakMask > 0.95));
+    end
       
   else
      if track_stats
-      stat_mask =   gather(EMC_maskShape('sphere', sizeCalc, [1,1,1].*floor(max(peakSearch)), 'gpu', {'shift', maskCenter}));
+      stat_mask =   EMC_maskShape('sphere', sizeCalc, [1,1,1].*floor(max(peakSearch)), 'cpu', {'shift', maskCenter});
       stat_mask = single(find(stat_mask > 0.95));
-    end
-    eraseMask = [];
+     end
+    [ peakMask ]  = EMC_maskShape('sphere', sizeCalc, [1,1,1].*floor(max(peakSearch)), 'cpu', {'shift', maskCenter;'kernel',false});
   end
   
    
   if ( flgRaw_shapeMask )
-% % % % % % %     [ volMask ] = BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter);
-    [ volMask ] = EMC_maskShape(maskType, sizeWindow, maskRadius, 'gpu', {'shift', maskCenter});
-
-    % Currently not set up for mult-ref alignment
-    iRef = 1;
-    % Use the geometric mean so that excluded areas mask out
-% % % % % % %     [ volMask ] = gather(sqrt(volMask .* ...
-% % % % % % %               BH_mask3d(refIMG{1}{iRef}+refIMG{2}{iRef},pixelSize,'','')));
  
     [ volMask ] = gather(sqrt(volMask .* ...            
               EMC_maskReference(refIMG{1}{iRef}+refIMG{2}{iRef}, pixelSize, {'fsc', true})));
@@ -472,11 +445,7 @@ clear fftPlanner
     
   end     
                                                    
-% % %   [ peakMask] = gather(BH_mask3d(maskType, sizeMask, peakSearch, maskCenter));
-% % %     peakBinary = (peakMask >= 0.01);   
-    
-%   [ refInterp] = gather(BH_mask3d(maskType, sizeREF, peakSearch, maskCenter));
-%     refInterp = (refInterp >= 0.01);   
+
 
   bandpassFilt = cell(nReferences(1),1);
   bandpassFiltREF = bandpassFilt;
@@ -598,10 +567,10 @@ for iGold = 1:2
     refOUT{nOut} = refOUT{nOut}.*volMask;
     
     refOUT{nOut+1} = real(ifftn(BH_bandLimitCenterNormalize(...
-                          refTMP_2.*peakMask, '', (peakMask > 0.01), padCalc, 'single')));
+                          refTMP_2, '', '', padCalc, 'single')));
     refOUT{nOut+1} = gather(refOUT{nOut+1}(padCalc(1,1) + 1: end - padCalc(2,1), ...
                             padCalc(1,2) + 1: end - padCalc(2,2), ...
-                            padCalc(1,3) + 1: end - padCalc(2,3)) .* peakMask );  
+                            padCalc(1,3) + 1: end - padCalc(2,3)) );  
     nOut = nOut + 2;
     
     refOUT{nOut} = refOUT{nOut} - mean(refOUT{nOut}(:));
@@ -754,8 +723,6 @@ parfor iParProc = parVect
     volBinary_tmp = single(find( volMask_tmp > 0.01 ));
     peakMask_tmp = gpuArray(peakMask);
     peakBinary_tmp = single(find( peakMask_tmp > 0.01 )); 
-    wdgBinary_tmp = gpuArray(wdgBinary);
-    eraseMask_tmp = gpuArray(eraseMask);
     
     if (track_stats)
       mip = struct();
@@ -1032,9 +999,12 @@ parfor iParProc = parVect
           refInterpolator = '';
           refWdgInterpolator= '';
           particleInterpolator= '';
+          peakMaskInterpolator  = '';
           [refInterpolator, ~] = interpolator(gpuArray(ref_FT2_tmp{1}{1}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
           refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{iGold}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
           particleInterpolator = interpolator(iparticle,[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);
+          peakMaskInterpolator = interpolator(peakMask_tmp,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+          
         end
         
         for iAngle = 1:size(angleStep,1)
@@ -1177,43 +1147,38 @@ parfor iParProc = parVect
 
                   
                     % use transpose of RotMat
-           % FIXME if you start reusing the TexObject you'll need an
-           % interpolator for each reference. As it is now, I guess having
-           % multiple interpolators for ref,particle,and mask prob isn't
-           % accomplishing anything.
-           
-%                     iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{iRef}, RotMat', ...
-%                                             estPeakCoord, {'Bah',1,'linear',1,peakBinary_tmp}, 'GPU', 'forward',inputVectors);
+
                     [ iRotRef ] = refInterpolator.interp3d(...
                                                   ref_FT2_tmp{iGold}{iRef}, RotMat',... 
                                                   estPeakCoord,'Bah',...
-                                                  'forward',sprintf('C%d',1)); 
-                          
-                                      
-                    
-%                     iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{iRef}, RotMat', ...
-%                                             [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);
+                                                  'forward','C1'); 
+                     
+
 
                     [ iRotWdg ] = refWdgInterpolator.interp3d(...
                                                   ref_WGT_rot{iGold}{iRef}, RotMat',... 
                                                    [0,0,0],'Bah',...
-                                                  'forward',sprintf('C%d',1));  
-                                      
-%                     iRotRef = ...
-%                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-%                                       padWindow(1,2) + 1:end - padWindow(2,2) , ...
-%                                       padWindow(1,3) + 1:end - padWindow(2,3) );                                          
+                                                  'forward','C1');  
+                                                
+                                                
+                    [ iRotMask ] = peakMaskInterpolator.interp3d(...
+                                                   peakMask_tmp, RotMat',... 
+                                                   [0,0,0],'Bah',...
+                                                  'forward','C1');  
+                                                
+                                                
+                                    
 
                     % maybe I should be rotating peak mask here in case it has
                     % an odd shape, since we are leaving the proper frame
 
                     iRotRef = BH_bandLimitCenterNormalize(...
-                                                         iRotRef.*peakMask_tmp,...
+                                                         iRotRef,...
                                                          bandpassFiltREF_tmp{iRef} ,peakBinary_tmp,...
                                                          padCalc,flgPrecision);
 
                     rotPart_FT = BH_bandLimitCenterNormalize(...
-                                 iTrimParticle.*peakMask_tmp,...
+                                 iTrimParticle,...
                                  bandpassFilt_tmp{iRef} ,peakBinary_tmp,padCalc,flgPrecision); 
                       
                     if (track_stats && measure_noise)
@@ -1224,7 +1189,7 @@ parfor iParProc = parVect
                                                                 conj(iRotRef),...
                                                                 ifftshift(iRotWdg),...
                                                                 iMaxWedgeIfft,...                                                            
-                                                                peakMask_tmp, peakCOM,eraseMask_tmp,...
+                                                                iRotMask, peakCOM,...
                                                                 mip);
                                                               
 
@@ -1232,7 +1197,7 @@ parfor iParProc = parVect
                        [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                               rotPart_FT.*ifftshift(iRotWdg), ...
                                                               conj(iRotRef).*iMaxWedgeIfft,...
-                                                              peakMask_tmp, peakCOM,eraseMask_tmp);                   
+                                                              iRotMask, peakCOM);                   
                     
 
                     cccStorageTrans(iRef,:) = [iRef, particleIDX, ...
@@ -1483,27 +1448,32 @@ parfor iParProc = parVect
                     [ iRotRef ] = refInterpolator.interp3d(...
                                                   ref_FT2_tmp{iGold}{iRef}, RotMat',... 
                                                   rXYZ,'Bah',...
-                                                  'forward',sprintf('C%d',1));                                          
+                                                  'forward','C1');                                          
                     
 
                     [ iRotWdg ] = refWdgInterpolator.interp3d(...
                                                   ref_WGT_rot{iGold}{iRef}, RotMat',... 
                                                    [0,0,0],'Bah',...
-                                                  'forward',sprintf('C%d',1));                                
+                                                  'forward','C1'); 
+                                                
+                    [ iRotMask ] = peakMaskInterpolator.interp3d(...
+                                                   peakMask_tmp, RotMat',... 
+                                                   [0,0,0],'Bah',...
+                                                  'forward','C1');                                                 
 
                     iRotRef = BH_bandLimitCenterNormalize(...
-                                                         iRotRef.*peakMask_tmp,...
+                                                         iRotRef,...
                                                          bandpassFiltREF_tmp{rRef},peakBinary_tmp,...
                                                          padCalc,flgPrecision);
                                                        
                     rotPart_FT = BH_bandLimitCenterNormalize(...
-                                 iTrimParticle.*peakMask_tmp,...
+                                 iTrimParticle,...
                                  bandpassFilt_tmp{rRef} ,peakBinary_tmp,padCalc,flgPrecision); 
                                
                     [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                             rotPart_FT.*ifftshift(iRotWdg), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            iRotMask, peakCOM);
 
                                                           
                 % 2016-11-11 also took out (+ rXYZ) 
@@ -1604,13 +1574,18 @@ parfor iParProc = parVect
                     [ iRotRef ] = refInterpolator.interp3d(...
                                                   ref_FT2_tmp{iGold}{iRef}, RotMat',... 
                                                   finalrXYZest,'Bah',...
-                                                  'forward',sprintf('C%d',1));                                          
+                                                  'forward','C1');                                          
                     
 
                     [ iRotWdg ] = refWdgInterpolator.interp3d(...
                                                   ref_WGT_rot{iGold}{iRef}, RotMat',... 
                                                    [0,0,0],'Bah',...
-                                                  'forward',sprintf('C%d',1));                                        
+                                                  'forward','C1');            
+                                                
+                    [ iRotMask ] = peakMaskInterpolator.interp3d(...
+                                                   peakMask_tmp, RotMat',... 
+                                                   [0,0,0],'Bah',...
+                                                  'forward','C1');                                                 
               catch
                 fprintf('\n\nFinal ref,part,phi,theta,psi %f %f %f %f %f\n\n',...
                   bestRotPeak(:,1:5));
@@ -1628,19 +1603,19 @@ parfor iParProc = parVect
 
 
                     iRotRef = BH_bandLimitCenterNormalize(...
-                                                         iRotRef.*peakMask_tmp,...
+                                                         iRotRef,...
                                                          bandpassFiltREF_tmp{finalRef} ,peakBinary_tmp,...
                                                          padCalc,flgPrecision);
                                                        
                     rotPart_FT = BH_bandLimitCenterNormalize(...
-                                 iTrimParticle.*peakMask_tmp,...
+                                 iTrimParticle,...
                                  bandpassFilt_tmp{finalRef} ,peakBinary_tmp,padCalc,flgPrecision ); 
                   
 
                       [ peakCoord ] =  BH_multi_xcf_Translational( ...
                                                             rotPart_FT.*ifftshift(iRotWdg), ...
                                                             conj(iRotRef).*iMaxWedgeIfft,...
-                                                            peakMask_tmp, peakCOM,eraseMask_tmp);
+                                                            iRotMask, peakCOM);
                     
                       
 

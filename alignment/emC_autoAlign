@@ -101,8 +101,8 @@ echo $iEcho && iEcho=$(($iEcho+1))
     if [[ ${iter} -eq 1 ]] ; then
       # open up etomo to run through to visually inspect ccd removal and get the 
       # alignment to be sane. assuming tilts in header or manually extracted.
-      ln -s ../../${inp}${ext} ${pName}.st
-      ln -s ../../${inp}.rawtlt ${pName}.rawtlt
+      ln -sf ../../${inp}${ext} ${pName}.st
+      ln -sf ../../${inp}.rawtlt ${pName}.rawtlt
 #      if [[ -f ../../$(basename ${inp} .mrc).rawtlt ]] ; then
 #        inp=$(basename ${inp} .mrc)
 #        ln -s ../../${inp}.rawtlt ${pName}.rawtlt        
@@ -179,7 +179,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
       fi
       # assuming everything is sane, and the input points to a ccd fixed stack, 
       # we can do a few steps automatically.
-      ln -s ../../fixedStacks/${inp}.fixed.rot ${pName}.st
+      ln -sf ../../fixedStacks/${inp}.fixed.rot ${pName}.st
       prev_Iter=$((${iter}-1))
       prev_wDir="round_${prev_Iter}"
 

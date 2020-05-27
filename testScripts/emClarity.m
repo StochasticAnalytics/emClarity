@@ -321,13 +321,17 @@ switch varargin{1}
             BH_alignRaw3d(varargin{2}, varargin{3});
           end        
         else
-          if (useV2)
-            fprintf('Using experimental V2 of alignRaw3d\n');
-
-            BH_alignRaw3d_v2(varargin{2}, varargin{3},varargin{4})
-          else
-            BH_alignRaw3d(varargin{2}, varargin{3},varargin{4});
-          end
+          
+          % Switching to v2 always, 1.5.0.9 20200520
+          BH_alignRaw3d_v2(varargin{2}, varargin{3},varargin{4})
+          
+% % %           if (useV2)
+% % %             fprintf('Using experimental V2 of alignRaw3d\n');
+% % % 
+% % %             BH_alignRaw3d_v2(varargin{2}, varargin{3},varargin{4})
+% % %           else
+% % %             BH_alignRaw3d(varargin{2}, varargin{3},varargin{4});
+% % %           end
         end
     end
     

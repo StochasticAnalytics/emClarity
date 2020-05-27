@@ -294,6 +294,7 @@ recGeom = 0;
 if (recWithoutMat)
   if reconstructionParameters(1) && loadSubTomoMeta
     tiltList{1} = varargin{2};
+    nTilts = 1;
     % We just need one valid subtomot
     iTry = 1;
     tomoList{1} = '';
@@ -334,21 +335,10 @@ if (recWithoutMat)
 
   end
 else
-  tiltList_tmp = fieldnames(masterTM.mapBackGeometry);
-  tiltList_tmp = tiltList_tmp(~ismember(tiltList_tmp,{'viewGroups','tomoName'}));
-  nST = 1; tiltList = {};
-  for iStack = 1:length(tiltList_tmp)
-    if masterTM.mapBackGeometry.(tiltList_tmp{iStack}).nTomos
-      tiltList{nST} = tiltList_tmp{iStack};
-      nST = nST +1;
-    end
-  end
-  clear tiltList_tmp
-
+ [tiltList,nTilts] = BH_returnIncludedTilts(masterTM.mapBackGeometry);
   tomoList = fieldnames(masterTM.mapBackGeometry.tomoName);
 end
 
-nTilts = length(tiltList);
 
 % Divide the tilt series up over each gpu
 iterList = cell(nGPUs,1);
@@ -366,30 +356,11 @@ catch
   EMC_parpool(nGPUs)
 end
 
-% Instead of trying to do some imod_wait situation, just loop over the
-% tilts in serial prior to entering the parallel reconstruction to make sure the
-% prebinned stacks are there.
-
-for iGPU = 1:nGPUs
+ 
+parfor iGPU = 1:nGPUs
   for iTilt = iterList{gpuList(iGPU)}
     
-    if (recWithoutMat)
-      if (loadSubTomoMeta)
-        % tomoCPR
-        nTomos = 1;
-      else
-        % templaterch
-        nTomos  = nTomosPerTilt{iTilt};
-        iCoords = recGeom{iTilt};
-        iCoords(:,1:4) = fix(iCoords(:,1:4)./samplingRate);
-        iTomoList = cell(nTomos,1);        
-      end
-    else
-      nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
-      iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords ./samplingRate;
-      iCoords(:,1:4) = fix(iCoords(:,1:4));
-      iTomoList = cell(nTomos,1);
-    end
+    iTomoList = {};
     
     % For now, since the tilt geometry is not necessarily updated (it is manual)
     % in the masterTM, check that newer (possible perTilt refined) data is
@@ -455,6 +426,8 @@ parfor iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt 
   for iTilt = iterList{gpuList(iGPU)}
+  
+    
     
     if (recWithoutMat)
       if (loadSubTomoMeta)

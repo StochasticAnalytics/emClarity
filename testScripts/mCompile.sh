@@ -22,8 +22,8 @@ outName="$(basename ${mFile} .m)${post}"
 # bugs line. e.g. buggs=5testingFeature
 major=1
 minor=5
-bugs=afterMove
-nightly=8
+bugs=0
+nightly=9
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.

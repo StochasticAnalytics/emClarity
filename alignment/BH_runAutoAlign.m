@@ -16,12 +16,18 @@ end
 try
   MAX_SAMPLING_RATE = pBH.('autoAli_max_sampling_rate');
 catch
-  MAX_SAMPLING_RATE = 3.0;
+  MAX_SAMPLING_RATE = 4.0;
 end
 try
   PATCH_SIZE_FACTOR = pBH.('autoAli_patch_size_factor');
 catch
   PATCH_SIZE_FACTOR = 4;
+end
+
+try
+  REFINE_ON_BEADS = pBH.('autoAli_refine_on_beads');
+catch
+  REFINE_ON_BEADS = false;
 end
 
   LOW_RES_CUTOFF=800;
@@ -123,10 +129,38 @@ if strcmpi(TILT_OPTION,'0')
    system(sprintf('cp %s fixedStacks/%s.tlt',tiltAngles,tiltName));
 end
 
-cd fixedStacks
-system(sprintf('%s %s %d %d %d %d', findBeadsPath, baseName,...
-                                       nX,nY,3000,...
-                                       ceil(1.05*100/pixelSize)));
-cd ..
+if (REFINE_ON_BEADS)
+  cd(sprintf('%s',wrkDir'));
+  extList = {'fixed','tlt','xf','local'}; % stack is skipped in second round. leave as number 1
+  for iExt = 1:length(extList)
+    system(sprintf('ln -sf ../fixedStacks/%s.%s %s.%s', ...
+                    baseName,extList{iExt},baseName,extList{iExt}));
+  end  
+  
+  % Stopping for now at a bin5, this should be dynamic along with a handful
+  % of other options.
+  max_binning = 5;
+  BH_refine_on_beads(baseName,nX,nY,3000,pixelSize,1.05.*100);
+  
+  for iExt = 2:length(extList)
+    system(sprintf('mv ../fixedStacks/%s.%s ../fixedStacks/%s.%s_patchTracking', ...
+                    baseName,extList{iExt},baseName,extList{iExt}));
+    system(sprintf('cp %s_%d.%s ../fixedStacks/%s.%s', ...
+                    baseName,max_binning,extList{iExt},baseName,extList{iExt}));                  
+  end   
+  
+  
+  system(sprintf('imodtrans -i ../fixedStacks/%s.fixed %s_%d_fit.fid ../fixedStacks/%s.erase',...
+                 baseName,baseName,max_binning,baseName));
+  cd ..
+  
+else
+  cd fixedStacks
+  system(sprintf('%s %s %d %d %d %d', findBeadsPath, baseName,...
+                                         nX,nY,3000,...
+                                         ceil(1.05*100/pixelSize)));
+  cd ..
+end
+
 end
 

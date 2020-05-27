@@ -8,7 +8,17 @@ pBH = BH_parseParameterFile(PARAMETER_FILE);
 flgSkipUpdate = 0;
 % To avoid accidently masking any failures in subsequent update, clean out
 % all stacks and reconstructions from the local cache.
-flgShiftEucentric = 0;
+try
+  eucentric_minTilt = pBH.('eucentric_minTilt');
+catch
+  eucentric_minTilt = 15;
+end
+try
+  flgShiftEucentric =  pBH.('eucentric_fit')
+catch
+  flgShiftEucentric = 0
+end
+
 try
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR; 
@@ -40,7 +50,7 @@ else
 end
 
 eucShiftsResults = 0;
-if strcmpi(applyFullorUpdate, 'fullScale')
+if flgShiftEucentric
   eucShiftsResults = cell(size(ITER_LIST));
 end
 % BH_geometryAnalysis(sprintf('%s',PARAMETER_FILE),sprintf('%d',subTomoMeta.currentCycle),'TiltAlignment','UpdateTilts',sprintf('[%d,0,0]',subTomoMeta.currentCycle),'STD')
@@ -93,7 +103,6 @@ if strcmpi(applyFullorUpdate, 'full')
   % Combine old and new transformations and apply as well as erasing beads,
   % e.g. go from raw stack to preCTF.
   flgSkipErase = 0;
-  flgShiftEucentric=0;
   flgApplyFullXform = 1;
   PRJ_STACK ={sprintf('fixedStacks/%s.fixed',STACK_PRFX)}
   PRJ_OUT = {sprintf('%s_ali%d',STACK_PRFX,mapBackIter+1)}
@@ -106,7 +115,6 @@ elseif strcmpi(applyFullorUpdate, 'fullScale')
   % Also remove shifts due to the sample being non-eucentric. This is a
   % test, and if it helps, it would be even better to just apply this shift
   % to all the subtomos pre-emptivel.
-  flgShiftEucentric = 1;
   flgSkipErase = 0;
   flgApplyFullXform = 1;
   PRJ_STACK ={sprintf('fixedStacks/%s.fixed',STACK_PRFX)}
@@ -274,15 +282,19 @@ system('mkdir -p aliStacks');
       fprintf('Did not find updated defocus estimate from tomoCPR\n');
     end
   end
+    
   
-  if ( flgShiftEucentric )
+  if ( flgShiftEucentric && flgCombine )
+     toFit = abs(mbTLT) > eucentric_minTilt;
+
     % For now take the mean, but it would probably be better to fit a line,
     % use the Y intercept, and use the deviation from 0 of the slope as a
     % measure of quality.
     fprintf('\n\nYou suspect a eucentric drift\n\n')
-    mbEST(:,5)
-    eucShift = mbEST(:,5) ./ sind(mbTLT);
+    eucShift = fit(mbTLT(toFit),-1 .* mbEST(toFit,5) ./ sind(mbTLT(toFit),'poly1'));
     
+   fprintf('\n\nFound a possible eucentric shift of %3.3f\nThe slope (%3.3f) should be close to zero.\n\n',eucShift.p2,eucShift.p1);
+
     eucShift = eucShift(isfinite(eucShift))
     if isempty(eucShift)
       fprintf('All non-finite entries in the eucentric shift estimate\n');
@@ -291,9 +303,8 @@ system('mkdir -p aliStacks');
       eucShift = mean(eucShift);
     end
 %     mbEST(:,5) = mbEST(:,5) - eucShift.*sind(mbTLT);
-    fprintf('\n\nFound a possible eucentric shift of %f\n\n',eucShift);
 %     mbEST(:,5)
-    eucShiftsResults{iGPU}{iTilt} = eucShift;
+    eucShiftsResults{iGPU}{iTilt} = eucShift.p2;
 
   end
   outputStackName = sprintf('%s/%s%s',outputDirectory,INPUT_CELL{iStack,6},INPUT_CELL{iStack,5});
@@ -635,14 +646,14 @@ end % end of par for loop
 
 
 % 
-if iscell(eucShiftsResults)
+if (flgShiftEucentric && flgCombine)
   % Update the sub tomo z coords with an estimate of the shift
   for iGPU = 1:nGPUs
   
     for iTilt = 1:length(ITER_LIST{iGPU})  
      
-      STACK_PRFX = ITER_LIST{iGPU}{iTilt}
-      eucShift = eucShiftsResults{iGPU}{iTilt}
+      STACK_PRFX = ITER_LIST{iGPU}{iTilt};
+      eucShift = eucShiftsResults{iGPU}{iTilt};
   
       for jTomo = 1:subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos
         if any(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords(jTomo,:))

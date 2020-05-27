@@ -440,9 +440,15 @@ clear volumeMask
 stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize )  ./ log(pcaScaleSpace)
 for iScale = 1:nScaleSpace
 
-    masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-                            gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
-                                  pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
+    % Filter with low res info constant to 100 Ang, but only a tight band
+    % around the desired resolution.
+    lowResInfo = BH_bandpass3d(sizeMask,1e-6,400,100,'GPU',pixelSize) + ...
+                 BH_bandpass3d(sizeMask,1e-15,pcaScaleSpace(iScale),pcaScaleSpace(iScale),'GPU',pixelSize);
+    masks.('scaleMask').(sprintf('s%d',iScale)) = gather(lowResInfo ./ max(lowResInfo(:)));
+    
+% % %     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
+% % %                             gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
+% % %                                   pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
 
 %    masks.('scaleMask').(sprintf('s%d',iScale)) = ...
 %                            gather(BH_bandpass3d( sizeMask, 0.1, 400, ...
@@ -692,7 +698,7 @@ for iGold = 1:1+flgGold
       
 
       if (includeParticle) 
-
+        make_sf3d = true;
         for iPeak = 0:nPeaks-1
 
         % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
@@ -702,7 +708,8 @@ for iGold = 1:1+flgGold
         angles = positionList(iSubTomo,[17:25]+26*iPeak);
         
       
-        if (use_v2_SF3D && iPeak == 0)
+        if (use_v2_SF3D && make_sf3d)
+          make_sf3d = false;
           fprintf('calculating SF3D %d \n',iSubTomo);
           radialGrid = '';
           padWdg = [0,0,0;0,0,0];

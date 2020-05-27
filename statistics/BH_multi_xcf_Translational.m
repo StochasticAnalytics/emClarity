@@ -1,6 +1,5 @@
 function [ PEAK_COORD ] =  BH_multi_xcf_Translational(  rotPART_FT, REF_FT, ...
-                                                        peakMask, PEAK_COM, ...
-                                                        varargin)
+                                                        peakMask, PEAK_COM)
                                                        
 %Consolodating function, calculate wedge weight and cross correlation
 %   
@@ -27,31 +26,14 @@ function [ PEAK_COORD ] =  BH_multi_xcf_Translational(  rotPART_FT, REF_FT, ...
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-% Option for different correlation functions, for now switching from Xcf to Mcf
-% fixed, but only here (not rotational
 
-if strcmpi(peakMask,'noShift')
-  % regular cross-correlation, but with fourier interp vol so no need for
-  % final fftshift.
-  iCCCmap = real(ifftn(rotPART_FT.*REF_FT));
-else
-    % regular cross-correlation
-  iCCCmap = fftshift(real(ifftn(rotPART_FT.*REF_FT)));
-end
+  % regular cross-correlation
+iCCCmap = fftshift(real(ifftn(rotPART_FT.*REF_FT)));
+
+minVal = min(iCCCmap,[],'all');
+iCCCmap(peakMask < 0.95) = minVal; 
 
 
-% The center of mass calc doesn't make sense when there are negative mass
-% values, so originally, I set all less than 0 = 0. This ignores plently of
-% useful information, so instead, now shift all intensitys to be >= 0
-% % % iCCCmap(iCCCmap < 0) = 0;
-iCCCmap = iCCCmap - min(iCCCmap(:));
-
-if nargin > 4 
-  if ~isempty(varargin{1})
-    % Zero out tighter zone for cases of repeating lattice
-    iCCCmap(varargin{1}) = 0;
-  end
-end
 peakCOM = PEAK_COM;
 
 
@@ -66,10 +48,6 @@ if (~isnan(gather(maxVal)) && (maxVal ~= 0))
     
     if (peakCOM)
       if iCOM == 2
-
-  %         figure, imshow3D(gather(iCCCmap)); pause(20)
-
-
         peakCoord = round(PEAK_COORD);
       else
         % from max within peak window
@@ -87,6 +65,9 @@ if (~isnan(gather(maxVal)) && (maxVal ~= 0))
         boX = iCCCmap(peakLOW(1):peakTOP(1), ...
                       peakLOW(2):peakTOP(2), ...
                       peakLOW(3):peakTOP(3));
+                    
+        % Center of mass calc only makes sense for positive values
+        boX = boX - minVal;
       catch
         peakCOM = gather(peakCOM);
         peakCoord = gather(peakCoord);

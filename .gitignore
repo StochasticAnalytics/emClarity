@@ -2,6 +2,7 @@ mexFiles/
 mexFiles/compiled
 !mexFiles/compiled/emC_autoAlign.sh
 bin/
+lib/
 testScripts/EMC_test/logTest/
 testScripts/EMC_test/logPerf/
 testScripts/EMC_test/fixtures
