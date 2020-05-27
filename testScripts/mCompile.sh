@@ -78,6 +78,7 @@ echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
 echo '#emClarity_ROOT=/work/emClarity'
 echo 'export emClarity_ROOT=/groups/grigorieff/home/himesb/work/emClarity'
+echo 'export LD_LIBRARY_PATH=${emClarity_ROOT}/lib:${LD_LIBRARY_PATH}'
 echo ''
 
 } > emClarity_${scriptOutName}
@@ -169,14 +170,24 @@ mv emClarity_${binaryOutName} ../bin
 #mv /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh
 #chmod a=wrx /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh 
 
+rm -rf ../emClarity_${major}.${minor}.${bugs}.${nightly}
+mkdir ../emClarity_${major}.${minor}.${bugs}.${nightly}
+cp -rp ../docs ../emClarity_${major}.${minor}.${bugs}.${nightly}
+cp -rp ../lib ../emClarity_${major}.${minor}.${bugs}.${nightly}
 
-cp -rp ../docs ../bin
-cd ..
+cd ../emClarity_${major}.${minor}.${bugs}.${nightly}
+mkdir bin
+cd bin
+cp ../../bin/emClarity_${scriptOutName} emClarity_${scriptOutName}
+cp ../../bin/emClarity_${binaryOutName} emClarity_${binaryOutName}
+cd ../../
+
 if [[ ${zip_location} != "NONE" ]]; then
-  zip -r emClarity_${major}.${minor}.${bugs}.${nightly}.zip bin/emClarity_${scriptOutName} bin/emClarity_${binaryOutName}  bin/deps
+  zip -r --symlinks emClarity_${major}.${minor}.${bugs}.${nightly}.zip ./emClarity_${major}.${minor}.${bugs}.${nightly}
   mv emClarity_${major}.${minor}.${bugs}.${nightly}.zip ${zip_location}
 fi
 
+rm -rf emClarity_${major}.${minor}.${bugs}.${nightly}
 
 
 

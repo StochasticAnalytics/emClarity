@@ -1,4 +1,4 @@
-function [ ] = EMC_parpool(nWorkers)
+function [ pool ] = EMC_parpool(nWorkers)
 %Make a local copy of the default cluster, and modify the job storage
 %location
 
@@ -34,7 +34,7 @@ if (profile_does_not_exist)
   saveAsProfile(emc_parcluster, emc_rand_name);
 end
 
-parpool(emc_rand_name, nWorkers);
+[ pool ] = parpool(emc_rand_name, nWorkers);
 
 end
 
