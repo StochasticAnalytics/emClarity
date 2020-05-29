@@ -178,6 +178,12 @@ catch
   flgPcaShapeMask = 1;
 end
 
+try
+  test_updated_bandpass = pBH.('test_updated_bandpass');
+catch
+  test_updated_bandpass = false;
+end
+
 flgClassify = pBH.('flgClassify');
 
 % Removed flgGold everywhere else, but keep ability to classify full data set at
@@ -423,6 +429,7 @@ for iScale = 1:nScaleSpace
     masks.('binary').(stHALF).(stSCALE)  = ...
                                   masks.('binary').(stHALF).(stSCALE)(:);
     masks.('binaryApply').(stHALF).(stSCALE)  = (volTMP >= 0.01);
+
 % % % volBinaryMask = (volMask >= 0.5);
 % % % volBinaryApply = (volMask >= 0.01);
 % % % volBinaryMask = (volBinaryMask(:));
@@ -440,15 +447,19 @@ clear volumeMask
 stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize )  ./ log(pcaScaleSpace)
 for iScale = 1:nScaleSpace
 
-    % Filter with low res info constant to 100 Ang, but only a tight band
-    % around the desired resolution.
-    lowResInfo = BH_bandpass3d(sizeMask,1e-6,400,100,'GPU',pixelSize) + ...
-                 BH_bandpass3d(sizeMask,1e-15,pcaScaleSpace(iScale),pcaScaleSpace(iScale),'GPU',pixelSize);
-    masks.('scaleMask').(sprintf('s%d',iScale)) = gather(lowResInfo ./ max(lowResInfo(:)));
+    if (test_updated_bandpass)
+      % Filter with low res info constant to 100 Ang, but only a tight band
+      % around the desired resolution.
+      lowResInfo = BH_bandpass3d(sizeMask,1e-6,400,100,'GPU',pixelSize) + ...
+                   BH_bandpass3d(sizeMask,1e-15,pcaScaleSpace(iScale),pcaScaleSpace(iScale),'GPU',pixelSize);
+      masks.('scaleMask').(sprintf('s%d',iScale)) = gather(lowResInfo ./ max(lowResInfo(:)));
+    else
+      
     
-% % %     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-% % %                             gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
-% % %                                   pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
+     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
+                             gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
+                                   pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
+    end
 
 %    masks.('scaleMask').(sprintf('s%d',iScale)) = ...
 %                            gather(BH_bandpass3d( sizeMask, 0.1, 400, ...

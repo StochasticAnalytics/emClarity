@@ -352,7 +352,7 @@ system('mkdir -p aliStacks');
   sizeCropped(3) = d3; 
   
  STACK = zeros(sizeCropped,'single');
- samplingMaskStack = zeros(sizeCropped,'uint8');
+ samplingMaskStack = zeros(sizeCropped,'single');
  
   for i = 1:d3
 
@@ -547,7 +547,7 @@ system('mkdir -p aliStacks');
                                              'GPU','single')));
                                            
       iSamplingMask(isnan(iSamplingMask(:))) = 0;
-      samplingMaskStack(:,:,i) = uint8(gather(real(iSamplingMask)));
+      samplingMaskStack(:,:,i) = (gather(real(iSamplingMask)));
       iSamplingMask = [];
 %      
 %   end

@@ -416,8 +416,7 @@ end
 sizeCropped(3) = d3; 
 
 STACK = zeros(sizeCropped,'single');
- samplingMaskStack = zeros(sizeCropped,'uint8');
- samplingMask = ones([sizeCropped(1:2),1],'single','gpuArray');
+ samplingMaskStack = zeros(sizeCropped,'single');
  
 
 
@@ -562,7 +561,7 @@ for i = 1:d3
   iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),combinedXF,dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);
   
   iSamplingMask(isnan(iSamplingMask(:))) = 0;
-  samplingMaskStack(:,:,i) = uint8(gather(real(iSamplingMask)));
+  samplingMaskStack(:,:,i) = (gather(real(iSamplingMask)));
   iSamplingMask = [];
 
 % % % % %    iProjection = real(fftshift(ifftn(ifftshift(iProjection))));

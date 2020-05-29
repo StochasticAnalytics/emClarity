@@ -1706,8 +1706,8 @@ parfor iPrj = 1:nPrjs
        
         try 
           % If any zeros values within the particle radius, do not evaluate
-%           iSkipEval = any(any(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)) == 0));
-          iSkipEval = sum(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)),'all') < minEval;
+          iSkipEval = any(any(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)) == 0));
+%           iSkipEval = sum(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)),'all') < minEval;
         catch
           % If the particle was outof bounds, do not evaluate
           iSkipEval = 1;
