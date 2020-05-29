@@ -291,6 +291,7 @@ if pBH.('SuperResolution')
 end
 nTomosPerTilt = 0;
 recGeom = 0;
+
 if (recWithoutMat)
   if reconstructionParameters(1) && loadSubTomoMeta
     tiltList{1} = varargin{2};
@@ -343,12 +344,12 @@ end
 % Divide the tilt series up over each gpu
 iterList = cell(nGPUs,1);
 % If there is only one tilt, things break in a weird way
+
 nGPUs = min(nGPUs, nTilts);
 for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
 end
-
 try
   EMC_parpool(nGPUs) 
 catch

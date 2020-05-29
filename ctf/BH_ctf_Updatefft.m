@@ -67,6 +67,13 @@ catch
   EMC_parpool(nGPUs);
 end
 
+% Assuming that mapBackIter > 0 since we are updating
+if (mapBackIter)
+  flgInitResample = 0;
+else
+  flgInitResample = 1;
+end
+
 % For some reason matlab was geeking out about calling this in the parfor
 % loop, getting confused about whether it is a variable or a function.
 recGeomForThickness = subTomoMeta.reconGeometry;
@@ -86,18 +93,12 @@ parfor iGPU = 1:nGPUs
 
   STACK_PRFX = ITER_LIST{iGPU}{iTilt};
 
-      
-% Assuming that mapBackIter > 0 since we are updating
-if (mapBackIter)
+ if (mapBackIter)
   mapBackPrfx = sprintf('mapBack%d/%s_ali%d_ctf',mapBackIter,STACK_PRFX,mapBackIter)
-  flgInitResample = 0;
-  flgCombine = 1;
-else
-  flgInitResample = 1;
-  flgCombine = 0;
-  % If this isn't initialized the parallel pool takes a shit.
-  mbEST = '';
-end
+ else
+   mbEST='';
+ end
+
 
 if strcmpi(applyFullorUpdate, 'full')
   % Combine old and new transformations and apply as well as erasing beads,
@@ -127,7 +128,6 @@ elseif strcmpi(applyFullorUpdate, 'refine')
   % Don't combine, just use tlt with new defocus values and erase beads
   flgSkipErase = 0;
   flgApplyFullXform = 1;
-  flgCombine = 0;
   PRJ_STACK ={sprintf('fixedStacks/%s.fixed',STACK_PRFX)}
   PRJ_OUT = {sprintf('%s_ali%d',STACK_PRFX,mapBackIter+1)}
   PRJ_OLD = sprintf('%s_ali%d',STACK_PRFX,mapBackIter);
@@ -268,7 +268,7 @@ nPrjs = size(TLT,1);
 % system(sprintf('mkdir -p %s/recon',INPUT_CELL{i,3}));
 system('mkdir -p aliStacks');
  
-  if (flgCombine)
+  if (mapBackIter)
     fprintf('Combining tranformations\n\n');
     % Load in the mapBack alignment
     mbEST = load(sprintf('%s.tltxf',mapBackPrfx));
@@ -284,37 +284,29 @@ system('mkdir -p aliStacks');
   end
     
   
-  if ( flgShiftEucentric && flgCombine )
+  if ( flgShiftEucentric && mapBackIter )
      toFit = abs(mbTLT) > eucentric_minTilt;
 
     % For now take the mean, but it would probably be better to fit a line,
     % use the Y intercept, and use the deviation from 0 of the slope as a
     % measure of quality.
     fprintf('\n\nYou suspect a eucentric drift\n\n')
-    eucShift = fit(mbTLT(toFit),-1 .* mbEST(toFit,5) ./ sind(mbTLT(toFit),'poly1'));
+    eucShift = fit(mbTLT(toFit),1 .* mbEST(toFit,5) ./ sind(mbTLT(toFit)),'poly1');
     
    fprintf('\n\nFound a possible eucentric shift of %3.3f\nThe slope (%3.3f) should be close to zero.\n\n',eucShift.p2,eucShift.p1);
 
-    eucShift = eucShift(isfinite(eucShift))
-    if isempty(eucShift)
-      fprintf('All non-finite entries in the eucentric shift estimate\n');
-      eucShift = 0;
-    else
-      eucShift = mean(eucShift);
-    end
 %     mbEST(:,5) = mbEST(:,5) - eucShift.*sind(mbTLT);
 %     mbEST(:,5)
     eucShiftsResults{iGPU}{iTilt} = eucShift.p2;
 
   end
+  
   outputStackName = sprintf('%s/%s%s',outputDirectory,INPUT_CELL{iStack,6},INPUT_CELL{iStack,5});
   oldStackName = sprintf('%s/%s%s',outputDirectory,PRJ_OLD,INPUT_CELL{iStack,5});
   if exist(sprintf('fixedStacks/%s.erase',fileName),'file')
     flgEraseBeads = 1;
     % create and later run a script to erase gold beads using imods
     % ccderaser and the present fiducial model.
-
-
 
   else
     flgEraseBeads = 0;
@@ -377,7 +369,7 @@ system('mkdir -p aliStacks');
     updateScale = 1;
   end
 
-  if (flgCombine)
+  if (mapBackIter)
 
     % Stored in row order as output by imod, st transpose is needed. Inversion
     % of the xform is handled in resample2d.
@@ -572,7 +564,7 @@ system('mkdir -p aliStacks');
 
   out_tmp = [];
   
-  if (flgCombine)
+  if (mapBackIter)
     % Update the tilt angles
     TLT(:,4) = mbTLT;
     if (defShifts)
@@ -598,10 +590,7 @@ system('mkdir -p aliStacks');
              
 
     if ( flgEraseBeads  )    
-      beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
-      beadList(:,1:2) = beadList(:,1:2) ./ updateScale;
-      [ STACK ] = BH_eraseBeads(STACK,eraseRadius, beadList, sortrows(TLT,1));
-
+       STACK = BH_eraseBeads(STACK,eraseRadius, fileName, updateScale,mapBackIter,sortrows(TLT,1));
     end
 
 
@@ -618,9 +607,7 @@ system('mkdir -p aliStacks');
   else
     
     if ( flgEraseBeads )
-        beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
-        beadList(:,1:2) = beadList(:,1:2) ./ updateScale;
-        STACK = BH_eraseBeads(STACK,eraseRadius, beadList, sortrows(TLT,1));
+       STACK = BH_eraseBeads(STACK,eraseRadius, fileName, updateScale,mapBackIter,sortrows(TLT,1));
     end 
 
 
@@ -646,18 +633,19 @@ end % end of par for loop
 
 
 % 
-if (flgShiftEucentric && flgCombine)
+if (flgShiftEucentric && mapBackIter)
   % Update the sub tomo z coords with an estimate of the shift
   for iGPU = 1:nGPUs
   
     for iTilt = 1:length(ITER_LIST{iGPU})  
      
-      STACK_PRFX = ITER_LIST{iGPU}{iTilt};
-      eucShift = eucShiftsResults{iGPU}{iTilt};
+      STACK_PRFX = ITER_LIST{iGPU}{iTilt}
+      eucShift = eucShiftsResults{iGPU}{iTilt}
   
       for jTomo = 1:subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos
         if any(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords(jTomo,:))
           fprintf('shifting %s_%d\n',STACK_PRFX,jTomo);
+          % The tomogram is shifted by the calculated amount
           subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13) = ...
           eucShift + subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13);
 

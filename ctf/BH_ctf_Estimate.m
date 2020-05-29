@@ -1,4 +1,3 @@
-
 function [  ] = BH_ctf_Estimate(varargin)
 
 global bh_global_do_2d_fourier_interp;
@@ -575,14 +574,7 @@ for i = 1:d3
 end 
 
 if ( flgEraseBeads )
-    system(sprintf('imodtrans -i fixedStacks/%s.fixed fixedStacks/%s.erase fixedStacks/%s.tmpMod',fileName,fileName,fileName));
-    system(sprintf('model2point -float fixedStacks/%s.tmpMod  fixedStacks/%s.erase2',fileName,fileName));
-    system(sprintf('rm fixedStacks/%s.tmpMod',fileName));
-    %beadList = importdata(sprintf('fixedStacks/%s.erase2',fileName));
-    beadList = load(sprintf('fixedStacks/%s.erase2',fileName));
-   
-    beadList(:,1:2) = beadList(:,1:2) ./ scalePixelsBy;
-    STACK = BH_eraseBeads(STACK,eraseRadius, beadList, sortrows(TLT,1));
+    STACK = BH_eraseBeads(STACK,eraseRadius, fileName, scalePixelsBy,0,sortrows(TLT,1));
 end 
 
 [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,PIXEL_SIZE*10^10,samplingMaskStack);

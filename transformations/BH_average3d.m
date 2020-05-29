@@ -564,7 +564,11 @@ end
     
     masterTM = subTomoMeta; clear subTomoMeta
 
-
+try
+  symmetry_op = pBH.('symmetry')
+catch
+  symmetry_op = ''
+end
 
 if any(classVector{1}(2,:) > 1) || any(classVector{2}(2,:) > 1)
   classSymmetry = true;
@@ -624,7 +628,6 @@ end
 
          
 padCalc = BH_multi_padVal(sizeWindow, sizeCalc);           
-padWindow = [0,0,0;0,0,0]
 
 if (flgFinalAvg)
   % Load in the even (low-passed) ref and use this only for a (non-iterative)
@@ -1140,9 +1143,13 @@ parfor iParProc = parVect
          iWedgeMask = [];
          % symmetry = classVector{iGold}(2, iClassPos);
           if (classSymmetry) && (classVector{iGold}(2, iClassPos) > 0)
-            symmetry = classVector{iGold}(2, iClassPos);
+            if isempty(symmetry_op)
+              symmetry = sprintf('C%d',classVector{iGold}(2, iClassPos));
+            else
+              symmetry = symmetry_op;
+            end            
           else
-            symmetry = 1;
+            symmetry = 'C1';
           end
             
           if ( nPeaks > 1 )
@@ -1167,8 +1174,10 @@ parfor iParProc = parVect
 % %             peakWgt = peakWgt.*spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,1).*spike_info.('normalization_factor');
 % %           end
 
+        make_sf3d = true;
 
         for iPeak = 1:nPeaks
+          
           if peakWgt(iPeak) == -9999
             positionList(iSubTomo, 26*iPeak) = -9999;
             % Skip this peak
@@ -1190,15 +1199,16 @@ parfor iParProc = parVect
           
           TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
 
-          if iPeak == 1
+          if (make_sf3d)
             if (use_v2_SF3D)
               [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
                                                                 center,reconGeometry);
             else
               iSF3D =  gpuArray(wedgeMask{wdgIDX});
             end
+            make_sf3d = false;
           end
-                                                       
+                                                      
 
           
           if (flgQualityWeight)
@@ -1301,9 +1311,10 @@ parfor iParProc = parVect
           
           if (flgFinalAvg)
             % Only the odd half needs to be searched
-            
-            iRefIMG = BH_resample3d(refIMG{1},angles', iShift,'Bah', 'GPU', 'forward');
-            iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],'Bah', 'GPU', 'forward');
+            [~, iRefWdg] = interpolator(gpuArray(refWDG{1}),angles',[0,0,0], 'Bah', 'forward', 'C1', true);
+            [~, iRefIMG] = interpolator(gpuArray(refIMG{1}),angles',iShift, 'Bah', 'forward', 'C1', true);
+%             iRefIMG = BH_resample3d(refIMG{1},angles', iShift,'Bah', 'GPU', 'forward');
+%             iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],'Bah', 'GPU', 'forward');
             
             [ ref_FT ] = BH_bandLimitCenterNormalize(iRefIMG.*peakMask_tmp, ...
                                                     fftshift(iSF3D), ...
@@ -1335,72 +1346,27 @@ parfor iParProc = parVect
             interpM = 'linear';
             interpU = 'GPU';        
      
-            if interpOrder ==4 
-              fprintf('experimental FFT interp\n');
-              iParticle = fftn(BH_padZeros3d(iParticle, interpPad(1,:), ...
-                                          interpPad(2,:), 'GPU', 'single'));
-            
-            
+            %iParticle is already on GPU if it should be.
+           [~, iParticle] = interpolator(gpuArray(iParticle), angles, iShift, 'Bah', 'inv', symmetry, true);
+           
+%           [ iParticle ] = gpuArray( ...
+%                           BH_resample3d(iParticle, ...
+%                               angles, iShift, ...             
+%                               {'Bah',symmetry,interpM,1,interpMask_tmpBinary}, ...
+%                               interpU,'inv'));
+% 
+%           [ iParticle ] = BH_padZeros3d(iParticle, ...
+%                                     -1.*padWindow(1,:),-1.*padWindow(2,:),...
+%                                     'GPU','single');  
 
-    
-              % No Interp mask, consider adding when it can be tested with
-              % the Fourier interp. Memory requirements are too much to use
-              % the fast symmetry approach. Need to shift each individually.
-              if (symmetry > 1)
-                % I was creating new arrays for each symmetry, fixed that,
-                % test now, if it runs delete this.
-% % %                tmpPart = zeros(sizeWindow,'single','gpuArray');
-% % % 
-% % %                 for iSym = 0:360/symmetry:360-360/symmetry
-% % %                   Rsym = reshape(angles,3,3) * BH_defineMatrix([iSym,0,0],'Bah','inv');
-% % %                  tmpPart = tmpPart + BH_padZeros3d(real(ifftn( ...
-% % %                                 BH_resample3d(iParticle, ...
-% % %                                     Rsym, iShift, ...             
-% % %                                     {'Bah',1,interpM,1}, ...
-% % %                                     interpU,'inv'))), ...
-% % %                                             interpTrim(1,:),interpTrim(2,:),...
-% % %                                             'GPU','single');
-% % % 
-% % %                 end
-% % %                 iParticle = tmpPart ; tmpPart = [];
-              [ iParticle ] = BH_padZeros3d(real(ifftn( ...
-                              BH_resample3d(iParticle, ...
-                                  angles, iShift, ...             
-                                  {'Bah',symmetry,interpM,1}, ...
-                                  interpU,'inv'))), ...
-                                          interpTrim(1,:),interpTrim(2,:),...
-                                          'GPU','single');  
-              else
-              [ iParticle ] = BH_padZeros3d(real(ifftn( ...
-                              BH_resample3d(iParticle, ...
-                                  angles, iShift, ...             
-                                  {'Bah',1,interpM,1}, ...
-                                  interpU,'inv'))), ...
-                                          interpTrim(1,:),interpTrim(2,:),...
-                                          'GPU','single');              
-
-
-              end
-            else
-                        %iParticle is already on GPU if it should be.
-              [ iParticle ] = gpuArray( ...
-                              BH_resample3d(iParticle, ...
-                                  angles, iShift, ...             
-                                  {'Bah',symmetry,interpM,1,interpMask_tmpBinary}, ...
-                                  interpU,'inv'));
-
-              [ iParticle ] = BH_padZeros3d(iParticle, ...
-                                        -1.*padWindow(1,:),-1.*padWindow(2,:),...
-                                        'GPU','single');  
-                         
-            end
+            [~, iWedgeMask] = interpolator(gpuArray(iSF3D), angles, [0,0,0], 'Bah', 'inv', symmetry, true);
             
             % For now just leave linear interp, but test with spline
-            [ iWedgeMask ] = BH_resample3d(iSF3D, ...
-                                           angles, [0,0,0], ...
-                                           {'Bah',symmetry,'linear', ...
-                                           1,interpMaskWdg_tmp}, ...
-                                           'GPU','inv');          
+%             [ iWedgeMask ] = BH_resample3d(iSF3D, ...
+%                                            angles, [0,0,0], ...
+%                                            {'Bah',symmetry,'linear', ...
+%                                            1,interpMaskWdg_tmp}, ...
+%                                            'GPU','inv');          
 
 
             iParticle = iParticle -  mean(iParticle(interpMask_tmpBinary));

@@ -1,10 +1,46 @@
-function [ Stack ] = BH_eraseBeads( Stack, beadRadius, beadModel, TLT)
+function [ Stack ] = BH_eraseBeads( Stack, beadRadius, fileName, scalePixelsBy, mapBackIter, TLT)
 % Erase beads from a non-CTF corrected stack
+
+% I'm a bit conflicted on the timing of the removal. On one hand it seems
+% to make more sense to remove the beads after ctf multiplication, this way
+% the gold beads are re-localized to the disc we are erasing. This would
+% mean that non-CTF corrected template matching would be affected though,
+% and also that the ctf estimate will be more strongly biased by the beads,
+% which might just be on one surface.
 
 
 [d1,d2,d3] = size(Stack);
 
-% gKernel = BH_multi_gaussian2d(beadRadius.*[6,6],(1/sigma)*beadRadius,0);
+modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1); 
+
+if (mapBackIter)
+  % The bead model needs to be updated.
+  mapBackPrfx = sprintf('mapBack%d/%s_ali%d_ctf',mapBackIter,fileName,mapBackIter);
+  [fail] = system(sprintf('imodtrans -2 %s.tltxf fixedStacks/%s_ali%d.erase fixedStacks/%s_ali%d.erase', ...
+                  mapBackPrfx, fileName, mapBackIter, fileName, mapBackIter + 1));
+   if (fail)
+     error('imodtrans failed to update the bead erase model')
+   end
+   
+else
+  
+    % Make sure the erase model is set up for the fixed stack. This model
+    % will be updated if tomoCPR is run.
+    [fail] = system(sprintf('imodtrans -i fixedStacks/%s.fixed fixedStacks/%s.erase %s',fileName,fileName,modelName));
+    if  (fail)
+      error('imodtrans failed to set the original bead erase model to the fixed stack header');
+    end
+    
+end
+
+[fail] =  system(sprintf('model2point %s %s_txt',modelName,modelName));
+
+if (fail)
+ error('model2point failed to convert the bead erase model to text')
+end   
+
+beadModel = load(sprintf('%s_txt',modelName));
+beadModel(:,1:2) = beadModel(:,1:2) ./ scalePixelsBy;
 
 if isa(Stack(1), 'gpuArray')
   gKernel = BH_mask3d('cylinder',beadRadius.*[2,2]+12,beadRadius.*[1,1],[0,0],'2d');

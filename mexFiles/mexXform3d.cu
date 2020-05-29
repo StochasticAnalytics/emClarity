@@ -119,7 +119,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     checkCudaErrors(cudaDestroyTextureObject(*tex));
 
     cuArray = (cudaArray_t *) mxGetData(prhs[1]);
-//     mexPrintf(" cuArray in deallocate %p %p %p\n", cuArray, &cuArray, *cuArray);
     checkCudaErrors(cudaFreeArray(*cuArray));
 
 //   mxFree(tex);

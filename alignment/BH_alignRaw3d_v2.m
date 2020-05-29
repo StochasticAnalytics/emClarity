@@ -96,7 +96,13 @@ end
 try
   use_v2_SF3D = pBH.('use_v2_SF3D')
 catch
-  use_v2_SF3D = false
+  use_v2_SF3D = falsw
+end
+
+try
+  symmetry_op = pBH.('symmetry');
+catch
+  symmetry_op = '';
 end
 
 try
@@ -1066,9 +1072,13 @@ parfor iParProc = parVect
 
                 % Assuming if class specific symmetry, then some not just 1
                 if (force_no_symmetry)
-                  symmetry = 1;
+                  symmetry = 'C1';
                 else
-                  symmetry = classSymmetry{iGold}(1, classPosition);
+                  if isempty(symmetry_op)
+                    symmetry = sprintf('C%d',classSymmetry{iGold}(1, classPosition));
+                  else
+                    symmetry = symmetry_op;
+                  end
                 end
                   %fprintf('Symmetry confirmation %d\n',symmetry);
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
@@ -1078,7 +1088,7 @@ parfor iParProc = parVect
                     [ iTrimParticle ] = particleInterpolator.interp3d(...
                                                   RotMat,... 
                                                   estPeakCoord,'Bah',...
-                                                  'inv',sprintf('C%d',symmetry));
+                                                  'inv',symmetry);
                                                   
                     
 
@@ -1092,7 +1102,7 @@ parfor iParProc = parVect
                     [ iTrimInitial ] = particleInterpolator.interp3d(...
                                                   reshape(angles,3,3),... 
                                                   shiftVAL,'Bah',...
-                                                  'inv',sprintf('C%d',symmetry));
+                                                  'inv',symmetry);
                     
            
 % % %                      powerInitial =  sum(abs(iTrimInitial(volBinary_tmp))).^2;   
@@ -1104,7 +1114,7 @@ parfor iParProc = parVect
                     [ iWedgeInitial ] = imgWdgInterpolator.interp3d(...
                                                    reshape(angles,3,3),... 
                                                    [0,0,0],'Bah',...
-                                                  'inv',sprintf('C%d',symmetry));                                             
+                                                  'inv',symmetry);                                             
                       
                                  
                      end           
@@ -1116,7 +1126,7 @@ parfor iParProc = parVect
                     [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                                                    RotMat,... 
                                                    [0,0,0],'Bah',...
-                                                  'inv',sprintf('C%d',symmetry)); 
+                                                  'inv',symmetry); 
 
 
 
@@ -1393,9 +1403,13 @@ parfor iParProc = parVect
             
                % Assuming if class specific symmetry, then some not just 1
                if (force_no_symmetry)
-                 symmetry = 1;
+                 symmetry = 'C1';
                else
-                symmetry = classSymmetry{iGold}(1, classPosition);
+                  if isempty(symmetry_op)
+                    symmetry = sprintf('C%d',classSymmetry{iGold}(1, classPosition));
+                  else
+                    symmetry = symmetry_op;
+                  end
                end
 
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
@@ -1405,7 +1419,7 @@ parfor iParProc = parVect
                   [ iTrimParticle ] = particleInterpolator.interp3d(...
                                                  RotMat,... 
                                                 rXYZ,'Bah',...
-                                                'inv',sprintf('C%d',symmetry));                                                
+                                                'inv',symmetry);                                                
 
 
 %                     iTrimParticle =  iTrimParticle(...
@@ -1420,7 +1434,7 @@ parfor iParProc = parVect
                     [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                                                    RotMat,... 
                                                    [0,0,0],'Bah',...
-                                                  'inv',sprintf('C%d',symmetry));                                                      
+                                                  'inv',symmetry);                                                      
 
 
 

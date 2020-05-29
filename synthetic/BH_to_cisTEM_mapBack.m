@@ -23,12 +23,11 @@ end
 
 
 tiltStart=1;
-MAX_EXPOSURE = str2double(MAX_EXPOSURE);
+MAX_EXPOSURE = str2double(MAX_EXPOSURE)
 if isnan(MAX_EXPOSURE)
   error('MAX_EXPOSURE is nan - if running from an interactive matlab session, did you enter as a string?');
 end
 CYCLE = str2double(CYCLE);
-
 
 if CYCLE < 0
   CYCLE = abs(CYCLE);
@@ -476,11 +475,11 @@ for iTiltSeries = tiltStart:nTiltSeries
      
       system(sprintf('imodtrans -2 %s %smapBack%d/%s.fid %smapBack%d/%s.invfid', iXFName_inv, mbOUT{1:3},mbOUT{1:3}));
       
-      system(sprintf(['model2point -float -contour -zero ',...
+      system(sprintf(['model2point -contour -zero ',...
                       '%smapBack%d/%s.invfid %smapBack%d/%s.coordPrj'],...
                       mbOUT{1:3}, mbOUT{1:3}))  
   else
-       system(sprintf(['model2point -float -contour -zero ',...
+       system(sprintf(['model2point  -contour -zero ',...
                       '%smapBack%d/%s.fid %smapBack%d/%s.coordPrj'],...
                       mbOUT{1:3}, mbOUT{1:3}))     
   end

@@ -1486,7 +1486,7 @@ end
 
 parfor iPrj = 1:nPrjs  
 
-% for iPrj = 20;%1:nPrjs
+% for iPrj = 28 %1:nPrjs
 	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
@@ -1495,6 +1495,8 @@ parfor iPrj = 1:nPrjs
 
       iMrcObj = MRCImage(tiltSeries,0);
       iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}),0);
+      iMrcObjSamplingMask = MRCImage(sprintf('%saliStacks/%s_ali%d.fixed.samplingMask',CWD,tiltName,mapBackIter+1),0);
+
    
       tic
       while toc < 300
@@ -1531,9 +1533,34 @@ parfor iPrj = 1:nPrjs
                                                 tiltSeries,iPrj,3000);
       else
 %         fprintf('loaded refPrj %d on try %d\n',iPrj,floor(toc./0.1));
-      end      
+      end   
+            tic
+      while toc < 300
+        try
+          samplingMask  = gpuArray(single(getVolume(iMrcObjSamplingMask,[],[],iPrj,'keep')));
+          break
+        catch
+          pause(1e-1)
+          if ~(mod(toc,10))
+            fprintf('Waiting for %d sec for samplingMask to be available\n',toc);
+          end
+        end
+      end
+      if toc == 300
+        error('failed to load samplingMask %s at %d after %d tries\n.', ...
+                                                tiltSeries,iPrj,3000);
+      else
+%         fprintf('loaded refPrj %d on try %d\n',iPrj,floor(toc./0.1));
+      end 
 
+      if (samplingRate > 1)
+        samplingMask = BH_resample2d(samplingMask,[0,0,0],[0,0],'Bah','GPU','forward',1/samplingRate,[sTX,sTY]);
+      else
+              
+      end
       
+      % stored as uint8, it comes out 128,129 instead of 0,1.FIXME
+      samplingMask = ( samplingMask == max(samplingMask(:)) );
       
       % In case there is any carbon or other bright shit in the periphery
       normSize = floor([256,256]./samplingRate);
@@ -1577,8 +1604,11 @@ parfor iPrj = 1:nPrjs
       % outliers, however, with a systematic error in tracking this helps
       % to avoid those outliers in the first place.
       evalMask = ( dataRMS > (mRms - 2*sRms) );
-
       dataRMS = [];
+
+      minEval = 0.9 * (2*tileRadius)^2;
+      evalMask(~samplingMask) = false; 
+      samplingMask = [];
                                   
       mean_defocus = TLT(iPrj,15);          
       half_astigmatism = TLT(iPrj,12);
@@ -1676,7 +1706,8 @@ parfor iPrj = 1:nPrjs
        
         try 
           % If any zeros values within the particle radius, do not evaluate
-          iSkipEval = any(any(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)) == 0));
+%           iSkipEval = any(any(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)) == 0));
+          iSkipEval = sum(evalMask(oxEval(1):oxEval(2),oyEval(1):oyEval(2)),'all') < minEval;
         catch
           % If the particle was outof bounds, do not evaluate
           iSkipEval = 1;
@@ -1761,9 +1792,8 @@ parfor iPrj = 1:nPrjs
               bestCTF = deltaCTF;
               if ~(calcCTF)
                 [mMx, mMy] = ind2sub(size(cccMap), maxMap);
-
+               
                 cccMap = cccMap(mMx-COM:mMx+COM, mMy-COM:mMy+COM);
-
                 cccMap = cccMap - min(cccMap(:));
 
                 comMapX = sum(sum(bx.*cccMap))./sum(cccMap(:));
@@ -1887,8 +1917,12 @@ parfor iPrj = 1:nPrjs
 
 
     % shifts/List col 1/4 should match - maybe add a check to be safe
+    size(fidShifts)
+    size(fidList)
+   
     fCombine = [fidShifts(:,1),fidList(:,2:3)+fidShifts(:,2:3),fidShifts(:,4)];
     fprintf('\n\n%d/%d pts ignored\n\n',sum(fCombine(:,4)==-9999),size(fCombine,1));
+
     
     
     fFull = fCombine;

@@ -314,12 +314,12 @@ switch varargin{1}
     else
         emC_testParse(varargin{2})
         if length(varargin) == 3
-          if (useV2)
-            fprintf('Using experimental V2 of alignRaw3d\n');
+% % %           if (useV2)
+% % %             fprintf('Using experimental V2 of alignRaw3d\n');
             BH_alignRaw3d_v2(varargin{2}, varargin{3});
-          else            
-            BH_alignRaw3d(varargin{2}, varargin{3});
-          end        
+% % %           else            
+% % %             BH_alignRaw3d(varargin{2}, varargin{3});
+% % %           end        
         else
           
           % Switching to v2 always, 1.5.0.9 20200520

@@ -11,16 +11,15 @@ function []  = BH_templateSearch3d_2( PARAMETER_FILE,...
 
 
 
-ctf3dNoSubTomoMeta = false;
+ctf3dNoSubTomoMeta = false
 if length(varargin) == 1
   % Allow for an override of the max number, useful when only a few tomos
   % have a strong feature like carbon that is hard to avoid.
   gpuIDX = str2num(varargin{1});
 elseif length(varargin) == 2
   gpuIDX = str2num(varargin{1});
-  ctf3dNoSubTomoMeta = true;
+  ctf3dNoSubTomoMeta = true
 end
-
 
   tomoNumber = str2num(tomoNumber);
 
@@ -1106,7 +1105,7 @@ end
 
    
 %     rmMask = BH_resample3d(removalMask,peakMat(n,4:6),[0,0,0],'Bah','GPU','forward');
-    rmMask = rmInt.interp3d(removalMask,gather(peakMat(n,4:6)),[0,0,0],'Bah','forward','C1');
+    rmMask = rmInt.interp3d(gather(peakMat(n,4:6)),[0,0,0],'Bah','forward','C1');
 
     % Invert after resampling so that zeros introduced by not extrapolating
     % the corners are swapped to ones, i.e. not removed.
