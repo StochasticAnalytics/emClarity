@@ -15,11 +15,16 @@ modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1);
 
 if (mapBackIter)
   % The bead model needs to be updated.
-  mapBackPrfx = sprintf('mapBack%d/%s_ali%d_ctf',mapBackIter,fileName,mapBackIter);
-  [fail] = system(sprintf('imodtrans -2 %s.tltxf fixedStacks/%s_ali%d.erase fixedStacks/%s_ali%d.erase', ...
-                  mapBackPrfx, fileName, mapBackIter, fileName, mapBackIter + 1));
+  tiltxf = sprintf('mapBack%d/%s_ali%d_ctf.tltxf',mapBackIter,fileName,mapBackIter);
+  old_model = sprintf('fixedStacks/%s_ali%d.erase',fileName, mapBackIter);
+  
+  [fail] = system(sprintf('imodtrans -2 %s %s fixedStacks/%s_ali%d.erase', ...
+                  tiltxf, old_model , fileName, mapBackIter + 1));
    if (fail)
-     error('imodtrans failed to update the bead erase model')
+     printf('model %s exists : %d\n', old_model,exist(old_model,'file'));
+     printf('xf %s exists : %d\n', tiltxf,exist(tiltxf,'file'));
+
+     error('imodtrans failed to update the bead erase model fixedStacks/%s_ali%d.erase',fileName, mapBackIter)
    end
    
 else

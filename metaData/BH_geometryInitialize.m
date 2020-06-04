@@ -128,8 +128,8 @@ dupMask = dupMask + 1;
 % If we are in the working directory, following template matching, there should
 % be the director convmap, holding convolution maps, model files etc.
 
-checkDir = dir('convmap');
-if length(checkDir) < 1 || ~checkDir(1).isdir
+checkDir = exist('convmap');
+if checkDir ~= 7 
   error('Did not find directory named <convmap>')
 end
 
@@ -404,8 +404,8 @@ parfor iGPU = 1:nGPUs
       iHeader = getHeader(MRCImage(tiltName));
           % first convert the imod model file to a temporary text file
       tmpFile = sprintf('tmp_%d.txt',iGPU);
-      sprintf('model2point -float convmap/%s.mod %s', mapName, tmpFile)
-      system(sprintf('model2point -float convmap/%s.mod %s', mapName, tmpFile))
+      sprintf('model2point convmap/%s.mod %s', mapName, tmpFile)
+      system(sprintf('model2point convmap/%s.mod %s', mapName, tmpFile))
       modGeom = load(tmpFile);
       system(sprintf('rm %s', tmpFile));
         flgLookForPoints = 1;

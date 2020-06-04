@@ -1,4 +1,4 @@
-function [ output_pos ] = BH_fitBeads(pixelSize,beadSize,sampling,img_name,input_name,output_name)
+function [ output_pos, nBeads ] = BH_fitBeads(pixelSize,beadSize,sampling,img_name,input_name,output_name)
 
 pixel_radius = beadSize ./ pixelSize ./ sampling ./ 2;
 

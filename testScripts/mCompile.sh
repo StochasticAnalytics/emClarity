@@ -174,9 +174,10 @@ rm -rf ../emClarity_${major}.${minor}.${bugs}.${nightly}
 mkdir ../emClarity_${major}.${minor}.${bugs}.${nightly}
 cp -rp ../docs ../emClarity_${major}.${minor}.${bugs}.${nightly}
 cp -rp ../lib ../emClarity_${major}.${minor}.${bugs}.${nightly}
-
+c
 cd ../emClarity_${major}.${minor}.${bugs}.${nightly}
 mkdir bin
+cp -rp ../bin/deps ./bin
 cd bin
 cp ../../bin/emClarity_${scriptOutName} emClarity_${scriptOutName}
 cp ../../bin/emClarity_${binaryOutName} emClarity_${binaryOutName}

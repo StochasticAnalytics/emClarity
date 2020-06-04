@@ -399,13 +399,23 @@ mbEST = load(sprintf('%s.xf',mapBackPrfx));
 mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 
 outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
-if exist(sprintf('%s.erase',mapBackPrfx),'file')
-  flgEraseBeads = 1;
-else
-  flgEraseBeads = 0;
-  fprintf('\nDid not find the gold bead file (%s) for erasing, will skip\n\n',sprintf('%s.erase',mapBackPrfx));
+
+try 
+  erase_beads_after_ctf = ('erase_beads_after_ctf');
+catch
+  erase_beads_after_ctf = false;
 end
 
+if (erase_beads_after_ctf)
+  flgEraseBeads = 0;
+else
+  if exist(sprintf('%s.erase',mapBackPrfx),'file')
+    flgEraseBeads = 1;
+  else
+    flgEraseBeads = 0;
+    fprintf('\nDid not find the gold bead file (%s) for erasing, will skip\n\n',sprintf('%s.erase',mapBackPrfx));
+  end
+end
 
 if (SuperResolution)
   % Forcing output to odd size.
@@ -515,7 +525,9 @@ for i = 1:d3
 
     % Padding to avoid interpolation artifacts
     
-    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
+%     sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
+        sizeSQ = floor(([1,1]).*max(sizeODD));
+
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
 
@@ -550,7 +562,6 @@ for i = 1:d3
   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
   combinedInverted = combinedInverted([1,2,4,5]);
   
-
   iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
  else
    combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
@@ -807,14 +818,14 @@ if ~(skipFitting)
   % rotAvgPowerSpec = rotAvgPowerSpec ./ (720.*(sqrt(fftshift(radialForCTF{1}.*(pixelOUT.*10^-10))))); clear a
 
 
-
-  checkInfNan = (isnan(rotAvgPowerSpec) | isinf(rotAvgPowerSpec));
-  m2 = mean2(rotAvgPowerSpec(~checkInfNan));
-  if (~isfinite(m2))
-    error('the rotated Avg power spectrum is all nan or inf');
+  is_a_bummer = ~isfinite(rotAvgPowerSpec);
+  if sum(is_a_bummer,'all') > 0.5*numel(rotAvgPowerSpec)
+    error('the rotated Avg power spectrum is more than half nan or inf');
   else
-    rotAvgPowerSpec(checkInfNan) =  m2;
+    rotAvgPowerSpec(is_a_bummer) = 0;
   end
+  
+
   currentDefocusEst = defEST;
   currentDefocusWin = defWIN;
   measuredVsExpected = zeros(2,3);
@@ -871,7 +882,11 @@ for iTilt = 1:3
     % TODO add a global switch for the damping
 %     [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
 
-    [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+    if (PIXEL_SIZE < 1*10^-10)
+      [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0,-1);
+    else
+      [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+    end
 
     try
     [ bg,  bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
@@ -902,7 +917,11 @@ for iTilt = 1:3
   end
     DF = maxDef*10^-6;
 
-    [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+    if (PIXEL_SIZE < 1*10^-10)
+      [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0,-1);
+    else
+      [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);      
+    end
 
     [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
 
@@ -978,9 +997,14 @@ for iTilt = 1:3
           df1 =  maxDef*10^-6 - iDelDF*astigStep;
           df2 =  maxDef*10^-6 + iDelDF*astigStep;
 
+    if (PIXEL_SIZE < 1*10^-10)
 
           [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-                                  [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0);
+                                  [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0,-1);
+    else
+           [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                                  [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0);    
+    end
 
   %         [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff ,...
   %                                              freqVector, radialPS, radialAstig); 
@@ -1025,10 +1049,16 @@ for iTilt = 1:3
             % values |df1| < |df2| which is against convention.
             if abs(df1) >= abs(df2)
 
+    if (PIXEL_SIZE < 1*10^-10)
 
               [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
                                   [df1,df2,iAng+mAng], ...
-                                  size(radialForCTF{1}), -AMPCONT,-1.0);
+                                  size(radialForCTF{1}), -AMPCONT,-1.0,-1);
+    else
+              [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                                  [df1,df2,iAng+mAng], ...
+                                  size(radialForCTF{1}), -AMPCONT,-1.0);      
+    end
 
 
               [ iCCC ] = calc_CCC( radialAstig,bgSubPS, bandpass, ...

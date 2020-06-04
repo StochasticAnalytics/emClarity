@@ -23,6 +23,12 @@ tiltWeight = [0.2,0];
 shiftDefocusOrigin = 1;
 tiltStart = 1;
 
+try 
+  flgEraseBeads = pBH.('erase_beads_after_ctf');
+catch
+  flgEraseBeads = false;
+end
+
 % Test David's new super sampling in reconstruction. No check that this
 % version (currently 4.10.40) is properly sourced.
 try
@@ -56,10 +62,7 @@ catch
   expand_lines = '';
 end
 
-if ~isempty(expand_lines)
-  fprintf('Currently, the expand_lines option seems to produce significant errors.\nDisabling\n');
-  expand_lines = '';
-end
+fprintf('\n Superampling in imod is [%s] with expandLines [%s]\n',super_sample ,expand_lines);
 %default to cycle number zero for
 %determining mean z height of particles
 recWithoutMat = false;
@@ -289,6 +292,9 @@ pixelSize = pBH.('PIXEL_SIZE').*10^10 .* samplingRate;
 if pBH.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
+
+eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./pBH.('PIXEL_SIZE').*0.5));
+
 nTomosPerTilt = 0;
 recGeom = 0;
 
@@ -665,11 +671,15 @@ parfor iGPU = 1:nGPUs
       end
       % Write out the stack to the cache directory as a tmp file
 
+      if (flgEraseBeads)
+        scalePixelsBy = 1;
+        correctedStack = BH_eraseBeads(correctedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
+      end
 
      
       outputStack = sprintf('%s/%s_ali%d_%d.fixed', ...
                             tmpCache,tiltList{iTilt},mapBackIter+1,iSection)
-      SAVE_IMG(MRCImage(gather(correctedStack)),outputStack,pixelSize);
+      SAVE_IMG(correctedStack,outputStack,pixelSize);
       correctedStack = [];
    
       % Loop over tomos reconstructing section and appending a file to 

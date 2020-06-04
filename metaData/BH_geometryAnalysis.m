@@ -423,19 +423,19 @@ switch OPERATION
           end
         end
         if (flgRemove)
-          if isfield(masterTM.reconGeometry,(f{iOrig}))
+          if isfield(masterTM.reconGeometry.(f{iOrig}))
             masterTM.reconGeometry = rmfield(masterTM.reconGeometry,f{iOrig});
           end
-          if isfield(masterTM.tiltGeometry,(f{iOrig}))
+          if isfield(masterTM.tiltGeometry.(f{iOrig}))
             masterTM.tiltGeometry = rmfield(masterTM.tiltGeometry,f{iOrig});
           end
-          if isfield(masterTM.ctfGroupSize,(f{iOrig}))
+          if isfield(masterTM.ctfGroupSize.(f{iOrig}))
             masterTM.ctfGroupSize = rmfield(masterTM.ctfGroupSize,f{iOrig});
           end
-          if isfield(masterTM.(cycleNumber).RawAlign,f{iOrig})
+          if isfield(masterTM.(cycleNumber).RawAlign.f{iOrig})
             masterTM.(cycleNumber).RawAlign = rmfield(masterTM.(cycleNumber).RawAlign,(f{iOrig}));
           end
-          if isfield(masterTM.mapBackGeometry.tomoName,(f{iOrig}))
+          if isfield(masterTM.mapBackGeometry.tomoName.(f{iOrig}))
             tN = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tomoNumber;
             tName = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tiltName;
             if isfield(masterTM.mapBackGeometry,tName)

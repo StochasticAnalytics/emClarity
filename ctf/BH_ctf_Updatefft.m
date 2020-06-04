@@ -271,7 +271,13 @@ system('mkdir -p aliStacks');
   if (mapBackIter)
     fprintf('Combining tranformations\n\n');
     % Load in the mapBack alignment
-    mbEST = load(sprintf('%s.tltxf',mapBackPrfx));
+    try
+      mbEST = load(sprintf('%s.tltxf',mapBackPrfx));
+    catch
+      fprintf('WARNING: did not load %s.tltxf, cannot update alignments',mapBackPrfx)
+      system(sprintf('cp fixedStacks/ctf/%s_ali1_ctf.tlt fixedStacks/ctf/%s_ali%d_ctf.tlt',STACK_PRFX,STACK_PRFX,mapBackIter+1));
+      continue;
+    end
     mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
     defShifts = sprintf('%s.defShifts',mapBackPrfx);
     if exist(defShifts,'file')
@@ -303,6 +309,17 @@ system('mkdir -p aliStacks');
   
   outputStackName = sprintf('%s/%s%s',outputDirectory,INPUT_CELL{iStack,6},INPUT_CELL{iStack,5});
   oldStackName = sprintf('%s/%s%s',outputDirectory,PRJ_OLD,INPUT_CELL{iStack,5});
+  
+  
+try 
+  erase_beads_after_ctf = ('erase_beads_after_ctf');
+catch
+  erase_beads_after_ctf = false;
+end
+
+if (erase_beads_after_ctf)
+  flgEraseBeads = 0;
+else
   if exist(sprintf('fixedStacks/%s.erase',fileName),'file')
     flgEraseBeads = 1;
     % create and later run a script to erase gold beads using imods
@@ -311,6 +328,7 @@ system('mkdir -p aliStacks');
   else
     flgEraseBeads = 0;
   end
+end
 
   
 
@@ -639,15 +657,20 @@ if (flgShiftEucentric && mapBackIter)
   
     for iTilt = 1:length(ITER_LIST{iGPU})  
      
-      STACK_PRFX = ITER_LIST{iGPU}{iTilt}
-      eucShift = eucShiftsResults{iGPU}{iTilt}
+      STACK_PRFX = ITER_LIST{iGPU}{iTilt};
+      eucShift = eucShiftsResults{iGPU}{iTilt};
   
       for jTomo = 1:subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos
         if any(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords(jTomo,:))
-          fprintf('shifting %s_%d\n',STACK_PRFX,jTomo);
-          % The tomogram is shifted by the calculated amount
-          subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13) = ...
-          eucShift + subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13);
+          % We might have skipped the update if tomoCPR failed.
+          if isempty(eucShift)
+            fprintf('No updated shifts for %s_%d\n',STACK_PRFX,jTomo);
+          else
+            fprintf('shifting %s_%d\n',STACK_PRFX,jTomo);
+            % The tomogram is shifted by the calculated amount
+            subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13) = ...
+            eucShift + subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13);
+          end
 
         end
       end

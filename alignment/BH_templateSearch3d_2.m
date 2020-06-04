@@ -138,6 +138,14 @@ catch
   wantedCut = 28;
 end
 
+sum_of_x =  [];
+sum_of_x2 = [];
+try 
+  rescale_mip = pBH.('rescale_mip');
+catch
+  rescale_mip = false;
+end
+
 firstZero = 0;
 % Limit to the first zero if we are NOT using the CTF rec
 if (shouldBeCTF ~= 1)
@@ -331,6 +339,10 @@ RESULTS_peak = zeros(sizeTomo, 'single');
 RESULTS_angle= zeros(sizeTomo, 'single');
 if ( tmpDecoy )
   RESULTS_decoy = RESULTS_peak;
+end
+if (rescale_mip)
+  sum_of_x = zeros(sizeTomo, 'single'); 
+  sum_of_x2 = zeros(sizeTomo, 'single'); 
 end
 % Loop over tomogram
 % Set this up second
@@ -752,9 +764,13 @@ for iAngle = 1:size(angleStep,1)
             if ( tmpDecoy )
               decoyTmp = decoy;
             end
-            angTmp = zeros(size(magTmp), 'single','gpuArray');
-            angTmp = angTmp + 1;
+            angTmp = ones(size(magTmp), 'single','gpuArray');
 
+            if (rescale_mip)
+              sum_of_x_tmp = ccfmap; 
+              sum_of_x2_tmp = ccfmap.^2; 
+            end
+            
             firstLoopOverTomo  = false;
             firstLoopOverChunk = false;
             
@@ -780,7 +796,8 @@ for iAngle = 1:size(angleStep,1)
                                          vA(1,3) + 1:end - vA(2,3))); 
             decoyTmp(decoyTmp < decoy) = decoy(decoyTmp < decoy);                                       
           end
-
+          
+          
           magTmp = gpuArray(magTmp(vA(1,1) + 1:end - vA(2,1), ...
                                    vA(1,2) + 1:end - vA(2,2), ...
                                    vA(1,3) + 1:end - vA(2,3)));    
@@ -795,7 +812,24 @@ for iAngle = 1:size(angleStep,1)
           magTmp(replaceTmp) = ccfmap(replaceTmp);
           angTmp(replaceTmp) = currentGlobalAngle;
           
-          
+          if (rescale_mip)
+              
+            sum_of_x_tmp = sum_of_x(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                     iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                     iCut(3):iCut(3)+sizeChunk(3)-1);   
+            sum_of_x_tmp = gpuArray(sum_of_x_tmp(vA(1,1) + 1:end - vA(2,1), ...
+                                         vA(1,2) + 1:end - vA(2,2), ...
+                                         vA(1,3) + 1:end - vA(2,3))); 
+            sum_of_x_tmp = sum_of_x_tmp + ccfmap; 
+            
+            sum_of_x2_tmp = sum_of_x2(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                     iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                     iCut(3):iCut(3)+sizeChunk(3)-1);   
+            sum_of_x2_tmp = gpuArray(sum_of_x2_tmp(vA(1,1) + 1:end - vA(2,1), ...
+                                         vA(1,2) + 1:end - vA(2,2), ...
+                                         vA(1,3) + 1:end - vA(2,3))); 
+            sum_of_x2_tmp = sum_of_x2_tmp + ccfmap.^2;              
+          end         
 
           intraLoopAngle = intraLoopAngle + 1;
           currentGlobalAngle = currentGlobalAngle + 1;
@@ -813,6 +847,12 @@ for iAngle = 1:size(angleStep,1)
             if ( tmpDecoy )
               decoyTmp(decoyTmp < decoy) = decoy(decoyTmp < decoy);
             end
+            
+            if (rescale_mip)
+              sum_of_x_tmp = sum_of_x_tmp + ccfmap;              
+              sum_of_x2_tmp = sum_of_x2_tmp + ccfmap.^2;              
+            end         
+            
             intraLoopAngle = intraLoopAngle + 1;
             currentGlobalAngle = currentGlobalAngle + 1;
             clear replaceTmp
@@ -824,6 +864,8 @@ for iAngle = 1:size(angleStep,1)
     % After searching all angles on this chunk, but out meaningful
     % portion for storage.
 
+    
+    % FIXME this double cutting and temporary allocation is ridiculous.
     magStoreTmp =  RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
                                 iCut(3):iCut(3)+sizeChunk(3)-1);
@@ -852,10 +894,10 @@ for iAngle = 1:size(angleStep,1)
      clear angStoreTmp
     
     if ( tmpDecoy )
-    decoyStoreTmp =  RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
+      decoyStoreTmp =  RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
                                 iCut(3):iCut(3)+sizeChunk(3)-1);
-    decoyStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
+      decoyStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
                 vA(1,2) + 1:end - vA(2,2), ...
                 vA(1,3) + 1:end - vA(2,3)) = gather(decoyTmp);   
      RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
@@ -863,6 +905,30 @@ for iAngle = 1:size(angleStep,1)
                   iCut(3):iCut(3)+sizeChunk(3)-1) = decoyStoreTmp;              
       
     end
+    
+    if ( rescale_mip )
+      sum_of_x_store =  sum_of_x(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                 iCut(3):iCut(3)+sizeChunk(3)-1);
+      sum_of_x_store(vA(1,1) + 1:end - vA(2,1), ...
+                     vA(1,2) + 1:end - vA(2,2), ...
+                     vA(1,3) + 1:end - vA(2,3)) = gather(sum_of_x_tmp);   
+     sum_of_x(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                  iCut(3):iCut(3)+sizeChunk(3)-1) = sum_of_x_store;              
+      clear sum_of_x_store
+      
+      sum_of_x2_store =  sum_of_x2(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                 iCut(3):iCut(3)+sizeChunk(3)-1);
+      sum_of_x2_store(vA(1,1) + 1:end - vA(2,1), ...
+                     vA(1,2) + 1:end - vA(2,2), ...
+                     vA(1,3) + 1:end - vA(2,3)) = gather(sum_of_x2_tmp);   
+     sum_of_x2(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                  iCut(3):iCut(3)+sizeChunk(3)-1) = sum_of_x2_store;              
+      clear sum_of_x2_store      
+    end    
     tomoTime = toc;
     totalTime = totalTime + toc; timeEstimate = totalTime * (nTomograms*nAngles(1)./(nComplete-1));
     fprintf('elapsed time = %f s  est remain %f s\n', tomoTime, timeEstimate);
@@ -891,6 +957,32 @@ if ( tmpDecoy )
 %   RESULTS_decoy = RESULTS_decoy ./ std(RESULTS_decoy(:));
   RESULTS_decoy(RESULTS_decoy < 1) = 1; 
   
+end
+
+if ( rescale_mip )
+  sum_of_x = sum_of_x(1+tomoPre(1):end-tomoPost(1),...
+                            1+tomoPre(2):end-tomoPost(2),...
+                            1+tomoPre(3):end-tomoPost(3)) ./ currentGlobalAngle;
+                          
+  sum_of_x2 = sum_of_x2(1+tomoPre(1):end-tomoPost(1),...
+                            1+tomoPre(2):end-tomoPost(2),...
+                            1+tomoPre(3):end-tomoPost(3)) ./ currentGlobalAngle;
+
+%   SAVE_IMG(sum_of_x,'sum_of_x.mrc');
+%   SAVE_IMG(sum_of_x2,'sum_of_x2.mrc');
+  
+  RESULTS_peak = RESULTS_peak - sum_of_x;
+  sum_of_x  = sqrt(sum_of_x2 - sum_of_x.^2);
+  clear sum_of_x2;
+%   SAVE_IMG(sum_of_x,'stddev.mrc');
+  mov = mean(sum_of_x(:));
+%   sov = std(sum_of_x(:));
+  sov = 0;
+  sum_of_x(sum_of_x < (mov - 1*sov)) = max(sum_of_x(:));
+%   SAVE_IMG(sum_of_x,'stddev_clipped.mrc');
+
+  RESULTS_peak = RESULTS_peak ./ sum_of_x;
+  clear sum_of_x;
 end
 gpuDevice(useGPU);
 clear bhF
@@ -1056,7 +1148,7 @@ end
     peakMat(n,1:3) = gather(samplingRate.*cenP);
     peakMat(n,10) = gather(MAX);
 
-    
+    iSNR = 0;
     if nPeaks > 1
       possible_angles = gather(magBox);
       possible_angles(angBox == topPeak) = 0; 

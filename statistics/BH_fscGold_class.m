@@ -318,6 +318,9 @@ end
 % the average for inspection. 
 
 % % % % % % % [ tmpMask ] = BH_mask3d(maskType, sizeMask, maskRadius-7, maskCenter);
+maskType
+sizeMask
+maskRadius-7
 [ tmpMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius-7, 'gpu', {'shift', maskCenter});
 
 volMask{1} = gather(BH_multi_randomizeTaper(tmpMask));

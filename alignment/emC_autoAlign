@@ -6,14 +6,10 @@ if [[ $1 -eq -1 ]] ; then echo "ali check" ; exit 0; fi
   # Resolution cutoff is best to be at or slightly lower resolution than the first zero of the CTF
   # TODO add input option for defocus value estimate, and calculate the first zero automatically.
   # This would also facilitate a quick handedness check prior to full ctf estimation.
-  RESOLUTION_CUTOFF=15
-  LOW_RES_CUTOFF=1800
+
   # Angstrom, edge width
-  PATCH_SIZE=1200 
-  # The run-time vs improved accuracy is much worse for small pixel sizes. (ang/pix)
-  MAX_SAMPLING_RATE=3.0
-  MIN_SAMPLING_RATE=10.0
-  ITERATIONS_PER_BIN=3
+
+ 
 
   MAG_OPTION=5
   tiltAngleOffset=0.0
@@ -41,8 +37,20 @@ nY=${8}
 nZ=${9}
 ext=${10}
 PATCH_SIZE_FACTOR=${11}
-
+N_ITERS_NO_ROT=${12}
+BORDER_SIZE_PIXELS=${13}
+PATCH_OVERLAP=${14}
+RESOLUTION_CUTOFF=${15}
+LOW_RES_CUTOFF=${16}
+ITERATIONS_PER_BIN=${17}
+FIRST_ITER_SHIFT_LIMIT_PIXELS=${18}
+DIVIDE_SHIFT_LIMIT_BY=${19}
 TILT_OPTION=0
+
+echo $FIRST_ITER_SHIFT_LIMIT_PIXELS
+echo $DIVIDE_SHIFT_LIMIT_BY
+echo "Div"
+
 
 echo -e "Input file $inp\npixelSize $pixelSize\ntiltAxisRotation $tiltAxisRotation\n"
 echo -e "binHigh $binHigh\nbinLow $binLow\nnX $nX\nnY $nY\nnZ $nZ\next $ext\nTILT_OPTION $TILT_OPTION\n\n"
@@ -66,8 +74,8 @@ echo $iEcho && iEcho=$(($iEcho+1))
 
       ptSizeX=$(echo "print(int(${nX}/($iter*${iBin})))" | python)
       ptSizeY=$(echo "print(int(${nY}/($iter*${iBin})))" | python)
-      ptBorder=64
-      ptOverlap=0.5
+      ptBorder=$BORDER_SIZE_PIXELS
+      ptOverlap=$PATCH_OVERLAP
       # For each binning the pixel shifts are limited to 50 A * iBin
 #    elif [[ ${iBin} -eq 2 ]]  ; then
 #      ptSize=$(echo "print int(${PATCH_SIZE}/(${iBin}*${pixelSize}))" | python)
@@ -77,16 +85,17 @@ echo $iEcho && iEcho=$(($iEcho+1))
     else
       ptSizeX=$(echo "print(int(${nX}/($iBin*${PATCH_SIZE_FACTOR}.)))" | python)
       ptSizeY=$(echo "print(int(${nY}/($iBin*${PATCH_SIZE_FACTOR}.)))" | python) 
-      ptBorder=64
-      ptOverlap=0.5
+      ptBorder=$BORDER_SIZE_PIXELS
+      ptOverlap=$PATCH_OVERLAP
 
     fi
 echo $iEcho && iEcho=$(($iEcho+1))
-    firstIterShiftLimit=10
+
+
     if [[ $iter -ge 2 ]] ; then
-      limitShifts=$(echo "print(int(${firstIterShiftLimit}/$iter)+1)" | python)
+      limitShifts=$(echo "print(int(${FIRST_ITER_SHIFT_LIMIT_PIXELS}/(${iter}**${DIVIDE_SHIFT_LIMIT_BY}))+1)" | python)
     else
-      limitShifts=${firstIterShiftLimit}
+      limitShifts=${FIRST_ITER_SHIFT_LIMIT_PIXELS}
     fi
  
     wDir="round_${iter}"
@@ -103,19 +112,6 @@ echo $iEcho && iEcho=$(($iEcho+1))
       # alignment to be sane. assuming tilts in header or manually extracted.
       ln -sf ../../${inp}${ext} ${pName}.st
       ln -sf ../../${inp}.rawtlt ${pName}.rawtlt
-#      if [[ -f ../../$(basename ${inp} .mrc).rawtlt ]] ; then
-#        inp=$(basename ${inp} .mrc)
-#        ln -s ../../${inp}.rawtlt ${pName}.rawtlt        
-#      elif [[ ../../$(basename ${inp} .st).rawtlt ]] ; then
-#        inp=$(basename ${inp} .st)
-#        ln -s ../../${inp}.rawtlt ${pName}.rawtlt    
-#      elif [[ ../../$(basename ${inp} .fixed).rawtlt ]] ; then
-#        inp=$(basename ${inp} .fixed)
-#        ln -s ../../${inp}.rawtlt ${pName}.rawtlt 
-#      else 
-#        echo "Could not find a *.rawtlt file. Is it there? is your stack a .mrc or .st?"
-#        exit 1
-#      fi
 
       
 #      ccderaser \
@@ -148,9 +144,11 @@ echo $iEcho && iEcho=$(($iEcho+1))
 #        clip filter -h ${maxCut} ../../fixedStacks/${inp}.fixedNP.rot ../../fixedStacks/${inp}.fixed.rot
 #      fi
 
+      newstack -bin $iBin ../../fixedStacks/${inp}.fixed.rot ${inp}.preali
       tiltxcorr \
-        -InputFile	../../fixedStacks/${inp}.fixed.rot \
+        -InputFile ${inp}.preali \
         -OutputFile	${pName}.prexf \
+        -ImagesAreBinned	${iBin} \
         -TiltFile	${pName}.rawtlt \
         -RotationAngle	0.0 \
         -FilterSigma1	0.001 \
@@ -244,7 +242,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
       -CorrelationCoefficient \
       -RotationAngle	0.0 \
       -AngleOffset ${tiltAngleOffset}
-      
+   
    
       # This could be specified with "-LengthAndOverlap" in tiltxorr
      CONTOUR_LENGTH="-LengthOfPieces 5"
@@ -258,7 +256,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
     # the stack is resampled. Increase robust downweighting k --> 0.5
     # Don't fit local tilts, and for the test set which has 100 prjs, increase
     # the default tilt group from 5 --> 8 to address the low angle switch.
-    if [[ $iter -gt 2 ]] ; then
+    if [[ $iter > $N_ITERS_NO_ROT ]] ; then
 
       echo "${EMC_TILTALIGN} -ModelFile	${pName}.fid -ImageFile	${pName}.preali -ImagesAreBinned	${iBin} -OutputModelFile	${pName}.3dmod -OutputResidualFile	${pName}.resid -OutputFidXYZFile	${pName}fid.xyz -OutputTiltFile	${pName}.tlt -OutputTransformFile	${pName}.tltxf_nonScaled -RotationAngle	0.0 -TiltFile	${pName}.rawtlt -AngleOffset ${tiltAngleOffset} -RotOption	1 -RotDefaultGrouping	3 -TiltOption	${TILT_OPTION} -TiltDefaultGrouping	3 -MagOption	${MAG_OPTION} -MagDefaultGrouping	3 -BeamTiltOption	0 -ResidualReportCriterion	1.0 -SurfacesToAnalyze	0 -MetroFactor	0.25 -MaximumCycles	1000 -KFactorScaling	1.0 -NoSeparateTiltGroups	2 -AxisZShift	1000 -ShiftZFromOriginal      1 -LocalAlignments	-OutputLocalFile	${pName}_local.xf -TargetPatchSizeXandY	${ptSizeX},${ptSizeY} -MinSizeOrOverlapXandY	0.5,0.5 -MinFidsTotalAndEachSurface	8,3 -FixXYZCoordinates	1 -LocalRotOption	1 -LocalRotDefaultGrouping	6 -LocalTiltOption	0 -LocalTiltDefaultGrouping	6 -LocalMagOption	1 -LocalMagDefaultGrouping	7  -AngleOffset ${tiltAngleOffset} > tiltAlign.log" > ./.${inp}_tilalign.sh
       # Run with local
@@ -317,7 +315,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
           -RotationAngle	0.00 \
           -TiltFile	${pName}.rawtlt \
           -AngleOffset	${tiltAngleOffset} \
-          -RotOption	1 \
+          -RotOption	0 \
           -RotDefaultGrouping	3 \
           -TiltOption	${TILT_OPTION} \
           -TiltDefaultGrouping	3 \
@@ -349,9 +347,9 @@ done # bin loop
 
 
 finalRound=$(($iter-1))
-for j in $(seq 2 $finalRound) ; do
-  rm round_${j}/INP-${j}.preali
-done
+#for j in $(seq 2 $finalRound) ; do
+#  rm round_${j}/INP-${j}.preali
+#done
 
 
 echo $inp >> ../fixedStacks/baseName.list 

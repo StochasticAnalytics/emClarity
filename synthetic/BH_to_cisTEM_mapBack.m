@@ -486,8 +486,12 @@ for iTiltSeries = tiltStart:nTiltSeries
 
 
 
-
-  fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
+  try
+    fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
+  catch
+    fprintf('\nWarning, did not load the projected coords\nSkipping along');
+    continue;
+  end
   parList = load(sprintf('%smapBack%d/%s.coord_start',mbOUT{1:3}));
   defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
   
