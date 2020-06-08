@@ -160,7 +160,7 @@ end
 try
   use_v2_SF3D = pBH.('use_v2_SF3D')
 catch
-  use_v2_SF3D = false
+  use_v2_SF3D = true
 end
 outputPrefix   = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 %%%flgGold      = pBH.('flgGoldStandard');

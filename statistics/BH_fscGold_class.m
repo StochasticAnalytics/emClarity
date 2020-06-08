@@ -71,6 +71,13 @@ catch
   shape_mask_threshold = 2.4;
 end
 
+try
+  % Apply the mask with the given parameters, save and exit.
+  shape_mask_test = pBH.('shape_mask_test');
+catch
+  shape_mask_test = false;
+end
+
 % Estimating the particle volume still occasionaly goes awry. Place a cap and return a cautionary message.
 
 try 
@@ -318,10 +325,8 @@ end
 % the average for inspection. 
 
 % % % % % % % [ tmpMask ] = BH_mask3d(maskType, sizeMask, maskRadius-7, maskCenter);
-maskType
-sizeMask
-maskRadius-7
-[ tmpMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius-7, 'gpu', {'shift', maskCenter});
+
+[ tmpMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius, 'gpu', {'shift', maskCenter});
 
 volMask{1} = gather(BH_multi_randomizeTaper(tmpMask));
 volMask{2} = gather(BH_multi_randomizeTaper(tmpMask)); clear tmpMask
@@ -381,6 +386,12 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
       [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
       [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
         
+      if (shape_mask_test)
+        fprintf('\nSaving your masks and exiting!\n');
+        SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
+                                     outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
+        return;
+      end
 
       if (flgFscShapeMask)
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
@@ -517,6 +528,14 @@ for iRef = 1:nReferences
        
       [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
       [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
+      
+      if (shape_mask_test)
+        fprintf('\nSaving your masks and exiting!\n');
+        SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
+                                     outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
+        return;
+      end
+      
         
       if (flgFscShapeMask)
         shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);

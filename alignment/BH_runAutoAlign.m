@@ -16,7 +16,7 @@ end
 
 % Min and max sampling rate in Ang/Pix (for patch tracking)
 try
-  MIN_SAMPLING_RATE = pBH.('autoAli_max_sampling_rate');
+  MIN_SAMPLING_RATE = pBH.('autoAli_min_sampling_rate');
 catch
   MIN_SAMPLING_RATE = 10.0;
 end
@@ -29,28 +29,28 @@ end
 try
   PATCH_SIZE_FACTOR = pBH.('autoAli_patch_size_factor');
 catch
-  PATCH_SIZE_FACTOR = 5;
+  PATCH_SIZE_FACTOR = 4;
 end
 
 % Check this first to allow only patch tracking even if there are beads
 try
   REFINE_ON_BEADS = pBH.('autoAli_refine_on_beads');
 catch
-  REFINE_ON_BEADS = true;
+  REFINE_ON_BEADS = false;
 end
 
 % Check this first to allow only patch tracking even if there are beads
 try
   BORDER_SIZE_PIXELS = pBH.('autoAli_patch_tracking_border');
 catch
-  BORDER_SIZE_PIXELS = 4;
+  BORDER_SIZE_PIXELS = 64;
 end
 
 % Check this first to allow only patch tracking even if there are beads
 try
   N_ITERS_NO_ROT = pBH.('autoAli_n_iters_no_rotation');
 catch
-  N_ITERS_NO_ROT = 2;
+  N_ITERS_NO_ROT = 3;
 end
 
 try
@@ -88,7 +88,7 @@ end
 
 
 
-  LOW_RES_CUTOFF=600;
+  LOW_RES_CUTOFF=800;
   CLEAN_UP_RESULTS=false;
   MAG_OPTION=5;
   tiltAngleOffset=0.0;
@@ -133,49 +133,48 @@ binInc = -1*ceil((binHigh- binLow)./3);
 % precise
 maxAngle = atand(nY./nX); % will be positive
 switch_axes = false;
-% if ( abs(rem(imgRotation,180)) > maxAngle && abs(rem(imgRotation,180)) <maxAngle + 180)
-%   fprintf('Your image rotation will result in a loss of data. Switching X/Y axes\n')
+if ( abs(rem(imgRotation,180)) > maxAngle && abs(rem(imgRotation,180)) <maxAngle + 180)
+  fprintf('Your image rotation will result in a loss of data. Switching X/Y axes\n')
+  
+  switch_axes = true;
+  
+  rotStack = zeros(nY,nX,nZ,'single');
 %   
-%   switch_axes = true;
-%   
-%   rotStack = zeros(nY,nX,nZ,'single');
-% %   
-%   ny = nY;
-%   nY = nX;
-%   nX = ny;
-%   tmpFile = sprintf('%s/%s_tmp.st',getenv('MCR_CACHE_ROOT'),baseName);
-%   for iPrj = 1:nZ
-%     
-%     system(sprintf('newstack -fromone -secs %d -rotate 90 fixedStacks/%s.fixed %s >/dev/null',iPrj,baseName,tmpFile));
-%     rotStack(:,:,iPrj) = getVolume(MRCImage(sprintf('%s',tmpFile)));
-% 
-%     system(sprintf('rm %s',tmpFile));
-%   end
-%   
-%   inputStack = rotStack; clear rotStack
-%   imgRotation = imgRotation + 90;
-% end
+  ny = nY;
+  nY = nX;
+  nX = ny;
+  tmpFile = sprintf('%s/%s_tmp.st',getenv('MCR_CACHE_ROOT'),baseName);
+  for iPrj = 1:nZ
+    
+    system(sprintf('newstack -fromone -secs %d -rotate 90 fixedStacks/%s.fixed %s >/dev/null',iPrj,baseName,tmpFile));
+    rotStack(:,:,iPrj) = getVolume(MRCImage(sprintf('%s',tmpFile)));
+
+    system(sprintf('rm %s',tmpFile));
+  end
+  
+  inputStack = rotStack; clear rotStack
+  imgRotation = imgRotation + 90;
+end
 
 
 rotMat = [cosd(imgRotation),-1*sind(imgRotation),sind(imgRotation),cosd(imgRotation)];
 
 fprintf('Preprocessing tilt-series\n');
 
-gradientAliasFilter = BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize);
-%                      gradientAliasFilter = {BH_bandpass3d(1.*[nX,nY,1],0,0,0,'GPU','nyquistHigh'),...
-%                        BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize)};
+%gradientAliasFilter = BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize);
+                      gradientAliasFilter = {BH_bandpass3d(1.*[nX,nY,1],0,0,0,'GPU','nyquistHigh'),...
+                        BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize)};
 if pixelSize < 2                     
   medianFilter = 5;
 else
-  medianFilter = 5;
+  medianFilter = 3;
 end
 
 for iPrj = 1:nZ
 %   tmpPrj = BH_preProcessStack(gpuArray(inputStack(:,:,iPrj)),gradientAliasFilter,medianFilter);
-  tmpPrj = medfilt2(gpuArray(inputStack(:,:,iPrj)),medianFilter.*[1,1]);
-  tmpPrj = real(ifftn(fftn(tmpPrj).*gradientAliasFilter));
-%   tmpPrj = real(ifftn(fftn(tmpPrj.*gradientAliasFilter{1})));
-%   tmpPrj = real(ifftn(fftn(tmpPrj).*gradientAliasFilter{2}));
+  tmpPrj = real(ifftn(fftn(gpuArray(inputStack(:,:,iPrj))).*gradientAliasFilter{1}));
+  tmpPrj = medfilt2(tmpPrj,medianFilter.*[1,1]);
+  tmpPrj = real(ifftn(fftn(tmpPrj).*gradientAliasFilter{2}));
   tmpPrj = BH_resample2d(tmpPrj,rotMat,[0,0],'Bah','GPU','forward',1,size(tmpPrj));
   inputStack(:,:,iPrj) = gather(tmpPrj);
 end
@@ -224,9 +223,9 @@ cd(sprintf('%s',startDir));
 
 if (switch_axes)
   % backup the original
-  system(sprintf('mv fixedStacks/%s.fixed fixedStacks/%s.fixed_nonSwaped',baseName,baseName));
+  system(sprintf('mv fixedStacks/%s.fixed fixedStacks/%s.fixed_nonSwapped',baseName,baseName));
   % rotate by 90
-  system(sprintf('newstack -rotate 90 fixedStacks/%s.fixed_nonSwaped fixedStacks/%s.fixed',baseName,baseName));
+  system(sprintf('newstack -rotate 90 fixedStacks/%s.fixed_nonSwapped fixedStacks/%s.fixed',baseName,baseName));
 end
 
 if strcmpi(TILT_OPTION,'0')

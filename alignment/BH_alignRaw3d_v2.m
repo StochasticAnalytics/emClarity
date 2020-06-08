@@ -96,7 +96,7 @@ end
 try
   use_v2_SF3D = pBH.('use_v2_SF3D')
 catch
-  use_v2_SF3D = falsw
+  use_v2_SF3D = true;
 end
 
 try

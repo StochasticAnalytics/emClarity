@@ -107,6 +107,17 @@ Fsc_bfactor=10
 % form overlaping peripheral density.
 fscGoldSplitOnTomos=0
 
+% A very soft mask based on the particle envelope. Highly recommended to not 
+% turn this off. If you suspect some density is being ommited, you could try 
+% lowering the threshold. If you have extra "dust" outside your particle, it
+% can be helpful to decrease the resolution used in the inital thresholding
+% (shape_mask_lowpass) or to increase the threshold (or both).
+% shape_mask_test will create the mask and save it to your FSC directory, which 
+% is useful for testing these parameters. >$ emClarity fsc paramN.m N RawAlignment
+flgFscShapeMask=1
+shape_mask_lowpass=18
+shape_mask_threshold=2.4
+shape_mask_test=0
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%    Classification Paramters    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%

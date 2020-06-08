@@ -202,7 +202,7 @@ end
 try
   use_v2_SF3D = pBH.('use_v2_SF3D')
 catch
-  use_v2_SF3D = false
+  use_v2_SF3D = true
 end
 global bh_global_ML_compressByFactor;
 global bh_global_ML_angleTolerance;

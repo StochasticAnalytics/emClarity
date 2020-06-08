@@ -45,8 +45,8 @@ nNeighbors = str2num(latticeNumber);
 
 % FIXME from param file.
 nWorkers = str2double(nWorkers);
-delete(gcp('nocreate'));
-EMC_parpool(nWorkers);
+% delete(gcp('nocreate'));
+% EMC_parpool(nWorkers);
 
 
 iterList = cell(nWorkers);
@@ -159,7 +159,7 @@ parfor iPar = 1:nWorkers
           end
         end % loop to deterimne center of mass
 
-    end
+    else
 
       for iPt = 1:nVol
 
@@ -207,7 +207,7 @@ parfor iPar = 1:nWorkers
         end
       end
     
-    
+    end
 
       listIN = listIN(find(keepList),:);
       [~,fileName,~] = fileparts(geom{i});

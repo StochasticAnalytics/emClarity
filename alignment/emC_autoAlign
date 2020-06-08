@@ -6,7 +6,8 @@ if [[ $1 -eq -1 ]] ; then echo "ali check" ; exit 0; fi
   # Resolution cutoff is best to be at or slightly lower resolution than the first zero of the CTF
   # TODO add input option for defocus value estimate, and calculate the first zero automatically.
   # This would also facilitate a quick handedness check prior to full ctf estimation.
-
+  RESOLUTION_CUTOFF=15
+  LOW_RES_CUTOFF=1800
   # Angstrom, edge width
 
  
@@ -144,11 +145,9 @@ echo $iEcho && iEcho=$(($iEcho+1))
 #        clip filter -h ${maxCut} ../../fixedStacks/${inp}.fixedNP.rot ../../fixedStacks/${inp}.fixed.rot
 #      fi
 
-      newstack -bin $iBin ../../fixedStacks/${inp}.fixed.rot ${inp}.preali
       tiltxcorr \
-        -InputFile ${inp}.preali \
+        -InputFile	../../fixedStacks/${inp}.fixed.rot \
         -OutputFile	${pName}.prexf \
-        -ImagesAreBinned	${iBin} \
         -TiltFile	${pName}.rawtlt \
         -RotationAngle	0.0 \
         -FilterSigma1	0.001 \
@@ -315,7 +314,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
           -RotationAngle	0.00 \
           -TiltFile	${pName}.rawtlt \
           -AngleOffset	${tiltAngleOffset} \
-          -RotOption	0 \
+          -RotOption	1 \
           -RotDefaultGrouping	3 \
           -TiltOption	${TILT_OPTION} \
           -TiltDefaultGrouping	3 \
