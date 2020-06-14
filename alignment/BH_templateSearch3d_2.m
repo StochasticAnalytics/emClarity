@@ -93,6 +93,18 @@ statsRadius = 1;
 convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 
 try 
+  use_new_grid_search = pBH.('use_new_grid_search');
+catch
+  use_new_grid_search = false;
+end
+
+try
+  symmetry_op = pBH.('symmetry');
+catch
+  symmetry_op = 'C1';
+end
+
+try 
   eraseMaskType = pBH.('Peak_mType');
 catch
   eraseMaskType = 'sphere';
@@ -260,8 +272,15 @@ else
   helical = 0;
 end
 
-[  nInPlane, inPlaneSearch, angleStep, nAngles] ...
+if (use_new_grid_search)
+  gridSearch = eulerSearch(symmetry_op, angleSearch(1:4), 0, 0);
+  nAngles = sum(gridSearch.number_of_angles_at_each_theta);
+  inPlaneSearch = gridSearch.psi;
+  
+else
+  [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
                                       = BH_multi_gridSearchAngles(angleSearch)
+end
 
                                                                         
 
@@ -412,21 +431,6 @@ tomoStack = zeros([sizeChunk,nTomograms], 'single');
 % backgroundVol = zeros(sizeChunk,'single');
 tomoCoords= zeros(nTomograms, 3, 'uint16');
 
-% % % [ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 0,maxSizeForHighPass, ...
-% % %                                               lowResCut,'cpu', pixelSize );
-% In switching to the full 3D-sampling function the high pass is
-% already incorporated in the CTF. Still include one for very low
-% resolution to deal with gradients in the tomos.
-% [ tomoBandpass ]   = BH_bandpass3d(sizeChunk, 1e-3,600, ...
-%                                               lowResCut,'cpu', pixelSize );
-%                                           
-% % if ~(shouldBeCTF)
-% %   tomoBandpass = wedgeMask .* tomoBandpass;
-% % end
-% 
-% tomoBandpass = tomoBandpass(1:floor(size(tomoBandpass,1)/2)+1,:,:);
-% bhF.bandpass = tomoBandpass; clear tomoBandpass
-% clear wedgeMask
 
 try
   doMedFilt = pBH.('Tmp_medianFilter');
@@ -494,32 +498,6 @@ for  iX = 1:nIters(1)
       end
     end
 
-%     % Handle all mean centering and rms normalization in local window
-%     
-%     [ averageMask, flgOOM ] = BH_movingAverage(tomoChunk, statsRadius); 
-%    
-%     if isa(tomoChunk(1),'gpuArray') && flgOOM
-%       tomoChunk = gather(tomoChunk);
-%     end
-% 
-%     
-%     
-%     tomoChunk= tomoChunk - averageMask; clear averageMask 
-% 
-%     [ rmsMask ] = BH_movingRMS(tomoChunk, statsRadius);
-    
-  
-      
-% % % % %     if ( shouldBeCTF == 1 )
-% % % % %       tomoStack(:,:,:,tomoIDX) = gather((1.*tomoChunk ./ rmsMask).*validAreaMask);
-% % % % %     else 
-% % % % %       % Using the non-ctf corrected stack since we limit toA all practical
-% % % % %       % defocus (<8um) should be entirely negative, so just flip in real
-% % % % %       % space
-% % % % %     
-% % % % %       tomoStack(:,:,:,tomoIDX) = gather(-1.*(tomoChunk ./ rmsMask).*validAreaMask);
-% % % % % %       backgroundVol = backgroundVol + gather(tomoChunk.*maskStack(:,:,:,tomoIDX));
-% % % % %     end
 
     clear rmsMask
 
@@ -576,21 +554,26 @@ firstLoopOverTomo = true;
     
     swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
 
-                                                              
-for iAngle = 1:size(angleStep,1)
-  
-  theta = angleStep(iAngle,1);
+if (use_new_grid_search)
+  theta_search = 1:gridSearch.number_of_out_of_plane_angles;
+else
+  theta_search = 1:size(angleStep,1);
+end
 
-  % Calculate the increment in phi so that the azimuthal sampling is
-  % consistent and equal to the out of plane increment.
-  if (helical)
-     phi_step = 360;
+for iAngle = theta_search
+  
+  if (use_new_grid_search)
+    theta = gridSearch.parameter_map.theta(iAngle);
+    numRefIter = gridSearch.number_of_angles_at_each_theta(iAngle);
   else
-     phiStep = angleStep(iAngle,3);
+    theta = angleStep(iAngle,1);  
+    phiStep = angleStep(iAngle,3);
+    numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
+
   end
+
   
 
-  numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
   tempImg = gpuArray(templateBIN); %%%%% NEW switch to bin
 
   
@@ -625,12 +608,22 @@ for iAngle = 1:size(angleStep,1)
 
      tomoFou = swapQuadrants.*bhF.fwdFFT(gpuArray(tomoStack(:,:,:,tomoIDX)));
 
-    for iAzimuth = 0:angleStep(iAngle,2)
+    if (use_new_grid_search)
+      phi_search = g.parameter_map.phi{iAngle};
+    else
+      phi_search = 0:angleStep(iAngle,2);
+    end
+    
+    for iAzimuth = phi_search
 
-      if helical == 1
-          phi = 90 ;
+      if (use_new_grid_search)
+        phi = iAzimuth;
       else
-         phi = phiStep * iAzimuth;
+        if helical == 1
+            phi = 90 ;
+        else
+           phi = phiStep * iAzimuth;
+        end
       end
 
       for iInPlane = inPlaneSearch
@@ -641,12 +634,6 @@ for iAngle = 1:size(angleStep,1)
 
           ANGLE_LIST(currentGlobalAngle,:) = [phi, theta, psi - phi];
           [phi, theta, psi - phi];
-          % Rotate the reference, lowpass and wedge mask, send to gpu
-          % Inverse rotation(i.e. rotate particle, angles saved
-          % are to rotate frame to particle for extraction.)
-% % % % %           tempRot = BH_resample3d(tempImg, [phi, theta, psi - phi], [1,1,1], ...
-% % % % %                                   {'Bah', 1,'linear',1,interpMaskGPU},...
-% % % % %                                   'GPU','forward');
 
 
           tempRot = BH_resample3d(tempImg, [phi, theta, psi - phi], [1,1,1], ...
