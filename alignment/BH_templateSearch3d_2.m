@@ -273,9 +273,10 @@ else
 end
 
 if (use_new_grid_search)
-  gridSearch = eulerSearch(symmetry_op, angleSearch(1:4), 0, 0);
+  gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
+        angleSearch(2),angleSearch(3),angleSearch(4), 0, 0);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
-  inPlaneSearch = gridSearch.psi;
+  inPlaneSearch = gridSearch.parameter_map.psi;
   
 else
   [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
@@ -560,6 +561,7 @@ else
   theta_search = 1:size(angleStep,1);
 end
 
+
 for iAngle = theta_search
   
   if (use_new_grid_search)
@@ -600,8 +602,13 @@ for iAngle = theta_search
     % chunk.
     firstLoopOverChunk = true;
     
-    fprintf('working on tilt(%d/%d) tomoChunk(idx%d/%d)\t' ...
-                          ,iAngle,size(angleStep,1), tomoIDX,nTomograms);
+    if (use_new_grid_search)
+      fprintf('working on tilt(%d/%d) tomoChunk(idx%d/%d)\t' ...
+                            ,iAngle,gridSearch.number_of_out_of_plane_angles, tomoIDX,nTomograms);      
+    else
+      fprintf('working on tilt(%d/%d) tomoChunk(idx%d/%d)\t' ...
+                            ,iAngle,size(angleStep,1), tomoIDX,nTomograms);
+    end
 
 
  
@@ -609,7 +616,7 @@ for iAngle = theta_search
      tomoFou = swapQuadrants.*bhF.fwdFFT(gpuArray(tomoStack(:,:,:,tomoIDX)));
 
     if (use_new_grid_search)
-      phi_search = g.parameter_map.phi{iAngle};
+      phi_search = gridSearch.parameter_map.phi{iAngle};
     else
       phi_search = 0:angleStep(iAngle,2);
     end

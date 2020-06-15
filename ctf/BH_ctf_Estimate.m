@@ -224,7 +224,7 @@ try
   maxNumberOfTiles = pBH.('ctfMaxNumberOfTiles');
 catch
   if (do_ctf_refine)
-    maxNumberOfTiles = 3000;
+    maxNumberOfTiles = 4000;
   else
     maxNumberOfTiles = 10000;
   end

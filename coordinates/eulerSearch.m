@@ -105,7 +105,7 @@ classdef eulerSearch < handle
 	             
         obj.parameter_map.phi{iT} = [0:phi_step:obj.phi_max - 1] + phi_start_local;        
 
-        obj.number_of_angles_at_each_theta = length(obj.parameter_map.phi{iT}) .* length(obj.parameter_map.psi);
+        obj.number_of_angles_at_each_theta(iT) = length(obj.parameter_map.phi{iT}) .* length(obj.parameter_map.psi);
       end
       
       
