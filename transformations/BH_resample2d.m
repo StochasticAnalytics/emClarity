@@ -238,7 +238,6 @@ if ( useGPU )
 
     clear values_on_origin Xborder Yborder x_border_mask
     
-    TRANS_IMAGE(hermitianMates) = conj(TRANS_IMAGE(hermitianMates));
 
     if (hgMAG ~= 1 || hgSHIFTS(1) || hgSHIFTS(2))
       isCentered=1;
