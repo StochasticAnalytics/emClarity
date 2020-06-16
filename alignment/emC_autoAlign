@@ -48,9 +48,10 @@ FIRST_ITER_SHIFT_LIMIT_PIXELS=${18}
 DIVIDE_SHIFT_LIMIT_BY=${19}
 TILT_OPTION=0
 
+echo $N_ITERS_NO_ROT
 echo $FIRST_ITER_SHIFT_LIMIT_PIXELS
 echo $DIVIDE_SHIFT_LIMIT_BY
-echo "Div"
+
 
 
 echo -e "Input file $inp\npixelSize $pixelSize\ntiltAxisRotation $tiltAxisRotation\n"
@@ -255,7 +256,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
     # the stack is resampled. Increase robust downweighting k --> 0.5
     # Don't fit local tilts, and for the test set which has 100 prjs, increase
     # the default tilt group from 5 --> 8 to address the low angle switch.
-    if [[ $iter > $N_ITERS_NO_ROT ]] ; then
+    if [[ $iter -gt $N_ITERS_NO_ROT ]] ; then
 
       echo "${EMC_TILTALIGN} -ModelFile	${pName}.fid -ImageFile	${pName}.preali -ImagesAreBinned	${iBin} -OutputModelFile	${pName}.3dmod -OutputResidualFile	${pName}.resid -OutputFidXYZFile	${pName}fid.xyz -OutputTiltFile	${pName}.tlt -OutputTransformFile	${pName}.tltxf_nonScaled -RotationAngle	0.0 -TiltFile	${pName}.rawtlt -AngleOffset ${tiltAngleOffset} -RotOption	1 -RotDefaultGrouping	3 -TiltOption	${TILT_OPTION} -TiltDefaultGrouping	3 -MagOption	${MAG_OPTION} -MagDefaultGrouping	3 -BeamTiltOption	0 -ResidualReportCriterion	1.0 -SurfacesToAnalyze	0 -MetroFactor	0.25 -MaximumCycles	1000 -KFactorScaling	1.0 -NoSeparateTiltGroups	2 -AxisZShift	1000 -ShiftZFromOriginal      1 -LocalAlignments	-OutputLocalFile	${pName}_local.xf -TargetPatchSizeXandY	${ptSizeX},${ptSizeY} -MinSizeOrOverlapXandY	0.5,0.5 -MinFidsTotalAndEachSurface	8,3 -FixXYZCoordinates	1 -LocalRotOption	1 -LocalRotDefaultGrouping	6 -LocalTiltOption	0 -LocalTiltDefaultGrouping	6 -LocalMagOption	1 -LocalMagDefaultGrouping	7  -AngleOffset ${tiltAngleOffset} > tiltAlign.log" > ./.${inp}_tilalign.sh
       # Run with local

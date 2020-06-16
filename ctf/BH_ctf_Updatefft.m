@@ -477,7 +477,7 @@ end
   % Because the rotation/scaling and translation are done separately,
   % we must use a square transform; otherwise, a rotation angle dependent
   % anisotropic distortion (like mag distortion) is introduced.
-    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
+    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp.*0.25).*max(sizeODD));
     
     
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);

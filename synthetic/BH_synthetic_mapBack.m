@@ -90,7 +90,7 @@ molMass = MOL_MASS.*(25/samplingRate);
 try
   tomoCPR_random_subset = pBH.('tomoCPR_randomSubset')
 catch
-  tomoCPR_random_subset = 1800
+  tomoCPR_random_subset = -1
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018

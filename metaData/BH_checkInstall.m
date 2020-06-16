@@ -4,7 +4,7 @@ function [  ] = BH_checkInstall(  )
 
 
 
-system(sprintf('%s/testScripts/BH_checkInstall.sh',getenv('emClarity_ROOT')));
+system(sprintf('%s',getenv('BH_CHECKINSTALL')));
 
 t = datetime;
 fOUT = fopen('emClarity_checkInstall.txt','a');

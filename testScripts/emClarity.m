@@ -31,8 +31,14 @@ if isdeployed
   emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
 end
 
+BH_checkInstallPath=sprintf('%s/testScripts/BH_checkInstall.sh',emClarity_ROOT);
+if isdeployed
+  BH_checkInstallPath = sprintf('%s%s',ctfroot,BH_checkInstallPath);
+end
+
 setenv('EMC_AUTOALIGN',emC_autoAliPath);
 setenv('EMC_FINDBEADS',emC_findBeadsPath);
+setenv('BH_CHECKINSTALL',BH_checkInstallPath);
 
 emC_cisTEMDepPath=sprintf('%s/bin/deps',emClarity_ROOT)
 emC_cisTEM_deps = importdata(sprintf('%s/cisTEMDeps.txt',emC_cisTEMDepPath));

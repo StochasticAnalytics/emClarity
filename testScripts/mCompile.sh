@@ -23,7 +23,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=1
-nightly=0
+nightly=01
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -44,7 +44,7 @@ EMC_ROOT=${HOME}/work/emClarity
 
 
 #-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a BH_checkInstall.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/testScripts/BH_checkInstall.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
@@ -174,7 +174,7 @@ rm -rf ../emClarity_${major}.${minor}.${bugs}.${nightly}
 mkdir ../emClarity_${major}.${minor}.${bugs}.${nightly}
 cp -rp ../docs ../emClarity_${major}.${minor}.${bugs}.${nightly}
 cp -rp ../lib ../emClarity_${major}.${minor}.${bugs}.${nightly}
-c
+
 cd ../emClarity_${major}.${minor}.${bugs}.${nightly}
 mkdir bin
 cp -rp ../bin/deps ./bin

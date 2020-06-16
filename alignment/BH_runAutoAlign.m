@@ -218,7 +218,7 @@ system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d %d %d %f %f %f %d %d %d > ./
     
 cd(sprintf('%s',startDir));
 
-% system(sprintf('rm %s',fixedName));
+system(sprintf('rm %s',fixedName));
 
 
 if (switch_axes)

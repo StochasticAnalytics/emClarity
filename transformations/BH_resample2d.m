@@ -156,10 +156,13 @@ if ~doHalfGrid
 end
 
 if doHalfGrid
+  % I don't think it matters if the interpolant is scaled to 0.5 or the
+  % grid indices. The latter makes getting the values along the origin
+  % easier.
   [ Xnew,Ynew,~,x1,y1,~ ] = BH_multi_gridCoordinates( varargin{1}.inputSize, ...
                                                    'Cartesian', ...
                                                     METHOD,transformation,...
-                                                    1, 1, 0,{'halfgrid'});
+                                                    0, 1, 0,{'halfgrid'});
 
 
 
@@ -194,15 +197,47 @@ end
 % Interpolate and write out the image.
 if ( useGPU )
   if (doHalfGrid)
-    hermitianMates = Xnew < 0;
+    
+    stackIN = varargin{1}.fwdSwap(varargin{1}.fwdFFT(stackIN));
+    
+    Xnew = Xnew ./ hgMAG;
+    Ynew = Ynew ./ hgMAG;
+ 
+    % Values from X < 0 can simply be conj(X > 0)
+    hermitianMates = Xnew < 0;   
+    % Values coming from X = 0 will not be correct if simply flipped.
+    x_border_mask = Xnew < 1 & Xnew > -1;
+    % Create an interpolant that also has +/- 2
+    [Xborder,Yborder] = ndgrid(gpuArray(single(-2:2)),y1);
+    
+    % cut out and shift, giving the correct values for x = 0:2
+    values_on_origin = stackIN(1:5,:);
+    values_on_origin =  circshift(values_on_origin,-3);
+    % If it is even sized, the first column is not handled correctly, but
+    % is almost always going to be zero anyway b/c its at Nyquist
+    values_on_origin(Xborder == -1 & Yborder > 0) = conj(values_on_origin(Xborder == 1 & Yborder < 0 & Yborder >= -y1(end)));
+    values_on_origin(Xborder == -2 & Yborder > 0) = conj(values_on_origin(Xborder == 2 & Yborder < 0 & Yborder >= -y1(end)));
+    values_on_origin(Xborder == -1 & Yborder < 0 & Yborder >= -y1(end)) = conj(values_on_origin(Xborder == 1 & Yborder > 0 & Yborder <= y1(end)));
+    values_on_origin(Xborder == -2 & Yborder < 0 & Yborder >= -y1(end)) = conj(values_on_origin(Xborder == 2 & Yborder > 0 & Yborder <= y1(end)));
+    
+    % We need to cut these out prior to flipping the rest of the hermitian
+    % mates
+    Xnew_border = Xnew(x_border_mask);
+    Ynew_border = Ynew(x_border_mask);
+
+    % Invert the coordinates, take conjugate after interpolating
     Xnew(hermitianMates) = -1.*Xnew(hermitianMates);
     Ynew(hermitianMates) = -1.*Ynew(hermitianMates);
-
-
-    stackIN = varargin{1}.fwdSwap(varargin{1}.fwdFFT(stackIN));
-    TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew.*(1/hgMAG),Ynew.*(1/hgMAG),'linear',0);
-    
+      
+  
+    TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',0);
     TRANS_IMAGE(hermitianMates) = conj(TRANS_IMAGE(hermitianMates));
+    % Now go back and replace the values that came from locations near x =
+    % 0.
+    TRANS_IMAGE(x_border_mask) = interpn(Xborder,Yborder,values_on_origin,Xnew_border, Ynew_border,'linear',0);
+
+    clear values_on_origin Xborder Yborder x_border_mask
+    
 
     if (hgMAG ~= 1 || hgSHIFTS(1) || hgSHIFTS(2))
       isCentered=1;

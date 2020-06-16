@@ -446,11 +446,8 @@ d3 = size(TLT,1);
 
 osX = 1-mod(d1,2); osY = 1-mod(d2,2);
 
-if (SuperResolution)
-  gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,-0.235,METHOD,'nyquistHigh');
-else
-  gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,METHOD,'nyquistHigh');
-end
+
+
 
 for i = 1:d3
 %  fprintf('Transforming prj %d in fourier space oversampled by 2x physical Nyquist\n',i);
@@ -473,38 +470,7 @@ for i = 1:d3
 
   
 
-  % Pad the projection prior to xforming in Fourier space.
-  if (SuperResolution)
 
-     iProjection = gpuArray(single(getVolume(iMrcObj,[],[],TLT(i,23),'keep')));
-
-     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
-     
-     % Remove any very large outliers
-     largeOutliersMean= mean(iProjection(:));
-     largeOutliersSTD = std(iProjection(:));
-     largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
-                         iProjection > largeOutliersMean + 6*largeOutliersSTD);
-                       
-     iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single','gpuArray');
-                 
-    % Information beyond the physical nyquist should be removed to limit
-    % aliasing of noise prior tto interpolation.
-    iProjection = BH_padZeros3d(iProjection,[0,0],[0,0],shiftMETHOD,'singleTaper',largeOutliersMean);
-    trimVal = BH_multi_padVal(1.*size(iProjection),sizeCropped(1:2));
-
-    iProjection = real(ifftn(ifftshift(...
-                               BH_padZeros3d(fftshift(...
-                                             fftn(iProjection)), ...
-                                             trimVal(1,:),trimVal(2,:),...
-                                             shiftMETHOD,'single'))));  
-
-
-
-     iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),[0,0,0],[0,0],'Bah','GPU','forward',1/2,sizeCropped(1:2));
-
-     sizeODD = size(iProjection)-[osX,osY];
-  else
      sizeODD = [d1,d2]-[osX,osY];
 
     % If it is even sized, shift up one pixel so that the origin is in the middle
@@ -513,20 +479,23 @@ for i = 1:d3
      iProjection = ...
                  single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,23),'keep'));
                
-     iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
+     iProjection = real(ifftn(fftn(iProjection).* BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh')));
+
      largeOutliersMean= mean(iProjection(:));
      largeOutliersSTD = std(iProjection(:));
      largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
                          iProjection > largeOutliersMean + 6*largeOutliersSTD);
      iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
     
+     largeOutliersIDX = [];
+  
 
-  end
-
-    % Padding to avoid interpolation artifacts
-    
-%     sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp).*max(sizeODD));
-        sizeSQ = floor(([1,1]).*max(sizeODD));
+    % Padding to avoid interpolation artifacts. For K3 images this can push
+    % a 2080 close to or over the limit, so it is been reduced to 1/4 (from
+    % 1) i.e. the image is paded to 1.25 x unless useFourierInterp is set >
+    % 1;
+    sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp*0.25).*max(sizeODD));
+%         sizeSQ = floor(([1,1]).*max(sizeODD));
 
     padVal  = BH_multi_padVal(sizeODD,sizeSQ);
     trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));

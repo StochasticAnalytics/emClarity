@@ -114,14 +114,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   if ( nrhs == 2 )
   {
 
-
+    
     tex    = (cudaTextureObject_t *) mxGetData(prhs[0]);   
     checkCudaErrors(cudaDestroyTextureObject(*tex));
 
     cuArray = (cudaArray_t *) mxGetData(prhs[1]);
     checkCudaErrors(cudaFreeArray(*cuArray));
 
-//   mxFree(tex);
     return;
   }
 
