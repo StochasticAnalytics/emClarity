@@ -15,6 +15,14 @@ classdef interpolator < handle
     % 
     input_size = '';
     dummy_vol = '';
+    
+    % Keeping the texture alive works much of the time, but for some reason
+    % deallocating the cuArray can lead to seg faults only some of the
+    % time. It seems to be worse on 2080 ti vs titans or V100. For now,
+    % keep it alive for symmetry ops, but delete after interp, and store
+    % the input volume here.
+    input_volume = '';
+    make_tex_persistent = false;
   end
   
   methods
@@ -59,6 +67,15 @@ classdef interpolator < handle
       
       if (useOnlyOnce)
         obj.delete();
+      elseif (obj.make_tex_persistent)
+        % The texture is kept alive, so no need to also store the volume
+        % for re-initialization of the texture
+        
+        % Until I can figure out the segfaults, I'm not even putting in
+        % somethign to enable this.
+      else
+        obj.input_volume = inputVol;
+        obj.free_cuda_objects();
       end
     
 
@@ -91,25 +108,45 @@ classdef interpolator < handle
        
         symAngles = gather(angles*obj.symmetry_matrices{iSym});
         if (iSym == 1)
-        resampledVol =   mexXform3d(obj.input_size, ...
-                                                obj.dummy_vol,...
-                                                 symAngles, ...
-                                                 shifts, ...
-                                                 boolDirection, ...
-                                                 obj.texObject);  
+  
+          if (obj.make_tex_persistent)
+           resampledVol =  mexXform3d(obj.input_size, ...
+                                       obj.dummy_vol,...
+                                       symAngles, ...
+                                       shifts, ...
+                                       boolDirection, ...
+                                       obj.texObject);
+          else
+            % If we didn't make the tex obj persistent then we need to
+            % return it here, for use at least with the symmetric vols
+            [resampledVol, obj.texObject, obj.cuArray] =  ...
+                              mexXform3d(obj.input_size, ...
+                                         obj.input_volume,...
+                                         symAngles, ...
+                                         shifts, ...
+                                         boolDirection);   
+
+          end
+ 
         else
-        resampledVol = resampledVol + mexXform3d(obj.input_size, ...
-                                                  obj.dummy_vol,...
-                                                 symAngles, ...
-                                                 shifts, ...
-                                                 boolDirection, ...
-                                                 obj.texObject);
+          
+           % w or w/o persistent tex, this call is the same.
+           resampledVol = resampledVol + mexXform3d(obj.input_size, ...
+                                                     obj.dummy_vol,...
+                                                     symAngles, ...
+                                                     shifts, ...
+                                                     boolDirection, ...
+                                                     obj.texObject);
         end
         
       end
       
       if (obj.nSymMats > 1)
         resampledVol = resampledVol ./ obj.nSymMats;
+      end
+      
+      if ~(obj.make_tex_persistent)
+        obj.free_cuda_objects();
       end
 
       
@@ -351,10 +388,18 @@ classdef interpolator < handle
    end
    
    function [  ] = delete(obj)
-     if ~isempty(obj.texObject) && ~isempty(obj.cuArray)
+     
+      free_cuda_objects(obj);
+      
+   end
+   
+   function [ ] = free_cuda_objects(obj)
+      if ~isempty(obj.texObject) && ~isempty(obj.cuArray)
 %       fprintf('Deleting the texture obj, it is (%d) a uint64 (%d)\n',isa(obj.texObject,'uint64'),isa(obj.cuArray,'uint64'));
-      mexXform3d(obj.texObject, obj.cuArray);
-     end
+        mexXform3d(obj.texObject, obj.cuArray);  
+        obj.texObject = '';
+        obj.cuArray = '';
+      end
    end
    
   end

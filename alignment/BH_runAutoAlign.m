@@ -67,9 +67,9 @@ end
 
 % FIXME this should probably be specified in Ang
 try
-  FIRST_ITER_SHIFT_LIMIT_PIXELS  =  pBH.('autoAli_max_shift_in_pixels');   
+  FIRST_ITER_SHIFT_LIMIT_PIXELS  =  ceil(pBH.('autoAli_max_shift_in_angstroms')./pixelSize);   
 catch
-  FIRST_ITER_SHIFT_LIMIT_PIXELS = 10;
+  FIRST_ITER_SHIFT_LIMIT_PIXELS = ceil(40 ./ pixelSize);
 end
 
 try
