@@ -2212,6 +2212,13 @@ end
 % end
 % Since we've updated (potentially) mapBackRePrjSize, save the new metaData.
 subTomoMeta.currentTomoCPR =  subTomoMeta.currentTomoCPR + 1;
+if isfield(subTomoMeta,'tomoCPR_run_in_cycle')
+  subTomoMeta.('tomoCPR_run_in_cycle') = cat(1,subTomoMeta.('tomoCPR_run_in_cycle'),...
+                                              [subTomoMeta.currentTomoCPR,CYCLE]);
+else
+  subTomoMeta.('tomoCPR_run_in_cycle') = [subTomoMeta.currentTomoCPR,CYCLE];
+end
+
 if ( flgRunAlignments )
   save(pBH.('subTomoMeta'), 'subTomoMeta');
 end

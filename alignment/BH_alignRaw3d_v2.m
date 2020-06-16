@@ -692,8 +692,8 @@ if ~(use_v2_SF3D)
   end   
 end
 parVect = 1:nParProcesses;
-% parfor iParProc = parVect
-for iParProc = 1:nParProcesses
+parfor iParProc = parVect
+% for iParProc = 1:nParProcesses
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;

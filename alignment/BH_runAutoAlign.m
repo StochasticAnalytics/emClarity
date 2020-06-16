@@ -1,9 +1,14 @@
-function [ ] = BH_runAutoAlign(PARAMETER_FILE, runPath,findBeadsPath,stackIN,tiltAngles,imgRotation)
+function [ ] = BH_runAutoAlign(PARAMETER_FILE, runPath,findBeadsPath,stackIN,tiltAngles,imgRotation,varargin)
 %Run auto tiltseries alignment. For now, basically a script
 %  sadf
 
 % TODO add options for experimenting.
 pBH = BH_parseParameterFile(PARAMETER_FILE);
+
+skip_tilts = 0;
+if nargin > 6
+  skip_tilts = str2num(varargin{1});  
+end
 
 pixelSize = pBH.('PIXEL_SIZE').*10^10;
 imgRotation = str2double(imgRotation);
@@ -94,7 +99,14 @@ end
   tiltAngleOffset=0.0;
   TILT_OPTION = 0;
 
-inputStack = single(getVolume(MRCImage(stackIN)));
+inputMRC = MRCImage(stackIN,0);
+inputStack = single(getVolume(inputMRC));
+
+skip_tilts_logical = [];
+if (skip_tilts)
+  skip_tilts_logical = ~ismember(1:size(inputStack,3),skip_tilts);
+  inputStack = inputStack(:,:,skip_tilts_logical);
+end
 
 [~,baseName,ext] = fileparts(stackIN);
 fixedName = sprintf('fixedStacks/%s.fixed.rot',baseName);
@@ -108,11 +120,38 @@ system(sprintf('mkdir -p %s',wrkDir));
 system(sprintf('mkdir -p fixedStacks'));
 
 cd('fixedStacks');
-system(sprintf('ln -sf %s/%s %s.fixed',startDir,stackIN,baseName));
+
+if (skip_tilts)
+  iHeader = getHeader(inputMRC);
+  iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
+                  iHeader.cellDimensionY/iHeader.nY, ...
+                  iHeader.cellDimensionZ/iHeader.nZ];
+                
+  iOriginHeader= [iHeader.xOrigin , ...
+                  iHeader.yOrigin , ...
+                  iHeader.zOrigin ];
+  SAVE_IMG(inputStack,sprintf('%s.fixed',baseName),iPixelHeader,iOriginHeader);
+  
+  f = load(sprintf('../%s',tiltAngles));
+  if length(tiltAngles) ~= sum(skip_tilts_logical)
+    if ~exist(sprintf('../%s.orig',tiltAngles),'file')
+      system(sprintf('cp ../%s ../%s.orig',tiltAngles,tiltAngles));
+    end
+    f = f(skip_tilts_logical);
+    fout = fopen(sprintf('../%s',tiltAngles),'w');
+    fprintf(fout,'%s\n',f');
+    fclose(fout);
+  end
+  clear f
+      
+else
+  system(sprintf('ln -sf %s/%s %s.fixed',startDir,stackIN,baseName));
+end
+
 cd('../');
 
 
-if ~strcmp(tiltExt,'.rawtlt')
+if strcmp(tiltExt,'.rawtlt')
   system(sprintf('ln -sf %s %s.rawtlt',tiltAngles,tiltName));
 end
 
@@ -133,7 +172,8 @@ binInc = -1*ceil((binHigh- binLow)./3);
 % precise
 maxAngle = atand(nY./nX); % will be positive
 switch_axes = false;
-if ( abs(rem(imgRotation,180)) > maxAngle && abs(rem(imgRotation,180)) <maxAngle + 180)
+
+if ( abs(abs(imgRotation) - 180) > maxAngle )
   fprintf('Your image rotation will result in a loss of data. Switching X/Y axes\n')
   
   switch_axes = true;

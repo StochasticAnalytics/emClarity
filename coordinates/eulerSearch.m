@@ -141,7 +141,7 @@ classdef eulerSearch < handle
            end
            
           obj.psi_max = min(obj.psi_max,90.0);
-          obj.theta_max = min(obj.theta_max,90); % cisTEM uses 54.7 but I'm not sure why. (Oddly, This is also the magic angle for SS-NMR?)
+          obj.theta_max = min(obj.theta_max,54.7); 
           obj.phi_max = 90.0;
            
          case 'I'

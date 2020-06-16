@@ -148,6 +148,13 @@ catch
   track_stats = false;
 end
 
+try
+  flgShiftEucentric =  pBH.('eucentric_fit');
+catch
+  flgShiftEucentric = 0;
+end
+
+
 % The weights are only re-estimated for an out of plane search. Until this
 % happens, they are not valid.
 if (track_stats)
@@ -576,7 +583,12 @@ else
   classSymmetry = false;
 end
 
-
+if (flgShiftEucentric && ~isfield(masterTM,cycleRead.('eucentric_shifts')))
+    cycle_to_update = masterTM.('tomoCPR_run_in_cycle')(find(masterTM.('tomoCPR_run_in_cycle')(:,1) == masterTM.currentTomoCPR),2);
+    if (cycle_to_update == cycleRead)
+      error('You specified eucentric_fit=1, and you are averaging cycle %d and no shifts are found from cycle %d\n',cycleNumber,cycleRead);
+    end
+end
 % Get the number of tomograms to process.
 tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);

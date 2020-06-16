@@ -204,7 +204,7 @@ switch varargin{1}
     
     case 'autoAlign'
      if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
-       length(varargin) ~= 5
+       (length(varargin) ~= 5 && length(varargin) ~= 6)
       fprintf(['\nparam.m stackName tiltFile tilt-axis Rotation\n']);
      else
       emC_testParse(varargin{2}) 
@@ -217,7 +217,11 @@ switch varargin{1}
         error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
       end
 
+      if length(varargin) == 5
         BH_runAutoAlign(varargin{2},getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{3},varargin{4},varargin{5});  
+      else
+         BH_runAutoAlign(varargin{2},getenv('EMC_AUTOALIGN'),getenv('EMC_FINDBEADS'),varargin{3},varargin{4},varargin{5},varargin{6});  
+      end
            
       return
      end

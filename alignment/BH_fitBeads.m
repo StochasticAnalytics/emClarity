@@ -145,7 +145,7 @@ for iPrj = 1:nPrjs
   
   maskRadius = 0.5.*(1- 2.5./sampling).*r.*[1,1];
   
-  peakMask = BH_mask3d('sphere',(2.*r+1).*[1,1],maskRadius,[0,0],'2d');
+  peakMask = BH_mask3d('sphere',padBy.*(2.*r+1).*[1,1],maskRadius,[0,0],'2d');
   xo = x;
   yo = y;
 
@@ -168,9 +168,9 @@ for iPrj = 1:nPrjs
        yo(i) = y(i);
      else
        ccf = mip(xl:xh,yl:yh);
-       ccf = fftshift(fftn(ccf.*peakMask));
+       ccf = fftshift(fftn(ccf));
        ccf = BH_padZeros3d(ccf,'fwd',padVal,'GPU','single');
-       ccf = real(ifftn(ifftshift(ccf)));
+       ccf = real(ifftn(ifftshift(ccf))).*peakMask;
 
        [~,maxCoord] = max(ccf(:));
        [mi,mj] = ind2sub(rp,maxCoord);

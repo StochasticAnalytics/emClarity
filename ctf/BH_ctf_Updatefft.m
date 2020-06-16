@@ -653,6 +653,7 @@ end % end of par for loop
 % 
 if (flgShiftEucentric && mapBackIter)
   % Update the sub tomo z coords with an estimate of the shift
+  cycle_to_update = subTomoMeta.('tomoCPR_run_in_cycle')(find(subTomoMeta.('tomoCPR_run_in_cycle')(:,1) == subTomoMeta.currentTomoCPR),2);
   for iGPU = 1:nGPUs
   
     for iTilt = 1:length(ITER_LIST{iGPU})  
@@ -665,11 +666,13 @@ if (flgShiftEucentric && mapBackIter)
           % We might have skipped the update if tomoCPR failed.
           if isempty(eucShift)
             fprintf('No updated shifts for %s_%d\n',STACK_PRFX,jTomo);
+            subTomoMeta.(sprintf('cycle%0.3d',cycle_to_update)).('eucentric_shifts').(sprintf('%s_%d',STACK_PRFX,jTomo)) = [0];
           else
             fprintf('shifting %s_%d\n',STACK_PRFX,jTomo);
+            subTomoMeta.(sprintf('cycle%0.3d',cycle_to_update)).('eucentric_shifts').(sprintf('%s_%d',STACK_PRFX,jTomo)) = [eucShift];
             % The tomogram is shifted by the calculated amount
-            subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13) = ...
-            eucShift + subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13);
+%             subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13) = ...
+%             eucShift + subTomoMeta.(sprintf('cycle%0.3d',subTomoMeta.currentCycle)).RawAlign.(sprintf('%s_%d',STACK_PRFX,jTomo))(:,13);
           end
 
         end
