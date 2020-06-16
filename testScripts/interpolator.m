@@ -352,12 +352,9 @@ classdef interpolator < handle
    
    function [  ] = delete(obj)
      if ~isempty(obj.texObject) && ~isempty(obj.cuArray)
+%       fprintf('Deleting the texture obj, it is (%d) a uint64 (%d)\n',isa(obj.texObject,'uint64'),isa(obj.cuArray,'uint64'));
       mexXform3d(obj.texObject, obj.cuArray);
      end
-     obj.symmetry_matrices = [];
-     obj.nSymMats = [];
-     obj.cuArray = '';
-     obj.texObject = '';
    end
    
   end

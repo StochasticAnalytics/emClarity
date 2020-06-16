@@ -40,12 +40,15 @@ classdef eulerSearch < handle
                                  wanted_psi_max,...
                                  wanted_psi_step,...
                                  wanted_resolution_limit,...
-                                 wanted_parameters_to_keep)
+                                 wanted_parameters_to_keep,...
+                                 wanted_random_start_angle)
       
       if (wanted_theta_max < 0)
         wanted_theta_max = abs(wanted_theta_max);
         obj.bipolar_search = true;
       end
+      
+      obj.random_start_angle = wanted_random_start_angle;
                                 
       obj.theta_max = wanted_theta_max;
       obj.theta_step = wanted_theta_step;

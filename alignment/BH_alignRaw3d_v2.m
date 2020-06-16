@@ -105,6 +105,13 @@ catch
   symmetry_op = '';
 end
 
+try 
+  use_new_grid_search = pBH.('use_new_grid_search');
+catch
+  use_new_grid_search = false;
+end
+
+
 try
   force_no_symmetry = pBH.('force_no_symmetry');
 catch
@@ -601,30 +608,46 @@ clear refIMG refWDG refOUT iRef
 %%%%%%%%%%%%%%%%%%%%% Determine the angular search, if any are zero, don't
 %%%%%%%%%%%%%%%%%%%%% search at all in that dimension.
 
-[  nInPlane, inPlaneSearch, angleStep, nAngles] ...
-                                      = BH_multi_gridSearchAngles(angleSearch)
-
-[masterTM] = BH_recordAngularSampling( masterTM, cycleNumber, angleStep, inPlaneSearch);                               
                                     
-% set truth value for refinement during out of plane search
+                                    
+if (use_new_grid_search)
+  gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
+        angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, true);
+  nAngles = sum(gridSearch.number_of_angles_at_each_theta);
+  inPlaneSearch = gridSearch.parameter_map.psi;
+  
+  flgRefine=false;
+  
+  for i = 1:length(gridSearch.parameter_map.phi)
+    if gridSearch.parameter_map.phi{i} > 0
+      flgRefine=true;
+      break;
+    end
+  end
 
-if any(angleStep(:,1))
-  flgRefine = true;
-  fprintf('flgRefine set to %s','True');
+    updateWeights = false;
+    angleStep = [];
 else
-  flgRefine = false;
-  fprintf('flgRefine set to %s','False');
+  [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
+                                      = BH_multi_gridSearchAngles(angleSearch);
+  if any(angleStep(:,1))
+    flgRefine = true;
+  else
+    flgRefine = false;
+  end       
+  
+  if sum(angleStep(:,2) > 0)
+    updateWeights = true;
+  else
+  end
 end
 
-angleStep(:,1)
-any(angleStep(:,1))
+% [masterTM] = BH_recordAngularSampling( masterTM, cycleNumber, angleStep, inPlaneSearch);                               
+                                   
 nCount = 1;
 
-if sum(angleStep(:,2) > 0)
-  updateWeights = true;
-else
-  updateWeights = false;
-end
+
+
 firstLoop = true;
 nIgnored = 0;
 
@@ -669,8 +692,8 @@ if ~(use_v2_SF3D)
   end   
 end
 parVect = 1:nParProcesses;
-parfor iParProc = parVect
-% for iParProc = 1:nParProcesses
+% parfor iParProc = parVect
+for iParProc = 1:nParProcesses
 %profile on
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
@@ -1013,28 +1036,61 @@ parfor iParProc = parVect
           refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{iGold}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
           particleInterpolator = interpolator(gpuArray(iparticle),[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);          
         end
-        
-        for iAngle = 1:size(angleStep,1)
+ 
+        if (use_new_grid_search)
+          theta_search = 1:gridSearch.number_of_out_of_plane_angles;
+        else
+          theta_search = 1:size(angleStep,1);
+        end
+
+        for iAngle = theta_search
      
-          theta    = angleStep(iAngle,1);
-          thetaInc = angleStep(iAngle,4);       
+   
+            if (use_new_grid_search)
+              theta = gridSearch.parameter_map.theta(iAngle);
+              if length(gridSearch.parameter_map.phi{iAngle}) > 1
+                phiInc = gridSearch.parameter_map.phi{iAngle}(2)-gridSearch.parameter_map.phi{iAngle}(1);
+              end
+              thetaInc = gridSearch.theta_step;
+              numRefIter = gridSearch.number_of_angles_at_each_theta(iAngle);
+            else
+              theta = angleStep(iAngle,1);  
+              phiInc = angleStep(iAngle,3);
+              thetaInc = angleStep(iAngle,4);       
+              numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
+              % To prevent only searching the same increments each time in a limited
+              % grid search, radomly offset the azimuthal angle by a random number
+              % between 0 and 1/2 the azimuthal increment.
+              azimuthalRandomizer = (rand(1)-0.5)*phiInc;              
+            end
+            
           % Calculate the increment in phi so that the azimuthal sampling is
           % consistent and equal to the out of plane increment.
 
-          phiInc = angleStep(iAngle,3);
 
-          % To prevent only searching the same increments each time in a limited
-          % grid search, radomly offset the azimuthal angle by a random number
-          % between 0 and 1/2 the azimuthal increment.
-        
-          azimuthalRandomizer = (rand(1)-0.5)*phiInc;
+          
+              if (use_new_grid_search)
+                % FIXME randomizer passed as bool to eulerSearch
+                phi_search = gridSearch.parameter_map.phi{iAngle};
+              else
+                phi_search = 0:angleStep(iAngle,2);
+              end
 
-          for iAzimuth = 0:angleStep(iAngle,2)
-            phi = rem((phiInc * iAzimuth)+azimuthalRandomizer,360);
+              
+          for iAzimuth = phi_search
+            
+            if (use_new_grid_search)
+              phi = iAzimuth;
+              psiInc = gridSearch.psi_step;
+            else
+              phi = rem((phiInc * iAzimuth)+azimuthalRandomizer,360);
+              psiInc = angleStep(iAngle,5);
+
+            end
+            
 
            for iInPlane = inPlaneSearch
             psi    = iInPlane;
-            psiInc = angleStep(iAngle,5);
             %[phi,theta,psi-phi];
 
 

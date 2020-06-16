@@ -274,7 +274,7 @@ end
 
 if (use_new_grid_search)
   gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
-        angleSearch(2),angleSearch(3),angleSearch(4), 0, 0);
+        angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, false);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi;
   
@@ -571,7 +571,6 @@ for iAngle = theta_search
     theta = angleStep(iAngle,1);  
     phiStep = angleStep(iAngle,3);
     numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
-
   end
 
   

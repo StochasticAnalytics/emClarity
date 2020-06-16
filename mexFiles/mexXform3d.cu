@@ -278,7 +278,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     cudaCreateTextureObject(tex,&resDesc,&texDesc,NULL);
 
 
-
   }
 
 
