@@ -21,17 +21,35 @@ if isempty(emClarity_ROOT)
   error('emClarity_ROOT is not set properly in your run script');
 end
 
-emC_autoAliPath=sprintf('%s/alignment/emC_autoAlign',emClarity_ROOT);
+% For deployed functions, the emClarity folder is probably renamed
+% emClarity_1_5_xx, we need to replace this for the ctf root stuff.
+% using fileparts will give different answers if the user defines
+% emClarity_ROOT with or without a trailing slash. Instead simply
+slashCheck = strsplit(emClarity_ROOT,'/');
+[pathWithDir,~,~] = fileparts(emClarity_ROOT);
+if isempty(slashCheck{end})
+  % There is a trailing slash
+  shift_end = 1;
+  add_slash = '';
+else
+  shift_end = 0;
+  add_slash = '/';
+end
+emC_PATH = strsplit(pathWithDir, slashCheck{end-shift_end});
+emC_PATH = sprintf('%s%semClarity',emC_PATH{1},add_slash);
+  
+
+emC_autoAliPath=sprintf('%s/alignment/emC_autoAlign',emC_PATH);
 if isdeployed
   emC_autoAliPath = sprintf('%s%s',ctfroot,emC_autoAliPath);
 end
 
-emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emClarity_ROOT);
+emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emC_PATH);
 if isdeployed
   emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
 end
 
-BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emClarity_ROOT);
+BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emC_PATH);
 if isdeployed
   BH_checkInstallPath = sprintf('%s%s',ctfroot,BH_checkInstallPath);
 end
