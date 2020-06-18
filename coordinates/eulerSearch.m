@@ -111,6 +111,11 @@ classdef eulerSearch < handle
         obj.number_of_angles_at_each_theta(iT) = length(obj.parameter_map.phi{iT}) .* length(obj.parameter_map.psi);
       end
       
+      % Even if we are only searching the out of plane angles, make sure
+      % the psi angles have at least zero
+      if isempty(obj.parameter_map.psi)
+        obj.parameter_map.psi = 0;
+      end
       
     end
 

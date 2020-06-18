@@ -608,16 +608,16 @@ clear refIMG refWDG refOUT iRef
 %%%%%%%%%%%%%%%%%%%%% Determine the angular search, if any are zero, don't
 %%%%%%%%%%%%%%%%%%%%% search at all in that dimension.
 
-                                    
-                                    
+updateWeights = false;                                  
+gridSearch = '';                                 
 if (use_new_grid_search)
   gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
         angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, true);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
-  inPlaneSearch = gridSearch.parameter_map.psi;
+  inPlaneSearch = gridSearch.parameter_map.psi
   
   flgRefine=false;
-  
+
   for i = 1:length(gridSearch.parameter_map.phi)
     if gridSearch.parameter_map.phi{i} > 0
       flgRefine=true;
@@ -625,7 +625,7 @@ if (use_new_grid_search)
     end
   end
 
-    updateWeights = false;
+    
     angleStep = [];
 else
   [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
@@ -641,6 +641,7 @@ else
   else
   end
 end
+
 
 % [masterTM] = BH_recordAngularSampling( masterTM, cycleNumber, angleStep, inPlaneSearch);                               
                                    

@@ -148,6 +148,7 @@ catch
   track_stats = false;
 end
 
+% Note this will be set to false unless we are averging after an update
 try
   flgShiftEucentric =  pBH.('eucentric_fit');
 catch
@@ -472,23 +473,25 @@ if isa(subTomoMeta.('currentCycle'), 'char')
   subTomoMeta.('currentCycle') = str2num(subTomoMeta.('currentCycle'))
 end
 
-  if subTomoMeta.('currentCycle') == CYCLE - 1 
-    
-    cycleRead = sprintf('cycle%0.3u', CYCLE - 1);
-    % Save a backup of the cycles total geometry
-    save(sprintf('%s_%s_backup.mat',cycleRead,pBH.('subTomoMeta')), ...
-                                                                 'subTomoMeta');
-  end
+if subTomoMeta.('currentCycle') == CYCLE - 1 
+
+  cycleRead = sprintf('cycle%0.3u', CYCLE - 1);
+  % Save a backup of the cycles total geometry
+  save(sprintf('%s_%s_backup.mat',cycleRead,pBH.('subTomoMeta')), ...
+                                                               'subTomoMeta');
+end
   
-  if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
-    if ( CYCLE )
-      cycleRead = sprintf('cycle%0.3u', CYCLE - 1)
-    else
-      cycleRead = sprintf('cycle%0.3u', CYCLE)
-    end
+if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
+  if ( CYCLE )
+    cycleRead = sprintf('cycle%0.3u', CYCLE - 1)
   else
-    cycleRead = sprintf('cycle%0.3u', CYCLE )
+    flgShiftEucentric = false; % No possible updates on cycle 0  
+    cycleRead = sprintf('cycle%0.3u', CYCLE)
   end
+else
+  flgShiftEucentric = false; % No possible updates for other stages of alignments 
+  cycleRead = sprintf('cycle%0.3u', CYCLE )
+end
   
   % leave averages at size appropriate for interpolation when extracting to use
   % in class avg alignment.
@@ -583,11 +586,18 @@ else
   classSymmetry = false;
 end
 
-if (flgShiftEucentric && ~isfield(masterTM,cycleRead.('eucentric_shifts')))
-    cycle_to_update = masterTM.('tomoCPR_run_in_cycle')(find(masterTM.('tomoCPR_run_in_cycle')(:,1) == masterTM.currentTomoCPR),2);
-    if (cycle_to_update == cycleRead)
-      error('You specified eucentric_fit=1, and you are averaging cycle %d and no shifts are found from cycle %d\n',cycleNumber,cycleRead);
-    end
+if isfield(masterTM,('tomoCPR_run_in_cycle'))
+  
+  if (flgShiftEucentric && ~isfield(masterTM.(sprintf('%s',cycleRead)), 'eucentric_shifts'))
+      cycle_to_update = masterTM.('tomoCPR_run_in_cycle')(find(masterTM.('tomoCPR_run_in_cycle')(:,1) == masterTM.currentTomoCPR),2);
+      if (cycle_to_update == cycleRead)
+        error('You specified eucentric_fit=1, and you are averaging cycle %d and no shifts are found from cycle %d\n',cycleNumber,cycleRead);
+      else
+        flgShiftEucentric = false;
+      end
+  end
+else
+  flgShiftEucentric = false;
 end
 % Get the number of tomograms to process.
 tomoList = fieldnames(geometry);
@@ -988,7 +998,7 @@ parfor iParProc = parVect
     avgWedge_tmp  = cell(maxClasses,2);  
     geometry_tmp = geometry;
 
-    
+
 
     for iRow = 1:maxClasses
       for iCol = 1:2
@@ -1021,6 +1031,11 @@ parfor iParProc = parVect
   
   nTomos = 1;
   for iTomo = iterList{iParProc}
+ 
+    if (flgShiftEucentric)
+      geometry_tmp.(tomoList{iTomo})(:,13) = geometry_tmp.(tomoList{iTomo})(:,13) + ...
+          masterTM.(sprintf('%s',cycleRead)).('eucentric_shifts').(tomoList{iTomo}) ;
+    end
     
     peakMask_tmp = gpuArray(peakMask);
     peakBinary_tmp = gpuArray(peakBinary);

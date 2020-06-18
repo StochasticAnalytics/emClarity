@@ -64,7 +64,8 @@ switch OPERATION
                  1792,1920,1944,2016,2048,2160,2268,2304,2430,2560,...
                  2592,2688,2880,2916,3024,3072,3240,3402,3456,3584,...
                  3840,3888,4032,4096,4320,4374,4536,4608,4860,5120,...
-                 5184,5376,5760,5832,6048,6144,6480,6804,6912,7168,7290];
+                 5184,5376,5760,5832,6048,6144,6480,6804,6912,7168,7290,...
+                 7488,7560,7840,7920,8192];
     sizeTarget= SIZES(1,:);
     nB = [0,0];
     for i = 1:2
@@ -76,7 +77,9 @@ switch OPERATION
     end
 
     if ~all(nB)
-      error('next best not found in range 64-7290 for [%d,%d,%d]', sizeTarget);
+      % For some reason "error" only takes scalar args for print formating.
+      fprintf('next best not found in range 64-7290 for [%d,%d,%d]\n',target);
+      error('asdf')
     end
     OUTPUT = nB;
     

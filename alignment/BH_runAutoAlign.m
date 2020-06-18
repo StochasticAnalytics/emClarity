@@ -134,7 +134,12 @@ if (skip_tilts)
   
   f = load(sprintf('../%s',tiltAngles));
   if length(tiltAngles) ~= sum(skip_tilts_logical)
-    if ~exist(sprintf('../%s.orig',tiltAngles),'file')
+    if exist(sprintf('../%s.orig',tiltAngles),'file')
+      % We must be re_rerunning, so copy the orig back
+      system(sprintf('cp ../%s.orig ../%s',tiltAngles,tiltAngles));
+      f = load(sprintf('../%s',tiltAngles));
+    else
+      % Create a backup 
       system(sprintf('cp ../%s ../%s.orig',tiltAngles,tiltAngles));
     end
     f = f(skip_tilts_logical);
@@ -301,6 +306,8 @@ if (REFINE_ON_BEADS)
   
     system(sprintf('imodtrans -i ../fixedStacks/%s.fixed %s_%d_fit.fid ../fixedStacks/%s.erase',...
                  baseName,baseName,max_binning,baseName));
+               
+    system(sprintf('newstack -xf ../fixedStacks/%s.xf -bin 12../fixedStacks/%s.fixed ../fixedStacks/%s_bin12.ali',baseName,baseName,baseName));
   end
   
   cd ..

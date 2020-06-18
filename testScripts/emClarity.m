@@ -31,7 +31,7 @@ if isdeployed
   emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
 end
 
-BH_checkInstallPath=sprintf('%s/testScripts/BH_checkInstall.sh',emClarity_ROOT);
+BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emClarity_ROOT);
 if isdeployed
   BH_checkInstallPath = sprintf('%s%s',ctfroot,BH_checkInstallPath);
 end
@@ -170,7 +170,7 @@ switch varargin{1}
     if nArgs > 1
       fprintf('check takes no arguments');
     else
-      BH_checkInstall(  )
+      BH_checkInstall(getenv('BH_CHECKINSTALL'))
     end
   case 'init'
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...

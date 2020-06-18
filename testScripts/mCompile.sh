@@ -23,7 +23,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=1
-nightly=01
+nightly=02
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -44,7 +44,7 @@ EMC_ROOT=${HOME}/work/emClarity
 
 
 #-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/testScripts/BH_checkInstall.sh -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
@@ -69,16 +69,17 @@ echo '# When this script is invoked, record the PID so that the EMC_tmpDir is de
 echo '# even in the event of a crash. (With program script added from EMC_tmpDir.sh)'
 echo 'thisPID=$$'
 echo ''
-echo '#Please modify this line to point to the text file in your MCR root'
-echo '#where you pasted the lines suggested to add to LD_LIBRARY_PATH during install.'
+echo '#Please modify this line to the suggested paths to add to LD_LIBRARY_PATH during install of the MCR_BASH'
+echo '# NOTE that formally this was a separate file.'
+echo ''
 echo '#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"'
-echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MTL_MCR_17b/BH_mcr_internal19a.bashrc'
+echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/runtime/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/bin/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/sys/os/glnxa64'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
 echo '#emClarity_ROOT=/work/emClarity'
 echo 'export emClarity_ROOT=/groups/grigorieff/home/himesb/work/emClarity'
-echo 'export LD_LIBRARY_PATH=${emClarity_ROOT}/lib:${LD_LIBRARY_PATH}'
+echo 'export LD_LIBRARY_PATH=${emClarity_ROOT}/lib:${MCR_BASH}:${LD_LIBRARY_PATH}'
 echo ''
 
 } > emClarity_${scriptOutName}
@@ -109,12 +110,6 @@ echo 'fi'
 
 {
 echo ""
-echo 'if [ -f ${MCR_BASH} ]; then'
-echo '  source ${MCR_BASH}'
-echo 'else'
-echo '  echo "Did not find your mcr_bash file, did you fill it in above?"'
-echo '  exit 1'
-echo 'fi'
 echo ''
 echo "if [ ! -f \${emClarity_ROOT}/bin/emClarity_${binaryOutName} ]; then"
 echo '  echo "Did not find the binary on the path, did you fill it in above?"'
