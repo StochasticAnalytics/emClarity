@@ -47,11 +47,15 @@ outputForCTFFIND = 1;
 reScaleRealSpace = 0;
 normFactor=0;%pBH.('normalizationFactor');
 
-SuperResolution = pBH.('SuperResolution');
-PIXEL_SIZE = pBH.('PIXEL_SIZE');
-if (SuperResolution)
-  PIXEL_SIZE = 2.*PIXEL_SIZE;
+
+PRJ_STACK = {sprintf('aliStacks/%s_ali%d.fixed',STACK_PRFX,mapBackIter+1)};
+[pathName,fileName,extension] = fileparts(PRJ_STACK{1})
+if isempty(pathName)
+  pathName = '.'
 end
+
+PIXEL_SIZE = pBH.('PIXEL_SIZE');
+
 
 Cs = pBH.('Cs');
 VOLTAGE = pBH.('VOLTAGE');
@@ -59,11 +63,7 @@ AMPCONT = pBH.('AMPCONT')
 
 ctfParams = [PIXEL_SIZE*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT]
 
-PRJ_STACK = {sprintf('aliStacks/%s_ali%d.fixed',STACK_PRFX,mapBackIter+1)};
-[pathName,fileName,extension] = fileparts(PRJ_STACK{1})
-if isempty(pathName)
-  pathName = '.'
-end
+
 
 % Sanity check
 if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
@@ -98,7 +98,7 @@ catch
 end
 
 % Tile size & overlap
-tileOverlap = 2;
+tileOverlap = 4;
 tileSize = floor(680e-10 / PIXEL_SIZE);
 tileSize = tileSize + mod(tileSize,2);
 fprintf('Using a tile size of %d',tileSize);

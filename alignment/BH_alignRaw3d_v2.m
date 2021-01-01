@@ -693,7 +693,9 @@ if ~(use_v2_SF3D)
   end   
 end
 parVect = 1:nParProcesses;
+
 parfor iParProc = parVect
+    
 % for iParProc = 1:nParProcesses
 %profile on
   bestAngles_tmp = struct();
@@ -939,21 +941,21 @@ parfor iParProc = parVect
         % Check that the given subTomo is not to be ignored
         classIDX = positionList(iSubTomo, 26+26*(iPeak-1));
         particleIDX = positionList(iSubTomo, 4);
-        iGold = positionList(iSubTomo, 7);
+        half_set = positionList(iSubTomo, 7);
      
 
-        if classVector{iGold}(1,:) == 0
+        if classVector{half_set}(1,:) == 0
           classPosition = 1;
           flgAllClasses = true;
         else
-          classPosition = find(classVector{iGold}(1,:) == classIDX);
+          classPosition = find(classVector{half_set}(1,:) == classIDX);
           flgAllClasses = false;
         end
 
 
 
         if (classIDX ~= -9999) && ... % All previously ignored particles
-         ( flgAllClasses ||  ismember(classIDX, classVector{iGold}(1,:)) ) 
+         ( flgAllClasses ||  ismember(classIDX, classVector{half_set}(1,:)) ) 
 
             
         center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
@@ -1034,7 +1036,7 @@ parfor iParProc = parVect
           particleInterpolator= '';
 
           [refInterpolator, ~] = interpolator(gpuArray(ref_FT2_tmp{1}{1}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-          refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{iGold}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
+          refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{half_set}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
           particleInterpolator = interpolator(gpuArray(iparticle),[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);          
         end
  
@@ -1045,12 +1047,13 @@ parfor iParProc = parVect
         end
 
         for iAngle = theta_search
-     
-   
+       
             if (use_new_grid_search)
               theta = gridSearch.parameter_map.theta(iAngle);
               if length(gridSearch.parameter_map.phi{iAngle}) > 1
                 phiInc = gridSearch.parameter_map.phi{iAngle}(2)-gridSearch.parameter_map.phi{iAngle}(1);
+              else 
+                phiInc = 360;
               end
               thetaInc = gridSearch.theta_step;
               numRefIter = gridSearch.number_of_angles_at_each_theta(iAngle);
@@ -1132,7 +1135,7 @@ parfor iParProc = parVect
                   symmetry = 'C1';
                 else
                   if isempty(symmetry_op)
-                    symmetry = sprintf('C%d',classSymmetry{iGold}(1, classPosition));
+                    symmetry = sprintf('C%d',classSymmetry{half_set}(1, classPosition));
                   else
                     symmetry = symmetry_op;
                   end
@@ -1285,9 +1288,9 @@ parfor iParProc = parVect
 
                       [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( initialRotPart_FT, ...
-                                                           ref_FT1_tmp{iGold}{iRef}, ...
+                                                           ref_FT1_tmp{half_set}{iRef}, ...
                                                            ifftshift(iWedgeInitial),...
-                                                           ref_WGT_tmp{iGold}{iRef}, ...
+                                                           ref_WGT_tmp{half_set}{iRef}, ...
                                                            wCCC_tmp{iRef});
 
 
@@ -1313,9 +1316,9 @@ parfor iParProc = parVect
                       
                       [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( rotPart_FT, ...
-                                                           ref_FT1_tmp{iGold}{iRef},...
+                                                           ref_FT1_tmp{half_set}{iRef},...
                                                            ifftshift(iWedgeMask),...
-                                                           ref_WGT_tmp{iGold}{iRef}, ...
+                                                           ref_WGT_tmp{half_set}{iRef}, ...
                                                            wCCC_tmp{iRef});
                                                          
 
@@ -1463,7 +1466,7 @@ parfor iParProc = parVect
                  symmetry = 'C1';
                else
                   if isempty(symmetry_op)
-                    symmetry = sprintf('C%d',classSymmetry{iGold}(1, classPosition));
+                    symmetry = sprintf('C%d',classSymmetry{half_set}(1, classPosition));
                   else
                     symmetry = symmetry_op;
                   end
@@ -1508,12 +1511,12 @@ parfor iParProc = parVect
 
                     % use transpose of RotMat
 %                     try
-%                     iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{rRef}, RotMat', ...
+%                     iRotRef = BH_resample3d(ref_FT2_tmp{half_set}{rRef}, RotMat', ...
 %                                             rXYZ, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
 %                     catch
 %                     cccPreRefineSort(1,1)
 %                     end                      
-%                     iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{rRef}, RotMat', ...
+%                     iRotWdg = BH_resample3d(ref_WGT_rot{half_set}{rRef}, RotMat', ...
 %                                 [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);                                          
 %                                       
 
@@ -1561,9 +1564,9 @@ parfor iParProc = parVect
                
                       [ iCCC, ~ ] = ...
                                   BH_multi_xcf_Rotational( rotPart_FT, ...
-                                                           ref_FT1_tmp{iGold}{rRef},...
+                                                           ref_FT1_tmp{half_set}{rRef},...
                                                            ifftshift(iWedgeMask),...
-                                                           ref_WGT_tmp{iGold}{rRef}, ...
+                                                           ref_WGT_tmp{half_set}{rRef}, ...
                                                            wCCC_tmp{iRef});
 
 
@@ -1638,9 +1641,9 @@ parfor iParProc = parVect
               %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
               %%% the last writing, but now switching to zeros
               try
-%               iRotRef = BH_resample3d(ref_FT2_tmp{iGold}{finalRef}, RotMat', ...
+%               iRotRef = BH_resample3d(ref_FT2_tmp{half_set}{finalRef}, RotMat', ...
 %                                       finalrXYZest, {'Bah',1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-%               iRotWdg = BH_resample3d(ref_WGT_rot{iGold}{finalRef}, RotMat', ...
+%               iRotWdg = BH_resample3d(ref_WGT_rot{half_set}{finalRef}, RotMat', ...
 %                                       [0,0,0], {'Bah',1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);   
 
                     [ iRotRef ] = refInterpolator.interp3d(...

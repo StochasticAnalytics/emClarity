@@ -55,7 +55,7 @@ for imageBinning = [15:-2:5]
     '-BinByFactor %d'],baseName,output_name,input_name,imageBinning)); 
 
   if (fail) 
-    error('asdf')  
+    error('failed in newstack')  
   end
 
   if ( imageBinning >= 9)
@@ -83,7 +83,7 @@ for imageBinning = [15:-2:5]
                         xTiltOption,NX,NY,local_file,z_factor_file));
 
   if (fail) 
-    error('asdf')  
+    error('failed in tilt')  
   end
   
   [ fail ] = system(sprintf([...
@@ -92,6 +92,7 @@ for imageBinning = [15:-2:5]
     '-OutputFile	%s_3dfind.mod ' ...
     '-BeadSize	%f ' ...
     '-MinRelativeStrength	0.05 ' ...
+    '-MaxNumBeads 50 ' ...
     '-StorageThreshold	0.0 ' ...
     '-FallbackThresholds 0.1,0.1 ' ...
     '-MinSpacing	0.5 ' ...
@@ -100,7 +101,7 @@ for imageBinning = [15:-2:5]
     ));
 
     if (fail) 
-      error('asdf')  
+      error('failed in findbeads3d')  
     end
     
   [ fail ] = system(sprintf([...
@@ -127,7 +128,7 @@ for imageBinning = [15:-2:5]
                 xTiltOption,output_name,NX,NY,local_file,z_factor_file));
 
     if (fail) 
-      error('asdf')  
+      error('failed in tilt')  
     end
   
   else
@@ -136,7 +137,7 @@ for imageBinning = [15:-2:5]
   'imodtrans -2 %s.tltxf_nonScaled %s.erase ' ...
   '%s.erase'], input_name,input_name,output_name));
     if (fail) 
-      error('asdf')  
+      error('failed in imodtrans')  
     end
   end
 
@@ -151,7 +152,7 @@ for imageBinning = [15:-2:5]
     '-BeadDiameter %f ' ...
     '-RoundsOfTracking 3 ' ...
     '-BoxSizeXandY  %d,%d ' ...
-    '-MinBeadsInArea 5 ' ...
+    '-MinBeadsInArea 3 ' ...
     '-MinOverlapBeads 1 ' ...
     '-UnsplitFirstRound ' ...
     '-LocalAreaTracking ' ...
@@ -167,7 +168,7 @@ for imageBinning = [15:-2:5]
     ));
   
     if (fail)       
-      error('asdf')  
+      error('Failed in beadtrack')  
     end
     
 
@@ -231,7 +232,7 @@ for imageBinning = [15:-2:5]
     '-OutputLocalFile	%s.local ' ...
     '-TargetPatchSizeXandY	%d,%d ' ...
     '-MinSizeOrOverlapXandY	0.3,0.3 ' ...
-    '-MinFidsTotalAndEachSurface	6,3 ' ...
+    '-MinFidsTotalAndEachSurface	3,3 ' ...
     '-LocalRotOption	1 ' ...
     '-LocalRotDefaultGrouping	6 ' ...
     '-LocalTiltOption	0 ' ...
@@ -249,13 +250,13 @@ for imageBinning = [15:-2:5]
     x_tilt_option(3:4), x_stretch_option(3:4),doLocal,output_name));
   
   if (fail) 
-    error('asdf')  
+    error('failed in tiltalign')  
   end
   
   [ fail ] = system(sprintf('xfproduct -scale 1,%d %s.xf %s.tltxf_nonScaled %s.xf', imageBinning,input_name,output_name,output_name));
       
   if (fail) 
-    error('asdf')  
+    error('failed in xfproduct')  
   end
   
  end

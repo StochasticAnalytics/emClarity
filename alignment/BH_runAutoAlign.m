@@ -307,7 +307,7 @@ if (REFINE_ON_BEADS)
     system(sprintf('imodtrans -i ../fixedStacks/%s.fixed %s_%d_fit.fid ../fixedStacks/%s.erase',...
                  baseName,baseName,max_binning,baseName));
                
-    system(sprintf('newstack -xf ../fixedStacks/%s.xf -bin 12../fixedStacks/%s.fixed ../fixedStacks/%s_bin12.ali',baseName,baseName,baseName));
+    system(sprintf('newstack -xf ../fixedStacks/%s.xf -bin 12 ../fixedStacks/%s.fixed ../fixedStacks/%s_bin12.ali',baseName,baseName,baseName));
   end
   
   cd ..

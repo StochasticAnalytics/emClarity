@@ -1,8 +1,9 @@
 function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
-mexPATH = '~/work/emClarity/mexFiles/';
-
+mexPATH = '~/emClarity/mexFiles/';
+setenv('nvcc','/admin/software/cuda-10.2/bin/nvcc');
+!which nvcc
 system(sprintf('mkdir -p %s', mexPATH));
 % For now just included everything in total.
 inc = {'rotation_matrix.cpp','ctf.cu'};
@@ -13,7 +14,7 @@ end
 if nargin > 0
   mexFILE = varargin;
 else
- mexFILE = {'mexFFT','mexXform3d','mexSF3D'};
+ mexFILE = {'mexCTF','mexFFT','mexXform3d','mexSF3D'};
 %  mexFILE = {'mexXform3d'};
 end
 % --extra-device-vectorization 
@@ -28,11 +29,11 @@ mexcuda_opts = { ...
 ['NVCCFLAGS=  --use_fast_math --default-stream per-thread -m64 '...
  '--gpu-architecture=compute_75 ' ...
  '--restrict -Xptxas --warn-on-spills ' ...
- '-gencode=arch=compute_61,code=sm_61  ' ...
  '-gencode=arch=compute_70,code=sm_70 ' ...
  '-gencode=arch=compute_75,code=sm_75 '] ...% the optimizations are default anyway when I checked 
-'-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.1.2/cuda-toolkit/lib64'   ...    % Location of CUDA libraries
-'-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.1.2/cuda-toolkit/lib64'};
+'-L/admin/software/cuda-10.2 '   ... 
+'-L/admin/software/cuda-10.2/nvvm/lib64 ' ...% Location of CUDA libraries
+};
 
 % '-L/usr/local/cuda-9.1/lib64'   ...    % Location of CUDA libraries
 % '-L/usr/local/cuda-9.1/nvvm/lib64'};
@@ -42,8 +43,7 @@ mexcuda_opts = { ...
 
 
 for i =1: length(mexFILE)
-  
-  mexcuda(mexcuda_opts{:}, sprintf('%s%s.cu',mexPATH,mexFILE{i}), inc{1}, inc{2});
+  mexcuda( mexcuda_opts{:}, sprintf('%s%s.cu',mexPATH,mexFILE{i}), inc{1}, inc{2});
 
   system(sprintf('mv %s.mexa64 %s/compiled',mexFILE{i}, mexPATH));
 end

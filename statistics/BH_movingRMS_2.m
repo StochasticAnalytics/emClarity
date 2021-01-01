@@ -22,7 +22,6 @@ img = EMC_convn(single(img.^2), rmsFilter);
 
 clear LIMITS meanFilter padBy startingSize
 
-max(img(:))
 img(img < 1e-9) = max(img(:));
 img = sqrt(img);
 

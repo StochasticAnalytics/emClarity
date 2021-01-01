@@ -1812,8 +1812,8 @@ parfor iPrj = 1:nPrjs
         if (calcCTF)
 
           [~,imDefC] = max(defocusCCC{iPrj}(:,iFid),[],1);
-          deltaCTF = imDefC;
-%           fprintf('New best score %3.6f for defocus shift %3.3eAng\n', bestScore, defShiftVect(deltaCTF));
+          dCTF = imDefC;
+%           fprintf('New best score %3.6f for defocus shift %3.3eAng\n', bestScore, defShiftVect(dCTF));
 
           dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,400,lowPassCutoff,pixelSize]),'fwd');
           refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,400,lowPassCutoff,pixelSize]));         
@@ -1821,7 +1821,7 @@ parfor iPrj = 1:nPrjs
           iRefCTF = refFT .* ...
                           mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate*TLT(iPrj,16)*10^10), ...
                           single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
-                          single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
+                          single(df1 + defShiftVect(dCTF)),single(df2 + defShiftVect(dCTF)),single(dfA),single(TLT(iPrj,18)));
 
           if (use_MCF)            
             cccMap = dataFT .* iRefCTF;

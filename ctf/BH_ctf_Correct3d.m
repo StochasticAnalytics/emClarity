@@ -67,7 +67,7 @@ fprintf('\n Superampling in imod is [%s] with expandLines [%s]\n',super_sample ,
 %determining mean z height of particles
 recWithoutMat = false;
 reconstructionParameters = 0;
-
+filterProjectionsForTomoCPRBackground=0;
 loadSubTomoMeta = true;
 if nargin > 2
   if ~isempty(str2num(varargin{1}))
@@ -76,6 +76,7 @@ if nargin > 2
     if length(varargin) > 2
       % Full recon for tomoCPR
       bh_global_turn_on_phase_plate = 0
+      filterProjectionsForTomoCPRBackground = 32
     else
       loadSubTomoMeta = false;
       % Default to on for subregion picking
@@ -667,7 +668,9 @@ parfor iGPU = 1:nGPUs
                                             maxZ*10/pixelSize,flgDampenAliasedFrequencies,...
                                             preCombDefocus,samplingRate,...
                                             applyExposureFilter,surfaceFit,...
-                                            useSurfaceFit,invertDose,bh_global_turn_on_phase_plate);  
+                                            useSurfaceFit,invertDose,...
+                                            bh_global_turn_on_phase_plate,...
+                                            filterProjectionsForTomoCPRBackground);  
       end
       % Write out the stack to the cache directory as a tmp file
 
@@ -685,21 +688,21 @@ parfor iGPU = 1:nGPUs
       % Loop over tomos reconstructing section and appending a file to 
       for iT = 1:nTomos
 
-          iTomo = tomoNumber(iT);   
+          thisTomo = tomoNumber(iT);   
        
         if any(sectionList{iT}(iSection,:)+9999)
           
 
 
           reconName = sprintf('%s/%s_ali%d_%d_%d.rec', ...
-                              tmpCache,tiltList{iTilt},mapBackIter+1,iTomo,iSection);
+                              tmpCache,tiltList{iTilt},mapBackIter+1,thisTomo,iSection);
 
 
           if (loadSubTomoMeta)
             if (recWithoutMat)              
               TA = sortrows(masterTM.tiltGeometry.(tomoList{1}),1);
             else
-              TA = sortrows(masterTM.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},iTomo)),1);
+              TA = sortrows(masterTM.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},thisTomo)),1);
             end
             TA = TA(:,4);
           else
@@ -711,7 +714,7 @@ parfor iGPU = 1:nGPUs
             end              
           end
       
-          rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},iTomo);
+          rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},thisTomo);
           rawTLT_file = fopen(rawTLT, 'w');
           fprintf(rawTLT_file,'%f\n', TA');
           fclose(rawTLT_file);
@@ -749,10 +752,10 @@ parfor iGPU = 1:nGPUs
           padRec = 0;        
 
           nTiltWorkers = 2;
-          nTotalSlices = (iCoords(iTomo,3)-iCoords(iTomo,2)+1);
+          nTotalSlices = (iCoords(thisTomo,3)-iCoords(thisTomo,2)+1);
           tiltChunkSize = ceil(nTotalSlices/nTiltWorkers);
-          tiltChunks = iCoords(iTomo,2):tiltChunkSize:iCoords(iTomo,3);
-          tiltChunks(end) = iCoords(iTomo,3);
+          tiltChunks = iCoords(thisTomo,2):tiltChunkSize:iCoords(thisTomo,3);
+          tiltChunks(end) = iCoords(thisTomo,3);
           totalSlices = [tiltChunks(1),tiltChunks(end)];
 
   
@@ -761,8 +764,8 @@ parfor iGPU = 1:nGPUs
                        '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
                        super_sample, expand_lines, ...
                        outputStack, reconName, rawTLT, gpuList(iGPU), ...
-                       iCoords(iTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
-                       iCoords(iTomo,5),sectionList{iT}(iSection,6));
+                       iCoords(thisTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
+                       iCoords(thisTomo,5),sectionList{iT}(iSection,6));
                        
 
 
@@ -831,25 +834,25 @@ parfor iGPU = 1:nGPUs
       maskedStack = [];
       
     for iT = 1:nTomos
-      iTomo = tomoNumber(iT);
+          thisTomo = tomoNumber(iT);   
       
       if reconstructionParameters(1)
         if (bh_global_turn_on_phase_plate(1))
           reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
-                                tiltList{iTilt},iTomo,samplingRate);
+                                tiltList{iTilt},thisTomo,samplingRate);
         else
           reconNameFull = sprintf('cache/%s_%d_bin%d_backgroundEst.rec', ...
-                                tiltList{iTilt},iTomo,samplingRate);          
+                                tiltList{iTilt},thisTomo,samplingRate);          
         end
       else
          reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
-                              tiltList{iTilt},iTomo,samplingRate);      
+                              tiltList{iTilt},thisTomo,samplingRate);      
       end
                             
       recCMD = 'newstack -fromone';
       for iSection = 1:nSections
         reconName = sprintf('%s/%s_ali%d_%d_%d.rec', ...
-                             tmpCache, tiltList{iTilt},mapBackIter+1,iTomo,iSection);
+                             tmpCache, tiltList{iTilt},mapBackIter+1,thisTomo,iSection);
         
         if any(sectionList{iT}(iSection,:)+9999)  
           recCMD = [recCMD,sprintf(' -secs 1-%d %s', ...
@@ -857,7 +860,7 @@ parfor iGPU = 1:nGPUs
                                    reconName)];
         else
           
-          fprintf('no info for section %d for tomo %d\n',iSection,iTomo); 
+          fprintf('no info for section %d for tomo %d\n',iSection,thisTomo); 
         end
       end
       
@@ -866,10 +869,10 @@ parfor iGPU = 1:nGPUs
      
       for iSection = 1:nSections
         cleanUp3 = sprintf('rm %s/%s_ali%d_%d_%d.rec', ...
-                         tmpCache,tiltList{iTilt},mapBackIter+1,iTomo,iSection);
+                         tmpCache,tiltList{iTilt},mapBackIter+1,thisTomo,iSection);
         system(cleanUp3);
         cleanUp4 = sprintf('rm %s/%s_ali%d_%d_%d.rec.sh', ...
-                         tmpCache,tiltList{iTilt},mapBackIter+1,iTomo,iSection);
+                         tmpCache,tiltList{iTilt},mapBackIter+1,thisTomo,iSection);
         system(cleanUp4);
         
       end
@@ -1165,7 +1168,8 @@ function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                               maxZ,flgDampenAliasedFrequencies,...
                                               preCombDefocus,samplingRate,...
                                               applyExposureFilter,surfaceFit,...
-                                              useSurfaceFit,invertDose,phakePhasePlate)
+                                              useSurfaceFit,invertDose, ...
+                                              phakePhasePlate,filterProjectionsForTomoCPRBackground)
 % Correct in strips which is more expensive but (hopefully) more accurate.  
 
 
@@ -1236,6 +1240,11 @@ end
 radialGrid = {radialGrid./PIXEL_SIZE,0,phi};
 phi = [];
 
+if (filterProjectionsForTomoCPRBackground ~= 0)
+    bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',pixelSize);
+else
+    bpFilter = 1;
+end
 
 for iPrj = 1:nPrjs
 
@@ -1249,6 +1258,9 @@ for iPrj = 1:nPrjs
   else
     iExposureFilter = 1;
   end
+  
+  iExposureFilter = iExposureFilter .* bpFilter;
+  
 
 
   

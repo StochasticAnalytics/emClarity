@@ -1033,8 +1033,12 @@ parfor iParProc = parVect
   for iTomo = iterList{iParProc}
  
     if (flgShiftEucentric)
+        try
       geometry_tmp.(tomoList{iTomo})(:,13) = geometry_tmp.(tomoList{iTomo})(:,13) + ...
           masterTM.(sprintf('%s',cycleRead)).('eucentric_shifts').(tomoList{iTomo}) ;
+        catch
+            fprintf('WARNING, did not find the eucentric shift for tomo %s\n', tomoList{iTomo});
+        end
     end
     
     peakMask_tmp = gpuArray(peakMask);

@@ -5,7 +5,7 @@
 #   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
 #   TODO set up a little configure script to do this and check other deps described below.
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
-export emC_DEPS="/groups/grigorieff/home/himesb/work/emC_dependencies"
+export emC_DEPS="/groups/himesb/emC_dependencies_20200424"
 
 # This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
@@ -22,8 +22,8 @@ outName="$(basename ${mFile} .m)${post}"
 # bugs line. e.g. buggs=5testingFeature
 major=1
 minor=5
-bugs=1
-nightly=02
+bugs=2
+nightly=0
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -32,7 +32,7 @@ zip_location="${HOME}/tmp"
 
 
 binaryOutName="${major}_${minor}_${bugs}_${nightly}"
-scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
+scriptOutName="${major}_${minor}_${bugs}_${nightly}_v20b"
 #binaryOutName="LTS_fix_${shortHead}"
 #scriptOutName="LTS_fix_${shortHead}_v19a"
 
@@ -40,11 +40,11 @@ scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 imodStaticIncludes=""
-EMC_ROOT=${HOME}/work/emClarity
+EMC_ROOT=${HOME}/emClarity
 
 
 #-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab20b -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
@@ -73,12 +73,12 @@ echo '#Please modify this line to the suggested paths to add to LD_LIBRARY_PATH 
 echo '# NOTE that formally this was a separate file.'
 echo ''
 echo '#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"'
-echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/runtime/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/bin/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/sys/os/glnxa64'
+echo 'MCR_BASH=/groups/admin/MATLAB/v99/runtime/glnxa64:/groups/admin/MATLAB/v99/bin/glnxa64:/groups/admin/MATLAB/v99/sys/os/glnxa64:/groups/admin/MATLAB/v99/extern/bin/glnxa64'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
-echo '#emClarity_ROOT=/work/emClarity'
-echo 'export emClarity_ROOT=/groups/grigorieff/home/himesb/work/emClarity'
+echo '#emClarity_ROOT=${HOME}/emC_builds'
+echo "export emClarity_ROOT=${EMC_ROOT}"
 echo 'export LD_LIBRARY_PATH=${emClarity_ROOT}/lib:${MCR_BASH}:${LD_LIBRARY_PATH}'
 echo ''
 

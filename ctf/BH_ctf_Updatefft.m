@@ -152,9 +152,11 @@ end
 
 try
   tlt = {sprintf('fixedStacks/ctf/%s_ali%d_ctf_refine.tlt',STACK_PRFX,mapBackIter+flgInitResample)};
-  load(tlt{1});
+  testLoad = load(tlt{1});
 catch
   tlt = {sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',STACK_PRFX,mapBackIter+flgInitResample)};
+  testLoad = load(tlt{1});
+
 end
 tlt_OUT = {sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',STACK_PRFX,mapBackIter+1)};
 
@@ -194,26 +196,25 @@ INPUT_CELL = cell(nStacks,7);
 TLT_Trans = cell(nStacks,1);
 
 % killed the loop, clean up later
-i=1;
-if exist(tlt{i}, 'file') &&  exist(PRJ_STACK{i}, 'file')
-  INPUT_CELL{i,1} = load(tlt{i});
-  INPUT_CELL{i,2} = PRJ_STACK{i};
-  [pathName,fileName,extension] = fileparts(PRJ_STACK{i});
+if exist(tlt{1}, 'file') &&  exist(PRJ_STACK{1}, 'file')
+  INPUT_CELL{1,1} = load(tlt{1});
+  INPUT_CELL{1,2} = PRJ_STACK{1};
+  [pathName,fileName,extension] = fileparts(PRJ_STACK{1});
   if isempty(pathName)
     pathName = '.';
   end
-  [ctfPath,~,~] = fileparts(tlt{i});
-  INPUT_CELL{i,3} = pathName;
-  INPUT_CELL{i,4} = fileName;
-  INPUT_CELL{i,5} = extension;
-  INPUT_CELL{i,6} = PRJ_OUT{i};
-  INPUT_CELL{i,7} = ctfPath;
+  [ctfPath,~,~] = fileparts(tlt{1});
+  INPUT_CELL{1,3} = pathName;
+  INPUT_CELL{1,4} = fileName;
+  INPUT_CELL{1,5} = extension;
+  INPUT_CELL{1,6} = PRJ_OUT{1};
+  INPUT_CELL{1,7} = ctfPath;
 else
-  if ~exist(tlt{i}, 'file')
-    fprintf('\nignoring %s, because the file is not found.\n', tlt{i});
+  if ~exist(tlt{1}, 'file')
+    fprintf('\nignoring %s, because the file is not found.\n', tlt{1});
   end
-  if ~exist(PRJ_STACK{i}, 'file')
-    fprintf('\nignoring %s, because the file is not found.\n',PRJ_STACK{i});
+  if ~exist(PRJ_STACK{1}, 'file')
+    fprintf('\nignoring %s, because the file is not found.\n',PRJ_STACK{1});
   end
 
 end
@@ -245,6 +246,7 @@ iStack=1;
   
  osX = 1-mod(d1,2); osY = 1-mod(d2,2);
   
+
 if (SuperResolution)
   gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,-0.235,'GPU','nyquistHigh');
 else
@@ -281,7 +283,10 @@ system('mkdir -p aliStacks');
     mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
     defShifts = sprintf('%s.defShifts',mapBackPrfx);
     if exist(defShifts,'file')
-      defShifts = load(defShifts);
+      % tomoCPR is now using mexCTF so updated to def > 0 and in Angstrom,
+      % which are added to the base value.
+      % ctf 3d is still using orig def < 0 and in SI so convert here
+      defShifts = load(defShifts) .* (-1*10^-10);
       fprintf('Updating defocus shifts from tomoCPR\n');
     else
       defShifts = 0;
@@ -661,8 +666,11 @@ if (flgShiftEucentric && mapBackIter)
       STACK_PRFX = ITER_LIST{iGPU}{iTilt};
       eucShift = eucShiftsResults{iGPU}{iTilt};
   
-      for jTomo = 1:subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos
+      % Workaround for partial numbers - need something better. FIXME
+      n_tomos_found = 0;
+      for jTomo = 1:size(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords,1) %subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos
         if any(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords(jTomo,:))
+            n_tomos_found = n_tomos_found + 1;
           % We might have skipped the update if tomoCPR failed.
           if isempty(eucShift)
             fprintf('No updated shifts for %s_%d\n',STACK_PRFX,jTomo);
@@ -677,6 +685,10 @@ if (flgShiftEucentric && mapBackIter)
 
         end
       end
+      if (n_tomos_found ~= subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos)
+            error('The number of tomos found (%d) does not match (%d) for tomo %s\n', ...
+                n_tomos_found, subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos, STACK_PRFX);
+        end
     end
   end
   save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');

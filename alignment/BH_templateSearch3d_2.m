@@ -242,7 +242,6 @@ sizeTemp = size(template)
 sizeTempBIN = size(templateBIN)
 
 
-
 statsRadiusAng = statsRadius.*[2,2,2].*max(latticeRadius);
 statsRadius = ceil(statsRadiusAng./pixelSize);
 latticeRadius = (0.75 .* latticeRadius) ./ (pixelSize);
@@ -285,7 +284,7 @@ end
 
                                                                         
 
-highThr=sqrt(2).*erfcinv(ceil(peakThreshold.*0.025).*2./(prod(size(tomogram)).*nAngles(1)))
+highThr=sqrt(2).*erfcinv(ceil(peakThreshold.*0.10).*2./(prod(size(tomogram)).*nAngles(1)))
 
 [ OUTPUT ] = BH_multi_iterator( [targetSize; ...
                                  size(tomogram);...
@@ -307,6 +306,8 @@ nIters    = OUTPUT(6,:);
 
 [ padBIN ] = BH_multi_padVal( sizeTempBIN, sizeChunk );
 [ trimValid ] = BH_multi_padVal(sizeChunk, validArea);
+
+RMSFACTOR = sqrt(prod(sizeTempBIN) / prod(sizeChunk));
 
 if ( tmpDecoy )
   % This is probably sample dependent. should search a small range and find
@@ -341,10 +342,10 @@ fprintf('-----\n');
 
 size(tomogram)
 
-[ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
-                                             'cpu', 'singleTaper',mean(tomogram(:)));
-% tomogram = padarray(tomogram,tomoPre,'symmetric','pre');
-% tomogram = padarray(tomogram,tomoPost,'symmetric','post');
+% [ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
+%                                              'cpu', 'singleTaper',mean(tomogram(:)));
+tomogram = padarray(tomogram,tomoPre,'symmetric','pre');
+tomogram = padarray(tomogram,tomoPost,'symmetric','post');
 sizeTomo = size(tomogram);
 
 
@@ -477,7 +478,8 @@ for  iX = 1:nIters(1)
     % Make a list of the padded regions of the tomogram to exclude from
     % statistical calculations
     
-
+    tomoChunk = tomoChunk - mean(tomoChunk(:));
+    tomoChunk = tomoChunk ./ rms(tomoChunk(:));
 
 % % % % %     tomoChunk = real(ifftn(fftn(tomoChunk).*tomoBandpass));
     tomoChunk = bhF.invFFT(bhF.fwdFFT(tomoChunk,0,0,[1e-3,600, ...
@@ -499,18 +501,23 @@ for  iX = 1:nIters(1)
       end
     end
 
-
+    [ averageMask, flgOOM ] = BH_movingAverage_2(tomoChunk, statsRadius(1)); 
+    tomoChunk = tomoChunk - averageMask; clear avgerageMask
+    [ rmsMask ] = BH_movingRMS_2(tomoChunk, statsRadius(1));
+ 
+    
+    tomoChunk = gather(((-1*shouldBeCTF) .* tomoChunk ./ rmsMask)).*validAreaMask;   
     clear rmsMask
 
-    tomoChunk = tomoChunk .* (-1*shouldBeCTF); % This is backwards, but I don't know why
-    fullX = fullX + gather(sum(tomoChunk(:)));
-    fullX2 = fullX2 + gather(sum(tomoChunk(:).^2));
+%     tomoChunk = tomoChunk .* (-1*shouldBeCTF); % This is backwards, but I don't know why
+    tmp_sum = sum(tomoChunk(validAreaMask > 0.1));
+    fullX = fullX + tmp_sum;
+    fullX2 = fullX2 + gather(tmp_sum.^2);
     fullnX = fullnX + gather(prod(sizeChunk));
+    
+    tomoStack(:,:,:,tomoIDX) = tomoChunk;
 
     tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
-    
-    tomoStack(:,:,:,tomoIDX) = gather(tomoChunk);
-
     tomoIDX = tomoIDX + 1;
 
       
@@ -661,7 +668,7 @@ for iAngle = theta_search
          % First correct for any change in power due to
          % rotation/interpolation
          tempRot = tempRot - mean(tempRot(:));
-         tempRot = tempRot ./ ((interpolationNormFactor./sum(abs(tempRot(:)).^2)).*rms(tempRot(:)));
+         tempRot = tempRot ./ ((interpolationNormFactor./sum(abs(tempRot(:)).^2)).*RMSFACTOR.*rms(tempRot(:)));
 
 %          tempRot = tempRot .* (interpolationNormFactor./sum(abs(tempRot(:)).^2));
          % Then correct for any change in power due to the wedge. These can be combined 
