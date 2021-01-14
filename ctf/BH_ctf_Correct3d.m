@@ -76,7 +76,7 @@ if nargin > 2
     if length(varargin) > 2
       % Full recon for tomoCPR
       bh_global_turn_on_phase_plate = 0
-      filterProjectionsForTomoCPRBackground = 32
+      filterProjectionsForTomoCPRBackground = 28
     else
       loadSubTomoMeta = false;
       % Default to on for subregion picking
@@ -214,11 +214,6 @@ if (CYCLE)
   end
 end
 
-try
-  usePreCombDefocus = pBH.('usePreCombDefocus')
-catch
-  usePreCombDefocus = 0
-end
 
 try
   flgDampenAliasedFrequencies = pBH.('flgDampenAliasedFrequencies')
@@ -321,6 +316,9 @@ if (recWithoutMat)
     % templateSearch
     getCoords = dir('recon/*.coords');
     nTilts = length(getCoords);
+    if (nTilts == 0)
+        error('Did not find any tomogram coordinates in recon/TS*.coords');
+    end
     tiltList = cell(nTilts,1);
     nTomosTotal = 0;
     nTomosPerTilt = cell(nTilts,1);
@@ -351,8 +349,9 @@ end
 % Divide the tilt series up over each gpu
 iterList = cell(nGPUs,1);
 % If there is only one tilt, things break in a weird way
-
-nGPUs = min(nGPUs, nTilts);
+nGPUs
+nTilts
+nGPUs = min(nGPUs, nTilts)
 for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
@@ -429,7 +428,7 @@ end
 
 % All data is handled through disk i/o so everything unique created in the 
 % parfor is also destroyed there as well.
-parfor iGPU = 1:nGPUs
+parfor iGPU = 1:nGPUs%
 %for iGPU = 1:nGPUs 
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt 
@@ -650,9 +649,7 @@ parfor iGPU = 1:nGPUs
         end
       end
       
-      if ~(usePreCombDefocus)
-        preCombDefocus = 0;
-      end
+
 
       if (PosControl2d)
         correctedStack = maskedStack;
@@ -1240,6 +1237,7 @@ end
 radialGrid = {radialGrid./PIXEL_SIZE,0,phi};
 phi = [];
 
+fprintf('%f %f\n',filterProjectionsForTomoCPRBackground,pixelSize);
 if (filterProjectionsForTomoCPRBackground ~= 0)
     bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',pixelSize);
 else
@@ -1285,26 +1283,26 @@ for iPrj = 1:nPrjs
   
 
   iProjection = BH_padZeros3d(maskedStack(:,:,TLT(iPrj,1)),padVal(1,:),padVal(2,:),'GPU','singleTaper');
-
   iProjectionFT = fftn(iProjection).*iExposureFilter; clear iExposureFilter
   correctedPrj = zeros([d1,d2],'single','gpuArray');
   
   % Gridvectors for the specimen plane
   [rX,rY,~] = BH_multi_gridCoordinates([d1,d2],'Cartesian','GPU',{'none'},0,1,0);
   % Assuming the plane fit is from the origin as it is.
-   
+
 
 
   if (useSurfaceFit)
     %rZ = (surfaceFit.p00 + surfaceFit.p10.*(rX+oX)) + surfaceFit.p01.*(rY+oY);
     try
-      rZ = surfaceFit(rX,rY);
+      rZ = feval(surfaceFit,rX,rY);
     catch
       d1
       d2 
       rX
       rY
       surfaceFit
+      error('surface fit failed');
     end
   else
     rZ = zeros([d1,d2],'single','gpuArray');
@@ -1328,14 +1326,14 @@ for iPrj = 1:nPrjs
   minDefocus = min(tZ(:));
   maxDefocus = max(tZ(tZ<1));
   % Spit out some info
-%   fprintf('Found a min/max defocus of %3.3e/ %3.3e for tilt %d (%3.3f deg)\n',minDefocus,maxDefocus,iPrj,TLT(iPrj,4));
+%  fprintf('Found a min/max defocus of %3.3e/ %3.3e for tilt %d (%3.3f deg)\n',minDefocus,maxDefocus,iPrj,TLT(iPrj,4));
   
   % To track sampling in case I put in overlap
   samplingMask = zeros([d1,d2],'single','gpuArray');
   
 
   for iDefocus = minDefocus-ctf3dDepth/1:ctf3dDepth/1:maxDefocus+ctf3dDepth/1
-% % %     fprintf('correcting for iDefocus %3.3e\n',iDefocus);
+%    fprintf('correcting for iDefocus %3.3e\n',iDefocus);
     %search tz take those xy and add to the prj and mask
 
       defVect = [iDefocus - ddF, iDefocus + ddF, dPhi];
@@ -1532,16 +1530,27 @@ avgZ = totalZ/nSubTomos*pixelSize/10*10^-9;
 for iSection = 1:nSections   
 
   if length(xFull{iSection}) >= 6
-    surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'poly22','Robust','on');
-    %figure('visible','off'), plot(surfaceFit{iSection},[xFull{iSection},yFull{iSection}],zFull{iSection});
-    %saveas(gcf,sprintf('fitThis_%s_%d.pdf',tiltName,iSection));
-    %close(gcf);
+%       try
+%      try
+%          exclude = abs(mean(zFull{iSection})-zFull{iSection})>1.5.*std(zFull{iSection});
+%          surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'lowess', 'Span', 0.05,'Normalize','on','Exclude',exclude);
+%      catch
+% 
+%             surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'lowess','Robust','on');
+%           end
+      
+        surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'poly22','Robust','on');
+ %     end
+% 
+%     figure('visible','off'), plot(surfaceFit{iSection},[xFull{iSection},yFull{iSection}],zFull{iSection});
+%     saveas(gcf,sprintf('fitThis_%s_%d.pdf',tiltName,iSection));
+%     close(gcf);
   else
     surfaceFit{iSection} = 0;
   end
 end
 
-%save(sprintf('fitThis_%s_%d.mat',tiltName,iSection),'xFull','yFull','zFull','surfaceFit');
+% save(sprintf('fitThis_%s_%d.mat',tiltName,iSection),'xFull','yFull','zFull','surfaceFit');
 
 
 fprintf('%s tilt-series has %d subTomos with mean Z %3.3f nm\n', ...

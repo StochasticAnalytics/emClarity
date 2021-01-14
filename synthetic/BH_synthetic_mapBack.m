@@ -1486,7 +1486,7 @@ end
 
 parfor iPrj = 1:nPrjs  
 
-% for iPrj = 28 %1:nPrjs
+% for iPrj = 1:nPrjs
 	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
@@ -1641,7 +1641,8 @@ parfor iPrj = 1:nPrjs
         mRy
         COM
         SAVE_IMG(MRCImage(gather(cccPrj)),'err.mrc');
-        error('sdf')
+        error('failed to box out the cross-correlation for image\n%s\non Projection %d\n', ...
+              tiltName, iPrj);
       end
       cccPRJ = cccPRJ - min(cccPRJ(:));
       comPRJX = sum(sum(bx.*cccPRJ))./sum(cccPRJ(:));

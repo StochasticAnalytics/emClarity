@@ -282,7 +282,7 @@ else
                                       = BH_multi_gridSearchAngles(angleSearch)
 end
 
-                                                                        
+                                                                       
 
 highThr=sqrt(2).*erfcinv(ceil(peakThreshold.*0.10).*2./(prod(size(tomogram)).*nAngles(1)))
 
@@ -505,10 +505,10 @@ for  iX = 1:nIters(1)
     tomoChunk = tomoChunk - averageMask; clear avgerageMask
     [ rmsMask ] = BH_movingRMS_2(tomoChunk, statsRadius(1));
  
-    
+
     tomoChunk = gather(((-1*shouldBeCTF) .* tomoChunk ./ rmsMask)).*validAreaMask;   
     clear rmsMask
-
+ 
 %     tomoChunk = tomoChunk .* (-1*shouldBeCTF); % This is backwards, but I don't know why
     tmp_sum = sum(tomoChunk(validAreaMask > 0.1));
     fullX = fullX + tmp_sum;
