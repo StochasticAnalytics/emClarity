@@ -160,7 +160,7 @@ end
 try
   use_v2_SF3D = pBH.('use_v2_SF3D')
 catch
-  use_v2_SF3D = false
+  use_v2_SF3D = true
 end
 outputPrefix   = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 %%%flgGold      = pBH.('flgGoldStandard');
@@ -171,11 +171,33 @@ catch
   nPeaks = 1;
 end
 
-flgNorm = 0;% pBH.('flgNormalizeWMDs');
+flgNorm = 1;% pBH.('flgNormalizeWMDs');
 try
   flgPcaShapeMask = pBH.('flgPcaShapeMask');
 catch
   flgPcaShapeMask = 1;
+end
+
+% The defaults used in fscGold are modified here to make a more permissive
+% mask since we are concerned with densities that are likely damped during
+% averaging due to low occupancy.
+try
+  shape_mask_lowpass = pBH.('shape_mask_lowpass');
+catch
+  shape_mask_lowpass = 14 + 10; 
+end
+
+try
+  shape_mask_threshold = pBH.('shape_mask_threshold');
+catch
+  shape_mask_threshold = 2.4 - 0.4;
+end
+
+try
+  % Apply the mask with the given parameters, save and exit.
+  shape_mask_test = pBH.('shape_mask_test');
+catch
+  shape_mask_test = false;
 end
 
 try
@@ -400,7 +422,10 @@ else
   if ( flgPcaShapeMask )
       % when combining the addition is harmless, but is a convenient way to
       % include when sets are left 100% separate.
-      volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '','');  
+%       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '',''); 
+      volumeMask = volumeMask .* EMC_maskReference(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, ...
+                                                  {'pca', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
+
   end
   
   if (flgLoadMask)
@@ -444,22 +469,22 @@ clear volumeMask
 % radius, convert Ang to pix , denom = equiv stdv from normal to include, e.g.
 % for 95% use 1/sig = 1/2
 %stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize - 1)  .* 3.0./log(pcaScaleSpace)
-stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize )  ./ log(pcaScaleSpace)
+threeSigma = 1/3 .* (pcaScaleSpace ./ pixelSize)
 for iScale = 1:nScaleSpace
 
-    if (test_updated_bandpass)
-      % Filter with low res info constant to 100 Ang, but only a tight band
-      % around the desired resolution.
-      lowResInfo = BH_bandpass3d(sizeMask,1e-6,400,100,'GPU',pixelSize) + ...
-                   BH_bandpass3d(sizeMask,1e-15,pcaScaleSpace(iScale),pcaScaleSpace(iScale),'GPU',pixelSize);
-      masks.('scaleMask').(sprintf('s%d',iScale)) = gather(lowResInfo ./ max(lowResInfo(:)));
-    else
-      
-    
-     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-                             gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
-                                   pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
-    end
+%     if (test_updated_bandpass)
+%       % Filter with low res info constant to 100 Ang, but only a tight band
+%       % around the desired resolution.
+%       lowResInfo = BH_bandpass3d(sizeMask,1e-6,400,100,'GPU',pixelSize) + ...
+%                    BH_bandpass3d(sizeMask,1e-15,pcaScaleSpace(iScale),pcaScaleSpace(iScale),'GPU',pixelSize);
+%       masks.('scaleMask').(sprintf('s%d',iScale)) = gather(lowResInfo ./ max(lowResInfo(:)));
+%     else
+%       
+%     
+%      masks.('scaleMask').(sprintf('s%d',iScale)) = ...
+%                              gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
+%                                    pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
+%     end
 
 %    masks.('scaleMask').(sprintf('s%d',iScale)) = ...
 %                            gather(BH_bandpass3d( sizeMask, 0.1, 400, ...
@@ -470,8 +495,12 @@ for iScale = 1:nScaleSpace
 %     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
 %                             fftn(ifftshift(BH_multi_gaussian3d(sizeMask, 1.*stdDev(iScale))));
 
+    kernelSize = ceil(threeSigma(iScale)) + 3;
+    kernelSize = kernelSize + (1-mod(kernelSize,2));
+  masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
+  
+  masks.('scaleMask').(sprintf('s%d',iScale))
 end
-
 avgMotif_FT = cell(1+flgGold,nScaleSpace);
 avgFiltered = cell(1+flgGold,nScaleSpace);
 % Here always read in both, combine if flgGold = 0
@@ -491,10 +520,11 @@ for iGold = 1:1+flgGold
     averageMotif{iGold} = averageMotif{iGold} - mean(averageMotif{iGold}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     averageMotif{iGold} = averageMotif{iGold} ./ rms(averageMotif{iGold}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     averageMotif{iGold} = averageMotif{iGold} .* masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale));
-    
+    averageMotif{iGold} = EMC_convn(single(gpuArray(averageMotif{iGold})) , single(gpuArray(masks.('scaleMask').(sprintf('s%d',iScale))) ));
+
     avgMotif_FT{iGold, iScale} = ...
                             BH_bandLimitCenterNormalize(averageMotif{iGold},...
-                            masks.('scaleMask').(sprintf('s%d',iScale)), ...           
+                             BH_bandpass3d(sizeMask,1e-6,400,pixelSize,'GPU',pixelSize), ...           
                             masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
                                                         [0,0,0;0,0,0],'single');
 
@@ -507,7 +537,6 @@ for iGold = 1:1+flgGold
 % % %     cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold,iScale)) = gather(avgMotif_FT{iGold, iScale});
   end
 end
-
 
 
 
@@ -573,6 +602,7 @@ for iGold = 1:1+flgGold
   % Pull masks onto GPU (which are cleared along with everything else when
   % the device is reset at the end of each loop.)
   gpuMasks = struct();
+  
   for iScale = 1:nScaleSpace
       stSCALE = sprintf('s%d',iScale);
       
@@ -582,8 +612,10 @@ for iGold = 1:1+flgGold
                              gpuArray(masks.('binary').(stHALF).(stSCALE));
       gpuMasks.('binaryApply').(stSCALE)  = ...
                         gpuArray(masks.('binaryApply').(stHALF).(stSCALE));
-      gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));                      
-   
+      gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));   
+      
+      
+      gpuMasks.('highPass').(stSCALE) = BH_bandpass3d(sizeMask,1e-6,400,pixelSize,'GPU',pixelSize);
   end
   
 % % %   for iGold_inner = 1:1+flgGold
@@ -659,6 +691,26 @@ for iGold = 1:1+flgGold
     
     % reset for each tomogram
     wdgIDX = 0;
+    radialMask = '';
+     if (flgNorm)
+         
+
+        bins = 1./[1000,800,600,400,300,200,150,100,80,60,40,30,20,15,10,8,6,4,2]; 
+        bins = [0, bins];
+        
+        [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(avgMotif_FT{iGold, iScale}),'Cartesian',...
+                                                    'GPU',{'none'},1,0,1);
+        radialGrid = radialGrid ./ pixelSize;
+        
+        radialMask = cell(length(bins)-1,1);
+        
+        for iBin = 1:length(bins)-1
+           radialMask{iBin} = find(radialGrid >= bins(iBin) & radialGrid < bins(iBin+1)); 
+        end
+                                                
+        radialGrid = '';
+            
+      end
     
     for iSubTomo = 1:nSubTomos
       %%%%% %%%%%
@@ -690,6 +742,8 @@ for iGold = 1:1+flgGold
           padWdg = [0,0,0;0,0,0];
           [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
                                           TLT, center,reconGeometry);
+ 
+%           wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 10^-6);
         end
         
         % If flgGold there is no change, otherwise temporarily resample the
@@ -763,10 +817,13 @@ for iGold = 1:1+flgGold
 
 
         for iScale = 1:nScaleSpace
+            
+          iPrt = EMC_convn(iTrimParticle , gpuMasks.('scaleMask').(sprintf('s%d',iScale)));
+
           iPrt = BH_bandLimitCenterNormalize( ...
-                            iTrimParticle .* ...
+                            iPrt .* ...
                             gpuMasks.('volMask').(sprintf('s%d',iScale)), ...
-                            gpuMasks.('scaleMask').(sprintf('s%d',iScale)),...
+                            gpuMasks.('highPass').(sprintf('s%d',iScale)),...
                             gpuMasks.('binary').(sprintf('s%d',iScale)),...
                                                       [0,0,0;0,0,0],'single');
 
@@ -777,10 +834,10 @@ for iGold = 1:1+flgGold
             if (use_v2_SF3D)
  
               [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
-                                    flgNorm,pixelSize,radialGrid, padWdg);
+                                    flgNorm,pixelSize,radialMask, padWdg);
             else
                 
-                iWmd = abs(iPrt) .* (angle(iPrt) - angle(avgMotif_FT{iGold, iScale}));
+                iWmd = real(ifftn(abs(iPrt) .* exp(1i.*(angle(iPrt) - angle(avgMotif_FT{iGold, iScale})))));
             end
                             
 
@@ -836,7 +893,7 @@ for iGold = 1:1+flgGold
         fprintf('Total nExtracted = %d\n', nExtracted-1);
         fprintf('Total nIgnored = %d\n', nIgnored);
 
-     end
+      end
     end % end of the loop over subTomos
 
   clear volumeData
@@ -908,15 +965,27 @@ for iGold = 1:1+flgGold
     coeffs = cell(nScaleSpace,1);
     varianceMap = cell(nScaleSpace,1);
     for iScale = 1:nScaleSpace
-
+       
+        krylovScalar = 5;
       % Calculate the decomposition
-      [U{iScale},S{iScale},V{iScale}] = svd(dataMatrix{iScale}, 0);
+      [ U{iScale},S{iScale},V{iScale}, convergenceFlag ] = svds(double(dataMatrix{iScale}), ...
+                                                                maxEigs, 'largest', ...
+                                                                'MaxIterations',500, ... % default 300
+                                                                'SubspaceDimension',max(krylovScalar*maxEigs,15),... % default max(3*maxEigs,15)
+                                                                'Display',true); % Diagnostics default false (will this work in compiled?)
+        U{iScale} = single(U{iScale});
+        S{iScale} = single(S{iScale});
+        V{iScale} = single(V{iScale});
+
+%             [U{iScale},S{iScale},V{iScale}] = svd(dataMatrix{iScale}, 0);
+
 
       numNonZero = find(( diag(S{iScale}) ~= 0 ), 1, 'last');
       % For Method 1, save eigenvectors 1-4 (or user-specified max) as images
       eigsFound = min(maxEigs, numNonZero);
 
-      fprintf('Found %d / %d non-zero eigenvalues in set %s.\n', numNonZero, size(S{iScale}, 1),halfSet);
+      fprintf('Found %d / %d non-zero eigenvalues in set %s.\n All singular values converged is t/f ( %d ) ', ...
+                numNonZero, size(S{iScale}, 1),halfSet, convergenceFlag);
 
       coeffs{iScale} = S{iScale} * V{iScale}' 
 
@@ -924,13 +993,18 @@ for iGold = 1:1+flgGold
       %varianceMap{iScale} = (U{iScale}*S{iScale}.^2*V{iScale} ./ numel(U{iScale}-1));
       fprintf('Size S, %d %d  Size U %d %d \n', size(S{iScale},1),size(S{iScale},2), size(U{iScale},1),size(U{iScale},2));
   
+      % We want the diagnol of US^2U'/ n-1
+      % This will be maxEigs * Nvoxels matrix (U is Nvoxels * maxEigs)
       rightSide = S{iScale}(1:numNonZero,1:numNonZero).^2*U{iScale}';
       varianceMap = zeros(nPixels(iGold,iScale),1);
       for k = 1:nPixels(iGold,iScale)
-        varianceMap(k) = U{iScale}(k,1)*rightSide(1,k) + ...
-                         U{iScale}(k,2)*rightSide(2,k) + ...
-                         U{iScale}(k,3)*rightSide(3,k);
+%         varianceMap(k) = U{iScale}(k,1)*rightSide(1,k) + ...
+%                          U{iScale}(k,2)*rightSide(2,k) + ...
+%                          U{iScale}(k,3)*rightSide(3,k);
+        varianceMap(k) = U{iScale}(k,:)*rightSide(:,k);
       end
+      varianceMap = varianceMap ./ (numel(varianceMap) - 1);
+      
       tmpReshape = zeros(prod(sizeMask),1);
       tmpReshape(masks.('binary').(stHALF).(sprintf('s%d',iScale)) ) = varianceMap(:);
      

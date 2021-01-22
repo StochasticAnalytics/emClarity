@@ -132,6 +132,8 @@ IMAGE = IMAGE .* minusEdges;
 % Decrease progressively the threshold to select regions with lower densities.
 if OPTION.fsc
     dilationThresholds = [0.9, 0.85, 0.75, 0.7, 0.65, 0.5, 0.35, 0.2, 0.1];  % loose
+elseif OPTION.pca
+    dilationThresholds = [0.9, 0.85, 0.75, 0.7, 0.65, 0.5, 0.35, 0.2, 0.1,0.1,0.05,0.05];  % loose
 else
     dilationThresholds = [1.0, 0.9];  % tight
 end
@@ -180,7 +182,7 @@ end
 % one can arbitrarily decrease the measured SNR. Even though this expansion is almost certainly
 % containing surrounding solvent, estimate the signal reduction in the taper as the mask could
 % cut through densities.
-if OPTION.fsc
+if OPTION.fsc 
     smoothKernel = EMC_gaussianKernel([1, rad], rad/2, flg.method, {'precision', flg.precision});
     fscMask = EMC_convn(tofloat(binaryMask), convn(smoothKernel, smoothKernel));
     fscMask = fscMask ./ max(fscMask(:));
@@ -213,6 +215,18 @@ if OPTION.fsc
 
     % Setting varargout.
     varargout = {MASK_CORE, FRACTION, COM};
+elseif OPTION.pca
+    
+    smoothKernel = EMC_gaussianKernel([1, rad], rad/2, flg.method, {'precision', flg.precision});
+    MASK = EMC_convn(tofloat(binaryMask), convn(smoothKernel, smoothKernel));
+    MASK = MASK ./ max(MASK(:));    
+    % Make sure no wrap-around artifacts.
+    MASK = MASK .* minusEdges;
+
+    if OPTION.com; COM = EMC_centerOfMass(MASK, OPTION.origin); else; COM = nan; end
+
+    % Setting varargout.
+    varargout = {COM};
 else
     % Make sure no wrap-around artifacts.
     MASK = binaryMask .* minusEdges;
@@ -241,7 +255,7 @@ if ~isscalar(PIXEL) || ~isnumeric(PIXEL) || isinf(PIXEL) || ~(PIXEL > 0)
     error('EMC:PIXEL', 'PIXEL should be a positive float|int')
 end
 
-OPTION = EMC_getOption(OPTION, {'origin', 'fsc', 'com', 'lowpass', 'threshold', ...
+OPTION = EMC_getOption(OPTION, {'origin', 'fsc', 'pca', 'com', 'lowpass', 'threshold', ...
                                 'hydration_scaling', 'precision', 'method'}, false);
 
 % origin
@@ -263,6 +277,18 @@ if isfield(OPTION, 'fsc')
     end
 else
     OPTION.fsc = false;  % default
+end
+
+% pca
+if isfield(OPTION, 'pca')
+    if ~isscalar(OPTION.pca) || ~islogical(OPTION.pca)
+        error('EMC:pca', 'OPTION.fsc should be a boolean, got %s', class(OPTION.fsc))
+    end
+    if (OPTION.fsc)
+        error('EMC:pca', 'OPTION.fsc and OPTION.pca are mutually exclusive');
+    end
+else
+    OPTION.pca = false;  % default
 end
 
 % com

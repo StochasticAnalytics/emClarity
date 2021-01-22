@@ -17,7 +17,7 @@ if isnumeric(radialGrid)
   if (size(radialGrid) ~= size(particleCTF))
     error('radialGrid and particleCTF are different sizes');
   end
-elseif (flgNorm)
+elseif (flgNorm && ~iscell(radialGrid))
   [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(refMap),'Cartesian',...
                                                     'GPU',{'none'},1,0,1);
   radialGrid = radialGrid ./ pixelSize;
@@ -30,9 +30,9 @@ end
 
 % Don't take abs to re-use later.
 if isreal(refMap(1))
-  refMap = fftn(BH_padZeros3d(refMap,padVal(1,:),padVal(2,:),'GPU','single')).*particleCTF;
+  refMap = fftn(BH_padZeros3d(refMap,padVal(1,:),padVal(2,:),'GPU','single')).*sqrt(particleCTF);
 else
-  refMap = refMap.*particleCTF; 
+  refMap = refMap.*sqrt(particleCTF); 
 end
 
 if isreal(particle)
@@ -50,34 +50,19 @@ refMap = refMap ./ (sqrt(sum(sum(sum(abs(refMap(particleCTF > 1e-2)).^2))))./num
 particle = particle ./ (sqrt(sum(sum(sum(abs(particle(particleCTF > 1e-2)).^2))))./numel(particle));
 
 if (flgNorm)
-  binDiv = 40;
-  bin = floor(size(refMap,1)/binDiv);
-  inc = 0.5 / (bin*pixelSize);
-  shellsFreq = zeros(bin, 1, 'gpuArray');
-  shellsFSC = zeros(bin, 1, 'gpuArray');
 
-  for q = 1:bin
+    for iBin = 1:length(radialGrid)
+        iScalar = (sum(abs(particle(radialGrid{iBin})),'all') ./ sum(abs(refMap(radialGrid{iBin})),'all'));
+        if (iScalar < 1)
+            
+            refMap(radialGrid{iBin}) = refMap(radialGrid{iBin}) .* iScalar;
 
-    iMask = gpuArray((q-1)*inc <= radialGrid & radialGrid < (q)*inc);
-    shellsFreq(q, 1) = inc.*(q-1/2);
+        end
+    end
+    
+    
 
-%    % The have the same number of pixels so no need to consider in average
-%    shellsFSC(q, 1) = real(sum(double(abs(refMap(iMask)))))./...
-%                      real(sum(double(abs(particle(iMask)))));
-
-    % The have the same number of pixels so no need to consider in average
-    shellsFSC(q, 1) = real(sum(double(abs(refMap(iMask)))))./...
-                      real(sum(double(abs(particle(iMask)))));
-
-
-  end
-  clear iMask 
-
-  % cFit to oversample the scaling factor
-  fitScale = fit(gather(shellsFreq(:,1)),gather(shellsFSC(:,1)),'cubicSpline');
-  normMap = refMap ./ reshape(fitScale(radialGrid),size(radialGrid));
-  clear fitScale radialGrid
-  diffMap = real(ifftn(normMap - particle));
+  diffMap = real(ifftn(refMap - particle));
 else
 %  refMap = refMap ./ sum(abs(refMap(:)).^2); % FIXME 
 %  particle = particle ./ sum(abs(particle(:)).^2);

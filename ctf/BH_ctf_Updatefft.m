@@ -18,6 +18,12 @@ try
 catch
   flgShiftEucentric = 0
 end
+try
+    % Should be negative, but to test.
+    defShiftSign = pBH.('testFlipSign');
+catch
+    defShiftSign = -1;
+end
 
 try
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
@@ -286,7 +292,7 @@ system('mkdir -p aliStacks');
       % tomoCPR is now using mexCTF so updated to def > 0 and in Angstrom,
       % which are added to the base value.
       % ctf 3d is still using orig def < 0 and in SI so convert here
-      defShifts = load(defShifts) .* (-1*10^-10);
+      defShifts = load(defShifts) .* (defShiftSign*10^-10);
       fprintf('Updating defocus shifts from tomoCPR\n');
     else
       defShifts = 0;
@@ -319,7 +325,7 @@ system('mkdir -p aliStacks');
 try 
   erase_beads_after_ctf = ('erase_beads_after_ctf');
 catch
-  erase_beads_after_ctf = false;
+  erase_beads_after_ctf = true;
 end
 
 if (erase_beads_after_ctf)

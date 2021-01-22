@@ -26,7 +26,7 @@ tiltStart = 1;
 try 
   flgEraseBeads = pBH.('erase_beads_after_ctf');
 catch
-  flgEraseBeads = false;
+  flgEraseBeads = true;
 end
 
 % Test David's new super sampling in reconstruction. No check that this
@@ -90,7 +90,9 @@ elseif nargin > 1
   if strcmpi(varargin{1},'templateSearch')
     recWithoutMat = true
     loadSubTomoMeta = false
-    bh_global_turn_on_phase_plate = 0
+    if (bh_global_turn_on_phase_plate(1))
+        fprintf('WARNING: the filtered tomogram should only be used for viz, not template matching.');
+    end
   else
     error('Extra argument to ctf 3d should be a vector [THICKNESS, BINNING] tiltN, or a string templateSearch');
   end
@@ -833,16 +835,15 @@ parfor iGPU = 1:nGPUs%
     for iT = 1:nTomos
           thisTomo = tomoNumber(iT);   
       
-      if reconstructionParameters(1)
-        if (bh_global_turn_on_phase_plate(1))
-          reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
+      if (bh_global_turn_on_phase_plate(1))
+        reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
+        tiltList{iTilt},thisTomo,samplingRate);
+      elseif reconstructionParameters(1)
+        
+        reconNameFull = sprintf('cache/%s_%d_bin%d_backgroundEst.rec', ...
                                 tiltList{iTilt},thisTomo,samplingRate);
-        else
-          reconNameFull = sprintf('cache/%s_%d_bin%d_backgroundEst.rec', ...
-                                tiltList{iTilt},thisTomo,samplingRate);          
-        end
       else
-         reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
+        reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
                               tiltList{iTilt},thisTomo,samplingRate);      
       end
                             

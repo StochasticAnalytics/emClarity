@@ -403,7 +403,7 @@ outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
 try 
   erase_beads_after_ctf = ('erase_beads_after_ctf');
 catch
-  erase_beads_after_ctf = false;
+  erase_beads_after_ctf = true;
 end
 
 if (erase_beads_after_ctf)

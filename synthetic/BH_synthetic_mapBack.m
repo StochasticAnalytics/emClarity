@@ -1737,10 +1737,10 @@ parfor iPrj = 1:nPrjs
         refTile = refTile ./ rms(refTile(:));
 
         dataTile = ctfMask.*BH_padZeros3d(dataTile,'fwd',padCTF, ...
-                                                 'GPU','single'); 
+                                                 'GPU','singleTaper'); 
 
         refTile = ctfMask.*BH_padZeros3d(refTile,'fwd',padCTF, ...
-                                                 'GPU','single');  
+                                                 'GPU','singleTaper');  
                                                
                                                        
                         
@@ -1823,6 +1823,10 @@ parfor iPrj = 1:nPrjs
                           mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate*TLT(iPrj,16)*10^10), ...
                           single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
                           single(df1 + defShiftVect(dCTF)),single(df2 + defShiftVect(dCTF)),single(dfA),single(TLT(iPrj,18)));
+          % Renormalize
+          dataFT = dataFT ./ (sum(abs(dataFT(:)).^2)./numel(dataFT));
+          iRefCTF = iRefCTF ./ (sum(abs(iRefCTF(:)).^2)./numel(iRefCTF));
+       
 
           if (use_MCF)            
             cccMap = dataFT .* iRefCTF;

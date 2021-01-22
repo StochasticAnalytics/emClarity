@@ -58,7 +58,7 @@ for i = 1:nWorkers
   nTotal{i} = 0;
 end
 
-parfor iPar = 1:nWorkers
+for iPar = 1:nWorkers
 % for iPar = 1:nWorkers
 
   geom = geomList{iPar};
@@ -181,7 +181,6 @@ parfor iPar = 1:nWorkers
                              (listIN(c3)-listIN(iPt,13 + 26*(iPeak-1))).^2 );
 
             closeVect = find(distVect < distCut);
-
             if (length(closeVect)>=nNeighbors)
             nAngClose = 0;
             particleAxis = reshape(listIN(iPt,[17:25] + 26*(iPeak-1)),3,3)*[0;0;1];

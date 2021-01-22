@@ -86,7 +86,7 @@ end
 try
   kREP         = pBH.('Pca_nReplicates');
 catch
-  kREP = 128;
+  kREP = 256;
 end
 
 nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
@@ -100,7 +100,7 @@ nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
 try
   flgFlattenEigs = pBH.('Pca_flattenEigs');
 catch
-  flgFlattenEigs=0;
+  flgFlattenEigs=1;
 end
 
 try
@@ -408,6 +408,7 @@ for iGold = 1:1+flgGold
           save('ClusterLine391Err.mat')
           error('Caught error, saving workspace for evaluation.\n')
         end
+        
       end
       fout = sprintf('%s_%d_%d_nClass_%d_%s', outputPrefix, featureVector{iGold}(1,1), ...
                                                featureVector{iGold}(1,end), nClusters, halfSet);
