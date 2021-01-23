@@ -291,7 +291,7 @@ if pBH.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
 
-eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./pBH.('PIXEL_SIZE').*0.5));
+eraseRadius = ceil(1.5.*(pBH.('beadDiameter')./pBH.('PIXEL_SIZE').*0.5) / samplingRate);
 
 nTomosPerTilt = 0;
 recGeom = 0;
@@ -674,7 +674,7 @@ parfor iGPU = 1:nGPUs%
       % Write out the stack to the cache directory as a tmp file
 
       if (flgEraseBeads)
-        scalePixelsBy = 1;
+        scalePixelsBy = samplingRate;
         correctedStack = BH_eraseBeads(correctedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
       end
 

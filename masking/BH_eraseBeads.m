@@ -70,19 +70,26 @@ else
 end
 
   for iBead = 1:length(oX)
-    try
-      % Avoid overlap
-      currentTile = iMask(oX(iBead)-beadRadius-6:oX(iBead)+beadRadius+5, ...
-            oY(iBead)-beadRadius-6:oY(iBead)+beadRadius+5);
+    
+      startX = max(1,oX(iBead)-beadRadius-6);
+      endX   = min(oX(iBead)+beadRadius+5, size(iProjection,1));
+      startY = max(1,oY(iBead)-beadRadius-6);
+      endY   = min(oY(iBead)+beadRadius+5, size(iProjection,2));
+      
+      if (endX - startX <=1) || (endY - startY <= 1)
+          fprintf('Skipping bead from %d-%d X, %d-%d, Y iPrj %d\n', ...
+                  startX, endX, startY, endY, iPrj);
+      else
+          % Avoid overlap
+          currentTile = iMask(startX:endX,startY:endY);
+          padVal = BH_multi_padVal(size(currentTile),size(gKernel));
+          currentTile = BH_padZeros3d(currentTile,'fwd',padVal,'GPU','single');
 
-      beadMask = currentTile > gKernel;
+          beadMask = currentTile > gKernel;
 
-      iMask(oX(iBead)-beadRadius-6:oX(iBead)+beadRadius+5, ...
-            oY(iBead)-beadRadius-6:oY(iBead)+beadRadius+5) = ...
-               (gKernel.*(~beadMask)+beadMask.*currentTile);
-    catch
-      fprintf('Skipping edge on bead %d prj %d\n',iBead, iPrj);
-    end
+          iMask(startX:endX,startY:endY) = BH_padZeros3d((gKernel.*(~beadMask)+beadMask.*currentTile),'inv',padVal,'GPU','single');
+      end
+    
   end
     
 iMaskInv = 1- iMask;
