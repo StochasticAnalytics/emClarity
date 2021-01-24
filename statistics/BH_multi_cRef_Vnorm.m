@@ -66,6 +66,7 @@ end
 
 % The mask used in the FSC calc
 % % % % % particleMask = BH_mask3d(mskParams{1},2.*mskParams{2},mskParams{3},mskParams{4});
+
 particleMask = BH_mask3d(mskParams{1},mskParams{2},mskParams{3},mskParams{4});
 
 padMask = BH_multi_padVal(size(particleMask), size(imgs{1}));
@@ -75,7 +76,17 @@ particleMask = BH_multi_randomizeTaper(particleMask);
 
 if (mskParams{5})
   % Soft shape mask used for FSC calculation
-  [ mShape2 ]= BH_mask3d(imgs{1} + imgs{2}, 1.*pixelSize,'','');
+%   [ mShape2 ]= BH_mask3d(imgs{1} + imgs{2}, 1.*pixelSize,'','');
+% FIXME these should come from the call 
+shape_mask_lowpass = 14;
+shape_mask_threshold = 2.4;
+
+     
+%       padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
+    mShape2 = BH_padZeros3d((imgs{1} + imgs{2}),'fwd',padVal,'GPU','single');
+    mShape2 = real(ifftn(fftn(mShape2)./(ifftshift(weights{1}+weights{2})+100)));
+  [ mShape2 ] = EMC_maskReference(gpuArray(mShape2), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
+    mShape2 = BH_padZeros3d(mShape2,'inv',padVal,'GPU','single');
   particleMask = mShape2 .* particleMask;
 end
 

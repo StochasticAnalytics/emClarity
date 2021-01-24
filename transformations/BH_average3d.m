@@ -1,3 +1,4 @@
+
 function [  ] = BH_average3d(PARAMETER_FILE, CYCLE, STAGEofALIGNMENT)
 %Extract and interpolate a subTomogram from a 3d volume.
 %

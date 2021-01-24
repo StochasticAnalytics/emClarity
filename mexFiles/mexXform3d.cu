@@ -68,6 +68,7 @@ __global__ void transformKernel_FWD(cudaTextureObject_t thisTexObj,
   tu /= (float)dims.x; 
   tv /= (float)dims.y; 
   tw /= (float)dims.z;
+  // Since we are
   tu += 0.5f;
   tv += 0.5f;
   tw += 0.5f;
