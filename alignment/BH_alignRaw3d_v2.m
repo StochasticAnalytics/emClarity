@@ -1140,7 +1140,9 @@ parfor iParProc = parVect
                     symmetry = symmetry_op;
                   end
                 end
-                  %fprintf('Symmetry confirmation %d\n',symmetry);
+                
+               
+%                   fprintf('Symmetry confirmation %d\n',symmetry);
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 
 %                                                   estPeakCoord,...
 %                                                   {'Bah',symmetry,'linear',1,volBinary_tmp}, ...

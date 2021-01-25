@@ -58,13 +58,13 @@ idxVect = n;
 while n < oX
   idxVect = [idxVect (n+floor((idxVect(i-1).^.40)))];
   n = idxVect(i);
-  i = i + 1
+  i = i + 1;
 end
 
 if length(flgNorm) > 1
   whiteningCutoff = flgNorm(2);
 else
-  whiteningCutoff = 1; % Ang
+  whiteningCutoff = sqrt(2).*pixelSize; % Ang
 end
 
 idxVect = idxVect(1:end-1);
@@ -84,7 +84,7 @@ for iRing = 1:length(idxVect)-1
     nShrink = nShrink + 1;
   end
   radialSampledAt(nRing) = radialVect(idxVect(iRing+1));
-    nRing = nRing +1
+    nRing = nRing +1;
 end
 
 
@@ -97,11 +97,12 @@ clear avgMask PS
  rFit = csape(gather(double(radialSampledAt)),gather(double(radialAvg)),'clamped');
 %   figure, plot(radialVect,fnval(rFit,radialVect))
   r = fnval(rFit,radialGrid).^-1;
-  r = r ./ max(r(:));
-  r = r.^2;
+  r = r.^0.5;
+%   r = r ./ max(r(:));
+ 
  
   
-figure, plot(radialVect,r(1,1:length(radialVect)));
+%figure, plot(radialVect,r(1,1:length(radialVect)));
 
 % radialAvg = radialAvg.^-.5 .* radialMask;
 % figure, imshow3D(gather(radialAvg))

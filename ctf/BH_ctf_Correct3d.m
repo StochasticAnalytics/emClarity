@@ -657,6 +657,13 @@ parfor iGPU = 1:nGPUs%
         correctedStack = maskedStack;
       else
 
+       if (flgWhitenPS)
+           fprintf('Pre-whitening the PS before CTF multiplication\n');
+           for iW = 1:size(maskedStack,3)
+               maskedStack(:,:,iW) = BH_whitenNoiseSpectrum(maskedStack(:,:,iW),'',pixelSize,1);
+           end
+       end
+       
        % I would have thought the global would be recognized, but it looks
        % like there is something odd about its use with a parfor loop
        % FIXME, when setting up the iterator, make clean copies for each
