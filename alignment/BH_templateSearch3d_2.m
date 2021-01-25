@@ -95,7 +95,7 @@ convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 try 
   use_new_grid_search = pBH.('use_new_grid_search');
 catch
-  use_new_grid_search = false;
+  use_new_grid_search = true;
 end
 
 try
