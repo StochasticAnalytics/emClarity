@@ -56,9 +56,7 @@ i = 2;
 n = floor(0.005*oX);
 idxVect = n;
 while n < oX
-% % % % %   idxVect = [idxVect (n+floor((idxVect(i-1).^.40)))];
-  idxVect = [idxVect (n+floor((idxVect(i-1).^.20)))];
-
+  idxVect = [idxVect (n+floor((idxVect(i-1).^.40)))];
   n = idxVect(i);
   i = i + 1;
 end
@@ -101,17 +99,14 @@ clear avgMask PS
 %   figure, plot(radialVect,fnval(rFit,radialVect))
   r = fnval(rFit,radialGrid).^-1;
   r = r - min(r(:)) + 0.001;
-  rInv = fnval(rFit,radialGrid);
-  rInv = rInv(1,1:length(radialVect));
-
+  rInv =  fnval(rFit,radialGrid); rInv =- rInv = rInv ./ max(rInv(:));rInv = rInv(1,1:length(radialVect));
   r = r.^0.5;
- 
-  %   r = r ./ max(r(:));
+%   r = r ./ max(r(:));
  
  
   
-%figure, plot(radialVect,r(1,1:length(radialVect)));
-%figure, plot(radialVect,rInv(1,1:length(radialVect)));
+figure, plot(radialVect,r(1,1:length(radialVect)));
+figure, plot(radialVect,rInv(1,1:length(radialVect)));
 
 % radialAvg = radialAvg.^-.5 .* radialMask;
 % figure, imshow3D(gather(radialAvg))

@@ -272,12 +272,15 @@ else
 end
 
 if (use_new_grid_search)
+
   gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
         angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, false);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi;
   
+  
 else
+
   [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
                                       = BH_multi_gridSearchAngles(angleSearch)
 end
@@ -968,20 +971,24 @@ if ( rescale_mip )
                             1+tomoPre(2):end-tomoPost(2),...
                             1+tomoPre(3):end-tomoPost(3)) ./ currentGlobalAngle;
 
-%   SAVE_IMG(sum_of_x,'sum_of_x.mrc');
-%   SAVE_IMG(sum_of_x2,'sum_of_x2.mrc');
-  
+   %SAVE_IMG(sum_of_x,'sum_of_x.mrc');
+   %SAVE_IMG(sum_of_x2,'sum_of_x2.mrc');
+   %SAVE_IMG(RESULTS_peak,'prescaling.mrc');
+
   RESULTS_peak = RESULTS_peak - sum_of_x;
   sum_of_x  = sqrt(sum_of_x2 - sum_of_x.^2);
   clear sum_of_x2;
-%   SAVE_IMG(sum_of_x,'stddev.mrc');
-  mov = mean(sum_of_x(:));
-%   sov = std(sum_of_x(:));
-  sov = 0;
-  sum_of_x(sum_of_x < (mov - 1*sov)) = max(sum_of_x(:));
+   SAVE_IMG(sum_of_x,'stddev.mrc');
+%   mov = mean(sum_of_x(:));
+% %   sov = std(sum_of_x(:));
+%   sov = 0;
+%   sum_of_x(sum_of_x < (mov - 1*sov)) = max(sum_of_x(:));
 %   SAVE_IMG(sum_of_x,'stddev_clipped.mrc');
 
   RESULTS_peak = RESULTS_peak ./ sum_of_x;
+  
+  RESULTS_peak = RESULTS_peak - mean(RESULTS_peak(:));
+  RESULTS_peak = RESULTS_peak ./ rms(RESULTS_peak(:));
   clear sum_of_x;
 end
 gpuDevice(useGPU);

@@ -113,8 +113,11 @@ iMaskInv = 1- iMask;
 dataMean = mean(iProjection(iMask<0.01));
 dataRMS  = rms(iProjection(iMask<0.01)-dataMean);
 
+%noiseImage = fftn(iProjection.*iMaskInv);
+%noiseImage = real(ifftn(abs(noiseImage).*exp(1i.* (-pi + 2.*pi.*rand(size(noiseImage),'single','gpuArray')))));
+%Stack(:,:,iPrj) = iProjection.*iMaskInv + iMask.*noiseImage;
 
-Stack(:,:,iPrj) = iProjection.*iMaskInv + iMask.*(randn([d1,d2]).*dataRMS+dataMean);
+ Stack(:,:,iPrj) = iProjection.*iMaskInv + iMask.*(randn([d1,d2]).*dataRMS+dataMean);
 
 
   

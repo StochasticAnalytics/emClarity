@@ -132,6 +132,16 @@ catch
   flgCutOutVolumes = 0;
 end
 
+try
+  projectVolumes = pBH.('flgProjectVolumes');
+catch   
+    projectVolumes = false;
+end
+
+if (projectVolumes && ~flgCutOutVolumes)
+    flgCutOutVolumes = true;
+end
+    
 doCut = 0
 if (flgCutOutVolumes)
   if isfield(subTomoMeta,'volumesAreCutOut')
@@ -1327,12 +1337,19 @@ parfor iParProc = parVect
             % Test with some generic padding , only to be used on bin 1 at
             % first!!! TODO add a flag to check this.
             
-            particleOUT = BH_padZeros3d(gather(iParticle), CUTPADDING.*[1,1,1], ...
-                                          CUTPADDING.*[1,1,1], 'cpu', 'single');
+
             
             particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
             positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
-            SAVE_IMG(particleOUT,particleOUT_name,pixelSize);
+            if (projectVolumes)
+                SAVE_IMG(sum(iParticle,3),particleOUT_name,pixelSize);
+            else
+                particleOUT = BH_padZeros3d(gather(iParticle), CUTPADDING.*[1,1,1], ...
+                                          CUTPADDING.*[1,1,1], 'cpu', 'single');
+                SAVE_IMG(particleOUT,particleOUT_name,pixelSize);
+            end
+            
+
             particleOUT =[];
           end
 

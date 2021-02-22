@@ -24,9 +24,9 @@ shiftDefocusOrigin = 1;
 tiltStart = 1;
 
 try 
-  flgEraseBeads = pBH.('erase_beads_after_ctf');
+  flgEraseBeads_aferCTF = pBH.('erase_beads_after_ctf');
 catch
-  flgEraseBeads = true;
+  flgEraseBeads_aferCTF = true;
 end
 
 % Test David's new super sampling in reconstruction. No check that this
@@ -105,10 +105,16 @@ end
 
 try 
   % -1, whiten before ctf, 1 whiten after - test both.
-  flgWhitenPS = [pBH.('whitenPS'),0];
+  flgWhitenPS = [pBH.('whitenPS')(1),0,pBH.('whitenPS')(2)];
 catch
-  flgWhitenPS = [0,0];
+  flgWhitenPS = [0,0,0];
 end
+
+if (bh_global_turn_on_phase_plate(1) && flgWhitenPS(1))
+    fprintf('WARNING: phakePhasePlate and whitening are conflicting preocesses. Turning off whitening.\n')
+    flgWhitenPS(1) = 0;
+end
+
 
 try
   applyExposureFilter = pBH.('applyExposureFilter')
@@ -657,17 +663,17 @@ parfor iGPU = 1:nGPUs%
         correctedStack = maskedStack;
       else
 
-       if (flgWhitenPS)
-           fprintf('Pre-whitening the PS before CTF multiplication\n');
-           for iW = 1:size(maskedStack,3)
-               maskedStack(:,:,iW) = BH_whitenNoiseSpectrum(maskedStack(:,:,iW),'',pixelSize,1);
-           end
-       end
-       
+
        % I would have thought the global would be recognized, but it looks
        % like there is something odd about its use with a parfor loop
        % FIXME, when setting up the iterator, make clean copies for each
        % worker that are local in scope.e
+       
+       
+      if ~(flgEraseBeads_aferCTF)
+        scalePixelsBy = samplingRate;
+        maskedStack = BH_eraseBeads(maskedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
+      end
       
       [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixelSize,maskedStack,...
@@ -676,11 +682,12 @@ parfor iGPU = 1:nGPUs%
                                             applyExposureFilter,surfaceFit,...
                                             useSurfaceFit,invertDose,...
                                             bh_global_turn_on_phase_plate,...
-                                            filterProjectionsForTomoCPRBackground);  
+                                            filterProjectionsForTomoCPRBackground,...
+                                            flgWhitenPS);  
       end
       % Write out the stack to the cache directory as a tmp file
 
-      if (flgEraseBeads)
+      if (flgEraseBeads_aferCTF)
         scalePixelsBy = samplingRate;
         correctedStack = BH_eraseBeads(correctedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
       end
@@ -1174,7 +1181,9 @@ function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                               preCombDefocus,samplingRate,...
                                               applyExposureFilter,surfaceFit,...
                                               useSurfaceFit,invertDose, ...
-                                              phakePhasePlate,filterProjectionsForTomoCPRBackground)
+                                              phakePhasePlate, ...
+                                              filterProjectionsForTomoCPRBackground,...
+                                              flgWhitenPS)
 % Correct in strips which is more expensive but (hopefully) more accurate.  
 
 
@@ -1184,6 +1193,7 @@ function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
 if isa(surfaceFit,'cell')
   surfaceFit = surfaceFit{iSection};  
   if ~isa(surfaceFit,'sfit')
+    fprintf('Warning, surfaceFit is not an sfit object\n');
     useSurfaceFit = false;
   end
 else  
@@ -1373,7 +1383,12 @@ for iPrj = 1:nPrjs
       end
       
      
-     tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz)),trimVal(1,:),trimVal(2,:),'GPU','single');
+     if (flgWhitenPS(3))
+        tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz./(abs(Hqz).^2+flgWhitenPS(3)))),trimVal(1,:),trimVal(2,:),'GPU','single');
+     else
+         tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz)),trimVal(1,:),trimVal(2,:),'GPU','single');
+     end
+
      tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
    
 %      try
@@ -1397,7 +1412,14 @@ for iPrj = 1:nPrjs
 
   samplingMask(samplingMask == 0) = 1;
 
- correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask); clear correctedPrj samplingMask tmpMask tmpCorrection
+ if (flgWhitenPS(1))
+    correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',pixelSize,1));          
+ else
+       
+ correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask); 
+ end
+ clear correctedPrj samplingMask tmpMask tmpCorrection
+ 
  clear iProjection iProjectionFT
 end % end loop over projections
 clear tile Hqz

@@ -231,9 +231,13 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 try
-  use_MCF =  pBH.('use_MCF')
+  use_PCF =  pBH.('use_PCF')
 catch
-  use_MCF = 0
+  use_PCF = 1
+end
+
+if (use_PCF)
+	error('The PCF scaling is not working correctly, please set use_PCF=0');
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1769,15 +1773,14 @@ parfor iPrj = 1:nPrjs
 %           try
             iRefCTF = iRefCTF ./ sqrt(2.*sum(abs(iRefCTF(1:end-bhF.invTrim,:)).^2,'all'));
 
-            if (use_MCF)            
-              cccMap = dataFT .* iRefCTF;
-              cccMap = peakMask.*(bhF.invFFT(cccMap ./sqrt((abs(cccMap(:))+0.001)),'fwd'));
+            cccMap = dataFT .* iRefCTF;
+            if (use_PCF)            
+              cccMap = cccMap .* cccMap ./ (abs(cccMap) + 0.1);
             else
 % % % % %               cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
-              cccMap = peakMask.*real(bhF.invFFT(dataFT .* iRefCTF));
         
-            end     
-            
+            end          
+            cccMap = peakMask.*real(bhF.invFFT(cccMap));
 
                                     
 
@@ -1827,14 +1830,13 @@ parfor iPrj = 1:nPrjs
           dataFT = dataFT ./ (sum(abs(dataFT(:)).^2)./numel(dataFT));
           iRefCTF = iRefCTF ./ (sum(abs(iRefCTF(:)).^2)./numel(iRefCTF));
        
+          cccMap = dataFT .* iRefCTF;
+          if (use_PCF)  
+            cccMap = cccMap .* cccMap ./ (abs(cccMap) + 0.1);
 
-          if (use_MCF)            
-            cccMap = dataFT .* iRefCTF;
-            cccMap = peakMask.*(bhF.invFFT(cccMap ./sqrt((abs(cccMap(:))+0.001)),'fwd'));
-          else
-            cccMap = peakMask.*real(bhF.invFFT(dataFT .* iRefCTF));
+          end   
+          cccMap = peakMask.*real(bhF.invFFT(cccMap));
 
-          end          
           
           [~,maxMap] = max(cccMap(:));
 
