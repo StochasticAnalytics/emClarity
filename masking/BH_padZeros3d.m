@@ -1,5 +1,5 @@
 function [ PADDED_IMG ] = BH_padZeros3d( IMAGE, PADLOW, PADTOP, ...
-                                             METHOD, PRECISION, varargin )
+                                         METHOD, PRECISION, varargin )
 %Pad an image volume with zeros.
 %   
 %

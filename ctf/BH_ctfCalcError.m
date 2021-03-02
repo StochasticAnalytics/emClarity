@@ -29,7 +29,7 @@ maxDiff = thicknessAng./2;
 % range to avoid this.
 nCtf = 0;
 ctf1 = [];
-length([-maxDiff:0.1*maxDiff:maxDiff].*10^-10)
+length([-maxDiff:0.1*maxDiff:maxDiff].*10^-10);
 for jDelDef = [-maxDiff:0.1*maxDiff:maxDiff].*10^-10
   if isempty(ctf1)
     ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1,1);    
@@ -40,9 +40,10 @@ for jDelDef = [-maxDiff:0.1*maxDiff:maxDiff].*10^-10
 end
 
 
-% Working along first dimension, so logical indexing ignoring 2d is okay.
-
-noErrorIDX = find( abs(ctf1(1:NYQ)./nCtf) > dampeningMax,1,'last');
+% Working along first dimension, so 
+%logical indexing ignoring 2d is okay.
+figure, plot(abs(ctf1(1:NYQ)./nCtf))
+noErrorIDX = find( (ctf1(1:NYQ)./nCtf).^2 > dampeningMax,1,'last');
 noErrorRes = gather(1 / rad{1}(noErrorIDX));
 
 % c2 = BH_ctfCalc(rad,Cs,Lambda,Defocus-(maxDiff*10^-10),CTFSIZE,AMPCONT,-1);
@@ -71,7 +72,7 @@ else
       nCtf = nCtf + 1;
     end
     % Working along first dimension, so logical indexing ignoring 2d is okay.
-    noErrorIDX = find(abs(ctf1(1:NYQ)./nCtf) > dampeningMax,1,'last');
+    noErrorIDX = find((ctf1(1:NYQ)./nCtf).^2 > dampeningMax,1,'last');
     noErrorRes = 1 / rad{1}(noErrorIDX);
     
     if any(noErrorRes < resCutOff)
@@ -90,10 +91,10 @@ if (cycleNumber)
     ctfDepth = min(thicknessAng/30 * 10^-9,resCutOff(1) * 10 ^-8)
   elseif ctfDepth < 0.5*10e-9
     fprintf('\n\nCapping ctfDepth to 5 nm from a calc %3.3f nm\n\n',ctfDepth*10^9);
-    ctfDepth = 10e-9;
+    ctfDepth = 5*10^-9;
   end
 else
-  % Cap cycle zero to a max of 3 tilts
+  % Cap cycle zero to a max of 5 tilts
   if ctfDepth < thicknessAng*10^-10/3 || ctfDepth == -1
     fprintf('Cycle 0, cap ctfDepth from %3.3e nm  to %3.3e nm \n',ctfDepth*10^9,thicknessAng/30);
     ctfDepth = (thicknessAng/30)*10^-9;

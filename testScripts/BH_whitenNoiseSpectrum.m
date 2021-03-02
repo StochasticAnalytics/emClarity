@@ -66,8 +66,10 @@ end
 if length(flgNorm) > 1
   whiteningCutoff = flgNorm(2);
 else
-  whiteningCutoff = sqrt(2).*pixelSize; % Ang
+  whiteningCutoff = 2.1*pixelSize; % Ang
 end
+
+
 
 idxVect = idxVect(1:end-1);
 idxVect(end) = oX;
@@ -89,26 +91,30 @@ for iRing = 1:length(idxVect)-1
     nRing = nRing +1;
 end
 
+radialAvg(1) = radialAvg(2);
+
 
 
 clear avgMask PS
 
 
-
 %  rFit = fit(gather(double(radialSampledAt)),gather(double(radialAvg)),'spline');
- rFit = csape(gather(double(radialSampledAt)),gather(double(radialAvg)),'clamped');
+ rFit = csape(gather(double(radialSampledAt)),gather(double(radialAvg)),'variational');
 
 %   figure, plot(radialVect,fnval(rFit,radialVect))
-  r = fnval(rFit,radialGrid).^-1;
-  r = r - min(r(:)) + 0.001;
-  rInv = fnval(rFit,radialGrid);
-  rInv = rInv(1,1:length(radialVect));
+  r = fnval(rFit,radialGrid);
+  if(min(r(:)) < 0)
+    r = r - min(r(:)) + 0.00001;
+    
+  end
+%   rInv = fnval(rFit,radialGrid);
+%   rInv = rInv(1,1:length(radialVect));
 
-  r = r.^0.5;
+  r = r.^-0.5;
  
-  %   r = r ./ max(r(:));
+  r = r ./ max(r(:));
  
- 
+% figure, imshow3D(r)
   
 %figure, plot(radialVect,r(1,1:length(radialVect)));
 %figure, plot(radialVect,rInv(1,1:length(radialVect)));

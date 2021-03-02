@@ -29,6 +29,12 @@ catch
   flgEraseBeads_aferCTF = true;
 end
 
+try
+  use_cpu_for_reconstruction = pBH.('use_cpu_for_reconstruction')
+catch
+    use_cpu_for_reconstruction = false
+end
+
 % Test David's new super sampling in reconstruction. No check that this
 % version (currently 4.10.40) is properly sourced.
 try
@@ -120,6 +126,12 @@ try
   applyExposureFilter = pBH.('applyExposureFilter')
 catch
   applyExposureFilter = 1;
+end
+
+try 
+    nTiltWorkers = pBH.('n_recon_threads');
+catch
+    nTiltWorkers = 7;
 end
 
 % This will be set false if the reconstruction is for template matching or
@@ -372,7 +384,8 @@ catch
 end
 
  
-parfor iGPU = 1:nGPUs
+% % % % % parfor iGPU = 1:nGPUs
+for iGPU = 1:nGPUs
   for iTilt = iterList{gpuList(iGPU)}
     
     iTomoList = {};
@@ -437,7 +450,7 @@ end
 % All data is handled through disk i/o so everything unique created in the 
 % parfor is also destroyed there as well.
 parfor iGPU = 1:nGPUs%
-%for iGPU = 1:nGPUs 
+% for iGPU = 1:nGPUs 
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt 
   for iTilt = iterList{gpuList(iGPU)}
@@ -562,16 +575,17 @@ parfor iGPU = 1:nGPUs%
                                               0,1);
       end
      
-    if ( flg2dCTF || recWithoutMat && loadSubTomoMeta)
+    if ( flg2dCTF || (recWithoutMat && loadSubTomoMeta))
       nSections = 1;
       ctf3dDepth = maxZ * 10 ^ -9;
     else
-      dampeningMax = 0.90;                                  
-      [ ctf3dDepth ] = BH_ctfCalcError( samplingRate*mean(TLT(:,16)), ...
-                TLT(1,17),TLT(1,18),TLT(1,15), ...
-                                              2048, TLT(1,19), ...
-                                              resTarget,maxZ*10, ...
-                                              dampeningMax,CYCLE);
+      dampeningMax = 0.95;
+      ctf3dDepth = max(4e-9,resTarget*2*10^-9);
+% % %       [ ctf3dDepth ] = BH_ctfCalcError( samplingRate*mean(TLT(:,16)), ...
+% % %                 TLT(1,17),TLT(1,18),TLT(1,15), ...
+% % %                                               2048, TLT(1,19), ...
+% % %                                               resTarget,maxZ*10, ...
+% % %                                               dampeningMax,CYCLE);
       fprintf('\n\nUsing a ctfDepth of %2.2f nm for %s\n\n',ctf3dDepth*10^9,tiltList{iTilt});
       % sections centered at 0, which for now is also supposed to coincide with
       % the mean defocus determination, although this could be corrected using
@@ -581,6 +595,7 @@ parfor iGPU = 1:nGPUs%
       % max odd number
       nSections = nSections + ~mod(nSections,2);
     end
+
     fprintf('with %3.3f nm sections, correcting %d tilt-series\n',ctf3dDepth*10^9,nSections);
     
     % For each tomo create a list of slices that are to be reconstructed 
@@ -618,28 +633,29 @@ parfor iGPU = 1:nGPUs%
    
     % Correct a tilt series for earch section which requires writing each to
     % disk for use of IMOD.
-    if (mapBackIter)
-      tiltErrorFile = sprintf('mapBack%d/%s_ali%d_ctf.beamTiltError', ...
-                                     mapBackIter,tiltList{iTilt}, mapBackIter);
-      try      
-        tiltError = load(tiltErrorFile); 
-        if numel(tiltError) ~= 1
-          error('tiltError should be a single number in degrees.\n');
-        else
-          fprintf('\nUsing %f degrees for beam tilt error.\n',tiltError)
-        end        
-        
-      catch
-        fprintf('\nTiltErrorFile %s not found.\n', tiltErrorFile);
-        fprintf('\nUsing 0 degrees for beam tilt error.\n')
-        tiltError = 0;
-      end
-      
-
-    else
-      fprintf('\nUsing 0 degrees for beam tilt error b/c no polishing yet.\n')
-      tiltError = 0;
-    end
+    tiltError=0;
+% %     if (mapBackIter)
+% %       tiltErrorFile = sprintf('mapBack%d/%s_ali%d_ctf.beamTiltError', ...
+% %                                      mapBackIter,tiltList{iTilt}, mapBackIter);
+% %       try      
+% %         tiltError = load(tiltErrorFile); 
+% %         if numel(tiltError) ~= 1
+% %           error('tiltError should be a single number in degrees.\n');
+% %         else
+% %           fprintf('\nUsing %f degrees for beam tilt error.\n',tiltError)
+% %         end        
+% %         
+% %       catch
+% %         fprintf('\nTiltErrorFile %s not found.\n', tiltErrorFile);
+% %         fprintf('\nUsing 0 degrees for beam tilt error.\n')
+% %         tiltError = 0;
+% %       end
+% %       
+% % 
+% %     else
+% %       fprintf('\nUsing 0 degrees for beam tilt error b/c no polishing yet.\n')
+% %       tiltError = 0;
+% %     end
     
     for iSection = 1:nSections
     
@@ -764,7 +780,7 @@ parfor iGPU = 1:nGPUs%
           % hangover from slab padding, remove later.
           padRec = 0;        
 
-          nTiltWorkers = 2;
+          
           nTotalSlices = (iCoords(thisTomo,3)-iCoords(thisTomo,2)+1);
           tiltChunkSize = ceil(nTotalSlices/nTiltWorkers);
           tiltChunks = iCoords(thisTomo,2):tiltChunkSize:iCoords(thisTomo,3);
@@ -772,14 +788,19 @@ parfor iGPU = 1:nGPUs%
           totalSlices = [tiltChunks(1),tiltChunks(end)];
 
   
-            
-          rCMD = sprintf(['tilt %s %s -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
+          if (use_cpu_for_reconstruction)
+              useGPU = ' ';
+          else
+              useGPU = sprintf(' -UseGPU %d', gpuList(iGPU));
+          end
+          
+          rCMD = sprintf(['tilt %s %s -input %s -output %s.TMPPAD -TILTFILE %s %s ', ...
                        '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
                        super_sample, expand_lines, ...
-                       outputStack, reconName, rawTLT, gpuList(iGPU), ...
+                       outputStack, reconName, rawTLT, useGPU , ...
                        iCoords(thisTomo,1),floor(sectionList{iT}(iSection,5))+2*padRec,...
                        iCoords(thisTomo,5),sectionList{iT}(iSection,6));
-                       
+                
 
 
           % Explicitly set Radial to Nyquist         
@@ -1217,6 +1238,7 @@ defocusOffset = (((nSections-1)/-2+(iSection-1))*ctf3dDepth);
 fprintf('using offset %3.3e for section %d with COM offset %3.3e\n',defocusOffset,iSection,avgZ);
 defocusOffset = (defocusOffset - avgZ)*(1-useSurfaceFit); % The average height of the particles is factored into the surface fit
 
+  
 % The avg Z seems like it should be added?
 
 if ( flgDampenAliasedFrequencies )
@@ -1301,6 +1323,13 @@ for iPrj = 1:nPrjs
   
 
   iProjection = BH_padZeros3d(maskedStack(:,:,TLT(iPrj,1)),padVal(1,:),padVal(2,:),'GPU','singleTaper');
+  
+  % Whiten before the exposure filter
+  if (flgWhitenPS(1) > 0)
+      iProjection = BH_whitenNoiseSpectrum(iProjection,'',pixelSize,[1,2.2*pixelSize]); 
+  end
+  phase_only = (flgWhitenPS(3) < 0);
+  
   iProjectionFT = fftn(iProjection).*iExposureFilter; clear iExposureFilter
   correctedPrj = zeros([d1,d2],'single','gpuArray');
   
@@ -1373,17 +1402,24 @@ for iPrj = 1:nPrjs
 
          modHqz = [];
       else
+          
+       if (phase_only)
+           phase_flip = 1;
+       else
+           phase_flip = -1;
+       end
+       
        if PIXEL_SIZE < 2.0e-10
          % use double precision - this is not enabled, but needs to be -
          % requires changes to radial grid as well.
-         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
+         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,phase_flip,-1);
        else
-         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1);
+         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,phase_flip);
        end  
       end
       
      
-     if (flgWhitenPS(3))
+     if ~(phase_only)
         tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz./(abs(Hqz).^2+flgWhitenPS(3)))),trimVal(1,:),trimVal(2,:),'GPU','single');
      else
          tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz)),trimVal(1,:),trimVal(2,:),'GPU','single');
@@ -1412,12 +1448,12 @@ for iPrj = 1:nPrjs
 
   samplingMask(samplingMask == 0) = 1;
 
- if (flgWhitenPS(1))
-    correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',pixelSize,1));          
- else
+%  if (flgWhitenPS(1) > 0)
+%     correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',pixelSize,1));          
+%  else
        
- correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask); 
- end
+    correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask); 
+%  end
  clear correctedPrj samplingMask tmpMask tmpCorrection
  
  clear iProjection iProjectionFT

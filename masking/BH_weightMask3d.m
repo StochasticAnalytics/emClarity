@@ -55,6 +55,7 @@ end
 flgTiltWeight = 1;
 flgRadial = 1;
 flgSmooth = 1;
+flgNoExposure = 0;
 
 if flgCTF && (flgIncCtf == 3)
   % Don't include exposure weight, just CTF
