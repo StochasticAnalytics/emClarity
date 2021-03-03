@@ -114,9 +114,6 @@ catch
   eraseMaskRadius = 1.0.*latticeRadius;
 end
 
-% testing
-remove_abnormal_mean=6
-remove_abnormal_rms=1
 
 nPreviousSubTomos = 0;
 
@@ -468,7 +465,6 @@ nTomograms = prod(nIters);
 
 
 tomoStack = zeros([sizeChunk,nTomograms], 'single');
-junkMask = cell(nTomograms,1);
 % tomoNonZero = zeros(nTomograms,6,'uint64');
 
 % backgroundVol = zeros(sizeChunk,'single');
@@ -546,8 +542,7 @@ for  iX = 1:nIters(1)
         statsRadius = gather(statsRadius);
       end
     end
-    figure, imshow3D(gather(tomoChunk))
-SAVE_IMG(tomoChunk,'tmp.mrc');
+
     [ averageMask, flgOOM ] = BH_movingAverage_2(tomoChunk, statsRadius(1)); 
     tomoChunk = tomoChunk - averageMask; 
 
@@ -557,65 +552,8 @@ SAVE_IMG(tomoChunk,'tmp.mrc');
 %                                   cutZ:cutZ+sizeChunk(3)-1));
 %       avgFiltRec = zeros(size(tomogram),'single');
 %     end        
-    [ rmsMask, kurtosis ] = BH_movingRMS_2(tomoChunk, statsRadius(1),'doKurtosis');
+    [ rmsMask ] = BH_movingRMS_2(tomoChunk, statsRadius(1));
     tomoChunk = tomoChunk ./ rmsMask;
-        figure, imshow3D(gather(tomoChunk))
-
-    figure, imshow3D(gather(averageMask))
-    figure, imshow3D(gather(rmsMask))
-    figure, imshow3D(gather(kurtosis))
-    figure, imshow3D(gather(averageMask.*rmsMask))
-    figure, imshow3D(gather(averageMask.*(kurtosis-2)))
-
-  [w] = BH_multi_gridCoordinates(size(averageMask),'Cartesian','GPU',{'none'},1,0,1);
-  w = w.*(2i.*pi);
-  img_derivative = real(ifftn(fftn(averageMask).*w));
-    img_derivative = img_derivative - mean(img_derivative(:));
-  img_derivative = img_derivative ./ rms(img_derivative(:));
-  
-  figure, imshow3D(gather(img_derivative))
-      [ img_derivative, flgOOM ] = BH_movingAverage_2(img_derivative, statsRadius(1)); 
-  figure, imshow3D(gather(img_derivative))
-
-SAVE_IMG(tomoChunk,'tmp.mrc');
-
-
-    return
-    if (remove_abnormal_mean)
-
-      % TODO explore higher moments (skew and kurtosis) with possible
-      % larger mask size for the background assesnemtn
-      
-      maxThreshold= mean(averageMask(:)) +remove_abnormal_mean.*std(averageMask(:));
-      dilationThresholds = [ 0.8 0.6 0.4 0.2 0.15  0.1 0.1 0.1 0.05 0.05 0.01 0.001 0.0] ;
-      dilationKernel = EMC_gaussianKernel([1,5], 1.5, 'gpu', {'precision', 'single'});
-      averageMask = abs(averageMask) ;
-      rmsMask = averageMask > maxThreshold; %| (rmsMask > mean(rmsMask(averageMask)) + remove_abnormal_rms.*std(rmsMask(averageMask)));
-
-      for threshold =  dilationThresholds.*maxThreshold
-
-          rmsMask = EMC_convn(single(rmsMask), dilationKernel) > 0.05;   
-          rmsMask = (averageMask.*rmsMask > threshold);
-
-      end
-
-%       dilationKernel = EMC_gaussianKernel([1,3], 1, 'gpu', {'precision', 'single'});
-%       rmsMask = EMC_convn(single(rmsMask), dilationKernel) > 0.00;   
-%       rmsMask = (averageMask.*rmsMask > threshold);
-
-      rmsMask = bwdist(gather(rmsMask));
-      rmsMask = (rmsMask < ceil(6/pixelSize));
-%      figure, imshow3D(gather(rmsMask))
-%      figure, imshow3D(gather(rmsMask.*averageMask))
-%      return
-%        figure, imshow3D(gather(tomoChunk))
-%       mean_outside = mean(tomoChunk(~rmsMask));
-%       std_outside = std(tomoChunk(~rmsMask));
-      junkMask{tomoIDX} = 1-gather(rmsMask.*validAreaMask);
-%       tomoChunk(rmsMask) = mean_outside + std_outside.*randn([sum(rmsMask(:)),1],'single','gpuArray');
-%        figure, imshow3D(gather(tomoChunk))
-
-    end
 
     clear avgerageMask rmsMask
 
@@ -1058,17 +996,7 @@ end
 %save('angle_list.txt','angle_list','-ascii');
 clear tomoStack
 
-
-for iTomo = 1:nTomograms
-    iCut =  tomoCoords(iTomo,:);
-     RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = ...
-                RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) .* junkMask{iTomo};
-end
-                
+          
                 
 % Cut out the post padding used to iterate over the tomogram
 RESULTS_peak = RESULTS_peak(1+tomoPre(1):end-tomoPost(1),...
