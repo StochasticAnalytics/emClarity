@@ -1,17 +1,14 @@
-function BH_geometry_Constraints(PARAMETER_FILE, nWorkers, distCut, angCut, latticeNumber, varargin)
+function BH_geometry_EllipsoidPrior(pixelSize, nWorkers, distCut, angCut, latticeNumber, varargin)
 
 
-if (nWorkers > 1) 
-  fprintf('parallel processing is currently disabled\n')'
-  nWorkers = 1;
-end
 
-pixelSize = PARAMETER_FILE;
+
 nPeaks = 1;
 avgRadius = [0,0];
+
 if nargin < 6
   flgCentroid = false;
-else)
+else
   flgCentroid = true;
   avgRadius = str2num(varargin{1});
   nPeaks = str2num(varargin{2});
@@ -52,7 +49,10 @@ nWorkers = str2double(nWorkers);
 % delete(gcp('nocreate'));
 % EMC_parpool(nWorkers);
 
-
+if (nWorkers > 1) 
+  fprintf('parallel processing is currently disabled\n');
+  nWorkers = 1;
+end
 iterList = cell(nWorkers);
 geomList = cell(nWorkers);
 nTotal = cell(nWorkers);

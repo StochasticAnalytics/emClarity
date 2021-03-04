@@ -22,7 +22,7 @@ else
   kurtosis = '';
 end
 
-rmsFilter =  EMC_gaussianKernel([1,featureSize],3,'gpu', {});
+rmsFilter =  EMC_gaussianKernel([1,featureSize],featureSize./3,'gpu', {});
 rmsFilter = rmsFilter ./ (sum(rmsFilter(:)));
 
 img = EMC_convn(single(img.^2), rmsFilter);
@@ -30,7 +30,7 @@ img = EMC_convn(single(img.^2), rmsFilter);
 [ LIMITS ] = EMC_limits(size(img), startingSize, {});
 
 if (do_kurtosis)
-  kurtosis = EMC_convn(single(kurtosis.^4), rmsFilter) ./ img.^2;
+  kurtosis = EMC_convn(single(kurtosis.^3), rmsFilter) ./ img.^1.5;
   [ kurtosis ] = EMC_resize(kurtosis, LIMITS, {'taper',false});
 end
 

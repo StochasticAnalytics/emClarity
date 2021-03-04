@@ -5,11 +5,13 @@ function [ normal_vect, chi2] = BH_fit_ellipsoidal_prior(particle_coords, ...
 % particle_coords = load('gag.txt').*10.*1.33; % input as Angstrom
 % 
 % particle_radius_Z = 50; % Angstrom
-box_size = 1.*256.*[1,1,1];
+box_size = 2.*256.*[1,1,1];
 
 % Get the intial fit, use this to check for outliers from neighboring
 % virions.
-[ center, ~, ~, ~, ~] = ellipsoid_fit(particle_coords,'');
+% [ center, ~, ~, ~, ~] = ellipsoid_fit(particle_coords,'');
+[ center, radii, evecs, v, chi2] = ellipsoid_fit(particle_coords,'');
+
 
 % The assumption here is that outliers will leave the center mostly
 % unaffected, even if the are heavily skewed to one side, since this will

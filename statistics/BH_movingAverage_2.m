@@ -12,7 +12,7 @@ padBy = max(ceil(featureSize./2));
 startingSize = size(img);
 img = padarray(img,padBy,'both','symmetric');
 
-meanFilter =  EMC_gaussianKernel([1,featureSize],3,'gpu', {});
+meanFilter =  EMC_gaussianKernel([1,featureSize],featureSize./3,'gpu', {});
 meanFilter = meanFilter ./ sum(meanFilter(:));
 
 img = EMC_convn(single(img), meanFilter);
