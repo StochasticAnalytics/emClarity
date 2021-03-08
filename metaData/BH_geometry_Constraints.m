@@ -11,7 +11,7 @@ nPeaks = 1;
 avgRadius = [0,0];
 if nargin < 6
   flgCentroid = false;
-else)
+else
   flgCentroid = true;
   avgRadius = str2num(varargin{1});
   nPeaks = str2num(varargin{2});

@@ -282,6 +282,8 @@ templateBIN = BH_reScale3d(gather(template),'',sprintf('%f',1/samplingRate),'cpu
 templateBIN = templateBIN - mean(templateBIN(:));
 templateBIN = templateBIN  ./rms(templateBIN(:));
 
+[templateMask] = gather(EMC_maskReference(gpuArray(templateBIN),pixelSize,{'fsc', true}));
+
 
 sizeTemp = size(template);
 sizeTempBIN = size(templateBIN);
@@ -342,6 +344,7 @@ nIters    = OUTPUT(6,:);
 [ trimValid ] = BH_multi_padVal(sizeChunk, validArea);
 
 RMSFACTOR = sqrt(prod(sizeTempBIN) / prod(sizeChunk));
+
 
 if ( tmpDecoy )
   % This is probably sample dependent. should search a small range and find
@@ -410,6 +413,10 @@ end
 % % % clear opt ans
 [ bhF ] = fourierTransformer(randn(sizeChunk, 'single','gpuArray'));
 
+sum_template = mean(templateBIN(:));
+sum_templateMask = mean(templateMask(:));
+sum_imgMask = prod(sizeChunk);% bhF.halfDimSize * sizeChunk(2) * sizeChunk(3);
+
 
 % Temp while testing new dose weighting
 TLT = tiltGeometry;
@@ -466,6 +473,8 @@ nTomograms = prod(nIters);
 
 
 tomoStack = zeros([sizeChunk,nTomograms], 'single');
+rmsStack = zeros([sizeChunk,nTomograms], 'single');
+
 % tomoNonZero = zeros(nTomograms,6,'uint64');
 
 % backgroundVol = zeros(sizeChunk,'single');
@@ -544,9 +553,19 @@ for  iX = 1:nIters(1)
       end
     end
 
-%     [ averageMask, flgOOM ] = BH_movingAverage_2(tomoChunk, statsRadius(1)); 
-%     tomoChunk = tomoChunk - averageMask; 
+    [ averageMask, flgOOM ] = BH_movingAverage_2(tomoChunk, statsRadius(1)); 
+    rmsMask =  BH_movingAverage_2(tomoChunk.^2, statsRadius(1)); 
+    rmsMask = rmsMask - averageMask.^2;
+    m = mean(rmsMask(:));
+    s = std(rmsMask(:));
+    rmsMask(rmsMask < m - s) = m;
+%     averageMask = gather(averageMask);
 
+%         [ rmsMask ] = gather(BH_movingRMS_3(tomoChunk, statsRadius(1), averageMask)); 
+        
+
+%     tomoChunk = tomoChunk - averageMask; 
+% tomoChunk = tomoChunk ./ rmsMask;
 %     if (save_average_filtered)
 %               tomoChunk = gpuArray(tomogram(cutX:cutX+sizeChunk(1)-1,...
 %                                   cutY:cutY+sizeChunk(2)-1,...
@@ -560,11 +579,10 @@ for  iX = 1:nIters(1)
 % figure, imshow3D(BH_padZeros3d(gather(averageMask),'fwd',trimValid,'cpu','single'))
 % figure, imshow3D(BH_padZeros3d(gather(rmsMask),'fwd',trimValid,'cpu','single'))
 % return
-%     clear avgerageMask rmsMask
+%     clear avgerageMask 
  
 
     tomoChunk = gather(((-1*shouldBeCTF) .* tomoChunk )).*validAreaMask;   
-    clear rmsMask
  
 %     tomoChunk = tomoChunk .* (-1*shouldBeCTF); % This is backwards, but I don't know why
     tmp_sum = sum(tomoChunk(validAreaMask > 0.1));
@@ -573,7 +591,7 @@ for  iX = 1:nIters(1)
     fullnX = fullnX + gather(prod(sizeChunk));
     
     tomoStack(:,:,:,tomoIDX) = tomoChunk;
-
+    rmsStack(:,:,:,tomoIDX) = gather(rmsMask); clear rmsMask
     tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
     tomoIDX = tomoIDX + 1;
 
@@ -592,7 +610,7 @@ end
 
 
   
-clear tomoWedgeMask averagingMask rmsMask bandpassFilter statBinary validAreaMask tomoChunk
+clear tomoWedgeMask   bandpassFilter statBinary validAreaMask tomoChunk
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -620,7 +638,7 @@ firstLoopOverTomo = true;
     clear dU dV dW
     
     swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
-
+% averageMask = gpuArray(averageMask);
 if (use_new_grid_search)
   theta_search = 1:gridSearch.number_of_out_of_plane_angles;
 else
@@ -655,19 +673,16 @@ for iAngle = theta_search
   
   % Avoid repeated allocations
   tempPAD = zeros(size(tempImg) + padBIN(1,:) + padBIN(2,:),'single','gpuArray');
+  tempPADMask = tempPAD;
   
   template_interpolator = '';
   [template_interpolator, ~] = interpolator(tempImg,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
   
-  MF = BH_mask3d('sphere',size(tempImg),maskRadius,[0,0,0]);
-  MF = BH_padZeros3d(MF,'fwd',padBIN,'GPU','single')+1e-6;
-  MF = conj(bhF.fwdFFT(MF));  
+  templateMask_interpolator = '';
+  [templateMask_interpolator, ~] = interpolator(gpuArray(templateMask),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
 
-  M1 = prod(size(MF));
   
-  M = zeros(size(MF),'single','gpuArray');
-  M(1) = MF(1) .* M1;
-  M = real(bhF.invFFT(M,2));
+
 
   
   % Iterate over the tomogram pulling each chunk one at a time.
@@ -693,16 +708,16 @@ for iAngle = theta_search
     end
 
 
- 
-     D1 = gpuArray(tomoStack(:,:,:,tomoIDX));
-     tomoFou = D1 + 1e-20;
-     tomoFou = bhF.fwdFFT(tomoFou);
-     N1 = tomoFou.*MF + 1e-20;
-     N1 = real(bhF.invFFT(N1,2));
-     L1 = N1 ./ M;
+      tomoFou = gpuArray(tomoStack(:,:,:,tomoIDX));
+      tomoFou = swapQuadrants.*bhF.fwdFFT(tomoFou);
+      rmsMask = gpuArray(rmsStack(:,:,:,tomoIDX));
+%      imgFou = gpuArray(tomoStack(:,:,:,tomoIDX));
+%      imgFou_sq = imgFou .^ 2;
+     
+%      imgFou = bhF.fwdFFT(imgFou);
+%      imgFou_sq = bhF.fwdFFT(imgFou_sq);
 
-     D1 = bhF.fwdFFT(D1.^2).*MF;
-     D1 = real(bhF.invFFT(D1,2))- (L1.*N1);
+
 
 
     if (use_new_grid_search)
@@ -731,61 +746,45 @@ for iAngle = theta_search
 
           ANGLE_LIST(currentGlobalAngle,:) = [phi, theta, psi - phi];
 
-% % %           tempRot = BH_resample3d(tempImg, [phi, theta, psi - phi], [1,1,1], ...
-% % %                                   {'Bah', 1,'linear',1},...
-% % %                                   'GPU','forward');
+        end
                               
         [ tempRot ] = template_interpolator.interp3d(...
                                                    [phi, theta, psi - phi],... 
                                                    [1,1,1],'Bah',...
                                                   'forward','C1');  
-
+% % % %         [ tempMask ] = templateMask_interpolator.interp3d(...
+% % % %                                                    [phi, theta, psi - phi],... 
+% % % %                                                    [1,1,1],'Bah',...
+% % % %                                                   'forward','C1');  
 
          % First correct for any change in power due to
          % rotation/interpolation
-         tempRot = tempRot - mean(tempRot(:));
-         tempRot = tempRot ./ ((interpolationNormFactor./sum(abs(tempRot(:)).^2)).*RMSFACTOR.*rms(tempRot(:)));
+%          tempRot = tempRot - mean(tempRot(:));
+%          tempRot = tempRot ./ ((interpolationNormFactor./sum(abs(tempRot(:)).^2)).*RMSFACTOR.*rms(tempRot(:)));
           
-          referenceStack(:,:,:,intraLoopAngle) = tempRot;
+%           referenceStack(:,:,:,intraLoopAngle) = tempRot;
          
 
           tempPAD = tempPAD .* 0;
           tempPAD(padBIN(1,1)+1: end - padBIN(2,1), ...
                   padBIN(1,2)+1: end - padBIN(2,2), ...
                   padBIN(1,3)+1: end - padBIN(2,3)) = tempRot;
-          tempFou = bhF.fwdFFT(tempPAD);
+          tempFou = conj(bhF.fwdFFT(tempPAD));
+          
+% % %           tempPADMask = tempPADMask .* 0;
+% % %           tempPADMask(padBIN(1,1)+1: end - padBIN(2,1), ...
+% % %                   padBIN(1,2)+1: end - padBIN(2,2), ...
+% % %                   padBIN(1,3)+1: end - padBIN(2,3)) = tempMask;
+% % %           tempFouMask = conj(bhF.fwdFFT(tempPADMask));         
 
 % % %           tempFou = bhF.fwdFFT(BH_padZeros3d(tempRot,padBIN(1,:),padBIN(2,:),'GPU','single'));
 
           
 %               tempFou = fftn(BH_padZeros3d(tempRot,padBIN(1,:),padBIN(2,:),'GPU','single'));
 
-        else
-
-       [ tempRot ] = template_interpolator.interp3d(...
-                                                   [phi, theta, psi - phi],... 
-                                                   [1,1,1],'Bah',...
-                                                  'forward','C1');  
 
 
-         % First correct for any change in power due to
-         % rotation/interpolation
-         tempRot = tempRot - mean(tempRot(:));
-         tempRot = tempRot ./ ((interpolationNormFactor./sum(abs(tempRot(:)).^2)).*RMSFACTOR.*rms(tempRot(:)));
-          tempPAD = tempPAD .* 0;
-          tempPAD(padBIN(1,1)+1: end - padBIN(2,1), ...
-                  padBIN(1,2)+1: end - padBIN(2,2), ...
-                  padBIN(1,3)+1: end - padBIN(2,3)) = tempRot; %gpuArray(referenceStack(:,:,:,intraLoopAngle));                      
-          tempFou = bhF.fwdFFT(tempPAD);
-                            
-%           tempFou = bhF.fwdFFT(BH_padZeros3d( ...
-%                               referenceStack(:,:,:,intraLoopAngle), ...
-%                               padBIN(1,:), padBIN(2,:),'GPU', 'single'));
-
-
-        end
-
-
+ 
 
 
 %         ccfmap = BH_padZeros3d(fftshift(real(single(...
@@ -804,22 +803,33 @@ for iAngle = theta_search
 %      L1 = N1 ./ M;
 %      D1 = sqrt(bhF.invFFT(D1.^2.*MF,2) - (L1.*N1));
 
-        D2 = zeros(size(tempFou),'like',tempFou);
-        D3 = zeros(size(tempFou),'like',tempFou);
+% % %         C2 = tempFouMask.*imgFou;
+% % %         C2 = BH_padZeros3d(fftshift(real(bhF.invFFT(C2,2))),trimValid(1,:),trimValid(2,:),'GPU','single');
+% % %         
+% % %         D1 = tempFouMask.*imgFou_sq;
+% % %         D1 = BH_padZeros3d(fftshift(real(bhF.invFFT(D1,2))),trimValid(1,:),trimValid(2,:),'GPU','single');
+% % %         
+% % %         ccfmap = tempFou.*imgFou;
+% % %         ccfmap = BH_padZeros3d(fftshift(real(bhF.invFFT(ccfmap,2))),trimValid(1,:),trimValid(2,:),'GPU','single');
+% % %         
+% % % 
+% % %         ccfmap = (ccfmap - (sum_template/sum_templateMask).*C2);
+% % % %         figure, imshow3D(gather((ccfmap)));
+% % % %                 figure, imshow3D(gather((D1<0)));
+% % % %                         figure, imshow3D(gather((D1 - (C2.^2 ./ (sum_imgMask.*sum_templateMask)))));
+% % % 
+% % %         ccfmap = ccfmap ./ (D1 - (C2.^2 ./ (sum_imgMask.*sum_templateMask)));
         
-        D2(1) = tempFou(1) .* M1;
-        D2 = real(bhF.invFFT(conj(D2),2));
-        tempFou = tomoFou.*conj(tempFou);
-        ccfmap = real(bhF.invFFT(tempFou,2)) - (L1.*D2);
- 
+%          figure, imshow3D(gather((ccfmap)));
+
 %         figure, imshow3D(BH_padZeros3d(fftshift(ccfmap),trimValid(1,:),trimValid(2,:),'GPU','single'));
 %         figure, imshow3D(BH_padZeros3d(fftshift(D1),trimValid(1,:),trimValid(2,:),'GPU','single'));
 %         figure, imshow3D(BH_padZeros3d(fftshift(ccfmap./D1),trimValid(1,:),trimValid(2,:),'GPU','single'));
 % return
-        ccfmap = BH_padZeros3d(fftshift(ccfmap),trimValid(1,:),trimValid(2,:),'GPU','single');
-%         ccfmap = BH_padZeros3d((real(single(...
-%                                bhF.invFFT(tomoFou.*conj(tempFou))))),...%./(tomoNorm.*tempNorm))))),...
-%                                trimValid(1,:),trimValid(2,:),'GPU','single');
+%         ccfmap = BH_padZeros3d(fftshift(ccfmap),trimValid(1,:),trimValid(2,:),'GPU','single');
+        ccfmap = BH_padZeros3d((real(single(...
+                               bhF.invFFT(tomoFou.*conj(tempFou))))) ./ rmsMask,...%./(tomoNorm.*tempNorm))))),...
+                               trimValid(1,:),trimValid(2,:),'GPU','single');
 %                              
 
         ccfmap = ccfmap ./ std(ccfmap(:));
