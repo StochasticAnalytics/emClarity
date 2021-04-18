@@ -1,0 +1,106 @@
+Bootstrap: library
+From: ubuntu:18.04
+Stage: build
+
+%labels
+
+    Author Bah
+    Version v1.5.3.01
+
+%runscript
+    echo "Container was created $NOW"
+    echo "Arguments received: $*"
+    exec echo "$@"
+
+%setup
+
+    export EMCLARITY_VER=emClarity_1.5.3.01
+    export EMCLARITY_PATH=${HOME}/tmp
+    export IMOD=/groups_old/admin/software/src/imod_4.11.0_RHEL7-64_CUDA8.0.sh
+    export MATLAB=/groups_old/admin/software/src/MATLAB_Runtime_R2020b_Update_3_glnxa64.zip
+
+    mkdir ${SINGULARITY_ROOTFS}/emClarity
+    mkdir ${SINGULARITY_ROOTFS}/deps
+    mkdir ${SINGULARITY_ROOTFS}/deps/imod
+    mkdir ${SINGULARITY_ROOTFS}/deps/mcr
+    
+    unzip ${EMCLARITY_PATH}/${EMCLARITY_VER} -d /tmp
+    mv /tmp/${EMCLARITY_VER}/* ${SINGULARITY_ROOTFS}/emClarity
+
+    rm -rf /tmp/mcr
+    unzip ${MATLAB} -d /tmp/mcr
+
+    cp ${IMOD} /tmp
+
+# There has got to be a better way to do this.
+    echo `basename $IMOD` > /tmp/imod_name_for_singularityBuild.txt
+
+%files
+#    /groups/himesb/cisTEM_downstream_bah/build/INTEL-gpu-debug/src/* /cisTEM/bin
+
+
+%environment
+
+  source /emClarity/bin/.bashrc
+
+%post
+
+    echo "IN POST"
+    echo $IMOD
+    export IMOD=`cat /tmp/imod_name_for_singularityBuild.txt`
+   
+    echo 'deb http://security.ubuntu.com/ubuntu bionic-security multiverse' >> /etc/apt/sources.list
+    echo 'deb http://security.ubuntu.com/ubuntu bionic-security universe' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic-backports main restricted universe multiverse' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates multiverse' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic multiverse' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates universe' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic universe' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates main restricted' >> /etc/apt/sources.list
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ bionic main restricted' >> /etc/apt/sources.list
+
+
+
+    apt-get update && \
+    apt-get install -y \
+      libfftw3-dev \
+      pkg-config \
+      libgtk2.0-dev \
+      zip \
+      unzip \
+      libglu1-mesa-dev \
+      xorg  \
+      dbus-x11 \
+      x11-xserver-utils \
+      gedit
+
+    apt list  libjpeg*
+    apt-get install -y libjpeg62 
+      
+
+    NOW=`date`
+    echo "export NOW=\"${NOW}\"" >> $SINGULARITY_ENVIRONMENT
+
+    echo Y | /tmp/${IMOD}  -dir /deps -name imod -script /deps/imod
+    rm /tmp/${IMOD}
+    unset IMOD
+    /tmp/mcr/install -mode silent -agreeToLicense yes -destinationFolder /deps/mcr/
+
+
+
+
+%startscript
+    nc -lp $LISTEN_PORT
+
+%test
+    grep -q NAME=\"Ubuntu\" /etc/os-release
+    if [ $? -eq 0 ]; then
+        echo "Container base is Ubuntu as expected."
+    else
+        echo "Container base is not Ubuntu."
+        exit 1
+    fi
+
+%help
+    This is a demo container used to illustrate a def file that uses all
+    supported sections.

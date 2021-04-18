@@ -5,7 +5,7 @@
 #   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
 #   TODO set up a little configure script to do this and check other deps described below.
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
-export emC_DEPS="/groups/himesb/emC_dependencies_20200424"
+export emC_DEPS="/groups_old/himesb/emC_dependencies_20200424"
 
 # This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
@@ -23,7 +23,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=3
-nightly=0
+nightly=01
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -69,11 +69,9 @@ echo '# When this script is invoked, record the PID so that the EMC_tmpDir is de
 echo '# even in the event of a crash. (With program script added from EMC_tmpDir.sh)'
 echo 'thisPID=$$'
 echo ''
-echo '#Please modify this line to the suggested paths to add to LD_LIBRARY_PATH during install of the MCR_BASH'
-echo '# NOTE that formally this was a separate file.'
 echo ''
-echo '#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"'
-echo 'MCR_BASH=/groups/admin/MATLAB/v99/runtime/glnxa64:/groups/admin/MATLAB/v99/bin/glnxa64:/groups/admin/MATLAB/v99/sys/os/glnxa64:/groups/admin/MATLAB/v99/extern/bin/glnxa64'
+echo '#Note you no longer need to modify this line inside the singularity container:'
+echo 'MCR_BASH=/deps/mcr/v99/runtime/glnxa64:/deps/mcr/v99/bin/glnxa64:/deps/mcr/v99/sys/os/glnxa64:/deps/mcr/v99/extern/bin/glnxa64'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
@@ -174,6 +172,7 @@ cd ../emClarity_${major}.${minor}.${bugs}.${nightly}
 mkdir bin
 cp -rp ../bin/deps ./bin
 cd bin
+cp ${EMC_ROOT}/testScripts/.bashrc .
 cp ../../bin/emClarity_${scriptOutName} emClarity_${scriptOutName}
 cp ../../bin/emClarity_${binaryOutName} emClarity_${binaryOutName}
 cd ../../
