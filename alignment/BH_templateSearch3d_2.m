@@ -249,8 +249,9 @@ particleThickness =  latticeRadius(3);
                               BH_multi_loadOrBin( TEMPLATE, 1, 3 ); 
                             
 % Bandpass the template so it is properly normalized
-temp_bp = BH_bandpass3d(size(template),bp_vals(1),bp_vals(2),bp_vals(3),'GPU',pixelSizeFULL);
-template = real(ifftn(fftn(gpuArray(template)).*temp_bp));
+bp_vals
+temp_bp = BH_bandpass3d(size(template),bp_vals(1),0.3.*bp_vals(2),bp_vals(3),'GPU',pixelSizeFULL);
+template = real(ifftn(fftn(gpuArray(template)).*temp_bp.^2));
 clear temp_bp
 
                             
@@ -555,10 +556,9 @@ for  iX = 1:nIters(1)
 
     [ averageMask, flgOOM ] = BH_movingAverage_2(tomoChunk, statsRadius(1)); 
     rmsMask =  BH_movingAverage_2(tomoChunk.^2, statsRadius(1)); 
-    rmsMask = rmsMask - averageMask.^2;
-    m = mean(rmsMask(:));
-    s = std(rmsMask(:));
-    rmsMask(rmsMask < m - s) = m;
+    rmsMask = sqrt(rmsMask - averageMask.^2);
+    tomoChunk = (tomoChunk - averageMask) ./ rmsMask;
+    clear rmsMask averageMask
 %     averageMask = gather(averageMask);
 
 %         [ rmsMask ] = gather(BH_movingRMS_3(tomoChunk, statsRadius(1), averageMask)); 
@@ -591,7 +591,7 @@ for  iX = 1:nIters(1)
     fullnX = fullnX + gather(prod(sizeChunk));
     
     tomoStack(:,:,:,tomoIDX) = tomoChunk;
-    rmsStack(:,:,:,tomoIDX) = gather(rmsMask); clear rmsMask
+%     rmsStack(:,:,:,tomoIDX) = gather(rmsMask); clear rmsMask
     tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
     tomoIDX = tomoIDX + 1;
 
@@ -710,7 +710,7 @@ for iAngle = theta_search
 
       tomoFou = gpuArray(tomoStack(:,:,:,tomoIDX));
       tomoFou = swapQuadrants.*bhF.fwdFFT(tomoFou);
-      rmsMask = gpuArray(rmsStack(:,:,:,tomoIDX));
+%       rmsMask = gpuArray(rmsStack(:,:,:,tomoIDX));
 %      imgFou = gpuArray(tomoStack(:,:,:,tomoIDX));
 %      imgFou_sq = imgFou .^ 2;
      
@@ -828,7 +828,7 @@ for iAngle = theta_search
 % return
 %         ccfmap = BH_padZeros3d(fftshift(ccfmap),trimValid(1,:),trimValid(2,:),'GPU','single');
         ccfmap = BH_padZeros3d((real(single(...
-                               bhF.invFFT(tomoFou.*conj(tempFou))))) ./ rmsMask,...%./(tomoNorm.*tempNorm))))),...
+                               bhF.invFFT(tomoFou.*conj(tempFou))))), ... ./ rmsMask,...%./(tomoNorm.*tempNorm))))),...
                                trimValid(1,:),trimValid(2,:),'GPU','single');
 %                              
 
