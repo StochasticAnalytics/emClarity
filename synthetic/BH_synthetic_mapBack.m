@@ -348,6 +348,13 @@ refVol = cell(2,1);
 
   
 refName = pBH.('Raw_className');
+
+try
+  symmetry = pBH.('symmetry');
+catch
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
+end
+
 classVector{1}  = pBH.('Raw_classes_odd')(1,:);
 classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
 classVector{2}  = pBH.('Raw_classes_eve')(1,:);

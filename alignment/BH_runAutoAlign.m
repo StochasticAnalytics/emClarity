@@ -143,8 +143,9 @@ if (skip_tilts)
       system(sprintf('cp ../%s ../%s.orig',tiltAngles,tiltAngles));
     end
     f = f(skip_tilts_logical);
+
     fout = fopen(sprintf('../%s',tiltAngles),'w');
-    fprintf(fout,'%s\n',f');
+    fprintf(fout,'%f\n',f');
     fclose(fout);
   end
   clear f
@@ -196,9 +197,9 @@ if ( abs(abs(imgRotation) - 180) > maxAngle )
 
     system(sprintf('rm %s',tmpFile));
   end
-  
+  imgRotation
   inputStack = rotStack; clear rotStack
-  imgRotation = imgRotation + 90;
+  imgRotation = imgRotation + 90
 end
 
 

@@ -1,7 +1,7 @@
 function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
-mexPATH = '~/emClarity/mexFiles/';
+mexPATH = '/groups_old/himesb/emClarity/mexFiles/';  % FIXME FIXME FIXME
 setenv('nvcc','/admin/software/cuda-10.2/bin/nvcc');
 !which nvcc
 system(sprintf('mkdir -p %s', mexPATH));
@@ -23,6 +23,8 @@ end
 % --warn-on-spills
 % -Wno-deprecated-gpu-targets
 mexcuda_opts = { ...
+ '-L/admin/software/cuda-10.2/lib64' ...
+ '-L/admin/software/cuda-10.2/nvvm/lib64 ' ...% Location of CUDA libraries
 '-lcublas'          ...            % Link to cuBLAS
 '-lmwlapack'        ...            % Link to LAPACK
 '-lcufft'           ...            % Link to cuFFT
@@ -33,8 +35,6 @@ mexcuda_opts = { ...
  '-gencode=arch=compute_61,code=sm_61 ' ...
  '-gencode=arch=compute_70,code=sm_70 ' ...
  '-gencode=arch=compute_75,code=sm_75 '] ...% the optimizations are default anyway when I checked 
-'-L/admin/software/cuda-10.2 '   ... 
-'-L/admin/software/cuda-10.2/nvvm/lib64 ' ...% Location of CUDA libraries
 };
 
 % '-L/usr/local/cuda-9.1/lib64'   ...    % Location of CUDA libraries

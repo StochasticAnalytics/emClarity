@@ -100,9 +100,9 @@ catch
 end
 
 try
-  symmetry_op = pBH.('symmetry');
+  symmetry = pBH.('symmetry');
 catch
-  symmetry_op = '';
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try 
@@ -611,7 +611,7 @@ clear refIMG refWDG refOUT iRef
 updateWeights = false;                                  
 gridSearch = '';                                 
 if (use_new_grid_search)
-  gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
+  gridSearch = eulerSearch(symmetry, angleSearch(1),...
         angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, true);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi
@@ -1133,12 +1133,6 @@ parfor iParProc = parVect
                 % Assuming if class specific symmetry, then some not just 1
                 if (force_no_symmetry)
                   symmetry = 'C1';
-                else
-                  if isempty(symmetry_op)
-                    symmetry = sprintf('C%d',classSymmetry{half_set}(1, classPosition));
-                  else
-                    symmetry = symmetry_op;
-                  end
                 end
                 
                
@@ -1466,12 +1460,6 @@ parfor iParProc = parVect
                % Assuming if class specific symmetry, then some not just 1
                if (force_no_symmetry)
                  symmetry = 'C1';
-               else
-                  if isempty(symmetry_op)
-                    symmetry = sprintf('C%d',classSymmetry{half_set}(1, classPosition));
-                  else
-                    symmetry = symmetry_op;
-                  end
                end
 
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 

@@ -7,6 +7,9 @@
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
 export emC_DEPS="/groups_old/himesb/emC_dependencies_20200424"
 
+# This is the version of matlab you will end up compiling with.
+MATLAB_FOR_COMIPLING=matlab
+
 # This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
 
@@ -44,7 +47,7 @@ EMC_ROOT=${HOME}/emClarity
 
 
 #-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-matlab20b -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+${MATLAB_FOR_COMIPLING} -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     

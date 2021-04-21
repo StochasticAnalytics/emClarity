@@ -413,6 +413,14 @@ else
 
   try
     pcaSymmetry = pBH.('Pca_symMask');
+    if (pcaSymmetry(1) ~= 'C')
+      error('Pca_symMask is restricted to cyclic symmetry!')
+    end
+    if (length(pcaSymmetry) < 2)
+      error('Cyclic symmetry requires an int specifying CX');
+    end
+    pcaSymmetry = str2double(pcaSymmetry(2:end));
+    
     [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter,0,pcaSymmetry);
   catch
     [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
