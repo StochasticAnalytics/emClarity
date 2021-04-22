@@ -5,7 +5,7 @@
 #   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
 #   TODO set up a little configure script to do this and check other deps described below.
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
-export emC_DEPS="/groups_old/himesb/emC_dependencies_20200424"
+export emC_DEPS="/groups/grigorieff/home/himesb/work/emC_dependencies"
 
 # This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
@@ -23,7 +23,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=3
-nightly=01
+nightly=02
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -32,7 +32,7 @@ zip_location="${HOME}/tmp"
 
 
 binaryOutName="${major}_${minor}_${bugs}_${nightly}"
-scriptOutName="${major}_${minor}_${bugs}_${nightly}_v20b"
+scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
 #binaryOutName="LTS_fix_${shortHead}"
 #scriptOutName="LTS_fix_${shortHead}_v19a"
 
@@ -40,11 +40,11 @@ scriptOutName="${major}_${minor}_${bugs}_${nightly}_v20b"
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 imodStaticIncludes=""
-EMC_ROOT=${HOME}/emClarity
+EMC_ROOT=${HOME}/work/emClarity
 
 
 #-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-matlab20b -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile}  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
@@ -69,14 +69,16 @@ echo '# When this script is invoked, record the PID so that the EMC_tmpDir is de
 echo '# even in the event of a crash. (With program script added from EMC_tmpDir.sh)'
 echo 'thisPID=$$'
 echo ''
+echo '#Please modify this line to the suggested paths to add to LD_LIBRARY_PATH during install of the MCR_BASH'
+echo '# NOTE that formally this was a separate file.'
 echo ''
-echo '#Note you no longer need to modify this line inside the singularity container:'
-echo 'MCR_BASH=/deps/mcr/v99/runtime/glnxa64:/deps/mcr/v99/bin/glnxa64:/deps/mcr/v99/sys/os/glnxa64:/deps/mcr/v99/extern/bin/glnxa64'
+echo '#MCR_BASH="/work/thirdParty/MATLAB/mcr_bash.sh"'
+echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/runtime/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/bin/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/sys/os/glnxa64'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
-echo '#emClarity_ROOT=${HOME}/emC_builds'
-echo "export emClarity_ROOT=${EMC_ROOT}"
+echo '#emClarity_ROOT=/work/emClarity'
+echo 'export emClarity_ROOT=/groups/grigorieff/home/himesb/work/emClarity'
 echo 'export LD_LIBRARY_PATH=${emClarity_ROOT}/lib:${MCR_BASH}:${LD_LIBRARY_PATH}'
 echo ''
 
@@ -145,6 +147,7 @@ mkdir -p ../bin/deps
 #cp -ru ${emC_DEPS}/deps/VERSION ../bin/deps
 #cp -ru ${emC_DEPS}/deps/imodDeps.txt ../bin/deps
 cp -ru ${emC_DEPS}/deps/cisTEMDeps.txt ../bin/deps
+
 #cd ../bin/deps/autodoc
 #cat ../imodDeps.txt | while read dep ; do
 #  cp -u ${emC_DEPS}/deps/autodoc/${dep}.adoc .
@@ -154,6 +157,7 @@ cd ${EMC_ROOT}/testScripts
 cat ../bin/deps/cisTEMDeps.txt | while read dep ; do
   cp -u ${emC_DEPS}/emC_${dep} ../bin/deps
 done
+
 
 mv emClarity_${scriptOutName} ../bin
 mv emClarity_${binaryOutName} ../bin
@@ -172,7 +176,6 @@ cd ../emClarity_${major}.${minor}.${bugs}.${nightly}
 mkdir bin
 cp -rp ../bin/deps ./bin
 cd bin
-cp ${EMC_ROOT}/testScripts/.bashrc .
 cp ../../bin/emClarity_${scriptOutName} emClarity_${scriptOutName}
 cp ../../bin/emClarity_${binaryOutName} emClarity_${binaryOutName}
 cd ../../
