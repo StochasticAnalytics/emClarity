@@ -2,8 +2,8 @@ function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
 mexPATH = '~/emClarity/mexFiles/';
-setenv('nvcc','/admin/software/cuda-10.2/bin/nvcc');
-!which nvcc
+%setenv('nvcc','/admin/software/cuda-10.2/bin/nvcc');
+
 system(sprintf('mkdir -p %s', mexPATH));
 % For now just included everything in total.
 inc = {'rotation_matrix.cpp','ctf.cu'};
@@ -23,6 +23,8 @@ end
 % --warn-on-spills
 % -Wno-deprecated-gpu-targets
 mexcuda_opts = { ...
+'-L/misc/local/cuda-10.0/lib64 '   ... 
+'-L/misc/local/cuda-10.0/nvvm/lib64 ' ...% Location of CUDA libraries
 '-lcublas'          ...            % Link to cuBLAS
 '-lmwlapack'        ...            % Link to LAPACK
 '-lcufft'           ...            % Link to cuFFT
@@ -33,8 +35,6 @@ mexcuda_opts = { ...
  '-gencode=arch=compute_61,code=sm_61 ' ...
  '-gencode=arch=compute_70,code=sm_70 ' ...
  '-gencode=arch=compute_75,code=sm_75 '] ...% the optimizations are default anyway when I checked 
-'-L/admin/software/cuda-10.2 '   ... 
-'-L/admin/software/cuda-10.2/nvvm/lib64 ' ...% Location of CUDA libraries
 };
 
 % '-L/usr/local/cuda-9.1/lib64'   ...    % Location of CUDA libraries
