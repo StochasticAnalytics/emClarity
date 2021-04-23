@@ -233,7 +233,7 @@ end
 try
   use_PCF =  pBH.('use_PCF')
 catch
-  use_PCF = 1
+  use_PCF = 0;
 end
 
 if (use_PCF)
@@ -1497,8 +1497,7 @@ end
 
 parfor iPrj = 1:nPrjs  
 
-% for iPrj = 1:nPrjs
-	    % For some reason if these mrc objects are created before the parfor
+%   	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
 	    % to know what is going on here.
@@ -1588,8 +1587,8 @@ parfor iPrj = 1:nPrjs
       dataAVG = BH_movingAverage(dataPrj,normSize);
       % This needs to be calculated prior to normalizing the dataPrj
       dataRMS = BH_movingRMS(dataPrj-dataAVG,eSize);
-      mRms = mean(dataRMS(:))
-      sRms = rms(dataRMS(:)-mRms)
+      mRms = mean(dataRMS(:));
+      sRms = rms(dataRMS(:)-mRms);
         
       % FIXME 
       if (whitenProjections)
