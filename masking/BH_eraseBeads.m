@@ -50,9 +50,11 @@ beadModel(:,1:2) = beadModel(:,1:2) ./ scalePixelsBy;
 if isa(Stack(1), 'gpuArray')
   gKernel = BH_mask3d('cylinder',beadRadius.*[2,2]+12,beadRadius.*[1,1],[0,0],'2d');
   useGPU = 1;
+  deviceFlag='GPU';
 else
   gKernel = gather(BH_mask3d('cylinder',beadRadius.*[2,2]+12,beadRadius.*[1,1],[0,0],'2d'));
   useGPU = 0;
+  deviceFlag='cpu';
 end
 
 for iPrj = 1:d3
@@ -83,11 +85,11 @@ end
           % Avoid overlap
           currentTile = iMask(startX:endX,startY:endY);
           padVal = BH_multi_padVal(size(currentTile),size(gKernel));
-          currentTile = BH_padZeros3d(currentTile,'fwd',padVal,'GPU','single');
+          currentTile = BH_padZeros3d(currentTile,'fwd',padVal,deviceFlag,'single');
 
           beadMask = currentTile > gKernel;
-
-          iMask(startX:endX,startY:endY) = BH_padZeros3d((gKernel.*(~beadMask)+beadMask.*currentTile),'inv',padVal,'GPU','single');
+          
+          iMask(startX:endX,startY:endY) = BH_padZeros3d((gKernel.*(~beadMask)+beadMask.*currentTile),'inv',padVal,deviceFlag,'single');
       end
     
   end

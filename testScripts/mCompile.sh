@@ -44,7 +44,7 @@ EMC_ROOT=${HOME}/work/emClarity
 
 
 #-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile}  -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+matlab19a -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     
