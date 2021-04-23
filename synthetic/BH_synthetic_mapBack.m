@@ -233,7 +233,7 @@ end
 try
   use_PCF =  pBH.('use_PCF')
 catch
-  use_PCF = 1
+  use_PCF = 0;
 end
 
 if (use_PCF)
@@ -348,6 +348,13 @@ refVol = cell(2,1);
 
   
 refName = pBH.('Raw_className');
+
+try
+  symmetry = pBH.('symmetry');
+catch
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
+end
+
 classVector{1}  = pBH.('Raw_classes_odd')(1,:);
 classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
 classVector{2}  = pBH.('Raw_classes_eve')(1,:);
@@ -1490,8 +1497,7 @@ end
 
 parfor iPrj = 1:nPrjs  
 
-% for iPrj = 1:nPrjs
-	    % For some reason if these mrc objects are created before the parfor
+%   	    % For some reason if these mrc objects are created before the parfor
 	    % loop begins, they fail to load. It is fine as a regular for loop
 	    % though - annoying, but very little overhead. It would be nice
 	    % to know what is going on here.
@@ -1581,8 +1587,8 @@ parfor iPrj = 1:nPrjs
       dataAVG = BH_movingAverage(dataPrj,normSize);
       % This needs to be calculated prior to normalizing the dataPrj
       dataRMS = BH_movingRMS(dataPrj-dataAVG,eSize);
-      mRms = mean(dataRMS(:))
-      sRms = rms(dataRMS(:)-mRms)
+      mRms = mean(dataRMS(:));
+      sRms = rms(dataRMS(:)-mRms);
         
       % FIXME 
       if (whitenProjections)

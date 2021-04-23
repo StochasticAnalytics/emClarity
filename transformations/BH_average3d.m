@@ -586,16 +586,11 @@ end
     masterTM = subTomoMeta; clear subTomoMeta
 
 try
-  symmetry_op = pBH.('symmetry')
+  symmetry = pBH.('symmetry');
 catch
-  symmetry_op = ''
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
-if any(classVector{1}(2,:) > 1) || any(classVector{2}(2,:) > 1)
-  classSymmetry = true;
-else
-  classSymmetry = false;
-end
 
 if isfield(masterTM,('tomoCPR_run_in_cycle'))
   
@@ -1184,18 +1179,7 @@ parfor iParProc = parVect
          iCCCweight = [];
          iWedgeMask = [];
          % symmetry = classVector{iGold}(2, iClassPos);
-          if ~isempty(symmetry_op)
-            symmetry = symmetry_op;
-          else
 
-            if (classSymmetry) && (classVector{iGold}(2, iClassPos) > 0)
-
-              symmetry = sprintf('C%d',classVector{iGold}(2, iClassPos));
-
-            else
-                symmetry = 'C1';
-            end
-          end
             
           if ( nPeaks > 1 )
             % Calculate a relative weighting, normalize max score to one

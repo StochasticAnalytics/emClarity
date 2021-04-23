@@ -102,7 +102,7 @@ end
 try
   symmetry_op = pBH.('symmetry');
 catch
-  symmetry_op = '';
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try 
@@ -111,13 +111,13 @@ catch
   use_new_grid_search = true;
 end
 
-
 try
   force_no_symmetry = pBH.('force_no_symmetry');
 catch
   force_no_symmetry = false;
 end
 if (force_no_symmetry)
+  symmetry_op='C1'
   fprintf('\nWarning, overriding symmetry in the alignment. THis is just for benchmarking\n');
 end
 
@@ -695,7 +695,7 @@ end
 parVect = 1:nParProcesses;
 
 parfor iParProc = parVect
-    
+  symmetry = symmetry_op; % Why TF would this be necessary?
 % for iParProc = 1:nParProcesses
 %profile on
   bestAngles_tmp = struct();
@@ -1062,11 +1062,15 @@ parfor iParProc = parVect
               phiInc = angleStep(iAngle,3);
               thetaInc = angleStep(iAngle,4);       
               numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
-              % To prevent only searching the same increments each time in a limited
-              % grid search, radomly offset the azimuthal angle by a random number
-              % between 0 and 1/2 the azimuthal increment.
-              azimuthalRandomizer = (rand(1)-0.5)*phiInc;              
+            
             end
+            
+            % To prevent only searching the same increments each time in a limited
+            % grid search, radomly offset the azimuthal angle by a random number
+            % between 0 and 1/2 the azimuthal increment. 
+            
+            azimuthalRandomizer = (rand(1)-0.5)*phiInc;
+           
             
           % Calculate the increment in phi so that the azimuthal sampling is
           % consistent and equal to the out of plane increment.
@@ -1084,7 +1088,7 @@ parfor iParProc = parVect
           for iAzimuth = phi_search
             
             if (use_new_grid_search)
-              phi = iAzimuth;
+              phi = iAzimuth + rem(phiInc+azimuthalRandomizer,360);
               psiInc = gridSearch.psi_step;
             else
               phi = rem((phiInc * iAzimuth)+azimuthalRandomizer,360);
@@ -1128,18 +1132,7 @@ parfor iParProc = parVect
                   estPeakCoord = bestOfRefs(1,8:10);
                  
 
-             
 
-                % Assuming if class specific symmetry, then some not just 1
-                if (force_no_symmetry)
-                  symmetry = 'C1';
-                else
-                  if isempty(symmetry_op)
-                    symmetry = sprintf('C%d',classSymmetry{half_set}(1, classPosition));
-                  else
-                    symmetry = symmetry_op;
-                  end
-                end
                 
                
 %                   fprintf('Symmetry confirmation %d\n',symmetry);
@@ -1466,12 +1459,6 @@ parfor iParProc = parVect
                % Assuming if class specific symmetry, then some not just 1
                if (force_no_symmetry)
                  symmetry = 'C1';
-               else
-                  if isempty(symmetry_op)
-                    symmetry = sprintf('C%d',classSymmetry{half_set}(1, classPosition));
-                  else
-                    symmetry = symmetry_op;
-                  end
                end
 
 %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,... 

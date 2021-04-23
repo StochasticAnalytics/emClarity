@@ -6,6 +6,8 @@ function [ varargout ] = emClarity( varargin )
 warning off
 cudaStart='';
 useV2 = false;
+useV1 = false;
+
 cmdIN = sprintf('emClarity %s ',varargin{1});
 
 % first argument is the program to run or "help" to print a list of available
@@ -101,6 +103,9 @@ if nArgs > 1
   if ~strcmp(varargin{1},'check')
     if strcmp(varargin{1},'v2')
       useV2 = true;
+      varargin = varargin(2:end);
+    elseif strcmp(varargin{1},'v1')
+      useV1 = true;
       varargin = varargin(2:end);
     else
       notCheckHelp = ~strcmpi(varargin{2},'help') || ~strcmp(varargin{2},'experimental');
@@ -593,22 +598,22 @@ switch varargin{1}
       switch length(varargin) 
         case 7
           
-          if (useV2)
-            BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
+          if (useV1)
+            BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
                               varargin{5}, varargin{6},wedgeType,varargin{7});
           else
-            BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
+            BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
                               varargin{5}, varargin{6},wedgeType,varargin{7});
           end
  
         case 8
-          if (useV2)    
+          if (useV1)    
        
-            BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
+            BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
                                    varargin{5}, varargin{6},wedgeType, ...
                                    varargin{7},varargin{8});
           else
-            BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
+            BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
                                  varargin{5}, varargin{6},wedgeType, ...
                                  varargin{7},varargin{8});
           end

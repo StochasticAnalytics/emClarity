@@ -99,9 +99,9 @@ catch
 end
 
 try
-  symmetry_op = pBH.('symmetry');
+  symmetry = pBH.('symmetry');
 catch
-  symmetry_op = 'C1';
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try 
@@ -273,7 +273,7 @@ end
 
 if (use_new_grid_search)
 
-  gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
+  gridSearch = eulerSearch(symmetry, angleSearch(1),...
         angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, false);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi;
