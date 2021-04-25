@@ -1803,17 +1803,26 @@ parfor iPrj = 1:nPrjs
               if ~(calcCTF)
                 [mMx, mMy] = ind2sub(size(cccMap), maxMap);
                
-                cccMap = cccMap(mMx-COM:mMx+COM, mMy-COM:mMy+COM);
-                cccMap = cccMap - min(cccMap(:));
+                try
+                  
+                  % It would be good to know why this is out of bounds
+                  % sometimes. FIXME
+                  
+                  cccMap = cccMap(mMx-COM:mMx+COM, mMy-COM:mMy+COM);
+                  cccMap = cccMap - min(cccMap(:));
 
-                comMapX = sum(sum(bx.*cccMap))./sum(cccMap(:));
-                comMapY = sum(sum(by.*cccMap))./sum(cccMap(:));
+                  comMapX = sum(sum(bx.*cccMap))./sum(cccMap(:));
+                  comMapY = sum(sum(by.*cccMap))./sum(cccMap(:));
 
-                % peak in Map is where query is relative to ref, dXY then is the shift
-                % needed to move the predicted position to the measured.
-                % Data moved from a position of estPeak, so add this to dXY
+                  % peak in Map is where query is relative to ref, dXY then is the shift
+                  % needed to move the predicted position to the measured.
+                  % Data moved from a position of estPeak, so add this to dXY
 
-                dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak - [sx,sy]; 
+                  dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak - [sx,sy]; 
+                catch
+                  dXY = estPeak - [sx,sy]; % TODO double check me
+                end
+
               end
             end
         end % End of loop over defocus values.

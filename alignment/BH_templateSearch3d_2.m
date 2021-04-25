@@ -11,14 +11,13 @@ function []  = BH_templateSearch3d_2( PARAMETER_FILE,...
 
 
 
-ctf3dNoSubTomoMeta = false
+ctf3dNoSubTomoMeta = true
 if length(varargin) == 1
   % Allow for an override of the max number, useful when only a few tomos
   % have a strong feature like carbon that is hard to avoid.
   gpuIDX = str2num(varargin{1});
-elseif length(varargin) == 2
-  gpuIDX = str2num(varargin{1});
-  ctf3dNoSubTomoMeta = true
+elseif length(varargin) > 1
+  error('emClarity templateSearch paramN.m tiltN regionN referenceName symmetry(C1) <optional gpuIDX>');
 end
 
   tomoNumber = str2num(tomoNumber);
