@@ -304,7 +304,7 @@ switch OPERATION
     blankClassMont(sizeMontage, sizeMontage) = single(0);
     
     % put a 1 at each x,y from the model file identifying classes to kill
-    
+    VECTOR_OP = round(VECTOR_OP)
     for iKill = 1:size(VECTOR_OP,1)
       blankClassMont(VECTOR_OP(iKill,1),VECTOR_OP(iKill,2)) = 1;
     end

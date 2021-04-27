@@ -744,7 +744,19 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
     % Since I'm enforcing Y-tilt axis, then this could be dramatically sped up
     % by resampling strips along the sampling
 
-    for i = 1+tileSize/2:overlap:d1-tileSize/2
+    for iOuter = 1+tileSize/2:overlap:d1-tileSize/2
+      randSize = randi(floor(overlap/2),1);
+      if (randi(2,1) == 2)
+        randSize = -1*randSize;
+      end
+      i = iOuter + randSize;
+      if (i < tileSize/2 || i > d1-tileSize/2)
+        continue;
+      end
+      
+      % Slightly randomize the step size to avoid a Moire like effect that
+      % presents particulary strongly with a continuous carbon layer.
+      
       iDeltaZ = (i - tiltOrigin)*pixelSize*-1.*tand(TLT(iPrj,4));
       if any(ismember(i-tileSize/2+1:i+tileSize/2,iEvalMask)) %evalMask(i,paddedSize/2+1)
        doSplineInterp=1;
@@ -796,7 +808,11 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
            mag = 1
          end
          
-         scaledStrip = iProjection(i-tileSize/2+1:i+tileSize/2,:); 
+
+        scaledStrip = iProjection(i-tileSize/2+1:i+tileSize/2,:); 
+         
+
+         
 
         for j = 1+tileSize/2:overlap:d2-tileSize/2    
         
@@ -804,7 +820,12 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
           if (reScaleRealSpace)
             scaledSize = paddedSize;
           else
-            scaledSize = floor(paddedSize .* mag);
+            % Slightly randomize scaling
+            if (randi(2,1) == 2)
+              scaledSize = ceil(paddedSize .* mag) + randi(2,1) -1;
+            else
+              scaledSize = floor(paddedSize .* mag)+ randi(2,1) -1;
+            end
             %scaledSize = floor(paddedSize ./ mag);
           end
                   
@@ -825,7 +846,7 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
             tmpTile(oX-oupSize(1,1):oX+oupSize(1,2)-1, ...
                     oY-oupSize(2,1):oY+oupSize(2,2)-1) + ...
                     fftshift(abs(fftn(BH_padZeros3d(iTile,iPadVal(1,:),iPadVal(2,:), ...
-                                           'GPU','single'))));
+                                           'GPU','singleTaper', mean(iTile(:))))));
                                          % Using singleTaper here produces
                                          % a grid like artifact. Test
                                          % switch for EMC functions
