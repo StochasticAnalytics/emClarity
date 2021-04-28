@@ -12,6 +12,10 @@ function [ Stack ] = BH_eraseBeads( Stack, beadRadius, fileName, scalePixelsBy, 
 [d1,d2,d3] = size(Stack);
 
 modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1); 
+if ~isfile(modelName)
+  fprintf('WARNING: skipping bead earsing, b/c no file %s is found',modelName);
+  return
+end
 
 if (mapBackIter)
   % The bead model needs to be updated.
