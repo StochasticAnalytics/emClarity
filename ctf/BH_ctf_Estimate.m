@@ -401,9 +401,9 @@ mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
 
 try 
-  erase_beads_after_ctf = ('erase_beads_after_ctf');
+  erase_beads_after_ctf = pBH.('erase_beads_after_ctf');
 catch
-  erase_beads_after_ctf = true;
+  erase_beads_after_ctf = false;
 end
 
 if (erase_beads_after_ctf)

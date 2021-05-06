@@ -323,7 +323,7 @@ system('mkdir -p aliStacks');
   
   
 try 
-  erase_beads_after_ctf = ('erase_beads_after_ctf');
+  erase_beads_after_ctf = pBH.('erase_beads_after_ctf');
 catch
   erase_beads_after_ctf = true;
 end
