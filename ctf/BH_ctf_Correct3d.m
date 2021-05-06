@@ -26,7 +26,7 @@ tiltStart = 1;
 try 
   flgEraseBeads_aferCTF = pBH.('erase_beads_after_ctf');
 catch
-  flgEraseBeads_aferCTF = true;
+  flgEraseBeads_aferCTF = false;
 end
 
 % Test David's new super sampling in reconstruction. No check that this

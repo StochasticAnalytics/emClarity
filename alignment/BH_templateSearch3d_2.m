@@ -130,12 +130,15 @@ end
 ignore_threshold = false;
 try
   max_tries = pBH.('max_peaks');
-  if max_tries < 0
-    max_tries = abs(max_tries);
-    ignore_threshold = true;
-  end
 catch
   max_tries = 10000;
+end
+
+try
+  over_ride =  pBH.('Override_threshold_and_return_N_peaks')
+  ignore_threshold = true;
+  fprintf('Override_threshold_and_return_N_peaks set to true, returning exactly %d peaks\n', over_ride);
+  peakThreshold = over_ride;
 end
 
 pixelSizeFULL = pBH.('PIXEL_SIZE').*10^10;
