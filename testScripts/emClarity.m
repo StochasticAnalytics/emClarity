@@ -31,14 +31,11 @@ slashCheck = strsplit(emClarity_ROOT,'/');
 [pathWithDir,~,~] = fileparts(emClarity_ROOT);
 if isempty(slashCheck{end})
   % There is a trailing slash
-  shift_end = 1;
-  add_slash = '';
+  emC_PATH = emClarity_ROOT;
 else
-  shift_end = 0;
-  add_slash = '/';
+
+  emC_PATH = strcat(emClarity_ROOT ,'/');
 end
-emC_PATH = strsplit(pathWithDir, slashCheck{end-shift_end});
-emC_PATH = sprintf('%s%semClarity',emC_PATH{1},add_slash);
   
 
 emC_autoAliPath=sprintf('%s/alignment/emC_autoAlign',emC_PATH);
