@@ -10,6 +10,7 @@ function [ Stack ] = BH_eraseBeads( Stack, beadRadius, fileName, scalePixelsBy, 
 
 
 [d1,d2,d3] = size(Stack);
+modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1); 
 
 
 if (mapBackIter)
@@ -30,6 +31,11 @@ else
   
     % Make sure the erase model is set up for the fixed stack. This model
     % will be updated if tomoCPR is run.
+    if ~isfile(modelName)
+      fprintf('WARNING: skipping bead erasing, b/c no file fixedStacks/%s.erase is found',fileName);
+      return
+    end
+
     [fail] = system(sprintf('imodtrans -i fixedStacks/%s.fixed fixedStacks/%s.erase %s',fileName,fileName,modelName));
     if  (fail)
       error('imodtrans failed to set the original bead erase model to the fixed stack header');
@@ -43,11 +49,7 @@ if (fail)
  error('model2point failed to convert the bead erase model to text')
 end   
 
-modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1); 
-if ~isfile(modelName)
-  fprintf('WARNING: skipping bead erasing, b/c no file %s is found',modelName);
-  return
-end
+
 
 
 beadModel = load(sprintf('%s_txt',modelName));
