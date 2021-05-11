@@ -8,7 +8,7 @@ thickness=${4}
 bead_size=${5}
 
 newstack \
-  -InputFile	${baseName}.fixed \
+  -InputFile	${baseName}.fixed.preprocessed \
   -OutputFile	${baseName}_3dfind.ali \
   -TransformFile	${baseName}.xf \
   -ImagesAreBinned	1.0 \

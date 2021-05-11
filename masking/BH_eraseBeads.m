@@ -11,11 +11,6 @@ function [ Stack ] = BH_eraseBeads( Stack, beadRadius, fileName, scalePixelsBy, 
 
 [d1,d2,d3] = size(Stack);
 
-modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1); 
-if ~isfile(modelName)
-  fprintf('WARNING: skipping bead earsing, b/c no file %s is found',modelName);
-  return
-end
 
 if (mapBackIter)
   % The bead model needs to be updated.
@@ -47,6 +42,13 @@ end
 if (fail)
  error('model2point failed to convert the bead erase model to text')
 end   
+
+modelName = sprintf('fixedStacks/%s_ali%d.erase',fileName,mapBackIter + 1); 
+if ~isfile(modelName)
+  fprintf('WARNING: skipping bead erasing, b/c no file %s is found',modelName);
+  return
+end
+
 
 beadModel = load(sprintf('%s_txt',modelName));
 beadModel(:,1:2) = beadModel(:,1:2) ./ scalePixelsBy;

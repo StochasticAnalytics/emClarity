@@ -7,11 +7,11 @@ pixel_radius = beadSize ./ pixelSize ./ sampling ./ 2;
 padBy = 5;
 
 % Factor descrbing 3 gaussians that are summed to make the reference.
-  g1 = 2.5; % number of stdDev the central gaussian should fall by the bead radius defined below
-  %s1 = pixelRadius. Set in loop so fractions of pixel radius can be searched b/c beads are not uniform diameter (but right now only looking at 1)
-  s2 = 1.25; % radius for the edge gaussian, I suspect this should be closer to 1 or even 0.5?
-  g2 = s2./2; % center the edge gaussian at pixel_radius + g2  
-  g3 = 6; % give the central gaussian a more flat top to match what a bead looks like. Abs is taken so odd values okay
+g1 = 2.5; % number of stdDev the central gaussian should fall by the bead radius defined below
+%s1 = pixelRadius. Set in loop so fractions of pixel radius can be searched b/c beads are not uniform diameter (but right now only looking at 1)
+s2 = 1.25; % radius for the edge gaussian, I suspect this should be closer to 1 or even 0.5?
+g2 = s2./2; % center the edge gaussian at pixel_radius + g2  
+g3 = 6; % give the central gaussian a more flat top to match what a bead looks like. Abs is taken so odd values okay
 
 show_ref_profile = false;
 show_mip = false;
@@ -31,16 +31,14 @@ output_pos = zeros(size(input_pos),'single');
 meanVect = [0,0,0];
 firstLoop = false;
 
-  KERNEL = EMC_gaussianKernel([1,3], 0.5, 'gpu', {});
+KERNEL = EMC_gaussianKernel([1,3], 0.5, 'gpu', {});
   
 for iPrj = 1:nPrjs
-  iPrj
+  
   img = input_ts(:,:,iPrj);
-  img = medfilt2(img,[3,3]);
 
   lCoord = input_pos(:,4) == iPrj -1;
 
-  
   [w] = BH_multi_gridCoordinates([d1,d2],'Cartesian','GPU',{'none'},1,0,1);
   img_derivative = real(ifftn(fftn(img).*w));
   
@@ -52,12 +50,12 @@ for iPrj = 1:nPrjs
 
   r = ceil(pixel_radius.*3);
   avg_size = 2.*r+1 .*[1,1];
-  x = input_pos(lCoord,2);
-  y = input_pos(lCoord,3);
+  x = input_pos(lCoord,2) - 0.5; % in imod, model point 7.5 is in the "middle" of pixel 7 in emClarity, a pixel is 6.5 - 7.5 with 7 in the middle
+  y = input_pos(lCoord,3) - 0.5;
   xi = floor(x);
   yi = floor(y);
-  xf = x - xi - 0.5; % in imod, model point 7.5 is in the "middle" of pixel 7 in emClarity, a pixel is 6.5 - 7.5 with 7 in the middle
-  yf = y - yi - 0.5;
+  xf = x - xi;
+  yf = y - yi;
 
 
   % Note if you put this into parallel, this will not work.
@@ -73,7 +71,6 @@ for iPrj = 1:nPrjs
        n = n + 1;
     end
     avg_bead = avg_bead ./ n ;
-
     % Get the mean values for the three main pixel values
     gFit = fitgmdist(gather(avg_bead(:)),3,'RegularizationValue',0.1,'Replicates',20,'Options',statset('MaxIter',500));
     meanVect = gFit.mu;
@@ -109,15 +106,52 @@ for iPrj = 1:nPrjs
 
 
 
-  % figure, imshow3D(cat(3,t,avg_bead))  
 
+
+  nBeads = length(x);
+  nSkipped = 0;  
+  s1 = pixel_radius;
+  ref = beadVal.* exp(-abs((g1.*t./s1).^g3)) + ....
+          edgeVal.*(exp(-(g1.*(t-g2-s1)./s2).^2)) + ...
+                    bgVal;
+  ref = gpuArray(ref);
+  
+  imgFT = fftn(img_derivative);
+  global_ref = zeros([d1,d2],'single','gpuArray');
+
+  for i = 1:nBeads 
+     xl = xi(i)-r;
+     xh = xi(i)+r;
+     yl = yi(i)-r;
+     yh = yi(i)+r;
+     
+     if (xl < 1 || yl < 1 || xh > d1 || yh > d2)
+      continue;
+     else
+       global_ref(xl:xh,yl:yh,1) = ref;
+     end
+  end
+
+  global_ref = fftshift(real(ifftn(conj(fftn(global_ref)).*imgFT)));
+  
+   max_global_shift = 14;
+   global_tile = max_global_shift.*[2,2]+1;
+   pad_GF = BH_multi_padVal([d1,d2],global_tile);
+   global_ref = BH_padZeros3d(global_ref,'fwd',pad_GF,'GPU','single');
+   
+   [~,maxCoord] = max(global_ref(:));
+   [mi,mj] = ind2sub(global_tile,maxCoord);
+   global_shifts = [mi,mj] - (max_global_shift+1);
+   xi = xi + global_shifts(1);
+   yi = yi + global_shifts(2);
+   x = x + global_shifts(1);
+   y = y + global_shifts(2);
   mip = zeros([d1,d2],'single','gpuArray');
   padVal = BH_multi_padVal(size(t),[d1,d2]);
-  imgFT = fftn(img_derivative);
 
   % Loop over references of different fractions of the particle radius. For
   % now, just using 1.
-  for iRef = [0.92,1.0,1.08]
+  for iRef = [0.80:0.05:1.2]
     s1 = pixel_radius * iRef;
 
     ref = beadVal.* exp(-abs((g1.*t./s1).^g3)) + ....
@@ -137,25 +171,20 @@ for iPrj = 1:nPrjs
   % an option to pad zeros in half transforms would be nice here. Just use
   % native matlab FFT for now.
 
-
   r = ceil(pixel_radius.*1.0);
   rp = padBy.*(2.*r+1).*[1,1];
   padVal = BH_multi_padVal( (2.*r+1).*[1,1] , rp );
-
-  
-  maskRadius = 0.5.*(1- 2.5./sampling).*r.*[1,1];
-  
+  maskRadius = 0.5.*(1- 2.5./sampling).*r.*[1,1];  
   peakMask = BH_mask3d('sphere',padBy.*(2.*r+1).*[1,1],maskRadius,[0,0],'2d');
   xo = x;
   yo = y;
+  [bx,by] = ndgrid(gpuArray(-r:r),gpuArray(-r:r));
 
-  ro = floor(rp/2) + 1;
-
-  nBeads = length(x);
-  nSkipped = 0;
+  ro = floor(rp/2) + 1;  
+  
   for i = 1:nBeads
    % add edge checking
-
+ 
      xl = xi(i)-r;
      xh = xi(i)+r;
      yl = yi(i)-r;
@@ -168,30 +197,35 @@ for iPrj = 1:nPrjs
        yo(i) = y(i);
      else
        ccf = mip(xl:xh,yl:yh);
-       ccf = fftshift(fftn(ccf));
-       ccf = BH_padZeros3d(ccf,'fwd',padVal,'GPU','single');
-       ccf = real(ifftn(ifftshift(ccf))).*peakMask;
+% % %        ccf = fftshift(fftn(ccf));
+% % %        ccf = BH_padZeros3d(ccf,'fwd',padVal,'GPU','single');
+% % %        ccf = real(ifftn(ifftshift(ccf))).*peakMask;
+% % % 
+% % %        [~,maxCoord] = max(ccf(:));
+% % %        [mi,mj] = ind2sub(rp,maxCoord);
+% % %        mi = (mi- ro(1))./ padBy;
+% % %        mj = (mj- ro(2))./ padBy;
+%        ccf = log(ccf+1);
+       comX = sum(sum(bx.*ccf))./sum(ccf(:));
+       comY = sum(sum(by.*ccf))./sum(ccf(:));
+       xo(i) = (comX + x(i));
+       yo(i) = (comY + y(i));
 
-       [~,maxCoord] = max(ccf(:));
-       [mi,mj] = ind2sub(rp,maxCoord);
-       mi = (mi- ro(1))./ padBy;
-       mj = (mj- ro(2))./ padBy;
-       xo(i) = (mi  - xf(i) + x(i));
-       yo(i) = (mj  - yf(i) + y(i));
+% % %        xo(i) = (mi  - xf(i) + x(i));
+% % %        yo(i) = (mj  - yf(i) + y(i));
      end
   end
 
   fprintf('Updated the fit for %d/%d beads\n', nBeads - nSkipped, nBeads);
   
   if (show_results)
-    figure, imshow3D(img); hold on
+    figure, imshow3D(gather(img_derivative)); hold on
     plot(y,x,'ro','MarkerSize',7); 
     plot(yo,xo, 'b+','MarkerSize', 7);
   end
-  
   % We need to add back the 0.5 for imod model coords
-  output_pos(lCoord,2) = gather(xo + 0.0);
-  output_pos(lCoord,3) = gather(yo + 0.0);
+  output_pos(lCoord,2) = gather(xo + 0.5);
+  output_pos(lCoord,3) = gather(yo + 0.5);
   output_pos(lCoord,[1,4]) = gather(input_pos(lCoord,[1,4]));
 
 end
@@ -201,6 +235,6 @@ fprintf(f,'%d %f %f %f\n',output_pos');
 fclose(f);
 
 
-system(sprintf('point2model -circle %d -zero -image %s %s.txt %s',sampling,img_name,output_name,output_name));
+system(sprintf('point2model -circle %d -zero -image %s %s.txt %s',5,img_name,output_name,output_name));
 
 end

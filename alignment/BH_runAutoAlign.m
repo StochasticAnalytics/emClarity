@@ -109,7 +109,7 @@ if (skip_tilts)
 end
 
 [~,baseName,ext] = fileparts(stackIN);
-fixedName = sprintf('fixedStacks/%s.fixed.rot',baseName);
+fixedName = sprintf('fixedStacks/%s.fixed.preprocessed',baseName);
 
 ext = sprintf('%s.rot',ext);
 
@@ -121,15 +121,19 @@ system(sprintf('mkdir -p fixedStacks'));
 
 cd('fixedStacks');
 
-if (skip_tilts)
-  iHeader = getHeader(inputMRC);
-  iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
-                  iHeader.cellDimensionY/iHeader.nY, ...
-                  iHeader.cellDimensionZ/iHeader.nZ];
+% Get this info here, as it is possibly used in the skip_tilts branch or in
+% the rotate to avoid information loss branch
+iHeader = getHeader(inputMRC);
+iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
+                iHeader.cellDimensionY/iHeader.nY, ...
+                iHeader.cellDimensionZ/iHeader.nZ];
+
+iOriginHeader= [iHeader.xOrigin , ...
+                iHeader.yOrigin , ...
+                iHeader.zOrigin ];
                 
-  iOriginHeader= [iHeader.xOrigin , ...
-                  iHeader.yOrigin , ...
-                  iHeader.zOrigin ];
+if (skip_tilts)
+
   SAVE_IMG(inputStack,sprintf('%s.fixed',baseName),iPixelHeader,iOriginHeader);
   
   f = load(sprintf('../%s',tiltAngles));
@@ -191,15 +195,16 @@ if ( abs(abs(imgRotation) - 180) > maxAngle )
   nX = ny;
   tmpFile = sprintf('%s/%s_tmp.st',getenv('MCR_CACHE_ROOT'),baseName);
   for iPrj = 1:nZ
-    
+    % Once we've done this, we want to work as if this is how the stack
+    % came off the scope.
     system(sprintf('newstack -fromone -secs %d -rotate 90 fixedStacks/%s.fixed %s >/dev/null',iPrj,baseName,tmpFile));
     rotStack(:,:,iPrj) = getVolume(MRCImage(sprintf('%s',tmpFile)));
 
     system(sprintf('rm %s',tmpFile));
   end
-  imgRotation
   inputStack = rotStack; clear rotStack
-  imgRotation = imgRotation + 90
+  imgRotation = imgRotation + 90; 
+  SAVE_IMG(inputStack,sprintf('fixedStacks/%s.fixed',baseName),iPixelHeader,iOriginHeader);
 end
 
 
@@ -221,7 +226,7 @@ for iPrj = 1:nZ
   tmpPrj = real(ifftn(fftn(gpuArray(inputStack(:,:,iPrj))).*gradientAliasFilter{1}));
   tmpPrj = medfilt2(tmpPrj,medianFilter.*[1,1]);
   tmpPrj = real(ifftn(fftn(tmpPrj).*gradientAliasFilter{2}));
-  tmpPrj = BH_resample2d(tmpPrj,rotMat,[0,0],'Bah','GPU','forward',1,size(tmpPrj));
+%   tmpPrj = BH_resample2d(tmpPrj,rotMat,[0,0],'Bah','GPU','inv',1,size(tmpPrj));
   inputStack(:,:,iPrj) = gather(tmpPrj);
 end
 
@@ -264,15 +269,14 @@ system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d %d %d %f %f %f %d %d %d > ./
     
 cd(sprintf('%s',startDir));
 
-system(sprintf('rm %s',fixedName));
-
-
-if (switch_axes)
-  % backup the original
-  system(sprintf('mv fixedStacks/%s.fixed fixedStacks/%s.fixed_nonSwapped',baseName,baseName));
-  % rotate by 90
-  system(sprintf('newstack -rotate 90 fixedStacks/%s.fixed_nonSwapped fixedStacks/%s.fixed',baseName,baseName));
-end
+% 2021-May-08 BAH, not needed b/c fixed/name.fixed should remain rotated by
+% 90
+% if (switch_axes)
+%   % backup the original
+%   system(sprintf('mv fixedStacks/%s.fixed fixedStacks/%s.fixed_nonSwapped',baseName,baseName));
+%   % rotate by 90
+%   system(sprintf('newstack -rotate 90 fixedStacks/%s.fixed_nonSwapped fixedStacks/%s.fixed',baseName,baseName));
+% end
 
 if strcmpi(TILT_OPTION,'0')
   % If not fitting tilt angles we need a copy of them with .tlt
@@ -283,30 +287,34 @@ to_few_beads = false;
 
 if (REFINE_ON_BEADS)
   cd(sprintf('%s',wrkDir'));
-  extList = {'fixed','tlt','xf','local'}; % stack is skipped in second round. leave as number 1
+  extList = {'tlt','xf','local'}; % stack is skipped in second round. leave as number 1
   for iExt = 1:length(extList)
     system(sprintf('ln -sf ../fixedStacks/%s.%s %s.%s', ...
                     baseName,extList{iExt},baseName,extList{iExt}));
   end  
+
+  system(sprintf('ln -sf ../fixedStacks/%s.%s.preprocessed %s.%s', ...
+                    baseName,'fixed',baseName,'fixed'));
+      
   
   % Stopping for now at a bin5, this should be dynamic along with a handful
   % of other options.
-  max_binning = 5;
-  [ to_few_beads ] = BH_refine_on_beads(baseName,nX,nY,3000,pixelSize,1.05.*100);
+  min_sampling_rate = 5;
+  [ to_few_beads ] = BH_refine_on_beads(baseName,nX,nY,3000,pixelSize,1.05.*100, min_sampling_rate);
   
   if (to_few_beads)
     fprintf('\nWARNING: to few beads found. Using iterative patch tracking results\n');
   else
-    for iExt = 2:length(extList)
+    for iExt = 1:length(extList)
       system(sprintf('mv ../fixedStacks/%s.%s ../fixedStacks/%s.%s_patchTracking', ...
                       baseName,extList{iExt},baseName,extList{iExt}));
       system(sprintf('cp %s_%d.%s ../fixedStacks/%s.%s', ...
-                      baseName,max_binning,extList{iExt},baseName,extList{iExt}));                  
+                      baseName,min_sampling_rate,extList{iExt},baseName,extList{iExt}));                  
     end   
   
   
     system(sprintf('imodtrans -i ../fixedStacks/%s.fixed %s_%d_fit.fid ../fixedStacks/%s.erase',...
-                 baseName,baseName,max_binning,baseName));
+                 baseName,baseName,min_sampling_rate,baseName));
                
     system(sprintf('newstack -xf ../fixedStacks/%s.xf -bin 12 ../fixedStacks/%s.fixed ../fixedStacks/%s_bin12.ali',baseName,baseName,baseName));
   end
@@ -321,6 +329,8 @@ if (to_few_beads || ~REFINE_ON_BEADS)
                                          ceil(1.05*100/pixelSize)));
   cd ..
 end
+
+system(sprintf('rm %s',fixedName));
 
 end
 

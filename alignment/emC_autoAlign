@@ -135,22 +135,22 @@ echo $iEcho && iEcho=$(($iEcho+1))
 #        -BorderSize	2 \
 #        -PolynomialOrder	2
 
-#      newstack -xf ../../preRotXf.xf ../../fixedStacks/${inp}.fixed ../../fixedStacks/${inp}.fixed.rot
+#      newstack -xf ../../preRotXf.xf ../../fixedStacks/${inp}.fixed ../../fixedStacks/${inp}.fixed.preprocessed
 
      
 #      if [[ $FORCE_HIGH_PASS == true ]] ; then
 #        echo -e "\n\nForcing high-pass filter\n\n"
 #        sleep 2
 #        maxCut=$(echo "print(${pixelSize}/${LOW_RES_CUTOFF})" | python)
-#        mv ../../fixedStacks/${inp}.fixed.rot ../../fixedStacks/${inp}.fixedNP.rot
-#        clip filter -h ${maxCut} ../../fixedStacks/${inp}.fixedNP.rot ../../fixedStacks/${inp}.fixed.rot
+#        mv ../../fixedStacks/${inp}.fixed.preprocessed ../../fixedStacks/${inp}.fixedNP.rot
+#        clip filter -h ${maxCut} ../../fixedStacks/${inp}.fixedNP.rot ../../fixedStacks/${inp}.fixed.preprocessed
 #      fi
 
       tiltxcorr \
-        -InputFile	../../fixedStacks/${inp}.fixed.rot \
+        -InputFile	../../fixedStacks/${inp}.fixed.preprocessed \
         -OutputFile	${pName}.prexf \
         -TiltFile	${pName}.rawtlt \
-        -RotationAngle	0.0 \
+        -RotationAngle	${tiltAxisRotation} \
         -FilterSigma1	0.001 \
         -FilterRadius2	0.5 \
         -FilterSigma2	0.05 \
@@ -177,7 +177,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
       fi
       # assuming everything is sane, and the input points to a ccd fixed stack, 
       # we can do a few steps automatically.
-      ln -sf ../../fixedStacks/${inp}.fixed.rot ${pName}.st
+      ln -sf ../../fixedStacks/${inp}.fixed.preprocessed ${pName}.st
       prev_Iter=$((${iter}-1))
       prev_wDir="round_${prev_Iter}"
 
@@ -258,7 +258,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
     # the default tilt group from 5 --> 8 to address the low angle switch.
     if [[ $iter -gt $N_ITERS_NO_ROT ]] ; then
 
-      echo "${EMC_TILTALIGN} -ModelFile	${pName}.fid -ImageFile	${pName}.preali -ImagesAreBinned	${iBin} -OutputModelFile	${pName}.3dmod -OutputResidualFile	${pName}.resid -OutputFidXYZFile	${pName}fid.xyz -OutputTiltFile	${pName}.tlt -OutputTransformFile	${pName}.tltxf_nonScaled -RotationAngle	0.0 -TiltFile	${pName}.rawtlt -AngleOffset ${tiltAngleOffset} -RotOption	1 -RotDefaultGrouping	3 -TiltOption	${TILT_OPTION} -TiltDefaultGrouping	3 -MagOption	${MAG_OPTION} -MagDefaultGrouping	3 -BeamTiltOption	0 -ResidualReportCriterion	1.0 -SurfacesToAnalyze	0 -MetroFactor	0.25 -MaximumCycles	1000 -KFactorScaling	1.0 -NoSeparateTiltGroups	2 -AxisZShift	1000 -ShiftZFromOriginal      1 -LocalAlignments	-OutputLocalFile	${pName}_local.xf -TargetPatchSizeXandY	${ptSizeX},${ptSizeY} -MinSizeOrOverlapXandY	0.5,0.5 -MinFidsTotalAndEachSurface	8,3 -FixXYZCoordinates	1 -LocalRotOption	1 -LocalRotDefaultGrouping	6 -LocalTiltOption	0 -LocalTiltDefaultGrouping	6 -LocalMagOption	1 -LocalMagDefaultGrouping	7  -AngleOffset ${tiltAngleOffset} > tiltAlign.log" > ./.${inp}_tilalign.sh
+      echo "${EMC_TILTALIGN} -ModelFile	${pName}.fid -ImageFile	${pName}.preali -ImagesAreBinned	${iBin} -OutputModelFile	${pName}.3dmod -OutputResidualFile	${pName}.resid -OutputFidXYZFile	${pName}fid.xyz -OutputTiltFile	${pName}.tlt -OutputTransformFile	${pName}.tltxf_nonScaled -RotationAngle	0.0 -TiltFile	${pName}.rawtlt -AngleOffset ${tiltAngleOffset} -RotOption	1 -RotDefaultGrouping	3 -TiltOption	${TILT_OPTION} -TiltDefaultGrouping	3 -MagOption	${MAG_OPTION} -MagDefaultGrouping	3 -BeamTiltOption	0 -ResidualReportCriterion	1.0 -SurfacesToAnalyze	1 -MetroFactor	0.25 -MaximumCycles	1000 -KFactorScaling	1.0 -NoSeparateTiltGroups	2 -AxisZShift	1000 -ShiftZFromOriginal      1 -LocalAlignments	-OutputLocalFile	${pName}_local.xf -TargetPatchSizeXandY	${ptSizeX},${ptSizeY} -MinSizeOrOverlapXandY	0.5,0.5 -MinFidsTotalAndEachSurface	8,3 -FixXYZCoordinates	1 -LocalRotOption	1 -LocalRotDefaultGrouping	6 -LocalTiltOption	0 -LocalTiltDefaultGrouping	6 -LocalMagOption	1 -LocalMagDefaultGrouping	7  -AngleOffset ${tiltAngleOffset} > tiltAlign.log" > ./.${inp}_tilalign.sh
       # Run with local
       tiltalign \
         -ModelFile	${pName}.fid \
@@ -280,7 +280,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
         -MagDefaultGrouping	3 \
         -BeamTiltOption	0 \
         -ResidualReportCriterion	1.0 \
-        -SurfacesToAnalyze	0 \
+        -SurfacesToAnalyze	1 \
         -RobustFitting	1\
         -MetroFactor	0.25 \
         -MaximumCycles	1000 \
@@ -323,7 +323,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
           -MagDefaultGrouping	3 \
           -BeamTiltOption	0 \
           -ResidualReportCriterion	1.0 \
-          -SurfacesToAnalyze	0 \
+          -SurfacesToAnalyze	1 \
           -RobustFitting	1\
           -MetroFactor	0.25 \
           -MaximumCycles	1000 \
@@ -360,8 +360,9 @@ echo $inp >> ../fixedStacks/baseName.list
 
 cp round_${finalRound}/INP-${finalRound}_local.xf ../fixedStacks/${inp}.local
 xfproduct -InputFile1  round_${finalRound}/INP-${finalRound}.inpXF -InputFile2 round_${finalRound}/INP-${finalRound}.tltxf -OutputFile withOutRot.xf
-# Now add in the prerotation
-xfproduct -InputFile1 preRotXf.xf -InputFile2 withOutRot.xf -OutputFile ../fixedStacks/${inp}.xf
+# Now add in the prerotation 2021-may-08 BAH, now applying in the first round with tltxcorr, so it should be incorporated.
+# xfproduct -InputFile1 preRotXf.xf -InputFile2 withOutRot.xf -OutputFile ../fixedStacks/${inp}.xf
+cp withOutRot.xf ../fixedStacks/${inp}.xf
 cp round_${finalRound}/INP-${finalRound}.tlt ../fixedStacks/${inp}.tlt
 
 cd ..
