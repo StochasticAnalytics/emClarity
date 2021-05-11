@@ -177,16 +177,39 @@ binInc = -1*ceil((binHigh- binLow)./3);
 [nX,nY,nZ] = size(inputStack);
 
 
-% Check for rotations close to 90 or 270 that would reduce the total
-% useable area, and if found switch the x/y dimension. This could be more
-% precise
-maxAngle = atand(nY./nX); % will be positive
-switch_axes = false;
+% % Check for rotations close to 90 or 270 that would reduce the total
+% % useable area, and if found switch the x/y dimension. This could be more
+% % precise
+% maxAngle = atand(nY./nX)
+% ; % will be positive
+% switch_axes = false;
+% abs(abs(imgRotation) - 180)
 
-if ( abs(abs(imgRotation) - 180) > maxAngle )
-  fprintf('Your image rotation will result in a loss of data. Switching X/Y axes\n')
-  
+a = ones(nX,nY,'single','gpuArray');
+p = BH_multi_padVal([nX,nY],max([nX,nY]).*[2,2]);
+pad = BH_padZeros3d(a,'fwd',p,'GPU','single');
+
+b = BH_resample2d(pad,[imgRotation,0,0],[0,0],'Bah','GPU','inv',1,size(pad));
+s = pad+b;
+score_1 = sum(sum(s==2))./sum(b(:));
+
+pad = rot90(pad);
+b = BH_resample2d(pad,[90-imgRotation,0,0],[0,0],'Bah','GPU','forward',1,size(pad));
+s = pad+b;
+score_2 = sum(sum(s==2))./sum(b(:));
+
+if score_2 > score_1
   switch_axes = true;
+else
+  switch_axes = false;
+end
+
+
+if (switch_axes)
+
+% if ( abs(abs(imgRotation) - 180) > maxAngle )
+  fprintf('Your image rotation will result in a loss of data. Switching X/Y axes\n')
+%   switch_axes = true;
   
   rotStack = zeros(nY,nX,nZ,'single');
 %   

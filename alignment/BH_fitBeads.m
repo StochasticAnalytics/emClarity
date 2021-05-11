@@ -133,7 +133,6 @@ for iPrj = 1:nPrjs
   end
 
   global_ref = fftshift(real(ifftn(conj(fftn(global_ref)).*imgFT)));
-  
    max_global_shift = 14;
    global_tile = max_global_shift.*[2,2]+1;
    pad_GF = BH_multi_padVal([d1,d2],global_tile);
@@ -197,22 +196,22 @@ for iPrj = 1:nPrjs
        yo(i) = y(i);
      else
        ccf = mip(xl:xh,yl:yh);
-% % %        ccf = fftshift(fftn(ccf));
-% % %        ccf = BH_padZeros3d(ccf,'fwd',padVal,'GPU','single');
-% % %        ccf = real(ifftn(ifftshift(ccf))).*peakMask;
-% % % 
-% % %        [~,maxCoord] = max(ccf(:));
-% % %        [mi,mj] = ind2sub(rp,maxCoord);
-% % %        mi = (mi- ro(1))./ padBy;
-% % %        mj = (mj- ro(2))./ padBy;
-%        ccf = log(ccf+1);
-       comX = sum(sum(bx.*ccf))./sum(ccf(:));
-       comY = sum(sum(by.*ccf))./sum(ccf(:));
-       xo(i) = (comX + x(i));
-       yo(i) = (comY + y(i));
+       ccf = fftshift(fftn(ccf));
+       ccf = BH_padZeros3d(ccf,'fwd',padVal,'GPU','single');
+       ccf = real(ifftn(ifftshift(ccf))).*peakMask;
 
-% % %        xo(i) = (mi  - xf(i) + x(i));
-% % %        yo(i) = (mj  - yf(i) + y(i));
+       [~,maxCoord] = max(ccf(:));
+       [mi,mj] = ind2sub(rp,maxCoord);
+       mi = (mi- ro(1))./ padBy;
+       mj = (mj- ro(2))./ padBy;
+%        ccf = log(ccf+1);
+% % % % %        comX = sum(sum(bx.*ccf))./sum(ccf(:));
+% % % % %        comY = sum(sum(by.*ccf))./sum(ccf(:));
+% % % % %        xo(i) = (comX + x(i));
+% % % % %        yo(i) = (comY + y(i));
+
+       xo(i) = (mi  - xf(i) + x(i));
+       yo(i) = (mj  - yf(i) + y(i));
      end
   end
 

@@ -34,7 +34,7 @@ doLocal = '';
 % Step down in samping rate
 
 sampling_step=2;
-for imageBinning = [19:-sampling_step:min_sampling_rate] 
+for imageBinning = [15:-sampling_step:min_sampling_rate] 
   
     
   if first_run 
