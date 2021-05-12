@@ -1053,7 +1053,7 @@ parfor iParProc = parVect
               if length(gridSearch.parameter_map.phi{iAngle}) > 1
                 phiInc = gridSearch.parameter_map.phi{iAngle}(2)-gridSearch.parameter_map.phi{iAngle}(1);
               else 
-                phiInc = 360;
+                phiInc = 0;
               end
               thetaInc = gridSearch.theta_step;
               numRefIter = gridSearch.number_of_angles_at_each_theta(iAngle);
@@ -1088,7 +1088,7 @@ parfor iParProc = parVect
           for iAzimuth = phi_search
             
             if (use_new_grid_search)
-              phi = iAzimuth + rem(phiInc+azimuthalRandomizer,360);
+              phi = rem(iAzimuth + azimuthalRandomizer,360);
               psiInc = gridSearch.psi_step;
             else
               phi = rem((phiInc * iAzimuth)+azimuthalRandomizer,360);

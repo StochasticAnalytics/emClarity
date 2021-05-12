@@ -1098,6 +1098,8 @@ n = 1;
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
 rmInt = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],'Bah','forward','C1');
+symOps = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],'Bah','forward',symmetry);
+
 maskCutOff = 0.98;
 nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
 nTries = 0;
@@ -1283,14 +1285,7 @@ fileID2 = fopen(pos_out,'w');
 errID  = fopen(sprintf('./%s/%s.errID',convTMPNAME,mapName));
 
 
-if SYMMETRY > 1
-  symmetry = 0:360/SYMMETRY:359;
-  symCell = cell(length(symmetry),1);
-  for iSym = 1:length(symmetry)
-    symCell{iSym} = BH_defineMatrix([symmetry(iSym),0,0], 'Bah', 'inv');
-  end
 
-end
 n=1
 for i = 1:length(peakMat(:,1))
    if all(peakMat(i,1:3))
@@ -1299,8 +1294,8 @@ for i = 1:length(peakMat(:,1))
           % Generate a uniform distribution over the in-plane
           % randomizations
           iSym = rem( n + SYMMETRY, SYMMETRY)+1;
-          r = reshape(BH_defineMatrix(peakMat(i,4:6), 'Bah', 'inv')*...
-                      symCell{iSym},1,9);
+          r = reshape(BH_defineMatrix(peakMat(i,4:6), 'Bah', 'inv') *...
+                      symOps.symmetry_matrices{iSym},1,9); 
         else
           r = reshape(BH_defineMatrix(peakMat(i,4:6), 'Bah', 'inv'),1,9);
         end
@@ -1317,7 +1312,7 @@ for i = 1:length(peakMat(:,1))
               % randomizations
               iSym = rem( n + SYMMETRY, SYMMETRY)+1;
               r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), 'Bah', 'inv')*...
-                          symCell{iSym},1,9);
+                          symOps.symmetry_matrices{iSym},1,9);
             else
               r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), 'Bah', 'inv'),1,9);
             end            
@@ -1352,25 +1347,7 @@ system(sprintf('point2model -number 1 -sphere 3 -scat ./%s/%s.pos ./%s/%s.mod', 
 fileID = fopen(sprintf('./%s/%s.path',convTMPNAME,mapName),'w');
 fprintf(fileID,'%s,%s,%s,%s',mapName,mapPath,mapExt,RAWTLT);
 fclose(fileID);
-%subTomoMeta.('cycle000').('geometry').(mapName) = fieldOUT;
-% subTomoMeta.('mapPath').(mapName) = mapPath;
-% subTomoMeta.('mapExt').(mapName) = mapExt;
 
-% if any(ismember(fieldnames(subTomoMeta), 'nSubTomoTotal'))
-%   subTomoMeta.('nSubTomoTotal') = subTomoMeta.('nSubTomoTotal') + lastIndex;
-% else
-%   subTomoMeta.('nSubTomoTotal') = lastIndex;
-% end
-
-% preFscSplit = gather(subTomoMeta);
-% 
-% % Randomly divide the data into half sets.
-% [ subTomoMeta ] = BH_fscSplit( preFscSplit );
-% subTomoMeta.('currentCycle') = 0;
-
-% save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-% save(sprintf('./convmap/%s.mat~', pBH.('subTomoMeta')), 'subTomoMeta');
-%save('test.pos','a','-ascii');
 
 
 fprintf('Total execution time : %f seconds\n', etime(clock, startTime));

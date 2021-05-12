@@ -829,7 +829,7 @@ try
     % opiton 1 100.04 and 2 (default) is 25.06
     bh_global_MTF = pBH.('mtfVal');
   catch
-    bh_global_MTF = 0;
+    bh_global_MTF = 2;
   end
 
   global bh_global_print_shifts_in_particle_basis;
