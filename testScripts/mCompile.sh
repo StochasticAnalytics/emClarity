@@ -6,6 +6,14 @@
 #   TODO set up a little configure script to do this and check other deps described below.
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
 export emC_DEPS="/groups/grigorieff/home/himesb/work/emC_dependencies"
+EMC_ROOT=${HOME}/work/emClarity # This is just for convenience, when you build for yourself
+############ lines 4-5 in mexFiles/mexCompile
+#mexPATH = '/groups/grigorieff/home/himesb/work/emClarity/mexFiles/';
+#CUDA_LIB = '-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64'   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
+############
+### line 7 in testScripts/emClarity.m
+#compiled_PATH='/groups/grigorieff/home/himesb/work/emClarity';
+###################
 
 # This is the version of matlab you will end up compiling with.
 MATLAB_FOR_COMIPLING=matlab19a
@@ -26,7 +34,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=3
-nightly=05
+nightly=06
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -43,11 +51,11 @@ scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
 #     I have "matlab19a" on my path to point to the specific matlab install I want to use.
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 imodStaticIncludes=""
-EMC_ROOT=${HOME}/work/emClarity
 
 
-#-a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads ;
-${MATLAB_FOR_COMIPLING} -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ${EMC_ROOT}/alignment/emC_autoAlign -a ${EMC_ROOT}/alignment/emC_findBeads -a ${EMC_ROOT}/metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+
+
+${MATLAB_FOR_COMIPLING} -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
       
 #I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
     

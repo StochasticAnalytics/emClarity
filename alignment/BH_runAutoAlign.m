@@ -111,7 +111,7 @@ end
 [~,baseName,ext] = fileparts(stackIN);
 fixedName = sprintf('fixedStacks/%s.fixed.preprocessed',baseName);
 
-ext = sprintf('%s.rot',ext);
+ext = sprintf('%s.preprocessed',ext);
 
 [~,tiltName,tiltExt] = fileparts(tiltAngles);
 startDir = pwd;

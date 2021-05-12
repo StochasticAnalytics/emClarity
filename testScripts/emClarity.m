@@ -3,6 +3,9 @@ function [ varargout ] = emClarity( varargin )
 %   Detailed explanation goes here
 
 % Disable warnings
+
+compiled_PATH='/groups/grigorieff/home/himesb/work/emClarity';
+
 warning off
 cudaStart='';
 useV2 = false;
@@ -31,33 +34,42 @@ slashCheck = strsplit(emClarity_ROOT,'/');
 [pathWithDir,~,~] = fileparts(emClarity_ROOT);
 if isempty(slashCheck{end})
   % There is a trailing slash
-  emC_PATH = emClarity_ROOT;
+  shift_end = 1;
+  add_slash = '';
 else
-
-  emC_PATH = strcat(emClarity_ROOT ,'/');
-end
-  
-
-emC_autoAliPath=sprintf('%s/alignment/emC_autoAlign',emC_PATH);
-if isdeployed
-  emC_autoAliPath = sprintf('%s%s',ctfroot,emC_autoAliPath);
+  shift_end = 0;
+  add_slash = '/';
 end
 
-emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emC_PATH);
+fprintf('ctfroot is %s\n',ctfroot);
+
+emC_PATH = strsplit(pathWithDir, slashCheck{end-shift_end});
+emC_PATH = sprintf('%s%semClarity',emC_PATH{1},add_slash);
+
+
 if isdeployed
-  emC_findBeadsPath = sprintf('%s%s',ctfroot,emC_findBeadsPath);
+  emC_autoAliPath = sprintf('%s%s/alignment/emC_autoAlign',ctfroot,compiled_PATH);
+else
+  emC_autoAliPath = sprintf('%s/alignment/emC_autoAlign',emC_PATH); 
 end
 
-BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emC_PATH);
 if isdeployed
-  BH_checkInstallPath = sprintf('%s%s',ctfroot,BH_checkInstallPath);
+  emC_findBeadsPath = sprintf('%s%s/alignment/emC_findBeads',ctfroot,compiled_PATH);
+else
+  emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emC_PATH);
+end
+
+if isdeployed
+  BH_checkInstallPath = sprintf('%s%s/metaData/BH_checkInstall',ctfroot,compiled_PATH);
+else
+  BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emC_PATH);
 end
 
 setenv('EMC_AUTOALIGN',emC_autoAliPath);
 setenv('EMC_FINDBEADS',emC_findBeadsPath);
 setenv('BH_CHECKINSTALL',BH_checkInstallPath);
 
-emC_cisTEMDepPath=sprintf('%s/bin/deps',emClarity_ROOT)
+emC_cisTEMDepPath=sprintf('%s/bin/deps',emClarity_ROOT);
 emC_cisTEM_deps = importdata(sprintf('%s/cisTEMDeps.txt',emC_cisTEMDepPath));
 
 for iDep = 1:length(emC_cisTEM_deps)

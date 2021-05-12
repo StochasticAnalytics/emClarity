@@ -31,7 +31,7 @@ else
   
     % Make sure the erase model is set up for the fixed stack. This model
     % will be updated if tomoCPR is run.
-    if ~isfile(modelName)
+    if ~isfile(sprintf('fixedStacks/%s.erase',fileName))
       fprintf('WARNING: skipping bead erasing, b/c no file fixedStacks/%s.erase is found',fileName);
       return
     end

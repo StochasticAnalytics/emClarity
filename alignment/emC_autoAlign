@@ -53,7 +53,6 @@ echo $FIRST_ITER_SHIFT_LIMIT_PIXELS
 echo $DIVIDE_SHIFT_LIMIT_BY
 
 
-
 echo -e "Input file $inp\npixelSize $pixelSize\ntiltAxisRotation $tiltAxisRotation\n"
 echo -e "binHigh $binHigh\nbinLow $binLow\nnX $nX\nnY $nY\nnZ $nZ\next $ext\nTILT_OPTION $TILT_OPTION\n\n"
 
@@ -112,7 +111,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
     if [[ ${iter} -eq 1 ]] ; then
       # open up etomo to run through to visually inspect ccd removal and get the 
       # alignment to be sane. assuming tilts in header or manually extracted.
-      ln -sf ../../${inp}${ext} ${pName}.st
+
       ln -sf ../../${inp}.rawtlt ${pName}.rawtlt
 
       
@@ -150,13 +149,15 @@ echo $iEcho && iEcho=$(($iEcho+1))
         -InputFile	../../fixedStacks/${inp}.fixed.preprocessed \
         -OutputFile	${pName}.prexf \
         -TiltFile	${pName}.rawtlt \
-        -RotationAngle	${tiltAxisRotation} \
+        -RotationAngle	0.0 \ # This only runs in plane shifts, so not point to give the angle
         -FilterSigma1	0.001 \
         -FilterRadius2	0.5 \
         -FilterSigma2	0.05 \
         -CumulativeCorrelation \
         -AngleOffset ${tiltAngleOffset}
-        	
+  
+
+      	
 echo $iEcho && iEcho=$(($iEcho+1))
 
       xftoxg -nfit 0 ${pName}.prexf ${pName}.inpXF
@@ -224,6 +225,12 @@ echo $iEcho && iEcho=$(($iEcho+1))
     } > ./.${inp}_xcorr.sh
     # For some reason specifying BordersInXorY or RotationAngle would terminate
     # input. Get rid of the former, and put rotation at the end.
+
+    if [[ $iter -eq 2 ]] ; then
+      local_rotation=${tiltAxisRotation} # we only want to pass this in on the first iteration, because it is contained in the xf afterward
+    else
+      local_rotation=0.0
+    fi
     tiltxcorr \
       -OverlapOfPatchesXandY	${ptOverlap},${ptOverlap} \
       -IterateCorrelations	1 \
@@ -269,7 +276,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
         -OutputFidXYZFile	${pName}fid.xyz \
         -OutputTiltFile	${pName}.tlt \
         -OutputTransformFile	${pName}.tltxf_nonScaled \
-        -RotationAngle	0.0 \
+        -RotationAngle	${local_rotation} \
         -TiltFile	${pName}.rawtlt \
         -AngleOffset ${tiltAngleOffset} \
         -RotOption	1 \
@@ -312,7 +319,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
           -OutputFidXYZFile	${pName}fid.xyz \
           -OutputTiltFile	${pName}.tlt \
           -OutputTransformFile	${pName}.tltxf_nonScaled \
-          -RotationAngle	0.00 \
+          -RotationAngle	${local_rotation} \
           -TiltFile	${pName}.rawtlt \
           -AngleOffset	${tiltAngleOffset} \
           -RotOption	1 \
