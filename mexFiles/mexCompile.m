@@ -2,7 +2,7 @@ function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
 mexPATH = '/groups/grigorieff/home/himesb/work/emClarity/mexFiles/';
-CUDA_LIB = '-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64'   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
+CUDA_LIB = '-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64';   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
 getenv('MW_NVCC_PATH')
 getenv('CUDA_HOME')
 
@@ -25,7 +25,7 @@ end
 % --warn-on-spills
 % -Wno-deprecated-gpu-targets
 mexcuda_opts = { ...
-CUDA_LIB
+CUDA_LIB ...
 '-lcublas'          ...            % Link to cuBLAS
 '-lmwlapack'        ...            % Link to LAPACK
 '-lcufft'           ...            % Link to cuFFT
