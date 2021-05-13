@@ -106,6 +106,8 @@ skip_tilts_logical = [];
 if (skip_tilts)
   skip_tilts_logical = ~ismember(1:size(inputStack,3),skip_tilts);
   inputStack = inputStack(:,:,skip_tilts_logical);
+else
+  skip_tilts_logical = true(size(inputStack,3),1);
 end
 
 [~,baseName,ext] = fileparts(stackIN);
@@ -113,7 +115,6 @@ fixedName = sprintf('fixedStacks/%s.fixed.preprocessed',baseName);
 
 ext = sprintf('%s.preprocessed',ext);
 
-[~,tiltName,tiltExt] = fileparts(tiltAngles);
 startDir = pwd;
 wrkDir = sprintf('emC_autoAlign_%s', baseName);
 system(sprintf('mkdir -p %s',wrkDir));
@@ -132,38 +133,15 @@ iOriginHeader= [iHeader.xOrigin , ...
                 iHeader.yOrigin , ...
                 iHeader.zOrigin ];
                 
-if (skip_tilts)
-
-  SAVE_IMG(inputStack,sprintf('%s.fixed',baseName),iPixelHeader,iOriginHeader);
-  
-  f = load(sprintf('../%s',tiltAngles));
-  if length(tiltAngles) ~= sum(skip_tilts_logical)
-    if exist(sprintf('../%s.orig',tiltAngles),'file')
-      % We must be re_rerunning, so copy the orig back
-      system(sprintf('cp ../%s.orig ../%s',tiltAngles,tiltAngles));
-      f = load(sprintf('../%s',tiltAngles));
-    else
-      % Create a backup 
-      system(sprintf('cp ../%s ../%s.orig',tiltAngles,tiltAngles));
-    end
-    f = f(skip_tilts_logical);
-
-    fout = fopen(sprintf('../%s',tiltAngles),'w');
-    fprintf(fout,'%f\n',f');
-    fclose(fout);
-  end
-  clear f
-      
-else
-  system(sprintf('ln -sf %s/%s %s.fixed',startDir,stackIN,baseName));
-end
+f = load(sprintf('../%s',tiltAngles));
+f = f(skip_tilts_logical);
+fout = fopen(sprintf('%s.rawtlt',baseName),'w');
+fprintf(fout,'%f\n',f');
+fclose(fout); 
+clear f
 
 cd('../');
 
-
-if strcmp(tiltExt,'.rawtlt')
-  system(sprintf('ln -sf %s %s.rawtlt',tiltAngles,tiltName));
-end
 
 binHigh=ceil(MIN_SAMPLING_RATE ./ pixelSize);
 if MAX_SAMPLING_RATE > 4
@@ -228,6 +206,14 @@ if (switch_axes)
   inputStack = rotStack; clear rotStack
   imgRotation = imgRotation + 90; 
   SAVE_IMG(inputStack,sprintf('fixedStacks/%s.fixed',baseName),iPixelHeader,iOriginHeader);
+elseif ( skip_tilts)
+  % Originally saved in the skip_tilts block, but that is redundant if we
+  % save in the switch_axes block in the new implementation.
+  SAVE_IMG(inputStack,sprintf('fixedStacks/%s.fixed',baseName),iPixelHeader,iOriginHeader);
+else
+  % No modifications, so just link to the original stack
+  cd('fixedStacks');
+  system(sprintf('ln -sf ../%s %s.fixed',stackIN,baseName));
 end
 
 
@@ -303,7 +289,7 @@ cd(sprintf('%s',startDir));
 
 if strcmpi(TILT_OPTION,'0')
   % If not fitting tilt angles we need a copy of them with .tlt
-   system(sprintf('cp %s fixedStacks/%s.tlt',tiltAngles,tiltName));
+   system(sprintf('cp fixedStacks/%s.rawtlt fixedStacks/%s.tlt',baseName,baseName));
 end
 
 to_few_beads = false;

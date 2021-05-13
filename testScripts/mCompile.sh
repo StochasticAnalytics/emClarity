@@ -34,7 +34,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=5
 bugs=3
-nightly=06
+nightly=07
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.

@@ -26,8 +26,6 @@ tilt \
   -RADIAL 0.35,0.035 \
   -FalloffIsTrueSigma 1 \
   -XAXISTILT 0.0 \
-  -LOG 0.0 \
-  -SCALE 0.0,250.0 \
   -MODE 2 \
   -UseGPU 0 \
   -ActionIfGPUFails 1,2 \
@@ -59,8 +57,6 @@ tilt \
   -RADIAL 0.35,0.035 \
   -FalloffIsTrueSigma 1 \
   -XAXISTILT 0.0 \
-  -LOG 0.0 \
-  -SCALE 0.0,250.0 \
   -UseGPU 0 \
   -ActionIfGPUFails 1,2 \
   -OFFSET 0.0 \

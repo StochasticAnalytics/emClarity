@@ -112,7 +112,6 @@ echo $iEcho && iEcho=$(($iEcho+1))
       # open up etomo to run through to visually inspect ccd removal and get the 
       # alignment to be sane. assuming tilts in header or manually extracted.
 
-      ln -sf ../../${inp}.rawtlt ${pName}.rawtlt
 
       
 #      ccderaser \
@@ -148,8 +147,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
       tiltxcorr \
         -InputFile	../../fixedStacks/${inp}.fixed.preprocessed \
         -OutputFile	${pName}.prexf \
-        -TiltFile	${pName}.rawtlt \
-        -RotationAngle	0.0 \ # This only runs in plane shifts, so not point to give the angle
+        -TiltFile	../../fixedStacks/${inp}.rawtlt \
         -FilterSigma1	0.001 \
         -FilterRadius2	0.5 \
         -FilterSigma2	0.05 \
@@ -162,7 +160,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
 
       xftoxg -nfit 0 ${pName}.prexf ${pName}.inpXF
 
-      cp ${pName}.rawtlt ${pName}.tlt
+      cp ../../fixedStacks/${inp}.rawtlt ${pName}.tlt
       
       cd ..
       iter=$(($iter+1))
@@ -170,12 +168,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
       continue
     else
 echo $iEcho && iEcho=$(($iEcho+1))
-      # TODO shouldn't this be set in the first iter? Make it persist.
-      if [[ -f ../../$(basename ${inp} .mrc).rawtlt ]] ; then
-        inp=$(basename ${inp} .mrc)
-      elif [[ ../../$(basename ${inp} .st).rawtlt ]] ; then
-        inp=$(basename ${inp} .st)
-      fi
+
       # assuming everything is sane, and the input points to a ccd fixed stack, 
       # we can do a few steps automatically.
       ln -sf ../../fixedStacks/${inp}.fixed.preprocessed ${pName}.st
