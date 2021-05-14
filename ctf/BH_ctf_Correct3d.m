@@ -669,11 +669,11 @@ parfor iGPU = 1:nGPUs%
        % FIXME, when setting up the iterator, make clean copies for each
        % worker that are local in scope.e
        
-       
-      if ~(flgEraseBeads_aferCTF)
-        scalePixelsBy = samplingRate;
-        maskedStack = BH_eraseBeads(maskedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
-      end
+% This is slated to be deleted, just leave pre erasure to happen in ctf estimate/update      
+%       if ~(flgEraseBeads_aferCTF)
+%         scalePixelsBy = samplingRate;
+%         maskedStack = BH_eraseBeads(maskedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
+%       end
       
       [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixelSize,maskedStack,...

@@ -214,6 +214,7 @@ else
   % No modifications, so just link to the original stack
   cd('fixedStacks');
   system(sprintf('ln -sf ../%s %s.fixed',stackIN,baseName));
+  cd('../')
 end
 
 
