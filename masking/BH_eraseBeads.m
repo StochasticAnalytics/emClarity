@@ -21,8 +21,8 @@ if (mapBackIter)
   [fail] = system(sprintf('imodtrans -2 %s %s fixedStacks/%s_ali%d.erase', ...
                   tiltxf, old_model , fileName, mapBackIter + 1));
    if (fail)
-     printf('model %s exists : %d\n', old_model,exist(old_model,'file'));
-     printf('xf %s exists : %d\n', tiltxf,exist(tiltxf,'file'));
+     fprintf('model %s exists : %d\n', old_model,exist(old_model,'file'));
+     fprintf('xf %s exists : %d\n', tiltxf,exist(tiltxf,'file'));
 
      error('imodtrans failed to update the bead erase model fixedStacks/%s_ali%d.erase',fileName, mapBackIter)
    end
