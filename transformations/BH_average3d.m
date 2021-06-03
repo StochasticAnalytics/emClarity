@@ -166,6 +166,14 @@ catch
   flgShiftEucentric = 0;
 end
 
+rotConvention = 'Bah';
+if length(angleSearch) == 5
+  if ( angleSearch(5) )
+    rotConvention = 'Helical';
+  end
+end
+
+rotConvention
 
 % The weights are only re-estimated for an out of plane search. Until this
 % happens, they are not valid.
@@ -1347,10 +1355,10 @@ parfor iParProc = parVect
           
           if (flgFinalAvg)
             % Only the odd half needs to be searched
-            [~, iRefWdg] = interpolator(gpuArray(refWDG{1}),angles',[0,0,0], 'Bah', 'forward', 'C1', true);
-            [~, iRefIMG] = interpolator(gpuArray(refIMG{1}),angles',iShift, 'Bah', 'forward', 'C1', true);
-%             iRefIMG = BH_resample3d(refIMG{1},angles', iShift,'Bah', 'GPU', 'forward');
-%             iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],'Bah', 'GPU', 'forward');
+            [~, iRefWdg] = interpolator(gpuArray(refWDG{1}),angles',[0,0,0], rotConvention , 'forward', 'C1', true);
+            [~, iRefIMG] = interpolator(gpuArray(refIMG{1}),angles',iShift, rotConvention , 'forward', 'C1', true);
+%             iRefIMG = BH_resample3d(refIMG{1},angles', iShift,rotConvention , 'GPU', 'forward');
+%             iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],rotConvention , 'GPU', 'forward');
             
             [ ref_FT ] = BH_bandLimitCenterNormalize(iRefIMG.*peakMask_tmp, ...
                                                     fftshift(iSF3D), ...
@@ -1384,24 +1392,24 @@ parfor iParProc = parVect
             
      
             %iParticle is already on GPU if it should be.
-           [~, iParticle] = interpolator(gpuArray(iParticle), angles, iShift, 'Bah', 'inv', symmetry, true);
+           [~, iParticle] = interpolator(gpuArray(iParticle), angles, iShift, rotConvention , 'inv', symmetry, true);
            
 %           [ iParticle ] = gpuArray( ...
 %                           BH_resample3d(iParticle, ...
 %                               angles, iShift, ...             
-%                               {'Bah',symmetry,interpM,1,interpMask_tmpBinary}, ...
+%                               {rotConvention ,symmetry,interpM,1,interpMask_tmpBinary}, ...
 %                               interpU,'inv'));
 % 
 %           [ iParticle ] = BH_padZeros3d(iParticle, ...
 %                                     -1.*padWindow(1,:),-1.*padWindow(2,:),...
 %                                     'GPU','single');  
 
-            [~, iWedgeMask] = interpolator(gpuArray(iSF3D), angles, [0,0,0], 'Bah', 'inv', symmetry, true);
+            [~, iWedgeMask] = interpolator(gpuArray(iSF3D), angles, [0,0,0], rotConvention , 'inv', symmetry, true);
             
             % For now just leave linear interp, but test with spline
 %             [ iWedgeMask ] = BH_resample3d(iSF3D, ...
 %                                            angles, [0,0,0], ...
-%                                            {'Bah',symmetry,'linear', ...
+%                                            {rotConvention ,symmetry,'linear', ...
 %                                            1,interpMaskWdg_tmp}, ...
 %                                            'GPU','inv');          
 

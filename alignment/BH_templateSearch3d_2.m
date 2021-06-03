@@ -305,11 +305,14 @@ gpuDevice(useGPU);
 
 % Initialize a whole mess of control variables and storage volumes. %
 %Out of plane range inc (starts from 1.* inc)
+rotConvention = 'Bah';
 if length(angleSearch) == 5
-  helical = angleSearch(5);
-else
-  helical = 0;
+  if ( angleSearch(5) )
+    rotConvention = 'Helical';
+  end
 end
+
+rotConvention
 
 if (use_new_grid_search)
 
@@ -721,11 +724,7 @@ for iAngle = theta_search
       if (use_new_grid_search)
         phi = iAzimuth;
       else
-        if helical == 1
-            phi = 90 ;
-        else
-           phi = phiStep * iAzimuth;
-        end
+        phi = phiStep * iAzimuth;    
       end
 
       for iInPlane = inPlaneSearch
@@ -740,7 +739,7 @@ for iAngle = theta_search
                               
         [ tempRot ] = template_interpolator.interp3d(...
                                                    [phi, theta, psi - phi],... 
-                                                   [1,1,1],'Bah',...
+                                                   [1,1,1],rotConvention,...
                                                   'forward','C1');  
 
          
@@ -1097,8 +1096,8 @@ n = 1;
 
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
-rmInt = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],'Bah','forward','C1');
-symOps = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],'Bah','forward',symmetry);
+rmInt = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],rotConvention ,'forward','C1');
+symOps = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],rotConvention ,'forward',symmetry);
 
 maskCutOff = 0.98;
 nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
@@ -1240,8 +1239,8 @@ end
 
 
    
-%     rmMask = BH_resample3d(removalMask,peakMat(n,4:6),[0,0,0],'Bah','GPU','forward');
-    rmMask = rmInt.interp3d(gather(peakMat(n,4:6)),[0,0,0],'Bah','forward','C1');
+%     rmMask = BH_resample3d(removalMask,peakMat(n,4:6),[0,0,0],rotConvention ,'GPU','forward');
+    rmMask = rmInt.interp3d(gather(peakMat(n,4:6)),[0,0,0],rotConvention,'forward','C1');
 
     % Invert after resampling so that zeros introduced by not extrapolating
     % the corners are swapped to ones, i.e. not removed.
@@ -1294,10 +1293,10 @@ for i = 1:length(peakMat(:,1))
           % Generate a uniform distribution over the in-plane
           % randomizations
           iSym = rem( n + SYMMETRY, SYMMETRY)+1;
-          r = reshape(BH_defineMatrix(peakMat(i,4:6), 'Bah', 'inv') *...
+          r = reshape(BH_defineMatrix(peakMat(i,4:6), rotConvention , 'inv') *...
                       symOps.symmetry_matrices{iSym},1,9); 
         else
-          r = reshape(BH_defineMatrix(peakMat(i,4:6), 'Bah', 'inv'),1,9);
+          r = reshape(BH_defineMatrix(peakMat(i,4:6), rotConvention , 'inv'),1,9);
         end
         fprintf(fileID,['%1.2f %d %d %d %d %d %d %d %d %d %f %f %f %d %d %d ',...
                         '%f %f %f %f %f %f %f %f %f %d '],peakMat(i,10),samplingRate,0, ...
@@ -1311,10 +1310,10 @@ for i = 1:length(peakMat(:,1))
               % Generate a uniform distribution over the in-plane
               % randomizations
               iSym = rem( n + SYMMETRY, SYMMETRY)+1;
-              r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), 'Bah', 'inv')*...
+              r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), rotConvention , 'inv')*...
                           symOps.symmetry_matrices{iSym},1,9);
             else
-              r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), 'Bah', 'inv'),1,9);
+              r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), rotConvention , 'inv'),1,9);
             end            
             fprintf(fileID,['%1.2f %d %d %d %d %d %d %d %d %d %f %f %f %d %d %d ',...
                         '%f %f %f %f %f %f %f %f %f %d '],peakMat(i,10),samplingRate,0, ...
