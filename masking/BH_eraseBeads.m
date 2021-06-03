@@ -17,15 +17,24 @@ if (mapBackIter)
   % The bead model needs to be updated.
   tiltxf = sprintf('mapBack%d/%s_ali%d_ctf.tltxf',mapBackIter,fileName,mapBackIter);
   old_model = sprintf('fixedStacks/%s_ali%d.erase',fileName, mapBackIter);
-  
-  [fail] = system(sprintf('imodtrans -2 %s %s fixedStacks/%s_ali%d.erase', ...
-                  tiltxf, old_model , fileName, mapBackIter + 1));
-   if (fail)
-     fprintf('model %s exists : %d\n', old_model,exist(old_model,'file'));
-     fprintf('xf %s exists : %d\n', tiltxf,exist(tiltxf,'file'));
 
-     error('imodtrans failed to update the bead erase model fixedStacks/%s_ali%d.erase',fileName, mapBackIter)
-   end
+    % Make sure the erase model is set up for the fixed stack. This model
+    % will be updated if tomoCPR is run.
+    if isfile(old_model)
+      [fail] = system(sprintf('imodtrans -2 %s %s fixedStacks/%s_ali%d.erase', ...
+                  tiltxf, old_model , fileName, mapBackIter + 1));
+      if (fail)
+       fprintf('model %s exists : %d\n', old_model,exist(old_model,'file'));
+       fprintf('xf %s exists : %d\n', tiltxf,exist(tiltxf,'file'));
+
+       error('imodtrans failed to update the bead erase model fixedStacks/%s_ali%d.erase',fileName, mapBackIter)
+      end
+
+    else    
+      fprintf('WARNING: skipping bead erasing, b/c no file %s is found',old_model);
+      return      
+    end
+
    
 else
   

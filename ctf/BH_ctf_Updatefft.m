@@ -325,7 +325,7 @@ system('mkdir -p aliStacks');
 try 
   erase_beads_after_ctf = pBH.('erase_beads_after_ctf');
 catch
-  erase_beads_after_ctf = true;
+  erase_beads_after_ctf = false;
 end
 
 if (erase_beads_after_ctf)
