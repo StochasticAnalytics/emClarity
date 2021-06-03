@@ -77,9 +77,9 @@ particleMask = BH_multi_randomizeTaper(particleMask);
 if (mskParams{5})
   % Soft shape mask used for FSC calculation
 %   [ mShape2 ]= BH_mask3d(imgs{1} + imgs{2}, 1.*pixelSize,'','');
-% FIXME these should come from the call 
-shape_mask_lowpass = 14;
-shape_mask_threshold = 2.4;
+% These are inhereted from the param file during the call to fscGold_class
+shape_mask_lowpass = mskParams{6};
+shape_mask_threshold = mskParams{7};
 
      
 %       padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
