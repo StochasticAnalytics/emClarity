@@ -36,7 +36,7 @@ classdef interpolator < handle
         useOnlyOnce = false;
       end
       
-      check_symmetry(obj, symmetry);
+      check_symmetry(obj, symmetry, convention);
       [angles, shifts] = check_anglesAndShifts(obj,angles, shifts, convention, direction);
       boolDirection = check_inputs(obj,direction);
       
@@ -99,7 +99,7 @@ classdef interpolator < handle
       %METHOD1 Summary of this method goes here
       %   Detailed explanation goes here
       
-      check_symmetry(obj, symmetry);
+      check_symmetry(obj, symmetry, convention);
       [angles, shifts] = check_anglesAndShifts(obj, angles, shifts, convention, direction);
       boolDirection = check_inputs(obj, direction);
  
@@ -169,7 +169,7 @@ classdef interpolator < handle
       
    end
     
-   function [  ] = check_symmetry(obj, symmetry)
+   function [  ] = check_symmetry(obj, symmetry, convention)
      
      if isempty(obj.symmetry_type |  ~strcmpi(symmetry, obj.symmetry_type))
        
@@ -178,6 +178,10 @@ classdef interpolator < handle
        else
          obj.symmetry_type = symmetry;
 %          warning('The requested symmetry (%s) is different from that initialized (%s)\n',symmetry,obj.symmetry_type);
+       end
+       
+       if (symmetry(1) ~= 'C' && convention ~= 'Bah')
+         error('Alternate conventions like Helical (%s encountered) only support CX symmetry\n', convention)
        end
        
        switch symmetry(1)
@@ -189,7 +193,7 @@ classdef interpolator < handle
             obj.nSymMats = length(obj.symmetry_matrices);
             symInc = 360 / obj.nSymMats;
             for iSym = 0: obj.nSymMats - 1
-              obj.symmetry_matrices{iSym + 1} = BH_defineMatrix([0,0,iSym.*symInc], 'Bah', 'forward');
+              obj.symmetry_matrices{iSym + 1} = BH_defineMatrix([0,0,iSym.*symInc], convention, 'forward');
             end  
          case 'D'
            if (length(symmetry) < 2)
