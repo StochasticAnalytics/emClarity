@@ -27,7 +27,8 @@ classdef interpolator < handle
   
   methods
     function [ obj, resampledVol ] = interpolator(inputVol, angles, shifts, convention, direction, symmetry, varargin)
-      %UNTITLED Construct an instance of this class
+      %UNTITLED Construct an instance of this classlt
+      
       %   Detailed explanation goes here
       
       if (nargin == 7)
