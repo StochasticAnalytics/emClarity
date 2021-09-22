@@ -178,10 +178,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 //  mexit(__LINE__);
+    // cudaMallocArray( array_ptr, descriptor, width, height, flags.)
+    // cuda arrays refer to memory speed width > height > depth (x > y > z)
   (cudaMallocArray(&cuArray,
-                                  &channelDesc,
-                                  ctf_dims.x,
-                                  ctf_dims.y));
+                   &channelDesc,
+                   ctf_dims.x,
+                   ctf_dims.y));
 
   // Set texture parameters
   // cudaAddressModeWrap cudaAddressModeClamp cudaAddressModeMirror cudaAddressModeBorder
@@ -256,15 +258,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
     // Put the ctf in tex2
-    (cudaMemcpyToArray(cuArray,
-                                      0,
-                                      0,
-                                      d_ctf_img,
-                                      (long)(ctf_dims.x * ctf_dims.y * sizeof(float)),
-                                      cudaMemcpyDeviceToDevice));
+
+    (cudaMemcpy2DToArray (cuArray, // Destination ptr
+                          0, // Destination starting X offset (columns in bytes) 
+                          0, // Destination starting Y offset (rows) 
+                          d_ctf_img, // src ptr
+                          ctf_dims.x * sizeof(float), // Pitch of source memory
+                          ctf_dims.x * sizeof(float), // Width of matrix transfer (columns in bytes)  
+                          ctf_dims.y, // Height of matrix transfer (rows) 
+                          cudaMemcpyDeviceToDevice));
 
     
-    // Bind the array to the texture
+    // Bind the array to the texture FIXME this is deprecated, switch to a texture object ... I think I use this in interpolation mexXform3d
     (cudaBindTextureToArray(tex, cuArray, channelDesc));
 
     // Call the sf3d kernel

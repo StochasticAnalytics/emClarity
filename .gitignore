@@ -7,3 +7,4 @@ testScripts/EMC_test/logTest/
 testScripts/EMC_test/logPerf/
 testScripts/EMC_test/fixtures
 *.orig
+.vscode

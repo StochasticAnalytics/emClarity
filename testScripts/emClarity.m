@@ -3,8 +3,8 @@ function [ varargout ] = emClarity( varargin )
 %   Detailed explanation goes here
 
 % Disable warnings
-
-compiled_PATH='/groups/grigorieff/home/himesb/work/emClarity';
+% Will this every be different from EMC_ROOT? Could it just be set from this?
+compiled_PATH='/groups/himesb/git/emClarity';
 
 warning off
 cudaStart='';
