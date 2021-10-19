@@ -166,6 +166,7 @@ catch
   flgShiftEucentric = 0;
 end
 
+angleSearch  = pBH.('Raw_angleSearch');
 rotConvention = 'Bah';
 if length(angleSearch) == 5
   if ( angleSearch(5) )

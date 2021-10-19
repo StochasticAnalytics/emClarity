@@ -83,6 +83,12 @@ catch
   DIVIDE_SHIFT_LIMIT_BY = 1;
   % int(max_shift / (iter^DIVI...)) + 1
 end
+
+try
+  is_mega_tomo = pBH.('autoAli_megaTomo');
+catch
+  is_mega_tomo = 0;
+end
                                                    
 % Now get the bead diameter, if it is zeros override the default to refine
 % on beads after patch tracking.
@@ -162,17 +168,27 @@ binInc = -1*ceil((binHigh- binLow)./3);
 % ; % will be positive
 % switch_axes = false;
 % abs(abs(imgRotation) - 180)
-
-a = ones(nX,nY,'single','gpuArray');
 p = BH_multi_padVal([nX,nY],max([nX,nY]).*[2,2]);
-pad = BH_padZeros3d(a,'fwd',p,'GPU','single');
+run_on = '';
+if (is_mega_tomo)
+  run_on = 'cpu';
+  a = ones(nX,nY,'single');
+else
+  run_on = 'GPU';
+  a = ones(nX,nY,'single','gpuArray');
+end
 
-b = BH_resample2d(pad,[imgRotation,0,0],[0,0],'Bah','GPU','inv',1,size(pad));
+  pad = BH_padZeros3d(a,'fwd',p,run_on,'single');
+  b = BH_resample2d(pad,[imgRotation,0,0],[0,0],'Bah',run_on,'inv',1,size(pad));
+
 s = pad+b;
 score_1 = sum(sum(s==2))./sum(b(:));
 
 pad = rot90(pad);
-b = BH_resample2d(pad,[90-imgRotation,0,0],[0,0],'Bah','GPU','forward',1,size(pad));
+
+
+b = BH_resample2d(pad,[90-imgRotation,0,0],[0,0],'Bah',run_on,'forward',1,size(pad));
+
 s = pad+b;
 score_2 = sum(sum(s==2))./sum(b(:));
 
