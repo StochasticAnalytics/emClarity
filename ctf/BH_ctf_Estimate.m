@@ -42,6 +42,20 @@ gDev = gpuDevice(gpuIDX);
 
 flgResume = 0;
 flgSkip = 0;
+try 
+  % Switch to using the tiled ctf estimate for tilted images directly in ctffind.
+  % TODO: add gpu support there
+  % TODO: confirm the handedness check is correct (estimated tilt = 90, inverted; 270 correct)
+  flgSkip = pBH.('use_experimental_ctf_estimate');
+  if (flgSkip)   
+    fprintf('Using new tilted ctf estimate.\n')
+  else
+    fprintf('Using standard emClarity tilted ctf estimate.\n')
+  end  
+catch
+  fprintf('Using standard emClarity tilted ctf estimate.\n')
+end
+
 % slightly dampen lower resolution information that may overwhelm the CCC calc,
 % but don't risk too much noise amplification. 1 = fit just the amplitude (not
 % PS) 0.5 = take sqrt prior to normalizing.
@@ -563,7 +577,27 @@ SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
 SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
 
 
-if ~(flgSkip)
+if (flgSkip)
+
+  % Skip the fitting, create a dummy TLT file and run ctffind4 alpha with Niko's tilted CTF implementation.
+
+  [~, idx] = sortrows(abs(TLT(:,4)), -1);
+  TLT = TLT(idx,:);
+  % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
+  % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
+  % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
+  tilt_file_name = sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT);
+  fileID = fopen(tilt_file_name, 'w');
+  fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
+           '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
+           '%d\t%d\t%d\t%8.2f\n'], TLT');
+  fclose(fileID);
+  outputStackName
+  tilt_file_name
+  [PIXEL_SIZE*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT]
+  error('preCTF')
+  BH_runCtfFind2(varagin{1},outputStackName, tilt_file_name, [PIXEL_SIZE*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT]);
+else
   
 gpuDevice(gpuIDX)
 [d1,d2,d3] = size(STACK);
@@ -1110,20 +1144,7 @@ else
 end
 fprintf('\n******************************************************\n\n\n');
 
-else
-  
-      [~, idx] = sortrows(abs(TLT(:,4)), -1);
-    TLT = TLT(idx,:);
-    % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
-    % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
-    % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
-    fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
-    fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
-             '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-             '%d\t%d\t%d\t%8.2f\n'], TLT');
-    fclose(fileID);
 
-    
 end % end flgSkip
 
 if (do_ctf_refine)

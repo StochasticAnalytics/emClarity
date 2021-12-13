@@ -508,6 +508,7 @@ switch varargin{1}
               BH_ctf_Estimate_2(varargin{3},varargin{4},varargin{5});
             end            
           else
+
             if nArgs == 4
               BH_ctf_Estimate(varargin{3},varargin{4});
             else
