@@ -1,6 +1,6 @@
 function [hAvg, hRms, avgRange, rmsRange]  = BH_templateSearch3d( PARAMETER_FILE,...
                                         tomoName,tomoNumber,TEMPLATE, ...
-                                        SYMMETRY, wedgeType, varargin)
+                                        wedgeType, varargin)
  
                                                        
 %3d template matching
@@ -32,7 +32,6 @@ end
 
 gpuDevice(useGPU);
   
-SYMMETRY = str2num(SYMMETRY);
 startTime = clock ;
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);

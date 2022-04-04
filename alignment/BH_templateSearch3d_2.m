@@ -1,6 +1,6 @@
 function []  = BH_templateSearch3d_2( PARAMETER_FILE,...
                                         tomoName,tomoNumber,TEMPLATE, ...
-                                        SYMMETRY, wedgeType, varargin)
+                                        wedgeType, varargin)
  
                                                        
 %3d template matching
@@ -17,16 +17,12 @@ if length(varargin) == 1
   % have a strong feature like carbon that is hard to avoid.
   gpuIDX = str2num(varargin{1});
 elseif length(varargin) > 1
-  error('emClarity templateSearch paramN.m tiltN regionN referenceName symmetry(C1) <optional gpuIDX>');
+  error('emClarity templateSearch paramN.m tiltN regionN referenceName threshold_override <optional gpuIDX>');
 end
 
-  tomoNumber = str2num(tomoNumber);
+tomoNumber = str2num(tomoNumber);
 
-
-  [ useGPU ] = BH_multi_checkGPU( gpuIDX )
-
-
-
+[ useGPU ] = BH_multi_checkGPU( gpuIDX );
 gpuDevice(useGPU);
 
 %  For now just override this as it doesn't do too much (randomizing symmetry mates. And doesn't work with new symmetry ops

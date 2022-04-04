@@ -181,8 +181,17 @@ classdef interpolator < handle
 %          warning('The requested symmetry (%s) is different from that initialized (%s)\n',symmetry,obj.symmetry_type);
        end
        
-       if (symmetry(1) ~= 'C' && convention ~= 'Bah')
-         error('Alternate conventions like Helical (%s encountered) only support CX symmetry\n', convention)
+       % I think I fixed the bug with "Operands to the || and && operators
+       % must be convertible to logical scalar values." (strcmpi instead of
+       % direct comparision which may have been returning a vector?) Keep
+       % try catch for testing
+       try
+         if (symmetry(1) ~= 'C' && ~strcmpi(convention,'Bah'))
+           error('Alternate conventions like Helical (%s encountered) only support CX symmetry\n', convention)
+         end
+       catch
+         fprintf('Symmetry (%s), convention (%s)\n', symmetry(1), convention);
+         error('There was still some problem with the conditional');
        end
        
        switch symmetry(1)

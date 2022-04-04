@@ -594,18 +594,28 @@ switch varargin{1}
 
   case 'templateSearch'
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
-       ~ismember(length(varargin),[7,8])
+       ~ismember(length(varargin),[6,7])
        fprintf(['\nparam.m\n',...
            'tomoName\n',...
            'tomoNumber\n', ...
            'template name\n',...
-           'symmetry\n',...
            '[threshold override]\n',...
            'gpuIDX.\n']);
     else
       wedgeType = 2;
       
       switch length(varargin) 
+        
+        case 6
+          if (useV1)    
+       
+            BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
+                                   varargin{5}, varargin{6},wedgeType);
+          else
+            BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
+                                 varargin{5}, varargin{6},wedgeType);
+          end
+          
         case 7
           
           if (useV1)
@@ -615,18 +625,7 @@ switch varargin{1}
             BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
                               varargin{5}, varargin{6},wedgeType,varargin{7});
           end
- 
-        case 8
-          if (useV1)    
-       
-            BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
-                                   varargin{5}, varargin{6},wedgeType, ...
-                                   varargin{7},varargin{8});
-          else
-            BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
-                                 varargin{5}, varargin{6},wedgeType, ...
-                                 varargin{7},varargin{8});
-          end
+
 
       end
 
