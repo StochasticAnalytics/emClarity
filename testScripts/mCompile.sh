@@ -40,7 +40,7 @@ outName="$(basename ${mFile} .m)${post}"
 # bugs line. e.g. buggs=5testingFeature
 major=1
 minor=6
-bugs=0
+bugs=1
 nightly=0
 
 # The final binary, run script and docs folder will be zipped and put in this location

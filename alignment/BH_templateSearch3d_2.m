@@ -18,6 +18,8 @@ if length(varargin) == 1
   gpuIDX = str2num(varargin{1});
 elseif length(varargin) > 1
   error('emClarity templateSearch paramN.m tiltN regionN referenceName threshold_override <optional gpuIDX>');
+else 
+  gpuIDX = 1;
 end
 
 tomoNumber = str2num(tomoNumber);
@@ -123,7 +125,6 @@ catch
   nPeaks = 1;
 end
 
-ignore_threshold = false;
 try
   max_tries = pBH.('max_peaks');
 catch
@@ -135,6 +136,8 @@ try
   ignore_threshold = true;
   fprintf('Override_threshold_and_return_N_peaks set to true, returning exactly %d peaks\n', over_ride);
   peakThreshold = over_ride;
+catch
+  ignore_threshold = false;
 end
 
 pixelSizeFULL = pBH.('PIXEL_SIZE').*10^10;
@@ -1035,7 +1038,6 @@ mag = RESULTS_peak; clear RESULTS_peak
 % mag = mag ./ std(mag(:));
 
 system(sprintf('mkdir -p %s',convTMPNAME));
-system(sprintf('mv temp_%s.mrc %s',convTMPNAME,convTMPNAME));
 
 resultsOUT = sprintf('./%s/%s_convmap.mrc',convTMPNAME,mapName);
 anglesOUT  = sprintf('./%s/%s_angles.mrc',convTMPNAME,mapName);
@@ -1118,7 +1120,10 @@ if ignore_threshold
   highThr = 0;
 end
 
-this_try = 0;
+this_try = 0
+max_tries
+highThr
+peakThreshold
 while n <= 2.*peakThreshold && (this_try < max_tries) && MAX > highThr
 this_try = this_try + 1;
 
@@ -1281,7 +1286,7 @@ errID  = fopen(sprintf('./%s/%s.errID',convTMPNAME,mapName));
 
 
 
-n=1
+n=1;
 for i = 1:length(peakMat(:,1))
    if all(peakMat(i,1:3))
         

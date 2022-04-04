@@ -593,8 +593,9 @@ switch varargin{1}
     
 
   case 'templateSearch'
+    length(varargin)
     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
-       ~ismember(length(varargin),[6,7])
+       ~ismember(length(varargin),[5,6])
        fprintf(['\nparam.m\n',...
            'tomoName\n',...
            'tomoNumber\n', ...
@@ -606,24 +607,24 @@ switch varargin{1}
       
       switch length(varargin) 
         
-        case 6
+        case 5
           if (useV1)    
        
             BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
                                    varargin{5}, varargin{6},wedgeType);
           else
             BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
-                                 varargin{5}, varargin{6},wedgeType);
+                                 varargin{5},wedgeType);
           end
           
-        case 7
+        case 6
           
           if (useV1)
             BH_templateSearch3d( varargin{2}, varargin{3},varargin{4}, ...
-                              varargin{5}, varargin{6},wedgeType,varargin{7});
+                              varargin{5},wedgeType,varargin{7});
           else
             BH_templateSearch3d_2( varargin{2}, varargin{3},varargin{4}, ...
-                              varargin{5}, varargin{6},wedgeType,varargin{7});
+                              varargin{5},wedgeType,varargin{7});
           end
 
 

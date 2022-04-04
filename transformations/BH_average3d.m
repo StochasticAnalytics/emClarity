@@ -2014,7 +2014,8 @@ if ~( flgEstSNR )
    
       end
 
-      % Only send the lowest Bfactor if not flgFinalAvg
+      % Only send the lowest Bfactor if not flgFinalAvg. This will also
+      % return unmasked volumes.
       if (flgFinalAvg)
         bFactorSend = pBH.('Fsc_bfactor');
       else
@@ -2027,9 +2028,14 @@ if ~( flgEstSNR )
                           flgCombine,flgRefCutOff, pixelSize, bFactorSend));
 
       if ~(flgFinalAvg)
-        refIMG{1}{iOdd} = refTMP{1,1};
+        % Save the unmasked half-maps - FIXME: this is only going to work
+        % for the first class I think
+        SAVE_IMG(refTMP{3}, sprintf('FSC/%s_class%d_%s_%s_unmasked.mrc',outputPrefix, className, fieldPrefix, 'ODD'), pixelSize);
+        SAVE_IMG(refTMP{4}, sprintf('FSC/%s_class%d_%s_%s_unmasked.mrc',outputPrefix, className, fieldPrefix, 'EVE'), pixelSize);
+        
+        refIMG{1}{iOdd} = refTMP{1};
         if (flgGold) || (flgClassify < 0)
-          refIMG{2}{iEve} = refTMP{1,2}; 
+          refIMG{2}{iEve} = refTMP{2}; 
         end
         clear refTMP
       end

@@ -115,17 +115,26 @@ end
 % With the FSC already compensated for the solvent content, iFpFm = 1
 fPfM= 1;
 
+if (length(bFactor) == 1)
+  % Also save unmasked half-maps
+  weightedImgs = cell(4,1);
+else
+  weightedImgs = cell(length(bFactor));
+end
 
-weightedImgs = cell(length(bFactor));
 if ~(flgCombine)
   % restore the original orientation of the eve image
   imgs{1} = img1_orig; clear img1_orig
 end
 
+if (flgCombine && (length(bFactor) > 1))
+  error('WARNING: there should only be one bFactor when not combining weights.\n');
+end
+
 for iBfact = 1:length(bFactor)
   if (flgCombine)
     snrWeight = 1;
-
+    % There is one map at each bfactor
     [ weightedImgs{iBfact} ] = gather(apply_weights((anisoFSC), ...
                                             (avgCTF{1}+avgCTF{2})./2, ...
                                             (radialGrid < 0.5./pixelSize),...
@@ -133,16 +142,22 @@ for iBfact = 1:length(bFactor)
                                             ifftshift(weights{1}+weights{2}),...
                                             particleMask ,...
                                             padVal, fPfM, bFactor{iBfact}, snrWeight));
+     weightedImgs{iBfact} = weightedImgs{iBfact} .* particleMask;                                    
   else
     snrWeight = 0.5;
     for iGold = 1:2
-          [ weightedImgs{iGold} ] = gather(apply_weights((anisoFSC), ...
+        % There are two maps all at same bfactor odd/eve unmasked odd/eve
+          [ weightedImgs{iGold+2} ] = gather(apply_weights((anisoFSC), ...
                                             (avgCTF{iGold}), ...
                                             (radialGrid < 0.5./pixelSize),...
                                             (imgs{iGold}), ...
                                             ifftshift(weights{iGold}),...
                                             particleMask ,...
                                             padVal, fPfM, bFactor{iBfact}, snrWeight));
+    end
+    
+    for iGold = 1:2
+      weightedImgs{iGold} = weightedImgs{iGold+2} .* particleMask;
     end
   end
   
@@ -315,12 +330,9 @@ weightedImg = BH_bandLimitCenterNormalize(img-mean(img(:)),weight, ...
 clear img                                        
 weightedImg = real(ifftn(weightedImg));
 
-size(weightedImg)
-padVal
-size(mShape2)
 weightedImg = weightedImg(padVal(1,1)+1:end-padVal(2,1),...
                           padVal(1,2)+1:end-padVal(2,2),...
-                          padVal(1,3)+1:end-padVal(2,3)) .* mShape2;
+                          padVal(1,3)+1:end-padVal(2,3));
                         
 clear mShape2
                                          

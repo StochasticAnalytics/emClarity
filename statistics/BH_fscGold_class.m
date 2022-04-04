@@ -931,8 +931,9 @@ clear fout famp1 famp2 fphase1 fphase2
     
     fprintf('\n0.5 = 1/%f\n0.143 = 1/%f\n', fmid, fgold)
 
-  fscOUT = fopen(sprintf('%s-%d-fsc_%s.txt', outputPrefix, iRef, halfSet),'w');
+  fscOUT = fopen(sprintf('%s-%d-fsc_%s.xml', outputPrefix, iRef, halfSet),'w');
   
+  fprintf(fscOUT, '<fsc title="FSC" xaxis="Resolution (A-1)" yaxis="Correlation Coefficient">\n');
   % This seems wildly unecessary, but adding the new fscFull print section
   % seems to not print right, so using this there as well.
   nCol = length(fitFSC);
@@ -945,14 +946,23 @@ clear fout famp1 famp2 fphase1 fphase2
   nRow = 1; 
   nTot = 1;
   while nTot < numel(fscMat)
+    fprintf(fscOUT, '  <coordinate>\n');
     while nRow <= nCol + 1
-      fprintf(fscOUT,'%0.6f  ',fscMat(nTot));
+      % Quck hack for only two column XML output, to avoid breaking
+      % something downstream that I don't know is there.
+      if (nRow == 1)
+        fprintf(fscOUT,'    <x>%0.6f</x>\n',fscMat(nTot));
+        fprintf(fscOUT,'    <y>%0.6f</y>\n',fscMat(nTot+1));
+      end
       nRow = nRow+1;
       nTot = nTot+1;
     end
     nRow = 1;
-    fprintf(fscOUT,'\n');
+    fprintf(fscOUT, '  </coordinate>\n');
   end
+  
+  fprintf(fscOUT, '</fsc>\n');
+
   fclose(fscOUT);
 
 
