@@ -5,8 +5,8 @@
 #   Set the mexPath, and modify the two library linker lines to point at your install of CUDA
 #   TODO set up a little configure script to do this and check other deps described below.
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
-export emC_DEPS="/groups/grigorieff/home/himesb/work/emC_dependencies"
-EMC_ROOT=${HOME}/work/emClarity # This is just for convenience, when you build for yourself
+export emC_DEPS="/sa_shared/software/emClarity_1.6.1.0/bin/deps"
+EMC_ROOT=/sa_shared/software/ # This is just for convenience, when you build for yourself
 ############ lines 4-5 in mexFiles/mexCompile
 #mexPATH = '/groups/grigorieff/home/himesb/work/emClarity/mexFiles/';
 #CUDA_LIB = '-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64'   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
@@ -16,7 +16,7 @@ EMC_ROOT=${HOME}/work/emClarity # This is just for convenience, when you build f
 ###################
 
 # This is the version of matlab you will end up compiling with.
-MATLAB_FOR_COMIPLING=matlab19a
+MATLAB_FOR_COMIPLING=matlab
 
 # This grabs the first bit of the commit hash, which then is printed in the logfile
 shortHead=$(git rev-parse --short HEAD)
@@ -32,9 +32,11 @@ outName="$(basename ${mFile} .m)${post}"
 # For naming. If you are compiling your own version, use something descriptive in teh
 # bugs line. e.g. buggs=5testingFeature
 major=1
-minor=5
-bugs=3
-nightly=10
+minor=7
+bugs=0
+nightly=2
+
+EMC_ROOT=${EMC_ROOT}/emClarity_${major}.${minor}.${bugs}.${nightly}
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -43,7 +45,7 @@ zip_location="${HOME}/tmp"
 
 
 binaryOutName="${major}_${minor}_${bugs}_${nightly}"
-scriptOutName="${major}_${minor}_${bugs}_${nightly}_v19a"
+scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"
 #binaryOutName="LTS_fix_${shortHead}"
 #scriptOutName="LTS_fix_${shortHead}_v19a"
 
@@ -56,14 +58,15 @@ imodStaticIncludes=""
 
 
 ${MATLAB_FOR_COMIPLING} -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
-      
-#I /groups/grigorieff/home/himesb/work/emClarity/mexFiles/compiled/emC_ctffind
-    
+          
 wait
-	rm mccExcludedFiles.log
-	rm readme.txt
-	rm run_*.sh
-	rm requiredMCRProducts.txt
+
+rm mccExcludedFiles.log
+rm readme.txt
+rm run_*.sh
+rm requiredMCRProducts.txt
+rm unresolvedSymbols.txt
+rm includedSupportPackages.txt
 
 if [ -f emClarity ] ; then
   mv emClarity emClarity~
@@ -81,8 +84,8 @@ echo '# even in the event of a crash. (With program script added from EMC_tmpDir
 echo 'thisPID=$$'
 echo ''
 echo ''
-echo '#Note you no longer need to modify this line inside the singularity container:'
-echo 'MCR_BASH=/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/runtime/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/bin/glnxa64:/groups/grigorieff/home/himesb/thirdParty/MATLAB_19a/sys/os/glnxa64'
+echo '# Note you no longer need to modify this line inside the singularity container:'
+echo 'MCR_BASH=/sa_shared/software/matlab2023/MATLAB/R2023a/runtime/glnxa64:/sa_shared/software/matlab2023/MATLAB/R2023a/bin/glnxa64:/sa_shared/software/matlab2023/MATLAB/R2023a/sys/os/glnxa64'
 echo ''
 echo ''
 echo '#Please modify this line to point to the install for emClarity binary'
@@ -186,6 +189,7 @@ cd bin
 cp ${EMC_ROOT}/testScripts/.bashrc .
 cp ../../bin/emClarity_${scriptOutName} emClarity_${scriptOutName}
 cp ../../bin/emClarity_${binaryOutName} emClarity_${binaryOutName}
+ln -s emClarity_${scriptOutName} emClarity
 cd ../../
 
 if [[ ${zip_location} != "NONE" ]]; then

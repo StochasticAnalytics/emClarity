@@ -155,7 +155,7 @@ clear recGeom
                                      shouldBeCTF*gpuIDX, reconScaling,1); 
                                            
  
-% We'll handle image statistics locally, but first place the global environment
+% We will handle image statistics locally, but first place the global environment
 % into a predictible range
 
   
@@ -222,11 +222,19 @@ gpuDevice(useGPU);
 
 % Initialize a whole mess of control variables and storage volumes. %
 %Out of plane range inc (starts from 1.* inc)
-if length(angleSearch) == 5
-  helical = angleSearch(5);
-else
-  helical = 0;
+rotConvention = 'Bah';
+% Check and override the rotational convention to get helical averaging.
+% Replaces the former hack of adding a fifth dummy value to the angular search
+try
+  doHelical = pBH.('doHelical');
+catch
+  doHelical = 0;
 end
+if ( doHelical )
+  rotConvention = 'Helical'
+end
+
+rotConvention
 
 [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
                                       = BH_multi_gridSearchAngles(angleSearch)
@@ -570,7 +578,7 @@ for iAngle = 1:size(angleStep,1)
 
   % Calculate the increment in phi so that the azimuthal sampling is
   % consistent and equal to the out of plane increment.
-  if (helical)
+  if (doHelical)
      phi_step = 360;
   else
      phiStep = angleStep(iAngle,3);
@@ -625,7 +633,7 @@ for iAngle = 1:size(angleStep,1)
      end
     for iAzimuth = 0:angleStep(iAngle,2)
 
-      if helical == 1
+      if ( doHelical )
           phi = 90 ;
       else
          phi = phiStep * iAzimuth;

@@ -246,7 +246,7 @@ particleThickness =  latticeRadius(3);
                                     shouldBeCTF*gpuIDX, reconScaling,1,'',super_sample); 
                                            
 
-% We'll handle image statistics locally, but first place the global environment
+% We will ll handle image statistics locally, but first place the global environment
 % into a predictible range
 
   
@@ -306,10 +306,15 @@ gpuDevice(useGPU);
 % Initialize a whole mess of control variables and storage volumes. %
 %Out of plane range inc (starts from 1.* inc)
 rotConvention = 'Bah';
-if length(angleSearch) == 5
-  if ( angleSearch(5) )
-    rotConvention = 'Helical';
-  end
+% Check and override the rotational convention to get helical averaging.
+% Replaces the former hack of adding a fifth dummy value to the angular search
+try
+  doHelical = pBH.('doHelical');
+catch
+  doHelical = 0;
+end
+if ( doHelical )
+  rotConvention = 'Helical'
 end
 
 rotConvention
