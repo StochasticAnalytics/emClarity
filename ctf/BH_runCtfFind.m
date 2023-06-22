@@ -48,7 +48,7 @@ for iPrj = 1:d3 % I want to fit to lower resolution at higher tilts
                                                          0.75*meanDefocus,...
                                                          1.25*meanDefocus,...
                                                          25.0);
-  fprintf(fID,'no\nno\nyes\n500.0\nno\nyes\nno\neof\n\n');
+  fprintf(fID,'no\nno\nyes\n500.0\nno\nno\nno\neof\n\n');
 end
 fprintf(fID,'wait\n');
 fclose(fID);

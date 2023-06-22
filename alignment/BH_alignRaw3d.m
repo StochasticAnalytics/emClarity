@@ -143,10 +143,15 @@ catch
 end
 
 rotConvention = 'Bah';
-if length(angleSearch) == 5
-  if ( angleSearch(5) )
-    rotConvention = 'Helical';
-  end
+% Check and override the rotational convention to get helical averaging.
+% Replaces the former hack of adding a fifth dummy value to the angular search
+try
+  doHelical = pBH.('doHelical');
+catch
+  doHelical = 0;
+end
+if ( doHelical )
+  rotConvention = 'Helical'
 end
 
 rotConvention

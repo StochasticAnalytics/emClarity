@@ -1,8 +1,8 @@
 function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
-mexPATH = '/groups/grigorieff/home/himesb/work/emClarity/mexFiles/';
-CUDA_LIB = '-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64';   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
+mexPATH = '/scratch/salina/git/emClarity/mexFiles/';
+CUDA_LIB = '-L/usr/local/cuda/lib64';   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
 getenv('MW_NVCC_PATH')
 getenv('CUDA_HOME')
 
@@ -30,19 +30,15 @@ CUDA_LIB ...
 '-lmwlapack'        ...            % Link to LAPACK
 '-lcufft'           ...            % Link to cuFFT
 ['NVCCFLAGS=  --use_fast_math --default-stream per-thread -m64 '...
- '--gpu-architecture=compute_75 ' ...
+ '--gpu-architecture=compute_86 ' ...
  '--restrict -Xptxas --warn-on-spills ' ...
- '-gencode=arch=compute_60,code=sm_60 ' ...
- '-gencode=arch=compute_61,code=sm_61 ' ...
- '-gencode=arch=compute_70,code=sm_70 ' ...
- '-gencode=arch=compute_75,code=sm_75 '] ...% the optimizations are default anyway when I checked 
+ '-gencode=arch=compute_60,code=sm_70 ' ...
+ '-gencode=arch=compute_61,code=sm_75 ' ...
+ '-gencode=arch=compute_70,code=sm_80 ' ...
+ '-gencode=arch=compute_75,code=sm_86 '] ...% the optimizations are default anyway when I checked 
 
 };
 
-% '-L/usr/local/cuda-9.1/lib64'   ...    % Location of CUDA libraries
-% '-L/usr/local/cuda-9.1/nvvm/lib64'};
-% '-L/groups/grigorieff/home/himesb/thirdParty/cuda-8.0/lib64'   ...    % Location of CUDA libraries
-% '-L/groups/grigorieff/home/himesb/thirdParty/cuda-8.0/nvvm/lib64'};
 
 
 
@@ -53,7 +49,6 @@ for i =1: length(mexFILE)
 end
 end
 
-%nvcc -ptx --library-path /groups/grigorieff/home/himesb/thirdParty/cuda-9.2/nvvm/lib64
 
 
 
