@@ -81,6 +81,8 @@ catch
   CUTPADDING=20
 end
 
+
+
 % Explicit reference to location of variables in main memory, or on the GPU.
 cpu = struct();
 GPU = struct();
@@ -104,6 +106,12 @@ catch
   nPeaks = 1;
 end
 
+
+try
+  fscBfactor = pBH.('Fsc_bfactor');
+catch
+  fscBfactor = 0;
+end
 
 mapBackIter = subTomoMeta.currentTomoCPR;
 
@@ -175,12 +183,11 @@ catch
   doHelical = 0;
 end
 if ( doHelical )
-  rotConvention = 'Helical'
+  rotConvention = 'Helical';
 end
 
 rotConvention
 
-rotConvention
 
 % The weights are only re-estimated for an out of plane search. Until this
 % happens, they are not valid.
@@ -2022,9 +2029,9 @@ if ~( flgEstSNR )
 
       % Only send the lowest Bfactor if not flgFinalAvg
       if (flgFinalAvg)
-        bFactorSend = pBH.('Fsc_bfactor');
+        bFactorSend = fscBfactor;
       else
-        bFactorSend = pBH.('Fsc_bfactor')(1);
+        bFactorSend = fscBfactor(1);
       end
       
       refTMP = gather(BH_multi_cRef_Vnorm(fscParams, aliParams, mskParams,...
@@ -2060,9 +2067,9 @@ if ~( flgEstSNR )
       % Save the unweighted, weighted imgs, weightes, optionally filtered.
 
       if (flgFinalAvg)
-        for iBfactor = 1:length(pBH.('Fsc_bfactor'))
+        for iBfactor = 1:length(fscBfactor)
           imout = sprintf('%s_class%d_%s_bFact-%d.mrc',outputPrefix, ...
-                               className, 'final',pBH.('Fsc_bfactor')(iBfactor));
+                               className, 'final',fscBfactor(iBfactor));
 
           SAVE_IMG(refTMP{iBfactor}, imout, pixelSize);
         end
