@@ -86,6 +86,10 @@ catch
   minimumParticleVolume = 0.1;
 end
 
+try fscWithChimera = pBH.('fscWithChimera');
+catch fscWithChimera = 0;
+end
+
 outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, pBH.('subTomoMeta')); 
 samplingRate = pBH.('Ali_samplingRate');
 
@@ -405,13 +409,9 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
       pV1 = gather(pV1.*volMask{1});
       pV2 = gather(pV2.*volMask{2});
 
-
-   
-      [whereIsChimera, ~] = system('which chimera');
-      if (whereIsChimera)
-        error('fscWithChimera is called, but "chimera" not in system PATH.')
-      end
-      % Save a copy with headers set
+      % Save a copy with headers set (headers only important for chimera)
+      % TODO: check to see if these are used anywhere else, otherwise, they can probably be
+      % written only in the if fscWithChimera block.
       eveName = sprintf('%s-eveAli.mrc', outputPrefix);
       oddName = sprintf('%s-oddAli.mrc', outputPrefix);
       SAVE_IMG(MRCImage(gather(refIMG{2}{iRef}.*pV2)), ...
@@ -419,21 +419,27 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
       SAVE_IMG(MRCImage(gather(refIMG{1}{iRef}.*pV1)), ...
                oddName, 1.0,1);
 
+      if (fscWithChimera)
+        [whereIsChimera, ~] = system('which chimera');
+        if (whereIsChimera)
+          error('fscWithChimera is called, but "chimera" not in system PATH.')
+        end
+        writeOutPyAli()
+        system(sprintf('chimera --nogui --script "FSC/fitInMap.py %s %s %s-fitInMap.txt" ',...
+                       oddName,eveName,outputPrefix));
+                             % Read in the results
+        % 1:9 rotation matrix 10:12 = dXYZ
+        bestAnglesTotal(nCount,:) = load(sprintf('%s-fitInMap.txt',outputPrefix));
+        % The results from fit in map are the transpose of Bah, forward rotmat
+        bestAnglesTotal(nCount,1:9) = bestAnglesTotal(nCount,[1,4,7,2,5,8,3,6,9]);
+        % The results are in Angstrom
+        bestAnglesTotal(nCount,(10:12)) = bestAnglesTotal(nCount,(10:12));
+      else
+        % If we did not align the two halfsets together, we just need to return dummy values
+        % for an identity matrix and zero translation.
+        bestAnglesTotal(nCount,:) = [1,0,0,0,1,0,0,0,1,0,0,0];
+      end
 
-      writeOutPyAli()
-
-      system(sprintf('chimera --nogui --script "FSC/fitInMap.py %s %s %s-fitInMap.txt" ',...
-                     oddName,eveName,outputPrefix));
-
-      % Read in the results
-      % 1:9 rotation matrix 10:12 = dXYZ
-      bestAnglesTotal(nCount,:) = load(sprintf('%s-fitInMap.txt',outputPrefix));
-      % The results from fit in map are the transpose of Bah, forward rotmat
-      bestAnglesTotal(nCount,1:9) = bestAnglesTotal(nCount,[1,4,7,2,5,8,3,6,9]);
-      % The results are in Angstrom
-      bestAnglesTotal(nCount,(10:12)) = bestAnglesTotal(nCount,(10:12));
-               
-      
       nCount = nCount+1;
   end
   
