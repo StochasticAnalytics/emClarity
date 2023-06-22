@@ -188,7 +188,11 @@ end
 
 rotConvention
 
-bFactor = pBH.('Fsc_bfactor');
+try
+  bFactor = pBH.('Fsc_bfactor');
+catch
+  bFactor = 0;
+end
 if length(bFactor) > 1
   fprintf('multiple bFactors specified, using the first for alignment.\n');
   bFactor = bFactor(1);
