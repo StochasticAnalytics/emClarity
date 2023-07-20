@@ -9,7 +9,7 @@ if (nargin ~= 2)
   error('args = PARAMETER_FILE, CYCLE')
 end
 startTime =  clock;
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 
 % not for normal use, but under certain circumstances allow override of 0.5 cutoff for 
 % ref and allow to 0.143

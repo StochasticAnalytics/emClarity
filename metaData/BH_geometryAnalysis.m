@@ -10,7 +10,7 @@ if (nargin ~= 6)
   error('args = (PARAMETER_FILE, CYCLE, STAGEofALIGNMENT, OPERATION, REMOVE_CLASS, HALF_SET)')
 end
 
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 undoOP = 0;
 listTomos = 0;
@@ -36,13 +36,13 @@ else
     % or a 3-vector containing shifts to apply to all volumes, or range for
     % randomization of 3 euler angles
 
-      VECTOR_OP = str2num(VECTOR_OP);
+      VECTOR_OP = EMC_str2double(VECTOR_OP);
       if size(VECTOR_OP) == [1,3]
         shiftXYZ = VECTOR_OP'
       elseif size(VECTOR_OP) == [3,1]
         shiftXYZ = VECTOR_OP
       elseif ~any(size(VECTOR_OP))
-        % size of str2num('undo') = [0 0]
+        % size of EMC_str2double('undo') = [0 0]
 
       else
         error('shift values must be a three vector or string "undo"\n');

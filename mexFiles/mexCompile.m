@@ -1,7 +1,7 @@
 function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
-mexPATH = '/scratch/salina/git/emClarity/mexFiles/';
+mexPATH = '/sa_shared/git/emClarity/mexFiles';
 CUDA_LIB = '-L/usr/local/cuda/lib64';   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
 getenv('MW_NVCC_PATH')
 getenv('CUDA_HOME')
@@ -10,7 +10,7 @@ system(sprintf('mkdir -p %s', mexPATH));
 % For now just included everything in total.
 inc = {'rotation_matrix.cpp','ctf.cu'};
 for i = 1:length(inc)
-  inc{i} = sprintf('%sutils/%s',mexPATH,inc{i});
+  inc{i} = sprintf('%s/utils/%s',mexPATH,inc{i});
 end
 % mexFILE = 'mexFFT' 'mexXform2d' 'mexCTF',;
 if nargin > 0
@@ -41,9 +41,14 @@ CUDA_LIB ...
 
 
 
-
+if isfolder(sprintf('%s/compiled',mexPATH))
+  system(sprintf('rm -rf %s/compiled/*',mexPATH));
+elseif isfile(sprintf('%s/compiled',mexPATH))
+  system(sprintf('rm -rf %s/compiled',mexPATH));
+  system(sprintf('mkdir -p %s/compiled',mexPATH));
+end
 for i =1: length(mexFILE)
-  mexcuda( mexcuda_opts{:}, sprintf('%s%s.cu',mexPATH,mexFILE{i}), inc{1}, inc{2});
+  mexcuda( mexcuda_opts{:}, sprintf('%s/%s.cu',mexPATH,mexFILE{i}), inc{1}, inc{2});
 
   system(sprintf('mv %s.mexa64 %s/compiled',mexFILE{i}, mexPATH));
 end

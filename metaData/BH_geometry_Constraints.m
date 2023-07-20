@@ -9,8 +9,8 @@ if nargin < 6
   flgCentroid = false;
 else
   flgCentroid = true;
-  avgRadius = str2num(varargin{1});
-  nPeaks = str2num(varargin{2});
+  avgRadius = EMC_str2double(varargin{1});
+  nPeaks = EMC_str2double(varargin{2});
   
   if avgRadius == 1
     avgRadius = [0,avgRadius./pixelSize];
@@ -39,9 +39,9 @@ geom = geom(keepCSV);
 nModFiles = length(geom);
   
 
-angCut = [0,str2num(angCut)];
-distCut = str2num(distCut)./pixelSize;
-nNeighbors = str2num(latticeNumber);
+angCut = [0,EMC_str2double(angCut)];
+distCut = EMC_str2double(distCut)./pixelSize;
+nNeighbors = EMC_str2double(latticeNumber);
 
 % FIXME from param file.
 nWorkers = EMC_str2double(nWorkers);

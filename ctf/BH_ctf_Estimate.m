@@ -20,7 +20,7 @@ elseif length(varargin) <= 3
   STACK_BASENAME = varargin{2};
   
   if length(varargin) == 3
-    anglesSkipped = str2num(varargin{3});
+    anglesSkipped = EMC_str2double(varargin{3});
     modLocal = true;
 
 
@@ -51,10 +51,10 @@ cccScale = 1;
 % holding the rawStacks, and that the basename of the stack is also the basename
 % for the mapBack transformations.
 flgReScale = 0;
-flgMapBack = str2num(mapBack);
+flgMapBack = EMC_str2double(mapBack);
 if isempty(flgMapBack)
   % The string specifies the basename for mapback files .xf .mag .tlt
-  % and so is empty after str2num
+  % and so is empty after EMC_str2double
   flgReScale = true;
   mapBackPrfx= mapBack;
 elseif (flgMapBack)

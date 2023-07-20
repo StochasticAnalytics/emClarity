@@ -14,7 +14,7 @@ if (nargin ~= 4)
   error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT, flgGold')
 end
 
-flgGold = str2num(flgGold);
+flgGold = EMC_str2double(flgGold);
 if (flgGold)
   sfx = {'ODD','EVE'}
 else
@@ -25,7 +25,7 @@ end
 % class identity changes cycle to cycle, and is not considered in between.
 % This may not be the case in the future, so the "correct" geometry is
 % explicity copied here.
-cycleNumber = sprintf('cycle%0.3u', str2num(CYCLE));
+cycleNumber = sprintf('cycle%0.3u', EMC_str2double(CYCLE));
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 

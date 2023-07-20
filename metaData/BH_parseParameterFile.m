@@ -35,7 +35,7 @@ for i = 1:size(p2,1)
     if any(strcmp(stringValues, pNameVal{1}))
       pStruct.(pNameVal{1}) = pNameVal{2};
     else
-      pStruct.(pNameVal{1}) = str2num(pNameVal{2});
+      pStruct.(pNameVal{1}) = EMC_str2double(pNameVal{2});
     end
   end
 end

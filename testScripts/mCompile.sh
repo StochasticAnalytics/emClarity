@@ -27,6 +27,11 @@ mFile=${1}
 
 post="_${shortHead}"
 
+# First make sure the file exists
+if [[ ! -f ${mFile} ]]; then
+  echo "Could not find ${mFile}"
+  exit 1
+fi
 # check the extension
 if [[ $mFile != *.m ]]; then
   echo "Please provide a matlab file to compile"
@@ -40,7 +45,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=7
 bugs=0
-nightly=4
+nightly=7
 
 EMC_ROOT=${EMC_ROOT}/emClarity_${major}.${minor}.${bugs}.${nightly}
 

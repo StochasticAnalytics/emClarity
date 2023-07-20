@@ -85,8 +85,8 @@ end
 
 startTime =  clock;
 
-CYCLE = str2num(CYCLE);
-PREVIOUS_PCA = str2num(PREVIOUS_PCA);
+CYCLE = EMC_str2double(CYCLE);
+PREVIOUS_PCA = EMC_str2double(PREVIOUS_PCA);
 
 global bh_global_binary_pcaMask_threshold;
 

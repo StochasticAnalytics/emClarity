@@ -15,12 +15,12 @@ ctf3dNoSubTomoMeta = true;
 if length(varargin) == 1
   % Allow for an override of the max number, useful when only a few tomos
   % have a strong feature like carbon that is hard to avoid.
-  gpuIDX = str2num(varargin{1});
+  gpuIDX = EMC_str2double(varargin{1});
 elseif length(varargin) > 1
   error('emClarity templateSearch paramN.m tiltN regionN referenceName symmetry(C1) <optional gpuIDX>');
 end
 
-  tomoNumber = str2num(tomoNumber);
+  tomoNumber = EMC_str2double(tomoNumber);
 
 
   [ useGPU ] = BH_multi_checkGPU( gpuIDX )
@@ -31,7 +31,7 @@ gpuDevice(useGPU);
 
 %  For now just override this as it doesn't do too much (randomizing symmetry mates. And doesn't work with new symmetry ops
 % Need to get the symmetry mats from an interpolator object
-% SYMMETRY = str2num(SYMMETRY);
+% SYMMETRY = EMC_str2double(SYMMETRY);
 SYMMETRY=1;
 
 startTime = clock ;
@@ -66,7 +66,7 @@ try
   if (super_sample > 0)
     [~,v] = system('cat $IMOD_DIR/VERSION');
     v = split(v,'.');
-    if (str2num(v{1}) < 4 || (str2num(v{2}) <= 10 && str2num(v{3}) < 42))
+    if (EMC_str2double(v{1}) < 4 || (EMC_str2double(v{2}) <= 10 && EMC_str2double(v{3}) < 42))
       fprintf('Warning: imod version is too old for supersampling\n');
       super_sample = '';
     else
