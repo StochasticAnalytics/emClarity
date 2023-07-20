@@ -7,3 +7,12 @@ testScripts/EMC_test/logTest/
 testScripts/EMC_test/logPerf/
 testScripts/EMC_test/fixtures
 *.orig
+
+# Things leftover from partial builds
+testScripts/emClarity_*
+testScripts/run_emClarity_*
+testScripts/includedSupportPackages.txt
+testScripts/mccExcludedFiles.log
+testScripts/readme.txt
+testScripts/requiredMCRProducts.txt
+testScripts/unresolvedSymbols.txt
