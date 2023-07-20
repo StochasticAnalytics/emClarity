@@ -26,7 +26,7 @@ GPUVar = struct();
 % Should add a max size img line
 
 
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 
 % Put all out put in a subdirectory.
 system('mkdir -p FSC');

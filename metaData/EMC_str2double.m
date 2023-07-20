@@ -4,9 +4,12 @@ function [ output_double ] = EMC_str2double( input_str )
     
       output_double = str2double(input_str);
       if (isnan(output_double))
-        err_msg = sprintf('EMC_str2double: input string is not a number!\nReceived: %s', input_str);
-        error(err_msg);
+        output_double = str2num(input_str);
+        isempty(output_double)
+        if (isempty(output_double))   
+        
+          err_msg = sprintf('EMC_str2double: input string is not a number!\nReceived: %s', input_str);
+          error(err_msg);
+        end
       end
-    
-    end
-    
+end

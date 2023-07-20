@@ -53,7 +53,7 @@ end
 
 
 	
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 cycle_numerator = '';
 cycle_denominator ='';
 skip_to_the_end_and_run = false;
@@ -266,7 +266,7 @@ if strcmpi(tmpCache, 'ram')
   end
 end
 
-% % % nWorkers = str2num(nWORKERS)
+% % % nWorkers = EMC_str2double(nWORKERS)
 nGPUs = pBH.('nGPUs');
 pInfo = parcluster();
 gpuScale=3*samplingRate;

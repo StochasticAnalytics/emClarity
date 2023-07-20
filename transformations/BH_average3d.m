@@ -88,7 +88,7 @@ cpu = struct();
 GPU = struct();
 
 startTime =  clock;
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 
 % Until people forget this existed
 if strcmpi(STAGEofALIGNMENT,'NoAlignment')
@@ -503,7 +503,7 @@ end
 % Somewhere I am saving currentCycle as a string. Haven't taken the time to
 % track it down, but probably in this function.
 if isa(subTomoMeta.('currentCycle'), 'char')
-  subTomoMeta.('currentCycle') = str2num(subTomoMeta.('currentCycle'))
+  subTomoMeta.('currentCycle') = EMC_str2double(subTomoMeta.('currentCycle'))
 end
 
 if subTomoMeta.('currentCycle') == CYCLE - 1 

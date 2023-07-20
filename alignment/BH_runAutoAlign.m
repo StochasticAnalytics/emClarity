@@ -7,7 +7,7 @@ pBH = BH_parseParameterFile(PARAMETER_FILE);
 
 skip_tilts = 0;
 if nargin > 6
-  skip_tilts = str2num(varargin{1});  
+  skip_tilts = EMC_str2double(varargin{1});  
 end
 
 pixelSize = pBH.('PIXEL_SIZE').*10^10;

@@ -5,21 +5,21 @@ function [  ] = BH_multi_cRef_VnormApply( matFile, CYCLE, outputPrefix, ...
 %   Detailed explanation goes here
 
 load(matFile);
-idxVect = str2num(idxVect);
+idxVect = EMC_str2double(idxVect);
 img1 = sprintf('%s_ODD_NoWgt.mrc',imgBaseName);
 img2 = sprintf('%s_EVE_NoWgt.mrc',imgBaseName);
 wgt1 = sprintf('%s_ODD_Wgt.mrc',imgBaseName);
 wgt2 = sprintf('%s_EVE_Wgt.mrc',imgBaseName);
 
 if nargin > 6
-  mFactor = str2num(varargin{1});
+  mFactor = EMC_str2double(varargin{1});
 else
   mFactor = 0;
 end
 
-bFactor = str2num(bFactor);
+bFactor = EMC_str2double(bFactor);
 flgFSCeach = 1;
-CYCLE = str2num(CYCLE)
+CYCLE = EMC_str2double(CYCLE)
 if (CYCLE < 0)
   CYCLE = abs(CYCLE);
   flgFSCeach = 0;

@@ -19,7 +19,7 @@ function [  ] = BH_removeDuplicates( PARAMETER_FILE, CYCLE )
 % comes within an "event horizon" will end up at a nearly identical origin 
 % volume; a smaller radius is probably okay
 
-CYCLE = str2num(CYCLE); 
+CYCLE = EMC_str2double(CYCLE); 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 

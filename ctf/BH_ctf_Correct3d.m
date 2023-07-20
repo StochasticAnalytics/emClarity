@@ -36,7 +36,7 @@ try
   if (super_sample > 0)
     [~,v] = system('cat $IMOD_DIR/VERSION');
     v = split(v,'.');
-    if (str2num(v{1}) < 4 || (str2num(v{2}) <= 10 && str2num(v{3}) < 42))
+    if (EMC_str2double(v{1}) < 4 || (EMC_str2double(v{2}) <= 10 && EMC_str2double(v{3}) < 42))
       fprintf('Warning: imod version is too old for supersampling\n');
       super_sample = '';
     else
@@ -70,8 +70,8 @@ reconstructionParameters = 0;
 filterProjectionsForTomoCPRBackground=0;
 loadSubTomoMeta = true;
 if nargin > 2
-  if ~isempty(str2num(varargin{1}))
-    reconstructionParameters = str2num(varargin{1});
+  if ~isempty(EMC_str2double(varargin{1}))
+    reconstructionParameters = EMC_str2double(varargin{1});
     recWithoutMat = true;
     if length(varargin) > 2
       % Full recon for tomoCPR

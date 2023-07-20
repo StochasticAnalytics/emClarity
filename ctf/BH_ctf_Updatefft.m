@@ -238,7 +238,7 @@ iStack=1;
   % used for this process depends on the pixel size in the header when it was
   % created in IMod alignment.
 %   [~,iPixelHeader] = system(sprintf('header -pixel %s',INPUT_CELL{iStack,2}));
-%   iPixelHeader = str2num(iPixelHeader);
+%   iPixelHeader = EMC_str2double(iPixelHeader);
   iHeader = getHeader(iMrcObj);
   iPixelHeader = [iHeader.cellDimensionX/iHeader.nX .* (1+abs(SuperResolution)), ...
                   iHeader.cellDimensionY/iHeader.nY .* (1+abs(SuperResolution)), ...

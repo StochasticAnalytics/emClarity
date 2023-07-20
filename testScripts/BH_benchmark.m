@@ -31,7 +31,7 @@ function [] = BH_benchmark( fileNameOut, fastScratchDisk,nWorkers)
 nSeconds = 3;
 
 SIZE = 256;
-nWorkers = str2num(nWorkers);
+nWorkers = EMC_str2double(nWorkers);
 if nWorkers < 0
   nWorkers = abs(nWorkers);
   flgLoadEveryOtherTrial = 1
@@ -52,11 +52,11 @@ for memLevel = [0,1,2]
   % For monitoring get existing pids on system, start get new (to kill at the
   % end
   [~,existingPIDS] = system('pgrep nvidia-smi');
-  existingPIDS = str2num(existingPIDS)
+  existingPIDS = EMC_str2double(existingPIDS)
   system(sprintf('nvidia-smi dmon -d %d -i 1 -s pctum > %s_timingLog_%d_%d.txt &',nSeconds,fileNameOut,memLevel,nWorkers));
   
   [~,updatedPIDS] = system('pgrep nvidia-smi');
-  updatedPIDS = str2num(updatedPIDS)
+  updatedPIDS = EMC_str2double(updatedPIDS)
 
   % Get the newPID
   if isempty(existingPIDS)

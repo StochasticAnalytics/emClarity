@@ -5,11 +5,11 @@ function [] = BH_weightMask_dpRUN(PARAMETER_FILE,CYCLE,PRFX_OUT,SYMMETRY,varargi
 ctfScaleFactor = 1;
 tomoStart=0;
 tomoStop = 0;
-CYCLE = str2num(CYCLE);
-SYMMETRY = str2num(SYMMETRY);
+CYCLE = EMC_str2double(CYCLE);
+SYMMETRY = EMC_str2double(SYMMETRY);
 nargin
 if nargin > 4
-  varargin{1} = str2num(varargin{1})
+  varargin{1} = EMC_str2double(varargin{1})
   if length(varargin{1}) > 1
     tiltStart = varargin{1}(2); %ctfScaleFactor = varargin{1}(2)\
     tiltStop = varargin{1}(3);

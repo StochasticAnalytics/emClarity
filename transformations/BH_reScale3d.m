@@ -5,7 +5,7 @@ function [ outputVol ] = BH_reScale3d( inputVol, nameOUT, MAG, METHOD, varargin 
 if (isnumeric(MAG))
   mag = MAG; 
 else
-  mag = str2num(MAG);
+  mag = EMC_str2double(MAG);
 end
 
 if nargin > 4

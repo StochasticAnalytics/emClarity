@@ -44,7 +44,7 @@ if (nargin ~= 2)
 end
 
 startTime =  clock;
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);

@@ -43,7 +43,7 @@ cpuVar = struct();
 GPUVar = struct();
 
 startTime =  clock;
-CYCLE = str2num(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 cycle_numerator = '';
 cycle_denominator ='';
   flgStartThird = 0;

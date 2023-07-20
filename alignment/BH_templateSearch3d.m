@@ -17,12 +17,12 @@ if length(varargin) == 1
   % Allow for an override of the max number, useful when only a few tomos
   % have a strong feature like carbon that is hard to avoid.
   cmdLineThresh = 0;
-  gpuIDX = str2num(varargin{1});
+  gpuIDX = EMC_str2double(varargin{1});
 elseif length(varargin) == 2
-  cmdLineThresh = str2num(varargin{1});
-  gpuIDX = str2num(varargin{2});
+  cmdLineThresh = EMC_str2double(varargin{1});
+  gpuIDX = EMC_str2double(varargin{2});
 end
-  tomoNumber = str2num(tomoNumber);
+  tomoNumber = EMC_str2double(tomoNumber);
 
 
   [ useGPU ] = BH_multi_checkGPU( gpuIDX )
@@ -32,7 +32,7 @@ end
 
 gpuDevice(useGPU);
   
-SYMMETRY = str2num(SYMMETRY);
+SYMMETRY = EMC_str2double(SYMMETRY);
 startTime = clock ;
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);

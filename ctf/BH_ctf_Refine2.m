@@ -151,7 +151,7 @@ for iStack = 1%stacksFound
   % used for this process depends on the pixel size in the header when it was
   % created in IMod alignment.
   [~,iPixelHeader] = system(sprintf('header -pixel %s',INPUT_CELL{iStack,2}));
-  iPixelHeader = str2num(iPixelHeader);
+  iPixelHeader = EMC_str2double(iPixelHeader);
   [d1,d2,d3] = size(STACK)
   
   
