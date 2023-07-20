@@ -155,7 +155,7 @@ clear recGeom
                                      shouldBeCTF*gpuIDX, reconScaling,1); 
                                            
  
-% We will handle image statistics locally, but first place the global environment
+% We'll handle image statistics locally, but first place the global environment
 % into a predictible range
 
   

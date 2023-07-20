@@ -246,7 +246,7 @@ particleThickness =  latticeRadius(3);
                                     shouldBeCTF*gpuIDX, reconScaling,1,'',super_sample); 
                                            
 
-% We will ll handle image statistics locally, but first place the global environment
+% We'll handle image statistics locally, but first place the global environment
 % into a predictible range
 
   

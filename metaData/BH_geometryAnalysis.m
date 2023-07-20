@@ -101,7 +101,8 @@ switch STAGEofALIGNMENT
     fieldPrefix = 'Ref';   
     STAGEofALIGNMENT = 'Cluster';
   otherwise
-    error('STAGEofALIGNMENT incorrect')
+    error('STAGEofALIGNMENT incorrect, should be [Tilt,Class,No,Raw]Alignment, not %s', ...
+                                                        STAGEofALIGNMENT);
 end
 
 

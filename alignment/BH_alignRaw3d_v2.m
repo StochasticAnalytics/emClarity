@@ -29,12 +29,12 @@ else
   resumeVars = struct();
 end
 if nargin == 3
-  
-  flgWeightCCC = str2double(varargin{1});
+  flgWeightCCC = EMC_str2double(varargin{1});
 else
   % default to linear ccc (which is actually weighted by the SNR though)
   flgWeightCCC = 0;
 end
+
 
 % Explicit reference to location of variables in main memory, or on the GPU. As
 % in pcaPub, looking ahead to re-write in c++ for cuda, no cells allowed.

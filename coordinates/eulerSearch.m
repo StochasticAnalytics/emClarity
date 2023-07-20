@@ -130,7 +130,7 @@ classdef eulerSearch < handle
              error('Cyclic symmetry requires an int specifying CX');
            end
 
-          obj.psi_max = min(obj.psi_max,360.0 / str2double(obj.symmetry_symbol(2:end)));
+          obj.psi_max = min(obj.psi_max,360.0 / EMC_str2double(obj.symmetry_symbol(2:end)));
           obj.theta_max = min(180.0, obj.theta_max);
           obj.phi_max = 360.0; % This will be incompatible with "symmetry_constrained_search" in BH_mutli_gridAngleSEarch (or whatever)
           
@@ -139,7 +139,7 @@ classdef eulerSearch < handle
         if ((length(obj.symmetry_symbol) < 2))
           error('D symmetry requires an int specifying DX');
         end
-          obj.psi_max = min(360.0 / str2double(obj.symmetry_symbol(2:end)));
+          obj.psi_max = min(360.0 / EMC_str2double(obj.symmetry_symbol(2:end)));
           obj.theta_max = min(obj.theta_max,90.0);
           obj.phi_max = 360.0;
 

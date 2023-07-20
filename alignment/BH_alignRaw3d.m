@@ -31,7 +31,7 @@ end
 
 if nargin == 3
   
-  flgWeightCCC = str2double(varargin{1});
+  flgWeightCCC = EMC_str2double(varargin{1});
 else
   % default to linear ccc (which is actually weighted by the SNR though)
   flgWeightCCC = 0;

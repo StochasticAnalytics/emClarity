@@ -355,8 +355,8 @@ clear radialGrid
 % end
 fprintf('%d\n',nargin);
 if nargin > 3
-  sLow = str2double(varargin{1})
-  sTop = str2double(varargin{2})
+  sLow = EMC_str2double(varargin{1})
+  sTop = EMC_str2double(varargin{2})
 else
   sLow = 1e-6;
   sTop = 0.999;

@@ -46,7 +46,7 @@ end
 
 nameSplit = strsplit(tomoName,'_');
 tomoName = strjoin(nameSplit(1:end-1),'_')
-tomoNumber = str2double(nameSplit{end})
+tomoNumber = EMC_str2double(nameSplit{end})
 
 % % % rCoords = subTomoMeta.mapBackGeometry.(tomoName).coords(tomoNumber,:);
 rCoords = rCoords ./ SAMPLING;

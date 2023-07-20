@@ -190,7 +190,7 @@ classdef interpolator < handle
            if (length(symmetry) < 2)
              error('Cyclic symmetry requires an int specifying CX');
            end
-            obj.symmetry_matrices = cell(str2double(symmetry(2:end)),1); 
+            obj.symmetry_matrices = cell(EMC_str2double(symmetry(2:end)),1); 
             obj.nSymMats = length(obj.symmetry_matrices);
             symInc = 360 / obj.nSymMats;
             for iSym = 0: obj.nSymMats - 1
@@ -200,7 +200,7 @@ classdef interpolator < handle
            if (length(symmetry) < 2)
              error('D symmetry requires an int specifying DX');
            end
-            n_inplane = str2double(symmetry(2:end));
+            n_inplane = EMC_str2double(symmetry(2:end));
             obj.symmetry_matrices = cell(n_inplane,1); 
             obj.nSymMats = length(obj.symmetry_matrices);
             symInc = 360 / obj.nSymMats;

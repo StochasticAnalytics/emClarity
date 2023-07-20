@@ -23,11 +23,11 @@ end
 
 
 tiltStart=1;
-MAX_EXPOSURE = str2double(MAX_EXPOSURE)
+MAX_EXPOSURE = EMC_str2double(MAX_EXPOSURE)
 if isnan(MAX_EXPOSURE)
   error('MAX_EXPOSURE is nan - if running from an interactive matlab session, did you enter as a string?');
 end
-CYCLE = str2double(CYCLE);
+CYCLE = EMC_str2double(CYCLE);
 
 if CYCLE < 0
   CYCLE = abs(CYCLE);
