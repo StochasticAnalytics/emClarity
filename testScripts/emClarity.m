@@ -76,8 +76,8 @@ for iDep = 1:length(emC_cisTEM_deps)
   setenv(sprintf('EMC_%s',upper(emC_cisTEM_deps{iDep})), sprintf('%s/emC_%s',emC_cisTEMDepPath,emC_cisTEM_deps{iDep}));
 end
 
-
-if strcmp(varargin{2},'gui')
+nArgs = length(varargin);
+if nArgs > 1 && strcmp(varargin{2},'gui')
   emClarityApp;
   return
 end
@@ -99,16 +99,16 @@ fprintf('\n\n')
 fprintf('\t\t***************************************\n\n');
 % Get rid of the shorthead passed in by the emClarity script.
 varargin = varargin(2:end);
-if strcmpi(varargin{1},'h')
-  varargin{1} = 'help';
-end
-% nargin doesn't adjust for the shift.
-nArgs = length(varargin);
-varargin;
+nArgs = nArgs - 1;
+emcHelp = false;
+emcProgramHelp=false;
+
+
+
 
 % For some reason, this doesn't fall through, so error if < arg
-notCheckHelp = 1;
-if nArgs > 1
+fprintf("nargs is %d\n",nArgs);
+if nArgs > 0
   if ~strcmp(varargin{1},'check')
     if strcmp(varargin{1},'v2')
       useV2 = true;
@@ -117,16 +117,25 @@ if nArgs > 1
       useV1 = true;
       varargin = varargin(2:end);
     else
-      notCheckHelp = ~strcmpi(varargin{2},'help') || ~strcmp(varargin{2},'experimental');
+      if nArgs < 2
+        emcHelp = strcmpi(varargin{1},'help') || strcmp(varargin{1},'h');
+      elseif nArgs < 3
+        emcProgramHelp = strcmpi(varargin{2},'help') || strcmp(varargin{2},'h');
+      elseif nArgs < 4
+        emcProgramHelp = strcmpi(varargin{3},'help') || strcmp(varargin{4},'h');
     end
   end
-elseif nArgs == 0
-  error('\n\n\tRun with help for a list of functions\n\n');
+  end
+else
+  myErr = sprintf('\n\n\tRun with help for a list of functions\n\n');
+  error(myErr);
 %   checkHelp = 0;
 end
 
+
 multiGPUs = 1;
-if nArgs > 1 && notCheckHelp
+% Get program specific help with emClarity progName help. Otherwise, we parse the third argument
+if nArgs > 1 && ~(emcHelp || emcProgramHelp)
   switch varargin{1}
     case 'ctf'
       pBH = emC_testParse(varargin{3});
@@ -172,10 +181,16 @@ end
 switch varargin{1}
   case 'help'
     fprintf(['\nAvailable commands (case sensitive):\n\n',...
+             '\nhelp - this message\n',...
+             '\n\t\t for more details, emClarity <program> help\n',...
              '\ncheck - system check for dependencies\n',...
              '\ninit - create a new project from template matching results.\n',...
+             '\nautoAlign - align tilt-serie\n',...
              '\navg - average subtomograms\n',...
              '\nfsc - calculate the fsc\n',...
+             '\nmask - create a mask\n',...
+             '\nbenchmark - run a benchmark\n',...
+             '\ncalcWeights - calculate the weights for a given cycle\n',...
              '\nalignRaw - align one or more references against individual subtomograms.\n',...
              '\npca - reduce dimensionality prior to clustering, possibly on smaller subset of data.\n',...
              '\ncluster - use one of a number of approaches to sort populations.\n',...
@@ -187,7 +202,9 @@ switch varargin{1}
              '\ntemplateSearch - template matching/ global search\n',...
              '\ncleanTemplateSearch - clean search results based on neighbor constraints\n',...
              '\nrescale - change the mag on a volume\n',...
+             '\nreconstruct - reconstruct a volume from a set of subtomograms\n',...
              '\nremoveDuplicates - remove subtomos that have migrated to the same position\n',...
+             '\nexperimental - experimental options\n',...
              '\nremoveNeighbors - clean templateSearch results based on lattice constraints\n']);
            
 % Currently disabled options. Multi-reference alignment 
@@ -205,9 +222,9 @@ switch varargin{1}
       BH_checkInstall(getenv('BH_CHECKINSTALL'))
     end
   case 'init'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) < 2 && length(varargin)> 5
-      fprintf(['\nparam.m [tomoCpr iter, for continuing after second globalsearch]\n']);
+      fprintf(['\nUsage: emClarity init param.m [tomoCpr iter, for continuing after second globalsearch]\n']);
     elseif length(varargin) == 5
       emC_testParse(varargin{2})
       BH_geometryInitialize(varargin{2},varargin{3},varargin{4},varargin{5});
@@ -222,9 +239,9 @@ switch varargin{1}
       BH_geometryInitialize(varargin{2});
     end   
   case 'removeNeighbors'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 6 
-      fprintf(['\npixelSize CYCLE distanceCutoff (Ang) angleCutoff (Deg) N-neighbors\n']);
+      fprintf(['\nUsage: emCLarity removeNeighbors pixelSize CYCLE distanceCutoff (Ang) angleCutoff (Deg) N-neighbors\n']);
     else
       %emC_testParse(varargin{2})
       if length(varargin) == 6
@@ -235,9 +252,9 @@ switch varargin{1}
     end    
     
     case 'autoAlign'
-     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+     if emcProgramHelp || ...
        (length(varargin) ~= 5 && length(varargin) ~= 6)
-      fprintf(['\nparam.m stackName tiltFile tilt-axis Rotation\n']);
+      fprintf(['\nUsage: emClarity autoAlign param.m stackName tiltFile tilt-axis Rotation\n']);
      else
       emC_testParse(varargin{2}) 
       if ~exist(varargin{4}, 'file')
@@ -258,24 +275,24 @@ switch varargin{1}
       return
      end
   case 'skip'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 3
-      fprintf(['\nparam.m iter\n']);
+      fprintf(['\nUsage: emClarity skip param.m iter\n']);
     else
       emC_testParse(varargin{2})    
       BH_skipClassAlignment(varargin{2},varargin{3},'ClassAlignment','1');
       BH_skipClassAlignment(varargin{2},varargin{3},'RawAlignment','1');
     end
   case 'rescale'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 6
-      fprintf(['\nfileNameIN fileNameOut angPixIN angPixOut cpu/GPU\n']);
+      fprintf(['\nUsage: emClarity rescale fileNameIN fileNameOut angPixIN angPixOut cpu/GPU\n']);
     else
-      mag = str2double(varargin{4})/str2double(varargin{5});
+      mag = EMC_str2double(varargin{4})/EMC_str2double(varargin{5});
       BH_reScale3d(varargin{2},varargin{3},mag,varargin{6});
     end
   case 'mask'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        (~ismember(length(varargin),[5,8,9]))
      length(varargin)
       fprintf(['\nFor geometric mask:\n', ...
@@ -287,17 +304,17 @@ switch varargin{1}
       switch length(varargin) 
         case 5
           maskVol = getVolume(MRCImage(varargin{3}));
-          pixelSize = str2double(varargin{5});
-          maskVol = BH_mask3d(maskVol,str2double(varargin{5}),'','');
+          pixelSize = EMC_str2double(varargin{5});
+          maskVol = BH_mask3d(maskVol,EMC_str2double(varargin{5}),'','');
           SAVE_IMG(MRCImage(gather(maskVol)),varargin{4},pixelSize);
         case 8
-         pixelSize = str2double(varargin{4});
+         pixelSize = EMC_str2double(varargin{4});
           maskVol = BH_mask3d(varargin{5},str2num(varargin{6}), ...
                                           str2num(varargin{7}), ...
                                           str2num(varargin{8}));
           SAVE_IMG(MRCImage(gather(maskVol)),varargin{3},pixelSize);
         case 9
-           pixelSize = str2double(varargin{4});
+           pixelSize = EMC_str2double(varargin{4});
           maskVol = BH_mask3d(varargin{5},str2num(varargin{6}), ...
                                           str2num(varargin{7}), ...
                                           str2num(varargin{8}), ...
@@ -307,25 +324,26 @@ switch varargin{1}
       
     end       
   case 'benchmark'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 4
-      fprintf(['\nfileNameOut fastScratchDisk nWorkers']);
+      fprintf(['\nUsage: emClarity benchmark fileNameOut fastScratchDisk nWorkers']);
     else
       BH_benchmark(varargin{2},varargin{3},varargin{4});
     end    
   case 'calcWeights'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 6
       fprintf('%f\n',length(varargin))
-      fprintf(['\nparam.m cycle prefixOUT symmetry [gpuIDX, tiltStart, tiltStop]\n']);
+      fprintf(['\nUsage: emClarity calcWeights param.m cycle prefixOUT symmetry [gpuIDX, tiltStart, tiltStop]\n']);
     else
       
       BH_weightMask_dpRUN(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
     end
   case 'avg'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 4
-      fprintf(['\nparam.m\n',...
+      fprintf(['\nUsage: emClarity avg\n',...
+               'param.m\n',...
                'cycle number\n',...
                'stage of alignment\n',...
                '  raw (post raw alignment)\n',...
@@ -335,9 +353,10 @@ switch varargin{1}
         BH_average3d(varargin{2}, varargin{3}, varargin{4});
     end 
   case 'fsc'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        (length(varargin) ~= 4 &&  length(varargin) ~= 6)
-      fprintf(['\nparam.m\n',...
+      fprintf(['\nUsage: emClarity fsc\n',...
+               'param.m\n',...
                'cycle number\n',...
                'stage of alignment\n',...
                '  raw (post raw alignment)\n',...
@@ -349,37 +368,28 @@ switch varargin{1}
       BH_fscGold_class(varargin{2}, varargin{3}, varargin{4},varargin{5},varargin{6});
     end
   case 'alignRaw'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        (length(varargin) ~= 3 && length(varargin) ~= 4)
-     fprintf(['\nparam.m\n',...
+     fprintf(['\nUsage: emClarity alignRaw\n',...
+               'param.m\n',...
                'cycle number\n',...
-               'stage of alignment\n']);
+               'stage of alignment\n', ...
+               '[experimental option 1/2/3, 1 - abs(ccc),2 - weighted,3 -abs(weighted)]']);
     else
         emC_testParse(varargin{2})
         if length(varargin) == 3
-% % %           if (useV2)
-% % %             fprintf('Using experimental V2 of alignRaw3d\n');
-            BH_alignRaw3d_v2(varargin{2}, varargin{3});
-% % %           else            
-% % %             BH_alignRaw3d(varargin{2}, varargin{3});
-% % %           end        
+            BH_alignRaw3d_v2(varargin{2});
         else
           
           % Switching to v2 always, 1.5.0.9 20200520
-          BH_alignRaw3d_v2(varargin{2}, varargin{3},varargin{4})
+          BH_alignRaw3d_v2(varargin{2},varargin{4})
           
-% % %           if (useV2)
-% % %             fprintf('Using experimental V2 of alignRaw3d\n');
-% % % 
-% % %             BH_alignRaw3d_v2(varargin{2}, varargin{3},varargin{4})
-% % %           else
-% % %             BH_alignRaw3d(varargin{2}, varargin{3},varargin{4});
-% % %           end
+
         end
     end
     
   case 'alignRef'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 3
      fprintf(['\nparam.m\n',...
                'cycle number\n',...
@@ -389,7 +399,7 @@ switch varargin{1}
         BH_alignReferences3d(varargin{2}, varargin{3});
     end    
   case 'alignCls'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 3
      fprintf(['\nparam.m\n',...
                'cycle number\n',...
@@ -399,7 +409,7 @@ switch varargin{1}
         BH_alignClassRotAvg3d(varargin{2}, varargin{3});
     end    
 %   case 'alignFrames'
-%     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+%     if emcProgramHelp || ...
 %        (length(varargin) < 9 && length(varargin) > 11)
 %      fprintf(['\nnameIN\n',...
 %                'nameOUT\n',...
@@ -438,7 +448,7 @@ switch varargin{1}
 %       end 
 %     end      
   case 'pca'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 4  && length(varargin) ~= 5
      fprintf(['\nparam.m\n',...
                'cycle number\n',...
@@ -450,13 +460,13 @@ switch varargin{1}
     else
         emC_testParse(varargin{2})
 
-        if (str2double(varargin{4}))
+        if (EMC_str2double(varargin{4}))
           % project onto full set
           BH_pcaPub(varargin{2}, varargin{3}, '1');
         else
           
           if length(varargin) == 5
-            maskVal = str2double(varargin{5});
+            maskVal = EMC_str2double(varargin{5});
           else
             maskVal = 0;
           end
@@ -474,7 +484,7 @@ switch varargin{1}
        
     end    
   case 'cluster'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 3
      fprintf(['\nparam.m\n',...
                'cycle number\n']);
@@ -483,7 +493,7 @@ switch varargin{1}
         BH_clusterPub(varargin{2}, varargin{3});
     end      
   case 'ctf'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') 
+    if emcProgramHelp 
       fprintf(['\nestimate\n',...
                '  param.m tiltBaseName\n',...
                '\nrefine\n',...
@@ -546,7 +556,7 @@ switch varargin{1}
   case 'tomoCPR'
     fprintf('In tomoCPR the MCR is %s\n',getenv('MCR_CACHE_ROOT'));
 
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        ( length(varargin) < 3 || length(varargin) > 4 )
       fprintf(['\nparam.m\n',...
                'cycle number\n',...                                  
@@ -554,14 +564,14 @@ switch varargin{1}
     else
         emC_testParse(varargin{2})
         if length(varargin) == 4
-          tiltStart = str2double(varargin{4});
+          tiltStart = EMC_str2double(varargin{4});
         else
           tiltStart = 1;
         end
         BH_synthetic_mapBack(varargin{2}, varargin{3},tiltStart);
     end        
   case 'removeDuplicates'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 3
       fprintf(['\nparam.m\n',...
                'cycle number\n',...
@@ -571,7 +581,7 @@ switch varargin{1}
         BH_removeDuplicates(varargin{2}, varargin{3} );
     end       
   case 'geometry'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        length(varargin) ~= 7
       fprintf(['\nparam.m\n',...
                'cycle number\n',...
@@ -592,7 +602,7 @@ switch varargin{1}
     
 
   case 'templateSearch'
-    if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+    if emcProgramHelp || ...
        ~ismember(length(varargin),[7,8])
        fprintf(['\nparam.m\n',...
            'tomoName\n',...
@@ -632,7 +642,7 @@ switch varargin{1}
     end
     
   case 'cleanTemplateSearch'
-     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+     if emcProgramHelp || ...
        length(varargin) ~= 5 
        fprintf(['\npixelSize (Ang)\n',...
            'distance to neightbor (Ang)\n',...
@@ -640,12 +650,12 @@ switch varargin{1}
            'min number neighbors (one less than expected is usually good)\n']);  
      else
     
-      BH_geometry_Constraints(str2double(varargin{2}), '0', varargin{3}, varargin{4}, varargin{5});
+      BH_geometry_Constraints(EMC_str2double(varargin{2}), '0', varargin{3}, varargin{4}, varargin{5});
 
      end
      
   case 'reconstruct'
-     if strcmpi(varargin{2},'help') || strcmpi(varargin{2},'h') || ...
+     if emcProgramHelp || ...
        length(varargin) ~= 6
        fprintf(['paramterfile\n',...
            'cycle #\n',...
@@ -894,7 +904,7 @@ memList(:,1) = 1:nGPUs_total;
 for iGPU = 1:nGPUs_total
   memCMD = sprintf('nvidia-smi --id=%s --query-gpu=memory.total --format=csv,noheader,nounits',uuidlist{iGPU});
   [~,memString] = system(memCMD);
-  memList(iGPU,2) = str2double(memString);
+  memList(iGPU,2) = EMC_str2double(memString);
   fprintf('found gpu with %f Mib memory\n',memList(iGPU,2));
 end
 

@@ -25,7 +25,7 @@ direction='fwd';
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 if nargin > 1
   if length(varargin) == 1
-    mapBackIter = str2double(varargin{1});
+    mapBackIter = EMC_str2double(varargin{1});
   else
     
     eulerSet = {'zyx','zxz','zyz'};
@@ -190,10 +190,10 @@ sprintf('recon/%s',getCoords(iStack).name)
     if (doImport)
       modName = strsplit(iPath(iSt).name,'.csv');
       modName = strsplit(modName{1},'_');
-      tomoNumber = str2double(modName{2});
+      tomoNumber = EMC_str2double(modName{2});
     else
       modName = strsplit(iPath(iSt).name,'_');
-      tomoNumber = str2double(modName{end-1});
+      tomoNumber = EMC_str2double(modName{end-1});
     end
     
 
@@ -218,10 +218,10 @@ for iTomo = 1:nTomogramsTotal
   if (doImport)
     tiltName = modName{1}
     tomoNumber = strsplit(modName{2},'.csv');
-    tomoNumber = str2double(tomoNumber{1})
+    tomoNumber = EMC_str2double(tomoNumber{1})
   else
     tiltName = strjoin(modName(1:end-2),'_');
-    tomoNumber = str2double(modName{end-1})
+    tomoNumber = EMC_str2double(modName{end-1})
   end
 
   fileInfo{iTomo,1} = tiltName;

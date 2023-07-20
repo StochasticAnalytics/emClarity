@@ -34,7 +34,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=7
 bugs=0
-nightly=3
+nightly=4
 
 EMC_ROOT=${EMC_ROOT}/emClarity_${major}.${minor}.${bugs}.${nightly}
 

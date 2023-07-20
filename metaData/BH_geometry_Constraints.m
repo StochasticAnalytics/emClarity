@@ -44,7 +44,7 @@ distCut = str2num(distCut)./pixelSize;
 nNeighbors = str2num(latticeNumber);
 
 % FIXME from param file.
-nWorkers = str2double(nWorkers);
+nWorkers = EMC_str2double(nWorkers);
 % delete(gcp('nocreate'));
 % EMC_parpool(nWorkers);
 

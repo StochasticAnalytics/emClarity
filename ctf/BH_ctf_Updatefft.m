@@ -32,7 +32,7 @@ catch
   mapBackIter = 0;
 end
 
-if isnan(str2double(STACK_PRFX))
+if isnan(EMC_str2double(STACK_PRFX))
   % It is a name, run here.
   nGPUs = 1;
   flgParallel = 0;

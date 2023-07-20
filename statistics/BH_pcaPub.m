@@ -419,7 +419,7 @@ else
     if (length(pcaSymmetry) < 2)
       error('Cyclic symmetry requires an int specifying CX');
     end
-    pcaSymmetry = str2double(pcaSymmetry(2:end));
+    pcaSymmetry = EMC_str2double(pcaSymmetry(2:end));
     
     [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter,0,pcaSymmetry);
   catch

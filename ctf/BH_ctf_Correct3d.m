@@ -154,7 +154,7 @@ if strcmpi(tmpCache, 'ram')
     tmpCache= '';
   else
     % I have no ideah how much is needed
-    if str2double(getenv('EMC_CACHE_MEM')) < 64
+    if EMC_str2double(getenv('EMC_CACHE_MEM')) < 64
       fprintf('There is only 64 Gb of cache on ramdisk, not using');
       tmpCache = '';
     else

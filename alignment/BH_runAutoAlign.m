@@ -11,7 +11,7 @@ if nargin > 6
 end
 
 pixelSize = pBH.('PIXEL_SIZE').*10^10;
-imgRotation = str2double(imgRotation);
+imgRotation = EMC_str2double(imgRotation);
 
 try 
   RESOLUTION_CUTOFF = pBH.('autoAli_max_resolution');
