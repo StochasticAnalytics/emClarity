@@ -27,6 +27,12 @@ mFile=${1}
 
 post="_${shortHead}"
 
+# check the extension
+if [[ $mFile != *.m ]]; then
+  echo "Please provide a matlab file to compile"
+  exit 1
+fi
+
 outName="$(basename ${mFile} .m)${post}"
 
 # For naming. If you are compiling your own version, use something descriptive in teh
