@@ -66,6 +66,7 @@ catch
   nPeaks = 1;
 end
 
+nRows = length(pBH.('pcaScaleSpace'));
 featureVector = cell(2,1);
 if flgGold
   featureVector{1,1} = pBH.('Pca_coeffs_odd');
@@ -75,6 +76,10 @@ else
   featureVector{1,1}
 end
 
+nFeatures = size(featureVector{1,1});
+if (nFeatures(1) ~= nRows)
+    error('There should be a set of indices for each pcaScaleSpace, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
+end
 
 clusterVector= pBH.('Pca_clusters');
 
