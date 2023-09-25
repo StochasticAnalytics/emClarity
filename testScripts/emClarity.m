@@ -7,6 +7,7 @@ function [ varargout ] = emClarity( varargin )
 
 warning off
 cudaStart='';
+% FIXME: This only applies to ctf estimate, and it looks like there is no version 2 !?
 useV2 = false;
 useV1 = false;
 
@@ -45,30 +46,24 @@ fprintf('ctfroot is %s\n',ctfroot);
 emC_PATH = strsplit(pathWithDir, slashCheck{end-shift_end});
 emC_PATH = sprintf('%s%semClarity',emC_PATH{1},add_slash);
 
-
 if isdeployed
-  emC_autoAliPath = which('emC_autoAlign'); 
-  fprintf('emC_autoAlign is %s\n',emC_autoAliPath);
-  % sprintf('%s%s/alignment/emC_autoAlign',ctfroot,compiled_PATH);
-else
-  emC_autoAliPath = sprintf('%s/alignment/emC_autoAlign',emC_PATH); 
-end
-
-if isdeployed
-  emC_findBeadsPath = which('emC_findBeads');
-  fprintf('emC_findBeads is %s\n',emC_findBeadsPath);
-  %emC_findBeadsPath = sprintf('%s%s/alignment/emC_findBeads',ctfroot,compiled_PATH);
-else
-  emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emC_PATH);
-end
-
-if isdeployed
-  BH_checkInstallPath = which('BH_checkInstall');
+  % This will find the m-file, which is used to grab the shell script which is what we want to define here.
+  [BH_checkInstallPath, fname, fext] = fileparts(which('BH_checkInstall'));
+  BH_checkInstallPath = fullfile(BH_checkInstallPath,fname);
   fprintf('BH_checkInstall is %s\n',BH_checkInstallPath);
   %BH_checkInstallPath = sprintf('%s%s/metaData/BH_checkInstall',ctfroot,compiled_PATH);
 else
   BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emC_PATH);
 end
+
+% For whatever reason, matlab can find BH_checkInstall, but not emC_auto... just grab the path root from BH_checkInstall
+% NOTE: if there is a trailing slash, fileparts will not work here
+emC_autoAliPath = sprintf('%s/alignment/emC_autoAlign',fileparts(fileparts(BH_checkInstallPath)));
+emC_findBeadsPath = sprintf('%s/alignment/emC_findBeads',fileparts(fileparts(BH_checkInstallPath)));
+
+fprintf('emC_autoAlign is %s\n',emC_autoAliPath);
+fprintf('emC_findBeads is %s\n',emC_findBeadsPath);
+
 
 setenv('EMC_AUTOALIGN',emC_autoAliPath);
 setenv('EMC_FINDBEADS',emC_findBeadsPath);
@@ -115,10 +110,10 @@ emcProgramHelp=false;
 
 
 % For some reason, this doesn't fall through, so error if < arg
-fprintf("nargs is %d\n",nArgs);
 if nArgs > 0
   if ~strcmp(varargin{1},'check')
     if strcmp(varargin{1},'v2')
+      % FIXME: This only applies to ctf estimate, and it looks like there is no version 2 !?
       useV2 = true;
       varargin = varargin(2:end);
     elseif strcmp(varargin{1},'v1')
@@ -131,8 +126,8 @@ if nArgs > 0
         emcProgramHelp = strcmpi(varargin{2},'help') || strcmp(varargin{2},'h');
       elseif nArgs < 4
         emcProgramHelp = strcmpi(varargin{3},'help') || strcmp(varargin{3},'h');
+      end
     end
-  end
   end
 else
   myErr = sprintf('\n\n\tRun with help for a list of functions\n\n');
@@ -153,7 +148,7 @@ if nArgs > 1 && ~(emcHelp || emcProgramHelp)
     case 'alignFrames'
       error('alignFrames is not yet in production. Soon though!')
       % nothing to parse
-      multiGPUs =0;
+      multiGPUs = 0;
     case 'benchmark'
       % nothing to parse
       multiGPUs= 0;
@@ -518,6 +513,7 @@ switch varargin{1}
       switch varargin{2}
         case 'estimate'
           if (useV2)
+            % FIXME: This only applies to ctf estimate, and it looks like there is no version 2 !?
             if nArgs == 4
               BH_ctf_Estimate_2(varargin{3},varargin{4});
             else

@@ -3,17 +3,9 @@ function [  ] = BH_ctf_Estimate(varargin)
 global bh_global_do_2d_fourier_interp;
 !mkdir -p aliStacks
 modLocal = false;
-if length(varargin) == 5
-  % PARAMETER_FILE, STACK, TILT, NAMEOUT, mapBack, collectionORDER, gpuIDX
-  % orig approach, streamlining for publication
-  PARAMETER_FILE = varargin{1};
-  stackNameIN = varargin{2};
-  tltFile = varargin{3};
-  stackNameOUT = varargin{4};
-  mapBack = varargin{5};
-  collectionORDER = varargin{6};
-
-elseif length(varargin) <= 3
+if length(varargin) > 3 
+  error('Too many input arguments');
+else
   % PARAMETER_FILE, STACK_BASENAME, gpuIDX
   % Assumes that all required files are in ./fixedStacks
   PARAMETER_FILE = varargin{1};
@@ -22,8 +14,6 @@ elseif length(varargin) <= 3
   if length(varargin) == 3
     anglesSkipped = EMC_str2double(varargin{3});
     modLocal = true;
-
-
   else
     anglesSkipped = 0;
   end
@@ -47,19 +37,9 @@ flgSkip = 0;
 % PS) 0.5 = take sqrt prior to normalizing.
 cccScale = 1;
 
-% Assumes a directory with mapBack data on the same level as the directory
-% holding the rawStacks, and that the basename of the stack is also the basename
-% for the mapBack transformations.
-flgReScale = 0;
-flgMapBack = EMC_str2double(mapBack);
-if isempty(flgMapBack)
-  % The string specifies the basename for mapback files .xf .mag .tlt
-  % and so is empty after EMC_str2double
-  flgReScale = true;
-  mapBackPrfx= mapBack;
-elseif (flgMapBack)
-  error('mapBack should be false (a 0) or a string with mapBack/basename.[xf,mag,tlt]\n')
-end
+
+flgReScale = true;
+mapBackPrfx= mapBack;
 
 
 try

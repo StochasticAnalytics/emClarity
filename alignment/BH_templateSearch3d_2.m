@@ -20,10 +20,9 @@ elseif length(varargin) > 1
   error('emClarity templateSearch paramN.m tiltN regionN referenceName symmetry(C1) <optional gpuIDX>');
 end
 
-  tomoNumber = EMC_str2double(tomoNumber);
+tomoNumber = EMC_str2double(tomoNumber);
 
-
-  [ useGPU ] = BH_multi_checkGPU( gpuIDX )
+[ useGPU ] = BH_multi_checkGPU( gpuIDX )
 
 
 

@@ -144,6 +144,8 @@ echo $iEcho && iEcho=$(($iEcho+1))
 #        clip filter -h ${maxCut} ../../fixedStacks/${inp}.fixedNP.rot ../../fixedStacks/${inp}.fixed.preprocessed
 #      fi
 
+      echo -e "\n\tLimiting shifts to ${limitShifts} pixels\n"
+      
       tiltxcorr \
         -InputFile	../../fixedStacks/${inp}.fixed.preprocessed \
         -OutputFile	${pName}.prexf \
@@ -152,6 +154,7 @@ echo $iEcho && iEcho=$(($iEcho+1))
         -FilterRadius2	0.5 \
         -FilterSigma2	0.05 \
         -CumulativeCorrelation \
+        -ShiftLimitsXandY ${limitShifts},${limitShifts} \
         -AngleOffset ${tiltAngleOffset}
   
 
