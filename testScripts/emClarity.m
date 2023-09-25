@@ -4,7 +4,6 @@ function [ varargout ] = emClarity( varargin )
 
 % Disable warnings
 
-compiled_PATH='/groups/grigorieff/home/himesb/work/emClarity';
 
 warning off
 cudaStart='';
@@ -48,19 +47,25 @@ emC_PATH = sprintf('%s%semClarity',emC_PATH{1},add_slash);
 
 
 if isdeployed
-  emC_autoAliPath = sprintf('%s%s/alignment/emC_autoAlign',ctfroot,compiled_PATH);
+  emC_autoAliPath = which('emC_autoAlign'); 
+  fprintf('emC_autoAlign is %s\n',emC_autoAliPath);
+  % sprintf('%s%s/alignment/emC_autoAlign',ctfroot,compiled_PATH);
 else
   emC_autoAliPath = sprintf('%s/alignment/emC_autoAlign',emC_PATH); 
 end
 
 if isdeployed
-  emC_findBeadsPath = sprintf('%s%s/alignment/emC_findBeads',ctfroot,compiled_PATH);
+  emC_findBeadsPath = which('emC_findBeads');
+  fprintf('emC_findBeads is %s\n',emC_findBeadsPath);
+  %emC_findBeadsPath = sprintf('%s%s/alignment/emC_findBeads',ctfroot,compiled_PATH);
 else
   emC_findBeadsPath=sprintf('%s/alignment/emC_findBeads',emC_PATH);
 end
 
 if isdeployed
-  BH_checkInstallPath = sprintf('%s%s/metaData/BH_checkInstall',ctfroot,compiled_PATH);
+  BH_checkInstallPath = which('BH_checkInstall');
+  fprintf('BH_checkInstall is %s\n',BH_checkInstallPath);
+  %BH_checkInstallPath = sprintf('%s%s/metaData/BH_checkInstall',ctfroot,compiled_PATH);
 else
   BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emC_PATH);
 end
