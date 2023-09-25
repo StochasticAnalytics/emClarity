@@ -130,7 +130,7 @@ if nArgs > 0
       elseif nArgs < 3
         emcProgramHelp = strcmpi(varargin{2},'help') || strcmp(varargin{2},'h');
       elseif nArgs < 4
-        emcProgramHelp = strcmpi(varargin{3},'help') || strcmp(varargin{4},'h');
+        emcProgramHelp = strcmpi(varargin{3},'help') || strcmp(varargin{3},'h');
     end
   end
   end
