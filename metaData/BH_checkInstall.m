@@ -2,12 +2,10 @@ function [  ] = BH_checkInstall( runPath )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-sprintf('%s',getenv('BH_CHECKINSTALL'))
 
 % system(sprintf('%s',getenv('BH_CHECKINSTALL')));
 system(sprintf('%s',runPath));
 
-t = datetime;
 fOUT = fopen('emClarity_checkInstall.txt','a');
                     
 

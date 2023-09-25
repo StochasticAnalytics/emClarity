@@ -624,7 +624,26 @@ if (use_new_grid_search)
         angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, true);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi
+
+try
+  symmetry_constrained_search = pBH.('symmetry_constrained_search');
+  fprintf('Using symmetry constrained search\n');
+catch
+  symmetry_constrained_search = false;
+end
   
+  if (symmetry_constrained_search)
+    % symmetry expansion on in-plane search only
+    if (gridSearch.symmetry_symbol(1) ~= 'C')
+      error('symmetry constrained search only implemented for Cn symmetry');
+    else
+      symmetry_number = EMC_str2double(gridSearch.symmetry_symbol(2:end));
+      for iSym = 1:symmetry_number-1
+        inPlaneSearch = [inPlaneSearch,inPlaneSearch + iSym.*(360/symmetry_number)];
+      end
+    end
+  end
+
   flgRefine=false;
 
   for i = 1:length(gridSearch.parameter_map.phi)

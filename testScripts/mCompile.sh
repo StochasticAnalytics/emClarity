@@ -6,7 +6,7 @@
 #   TODO set up a little configure script to do this and check other deps described below.
 # NOTE: You also will need to download the binaries from the emC_dependencies folder on drive
 export emC_DEPS="/sa_shared/software/emClarity_1.6.1.0/bin/deps"
-EMC_COMPILED_DIRNAME=/sa_shared/software/ # This is just for convenience, when you build for yourself
+EMC_COMPILED_ROOT=/sa_shared/software/ # This is just for convenience, when you build for yourself
 ############ lines 4-5 in mexFiles/mexCompile
 #mexPATH = '/groups/grigorieff/home/himesb/work/emClarity/mexFiles/';
 #CUDA_LIB = '-L/groups/grigorieff/home/himesb/thirdParty/cuda-10.0/lib64'   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
@@ -45,9 +45,14 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=7
 bugs=0
-nightly=7
+nightly=10
 
-EMC_COMPILED_DIRNAME=${EMC_COMPILED_DIRNAME}/emClarity_${major}.${minor}.${bugs}.${nightly}
+binaryOutName="${major}_${minor}_${bugs}_${nightly}"
+scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"
+
+EMC_VERSION=emClarity_${major}.${minor}.${bugs}.${nightly}
+
+EMC_COMPILED_DIRNAME=${EMC_COMPILED_ROOT}/${EMC_VERSION}
 
 # The final binary, run script and docs folder will be zipped and put in this location
 # unless it is NONE then it will be left in the bin dir.
@@ -55,8 +60,7 @@ zip_location="${HOME}/tmp"
 #zip_location="NONE"
 
 
-binaryOutName="${major}_${minor}_${bugs}_${nightly}"
-scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"
+
 #binaryOutName="LTS_fix_${shortHead}"
 #scriptOutName="LTS_fix_${shortHead}_v19a"
 
@@ -65,10 +69,15 @@ scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"
 #     Download the dependencies described in the "statically linked" section here https://github.com/bHimes/emClarity/wiki/Requirements
 imodStaticIncludes=""
 
+# Generally only enabled to speed up debugging of compilation steps unrelated to the cudaMex files which are otherwise always compiled first.
+skipMex=0
+if [[ $skipMex -eq 0 ]]; then
+  mexCompile="mexCompile ;"
+else
+  mexCompile=""
+fi
 
-
-
-${MATLAB_FOR_COMPILING} -nosplash -nodisplay -nojvm -r " mexCompile ; mcc -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+${MATLAB_FOR_COMPILING} -nosplash -nodisplay -nojvm -r " ${mexCompile} mcc -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
           
 wait
 
@@ -156,58 +165,35 @@ echo "\${emClarity_ROOT}/bin/emClarity_${binaryOutName} \${argList}"
 
 chmod a=wrx emClarity_${scriptOutName}
 
-# Collect the emClarity binary dependencies
-mkdir -p ../bin
-mkdir -p ../bin/deps
-#mkdir -p ../bin/deps/autodoc
-#mkdir -p ../bin/deps/com
-#mkdir -p ../bin/deps/bin
-#mkdir -p ../bin/deps/bin/realbin
-#cp -ru ${emC_DEPS}/deps/bin/realbin/* ../bin/deps/bin/realbin
-#cp -ru ${emC_DEPS}/deps/com/* ../bin/deps/com
 
-#cp -ru ${emC_DEPS}/deps/VERSION ../bin/deps
-#cp -ru ${emC_DEPS}/deps/imodDeps.txt ../bin/deps
-cp -ru ${emC_DEPS}/deps/cisTEMDeps.txt ../bin/deps
-#cd ../bin/deps/autodoc
-#cat ../imodDeps.txt | while read dep ; do
-#  cp -u ${emC_DEPS}/deps/autodoc/${dep}.adoc .
-#  ln -sf ${dep}.adoc emC_${dep}.adoc
-#done
-cd ${EMC_COMPILED_DIRNAME}/testScripts
-cat ../bin/deps/cisTEMDeps.txt | while read dep ; do
-  cp -u ${emC_DEPS}/emC_${dep} ../bin/deps
+rm -rf ../bin/${EMC_VERSION}
+mkdir ../bin/${EMC_VERSION} ../bin/${EMC_VERSION}/bin ../bin/${EMC_VERSION}/bin/deps
+
+mv emClarity_${scriptOutName} ../bin/${EMC_VERSION}/bin
+mv emClarity_${binaryOutName} ../bin/${EMC_VERSION}/bin
+
+cp -ru ${emC_DEPS}/deps/cisTEMDeps.txt ../bin/${EMC_VERSION}/bin/deps
+
+cat ../bin/${EMC_VERSION}/bin/deps/cisTEMDeps.txt | while read dep ; do
+  echo "Copying ${dep} to ../bin/${EMC_VERSION}/bin/deps"
+  cp -u ${emC_DEPS}/emC_${dep} ../bin/${EMC_VERSION}/bin/deps
 done
 
-mv emClarity_${scriptOutName} ../bin
-mv emClarity_${binaryOutName} ../bin
+cp -rp ../docs ../bin/${EMC_VERSION}
+cp -rp ../lib ../bin/${EMC_VERSION}
 
-#cp -rp /nrs/grigorieff/himesb/mayRevertBlank /nrs/grigorieff/himesb/mRevert_${binaryOutName}
-#awk -v ON="emClarity_${scriptOutName}" '{if(/^binaryName=/) print "binaryName=/groups/grigorieff/home/himesb/thirdParty/emClarity/"ON; else print $0}' /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh > /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp 
-#mv /nrs/grigorieff/himesb/mRevert_${binaryOutName}/tmp /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh
-#chmod a=wrx /nrs/grigorieff/himesb/mRevert_${binaryOutName}/runTutorial.sh 
+cp .bashrc ../bin/${EMC_VERSION}
+cd ../bin/${EMC_VERSION}/bin
 
-rm -rf ../emClarity_${major}.${minor}.${bugs}.${nightly}
-mkdir ../emClarity_${major}.${minor}.${bugs}.${nightly}
-cp -rp ../docs ../emClarity_${major}.${minor}.${bugs}.${nightly}
-cp -rp ../lib ../emClarity_${major}.${minor}.${bugs}.${nightly}
-
-cd ../emClarity_${major}.${minor}.${bugs}.${nightly}
-mkdir bin
-cp -rp ../bin/deps ./bin
-cd bin
-cp ${EMC_COMPILED_DIRNAME}/testScripts/.bashrc .
-cp ../../bin/emClarity_${scriptOutName} emClarity_${scriptOutName}
-cp ../../bin/emClarity_${binaryOutName} emClarity_${binaryOutName}
 ln -s emClarity_${scriptOutName} emClarity
 cd ../../
 
 if [[ ${zip_location} != "NONE" ]]; then
-  zip -r --symlinks emClarity_${major}.${minor}.${bugs}.${nightly}.zip ./emClarity_${major}.${minor}.${bugs}.${nightly}
-  mv emClarity_${major}.${minor}.${bugs}.${nightly}.zip ${zip_location}
+  zip -r --symlinks ${EMC_VERSION}.zip ./${EMC_VERSION}
+  mv ${EMC_VERSION}.zip ${zip_location}
 fi
 
-rm -rf emClarity_${major}.${minor}.${bugs}.${nightly}
+rm -rf ${EMC_VERSION}
 
 
 
