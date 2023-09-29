@@ -376,16 +376,14 @@ switch varargin{1}
      fprintf(['\nUsage: emClarity alignRaw\n',...
                'param.m\n',...
                'cycle number\n',...
-               'stage of alignment\n', ...
                '[experimental option 1/2/3, 1 - abs(ccc),2 - weighted,3 -abs(weighted)]']);
     else
         emC_testParse(varargin{2})
         if length(varargin) == 3
-            BH_alignRaw3d_v2(varargin{2});
+            BH_alignRaw3d_v2(varargin{2}, varargin{3});
         else
-          
           % Switching to v2 always, 1.5.0.9 20200520
-          BH_alignRaw3d_v2(varargin{2},varargin{3})
+          BH_alignRaw3d_v2(varargin{2},varargin{3}, varargin{4});
         end
     end
     
