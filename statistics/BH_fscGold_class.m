@@ -765,14 +765,17 @@ for iRef = 1:nReferences
     % Otherwise refSymmetry is set in the block where the permutations are
     % created.
     try
-      refSymmetry = masterTM.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT).(sprintf('%s_className',fieldPrefix)){1}
+      refSymmetry = masterTM.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT);
     catch
       fprintf('\nCould not load the symmetry applied, just using 1\n');
       refSymmetry = ones(2,nReferences);
     end
+    fprintf('Found an applied symmetry of %s\n', refSymmetry);
+    gridSearch = eulerSearch(refSymmetry,180,5,360,5,0.0,1,true);
+    fprintf('Adjusting the one/half bit cutoffs for the %d asymmetric unit(s)\n',gridSearch.number_of_asymmetric_units);
   end
   nCones
-  nEffective = fnval(fitNUM{1},osX).*(3/2.*DbyL).^2 ./ (2.*refSymmetry(2,iRef));
+  nEffective = fnval(fitNUM{1},osX).*(3/2.*DbyL).^2 ./ (2.*gridSearch.number_of_asymmetric_units);
 
   oneBIT = ( 0.5+2.4142./sqrt(nEffective) ) ./ ...
            ( 1.5 + 1.4142./sqrt(nEffective) );
@@ -932,8 +935,8 @@ imgOUT = STAGEofALIGNMENT;
 clear fout famp1 famp2 fphase1 fphase2
 
 
-    fmid = osX(find(fnval(fitFSC{1},osX) < 0.5 & osX > 1/100, 1, 'first'));
-    fgold = osX(find(fnval(fitFSC{1},osX) < 0.143 & osX > 1/100, 1, 'first'));
+    fmid = osX(find(fnval(fitFSC{1},osX) < 0.5 & osX > 1/100, 1, 'first'))
+    fgold = osX(find(fnval(fitFSC{1},osX) < 0.143 & osX > 1/100, 1, 'first'))
     
     fprintf('\n0.5 = 1/%f\n0.143 = 1/%f\n', fmid, fgold)
 
@@ -1036,7 +1039,6 @@ clear fout famp1 famp2 fphase1 fphase2
 
       file_out = sprintf('%s-%d-cRef_%s', outputPrefix, iRef, halfSet);
       saveas(gcf, file_out,'pdf')
-  
       figure('Visible','off'), plot(osX,cRefAli{1}(osX),'kd','MarkerSize',3); hold on;
       if (flgCones)
 
@@ -1053,22 +1055,43 @@ clear fout famp1 famp2 fphase1 fphase2
 
     file_out = sprintf('%s-%d-cRefAli_%s', outputPrefix, iRef, halfSet);
     saveas(gcf, file_out,'pdf')  
-  try
+  % try
     fitPower = fit(shellsFreq(:,1).^2,log(shellsPOWER(:,1)),'cubicSpline');
     LR = 10;
     MR = 7;
-    HR = min((1.05*fgold)^2, shellsFreq(end-1,1).^2);
+    HR = min((1.05*fgold).^2, shellsFreq(end-1,1).^2);
+    if isempty(HR)
+      HR = lowCut1;
+    end
     lowRes = find(shellsFreq(:,1).^2 > (1/LR)^2, 1,'first');
     midRes = find(shellsFreq(:,1).^2 > (1/MR)^2, 1,'first');
     endRes = find(shellsFreq(:,1).^2 > HR, 1,'first');
-    bFactorFIT1 = fit(shellsFreq(lowRes:midRes,1).^2 , ...
-                     log(shellsPOWER(lowRes:midRes,1)),'poly1');
-    bFactorFIT2 = fit(shellsFreq(midRes:endRes,1).^2 , ...
-                     log(shellsPOWER(midRes:endRes,1)),'poly1');                 
+    plot1 = false;
+    plot2 = false;
+    if (midRes - lowRes > 2)
+      bFactorFIT1 = fit(shellsFreq(lowRes:midRes,1).^2 , ...
+                      log(shellsPOWER(lowRes:midRes,1)),'poly1');
+      plot1= true;
+    end
+    if (endRes-midRes > 2)   
+      bFactorFIT2 = fit(shellsFreq(midRes:endRes,1).^2 , ...
+                      log(shellsPOWER(midRes:endRes,1)),'poly1'); 
+      plot2 = true;
+    end                
 
-    figure('Visible','off'), plot(osX.^2,fitPower(osX.^2),'k'); hold on
-                             plot(osX.^2,bFactorFIT1(osX.^2),'b--');
+    figure('Visible','off'), plot(osX.^2,fitPower(osX.^2),'k'); hold on;
+    if (plot1)
+        plot(osX.^2,bFactorFIT1(osX.^2),'b--');
+    else
+      bFactorFIT1 = struct()
+      bFactorFIT1.('p1') = 0;
+    end
+    if (plot2)
                              plot(osX.^2,bFactorFIT2(osX.^2),'b--'); 
+    else
+      bFactorFIT2 = struct()
+      bFactorFIT2.('p1') = 0;
+    end
                              line([(1/LR)^2,(1/LR)^2], ...
                                   [min(log(shellsPOWER(:,1))), ...
                                    max(log(shellsPOWER(:,1)))], ...
@@ -1097,10 +1120,10 @@ clear fout famp1 famp2 fphase1 fphase2
     file_out = sprintf('%s-%d-guinier_%s', outputPrefix, iRef, halfSet);
     savefig(gcf,file_out);
     saveas(gcf, file_out,'pdf') 
-  catch
-    fprintf('\nRan into some error in the guinier analysis.\n');
-    fprintf('\nSince this is not critical, skipping and continue.\n');
-  end
+  % catch
+  %   fprintf('\nRan into some error in the guinier analysis.\n');
+  %   fprintf('\nSince this is not critical, skipping and continue.\n');
+  % end
 end
 
 subTomoMeta = masterTM;
@@ -1170,8 +1193,8 @@ if ( flgPowerSpectrum )
   cross = abs(fftn(fou1)); clear fou1
 else
   cross = fou1.*conj(fou2);
-  auto1 = abs(fou1).^2; clear fou1
-  auto2 = abs(fou2).^2; clear fou2
+  auto1 = abs(fou1); clear fou1
+  auto2 = abs(fou2); clear fou2
 end
 
 
@@ -1217,11 +1240,12 @@ for iCalc = 1:nIters
     if (flgPowerSpectrum)
       shellsFSC(q, iCalc) = (a ./ sum(iMask(:)));
     else
-      b = sum((auto1(iMask)));
-      c = sum((auto2(iMask)));
+      b = sum((auto1(iMask).^2));
+      c = sum((auto2(iMask).^2));
       shellsFSC(q, iCalc) = a ./ sqrt(b * c);
       shellsNsamples(q, iCalc) = sum(iMask(:));   
-      shellsPOWER(q,iCalc) = sqrt(b*c);
+      % We want the Average Fourier Amplitudes for Guinier analysis, not the average power
+      shellsPOWER(q,iCalc) = sum(auto1(iMask)+auto2(iMask))./(2*shellsNsamples(q,iCalc));
     end
 
     

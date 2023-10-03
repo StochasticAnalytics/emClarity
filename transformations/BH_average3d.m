@@ -95,6 +95,14 @@ if strcmpi(STAGEofALIGNMENT,'NoAlignment')
   STAGEofALIGNMENT = 'RawAlignment';
 end
 
+if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
+    % Ensure we don't have any duplicates: TODO: add an override flag
+  % This modifies the RawAlign geometry, so should be cycle -1
+  if (CYCLE > 0)
+    BH_removeDuplicates(PARAMETER_FILE,sprintf('%d', CYCLE-1));
+  end
+end
+
 cycleNumber = sprintf('cycle%0.3u', CYCLE)
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
@@ -1375,12 +1383,12 @@ parfor iParProc = parVect
 %             iRefWdg = BH_resample3d(refWDG{1},angles', [0,0,0],rotConvention , 'GPU', 'forward');
             
             [ ref_FT ] = BH_bandLimitCenterNormalize(iRefIMG.*peakMask_tmp, ...
-                                                    fftshift(iSF3D), ...
+                                                    ifftshift(iSF3D), ...
                                                      peakBinary_tmp,padCalc,...
                                                      'single');
                                                
             [ part_FT ] = BH_bandLimitCenterNormalize(iParticle.*peakMask_tmp, ...
-                                                      fftshift(iRefWdg), ...
+                                                      ifftshift(iRefWdg), ...
                                                       peakBinary_tmp,padCalc,...
                                                       'single');
                                                
@@ -1881,8 +1889,7 @@ end
 
 
 subTomoMeta = gather(masterTM);
-subTomoMeta.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT).(sprintf('%s_className',fieldPrefix)) = ...
-                                                            gather(classVector);
+subTomoMeta.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT) = symmetry;
 cycleNumber = gather(cycleNumber);                                                            
 subTomoMeta.('currentCycle') = gather(CYCLE);
 

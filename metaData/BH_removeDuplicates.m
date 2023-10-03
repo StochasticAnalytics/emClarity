@@ -66,11 +66,11 @@ for iTomo = 1:nTomograms
   positionList = geometry.(tomoList{iTomo});
   includeList = find(positionList(:,26) ~= -9999);
  
-  nTotal = nTotal + length(includeList)
+  nTotal = nTotal + length(includeList);
   
   tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
   tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-  tomoName = sprintf('%s_%d',tiltName,tomoNumber)
+  tomoName = sprintf('%s_%d',tiltName,tomoNumber);
   
   recGeom = masterTM.reconGeometry.(tomoName);
 %   iHeader = getHeader(MRCImage(tomoName));
@@ -159,15 +159,14 @@ for iTomo = 1:nTomograms
   
   
   
-  nRemoved
   
   geometry.(tomoList{iTomo}) = positionList;
 end % end loop over tomorams
 
-fprintf('%d particles removed\n', nRemoved);
+fprintf('%d of %d particles removed\n', nRemoved, nTotal);
 
 subTomoMeta = masterTM;
-subTomoMeta.(cycleNumber).RawAlign = geometry
+subTomoMeta.(cycleNumber).RawAlign = geometry;
 save(pBH.('subTomoMeta'), 'subTomoMeta');
 
 end

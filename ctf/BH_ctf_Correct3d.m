@@ -188,6 +188,9 @@ else
     tmpCache = sprintf('%s/cache',tmpCache); 
   end   
 end
+
+% Incase this is launched form another process (synthetic mapback for example, make one level lower in the cache
+tmpCache=sprintf('%s/ctf3d',tmpCache);
 fprintf('tmpCache is %s\n',tmpCache);
 system(sprintf('mkdir -p %s',tmpCache));
 system(sprintf('mkdir -p %s','cache')); % This should exist, but to be safe.

@@ -1085,7 +1085,7 @@ end
 
         system(rotCMD);
         
-        system(sprintf('rm %smapBack%d/%s.tmpTomo%d',  mbOUT{1:3}));
+        system(sprintf('rm %smapBack%d/%s.tmpTomo%d',  mbOUT{1:3},iSave));
 
 
       end
