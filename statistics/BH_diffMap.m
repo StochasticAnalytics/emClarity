@@ -13,6 +13,8 @@ function [ diffMap, normMap ] = BH_diffMap( refMap, ...
 %   to the particle.
 normMap = '';
 % Next check to see if a radial grid is provided and that it is the right size.
+
+
 if isnumeric(radialGrid)
   if (size(radialGrid) ~= size(particleCTF))
     error('radialGrid and particleCTF are different sizes');
@@ -30,15 +32,18 @@ end
 
 % Don't take abs to re-use later.
 if isreal(refMap(1))
-  refMap = fftn(BH_padZeros3d(refMap,padVal(1,:),padVal(2,:),'GPU','single')).*sqrt(particleCTF);
+  refMap = fftn(BH_padZeros3d(refMap,padVal(1,:),padVal(2,:),'GPU','single')).*(particleCTF);
 else
-  refMap = refMap.*sqrt(particleCTF); 
+  refMap = refMap.*(particleCTF); 
 end
 
 if isreal(particle)
   particle= fftn(BH_padZeros3d(particle,padVal(1,:),padVal(2,:),'GPU','single'));
 else
-  particle= BH_padZeros3d(particle,padVal(1,:),padVal(2,:),'GPU','single',0,1);
+  if (any(padVal ~= 0))
+    error('This conditional branch should not be hit, padding the FFT does not make sense here.')
+    particle= BH_padZeros3d(particle,padVal(1,:),padVal(2,:),'GPU','single',0,1);
+  end
 end
 
 
@@ -46,21 +51,36 @@ end
 refMap(1) = 0;
 particle(1) = 0;
 
-refMap = refMap ./ (sqrt(sum(sum(sum(abs(refMap(particleCTF > 1e-2)).^2))))./numel(refMap));
-particle = particle ./ (sqrt(sum(sum(sum(abs(particle(particleCTF > 1e-2)).^2))))./numel(particle));
+% Get them roughly on the same scale globally
+n_valid_voxels = sum(particleCTF(:));
+refMap = refMap ./ (sqrt(sum(abs(refMap).^2,'all'))./n_valid_voxels);
+particle = particle ./ (sqrt(sum(abs(particle).^2,'all'))./n_valid_voxels);
 
 if (flgNorm)
+  % Normalize over predefined radial bins
+    scalar_vals = zeros(length(radialGrid),1);
+    for iBin = 1:length(radialGrid)
+        particle_sum = sum(abs(particle(radialGrid{iBin})).^2,'all');
+        if ( particle_sum == 0 )
+          scalar_vals(iBin) = 0;
+        else
+          ref_sum = sum(abs(refMap(radialGrid{iBin})).^2,'all');
+          if ( ref_sum == 0 )
+            scalar_vals(iBin) = 0;
+          else
+            scalar = sqrt(particle_sum ./ ref_sum);
+            if (isfinite(scalar))
+              scalar_vals(iBin) = scalar;
+            else
+              scalar_vals(iBin) = 0;
+            end
+          end
+        end  
+    end
 
     for iBin = 1:length(radialGrid)
-        iScalar = (sum(abs(particle(radialGrid{iBin})),'all') ./ sum(abs(refMap(radialGrid{iBin})),'all'));
-        if (iScalar < 1)
-            
-            refMap(radialGrid{iBin}) = refMap(radialGrid{iBin}) .* iScalar;
-
-        end
+        refMap(radialGrid{iBin}) = refMap(radialGrid{iBin}) .* scalar_vals(iBin);
     end
-    
-    
 
   diffMap = real(ifftn(refMap - particle));
 else

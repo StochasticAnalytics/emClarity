@@ -94,6 +94,12 @@ catch
   kREP = 256;
 end
 
+try
+  flgRefineKmeans = pBH.('Pca_refineKmeans')
+catch
+  flgRefineKmeans = false
+end
+
 nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
 
 % try
@@ -103,10 +109,29 @@ nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
 % end
 
 try
-  flgFlattenEigs = pBH.('Pca_flattenEigs');
+  flgFlattenEigs = pBH.('Pca_flattenEigs')
 catch
-  flgFlattenEigs=1;
+  flgFlattenEigs=1
 end
+
+
+try 
+  coverSteps = pBH.('Pca_som_coverSteps');
+catch
+  coverSteps = 100;
+end
+try
+  initNeighbor = pBH.('Pca_som_initNeighbor');
+catch
+  initNeighbor = 3;
+end
+try
+  topologyFcn = pBH.('Pca_som_topologyFcn');
+catch
+  %  'hextop' (default) | 'randtop' | 'gridtop' | 'tritop'
+  topologyFcn = 'hextop';
+end
+
 
 try
   load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
@@ -138,11 +163,10 @@ for iGold = 1:1+flgGold
   nTomograms = length(tomoList);
 
 
-  flgRefineKmeans = false;
   kAlgorithm = 'kMeans';
  % kAlgorithm = 'neuralNetwork'
 
-  kDist = sprintf('%s', kDIST);
+  kDist = sprintf('%s', kDIST)
 
   switch kDist
     case 'sqeuclidean'
@@ -151,7 +175,6 @@ for iGold = 1:1+flgGold
       kDistMeasure = 'cityblock'
     case 'cosine'
       kDistMeasure = 'cosine'
- 
     case 'correlation'
       kDistMeasure = 'correlation'
     case 'ward'
@@ -160,6 +183,8 @@ for iGold = 1:1+flgGold
     case 'neural'
       kDistMeasure = 'neural'
       kAlgorithm = 'neuralNetwork'
+      fprintf('Input params for neural network are %d %d %s\n', ...
+              coverSteps, initNeighbor, topologyFcn);
     otherwise
       kDistMeasure = 'sqeuclidean'
       fprintf(['\nDefaulting to sqeuclidean b/c %s was not recognized'] ...
@@ -239,7 +264,8 @@ for iGold = 1:1+flgGold
     end
     %coeffsUNTRIMMED = coeffMat; clear coeffMat
   end
-  
+  % Set here so other algs have access
+  sumd = 0;
   for iCluster = 1:length(clusterVector)
     nClusters = clusterVector(iCluster);
     
@@ -267,7 +293,8 @@ for iGold = 1:1+flgGold
                             sumd = 0;
 
       elseif strcmpi(kAlgorithm, 'neuralNetwork')
-        net = selforgmap([1 nClusters]);
+
+        net = selforgmap([1 nClusters], coverSteps, initNeighbor, topologyFcn);
         [net, tr] = train(net, coeffMat);
         y = net(coeffMat)
         class = vec2ind(y)
@@ -380,7 +407,12 @@ for iGold = 1:1+flgGold
       end
 
       % This isn't great, and maybe my brain is just tired.
-      save(sprintf('clusterTrouble_%d.mat',iCluster), 'idxList', 'class','classCenters','D');
+
+      if ( strcmpi(kAlgorithm, 'kMedoids') ||  strcmpi(kAlgorithm, 'kMeans') )
+        save(sprintf('clusterTrouble_%d.mat',iCluster), 'idxList', 'class','classCenters','D');
+      else
+        save(sprintf('clusterTrouble_%d.mat',iCluster), 'idxList', 'class');
+      end
 
       for iTomo = 1:nTomograms
         positionList = geometry_clean.(tomoList{iTomo});

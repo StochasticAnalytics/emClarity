@@ -279,7 +279,12 @@ nTomograms = length(tomoList);
 tiltList = masterTM.tiltGeometry;
 ctfGroupList = masterTM.('ctfGroupSize');
 
-
+% Sort the list by number of active subtomos to improve parallelism
+sortedTomoList = zeros(nTomograms,1);
+for iTomo = 1:nTomograms
+  sortedTomoList(iTomo) = sum(geometry.(tomoList{iTomo})(:,26)~=-9999);
+end
+[~, sortedTomoIDX] = sort(sortedTomoList,'descend')
 
 % mask defines area for angular search, peakRADIUS restricts translational
 
@@ -308,7 +313,12 @@ else
   limitToOne = pBH.('nCpuCores');
 end
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
+for iParProc = 1:nParProcesses
+  iterList{iParProc}
+  iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
+end
+
 if ( flgReverseOrder )
   % Flip the order for reverse processing on a second machine. This will also disable saving of 
   % of the metadata so there aren't conflicts.
@@ -326,7 +336,7 @@ elseif ( flgStartThird )
     nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
     fIDX = 1+(cycle_numerator - 1)*nParts;
     lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
-    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX);
+    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX)
   end
 end
 
@@ -365,7 +375,7 @@ for iGold = 1:2
                                    masterTM.(cycleNumber).(imgNAME){2},...
                                    sizeWindow);
 
-    [ wdgTMP ] = BH_unStackMontage4d(1:nReferences(iGold), ...
+  [ wdgTMP ] = BH_unStackMontage4d(1:nReferences(iGold), ...
                                 masterTM.(cycleNumber).(weightNAME){1},...
                                 masterTM.(cycleNumber).(weightNAME){2},...
                                 sizeCalc);
@@ -704,6 +714,7 @@ if ~(use_v2_SF3D)
     % Caclulating weights takes up a lot of memory, so do all that are necessary
     % prior to the main loop -- CHANGE THE CHECK TO JUST READ THE HEADER NOT LOAD
     % THE WEIGHT INTO GPU MEMORY
+
     for iTomo = iterList{iParProc}
 
       BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,tomoList{iTomo},samplingRate ,...
@@ -810,8 +821,8 @@ parfor iParProc = parVect
     for iGold = 1:2
       for iRef = 1:nReferences(iGold)
         if flgMultiRefAlignment <= 2
-        ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
-        ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
+          ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
+          ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
           ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
           ref_WGT_rot{iGold}{iRef} = gpuArray(refWgtROT{iGold}{iRef});
         else

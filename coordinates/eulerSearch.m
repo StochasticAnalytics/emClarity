@@ -13,6 +13,7 @@ classdef eulerSearch < handle
     list_of_search_parameters = {};      
     list_of_best_parameters = {};
     symmetry_symbol = 'C1';
+    number_of_asymmetric_units = 1;
     % Rotations are Z X Z', phi, theta, psi (azimuth, out of plane, in
     % plane)
     phi_max = 0.0; % 0 to 360
@@ -133,7 +134,7 @@ classdef eulerSearch < handle
           obj.psi_max = min(obj.psi_max,360.0 / EMC_str2double(obj.symmetry_symbol(2:end)));
           obj.theta_max = min(180.0, obj.theta_max);
           obj.phi_max = 360.0; % This will be incompatible with "symmetry_constrained_search" in BH_mutli_gridAngleSEarch (or whatever)
-          
+          obj.number_of_asymmetric_units = EMC_str2double(obj.symmetry_symbol(2:end));
         case 'D'
           % FIXME is this right?
         if ((length(obj.symmetry_symbol) < 2))
@@ -142,6 +143,7 @@ classdef eulerSearch < handle
           obj.psi_max = min(360.0 / EMC_str2double(obj.symmetry_symbol(2:end)));
           obj.theta_max = min(obj.theta_max,90.0);
           obj.phi_max = 360.0;
+          obj.number_of_asymmetric_units = EMC_str2double(obj.symmetry_symbol(2:end)*2);
 
          case 'O'
            if ((length(obj.symmetry_symbol) > 1))
@@ -151,6 +153,7 @@ classdef eulerSearch < handle
           obj.psi_max = min(obj.psi_max,90.0);
           obj.theta_max = min(obj.theta_max,54.7); 
           obj.phi_max = 90.0;
+          obj.number_of_asymmetric_units = 24;
            
          case 'I'
            % Double check convention: TODO
@@ -167,6 +170,7 @@ classdef eulerSearch < handle
           else
             error('Icosohedral can be I or I2, not (%s)',obj.symmetry_symbol);
           end
+          obj.number_of_asymmetric_units = 60;
         otherwise
           error('symmetry symbol (%s) not recognized', obj.symmetry_symbol);
       end

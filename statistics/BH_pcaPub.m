@@ -90,6 +90,7 @@ PREVIOUS_PCA = EMC_str2double(PREVIOUS_PCA);
 
 global bh_global_binary_pcaMask_threshold;
 
+use_new_interpolator = true;
 % Previous_pca has two functions, when true and > 0 use the decomposition
 % calculated from a random subset of the data to project the full data set
 % onto each of the selected principle components. when true and < 0 run
@@ -404,29 +405,31 @@ if (flgVarianceMap)
   end
 end
 
+try
+  symmetry = pBH.('symmetry');
+  fprintf('\n\tWarning: As of emClarity 1.7.0.12 the symmetry parameter is applied to the volume and mask in PCA!\n')
+catch
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
+end
 
+try
+  constrain_symmetry = pBH.('Pca_constrain_symmetry');
+catch
+  constrain_symmetry = false;
+end
 
 if (PREVIOUS_PCA) 
   volumeMask = gpuArray(getVolume(MRCImage( ...
                               sprintf('%s_pcaVolMask.mrc',outputPrefix))));
 else
 
-  try
-    pcaSymmetry = pBH.('Pca_symMask');
-    if (pcaSymmetry(1) ~= 'C')
-      error('Pca_symMask is restricted to cyclic symmetry!')
-    end
-    if (length(pcaSymmetry) < 2)
-      error('Cyclic symmetry requires an int specifying CX');
-    end
-    pcaSymmetry = EMC_str2double(pcaSymmetry(2:end));
-    
-    [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter,0,pcaSymmetry);
-  catch
-    [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
-
-  end
-
+if (constrain_symmetry)
+  gridSearch = eulerSearch(symmetry,180,5,360,5,0.0,1,true);
+  [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter, ...
+                                '3d', gridSearch.number_of_asymmetric_units);
+else
+  [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+end
   if ( flgPcaShapeMask )
       % when combining the addition is harmless, but is a convenient way to
       % include when sets are left 100% separate.
@@ -437,8 +440,6 @@ else
   end
   
   if (flgLoadMask)
-size(volumeMask)
-size(externalMask)
     volumeMask = volumeMask .* externalMask;
   end
   
@@ -532,7 +533,7 @@ for iGold = 1:1+flgGold
 
     avgMotif_FT{iGold, iScale} = ...
                             BH_bandLimitCenterNormalize(averageMotif{iGold},...
-                             BH_bandpass3d(sizeMask,1e-6,400,pixelSize,'GPU',pixelSize), ...           
+                             BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize), ...           
                             masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
                                                         [0,0,0;0,0,0],'single');
 
@@ -623,7 +624,7 @@ for iGold = 1:1+flgGold
       gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));   
       
       
-      gpuMasks.('highPass').(stSCALE) = BH_bandpass3d(sizeMask,1e-6,400,pixelSize,'GPU',pixelSize);
+      gpuMasks.('highPass').(stSCALE) = BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize);
   end
   
 % % %   for iGold_inner = 1:1+flgGold
@@ -691,8 +692,8 @@ for iGold = 1:1+flgGold
       % make a binary wedge
       [ wedgeMask ]= BH_weightMask3d(sizeMask, tiltGeometry, ...
                      'binaryWedgeGPU',2*maskRadius,1, 1, samplingRate);
-            
-      SAVE_IMG(MRCImage(gather(wedgeMask)),'wdg.mrc');
+      
+
       error('do not do it man');
     end    
     
@@ -703,11 +704,14 @@ for iGold = 1:1+flgGold
      if (flgNorm)
          
 
-        bins = 1./[1000,800,600,400,300,200,150,100,80,60,40,30,20,15,10,8,6,4,2]; 
+        bins = 1./[1000,800,600,400,300,200,150,100,80,60,50,40,35,30,28,26,24,22,20,18,16,14,12,10,8,6,4,2]; 
         bins = [0, bins];
         
         [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(avgMotif_FT{iGold, iScale}),'Cartesian',...
                                                     'GPU',{'none'},1,0,1);
+
+        % Make sure the corners don't blow up
+        radialGrid(radialGrid >= 0.5) = pixelSize;
         radialGrid = radialGrid ./ pixelSize;
         
         radialMask = cell(length(bins)-1,1);
@@ -719,7 +723,8 @@ for iGold = 1:1+flgGold
         radialGrid = '';
             
       end
-    
+
+    wdgBP = ifftshift(gpuMasks.('highPass').(sprintf('s%d',iScale)));
     for iSubTomo = 1:nSubTomos
       %%%%% %%%%%
 
@@ -750,7 +755,7 @@ for iGold = 1:1+flgGold
           padWdg = [0,0,0;0,0,0];
           [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
                                           TLT, center,reconGeometry);
- 
+          
 %           wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 10^-6);
         end
         
@@ -760,8 +765,8 @@ for iGold = 1:1+flgGold
           % TODO FIXME should this be the transpose of oddRot?
           angles = reshape(angles,3,3) * oddRot;
         end
-
-
+        wedgeMask = wedgeMask .* wdgBP;
+    
         % Find range to extract, and check for domain error.
         if (flgCutOutVolumes)
             [ indVAL, padVAL, shiftVAL ] = ...
@@ -793,28 +798,40 @@ for iGold = 1:1+flgGold
 
           else
             
-           iParticle = getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+           iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
                                             [indVAL(1,2),indVAL(2,2)], ...
-                                            [indVAL(1,3),indVAL(2,3)],'keep');
+                                            [indVAL(1,3),indVAL(2,3)],'keep'));
           end
 
 
-        if any(padVAL(:))
+          if any(padVAL(:))
+            [ iParticle ] = BH_padZeros3d(iParticle,  padVAL(1,1:3), ...
+                                          padVAL(2,1:3), 'GPU', 'single');
+          end
 
-          [ iParticle ] = BH_padZeros3d(iParticle,  padVAL(1,1:3), ...
-                                        padVAL(2,1:3), 'GPU', 'single');
-        end
+          if ( use_new_interpolator )
+            % Pulling in the newer interpolater from alignRaw3d_v2. There, I instantiate a new interpolator every subtomo, but it is generally
+            % being used many times, over the angle loop. It may be more efficient to do this outside the for subtomo loop here, but
+            % to start, just do it the same way.
+            use_only_once = true;
+            [ ~, iParticle ] = interpolator(gpuArray(iParticle),angles, shiftVAL, 'Bah', 'inv', symmetry, use_only_once); 
+            
+            if (use_v2_SF3D)         
+              [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', symmetry, use_only_once);
+            end
 
-        % Transform the particle, and then trim to motif size
+          else
+          % Transform the particle, and then trim to motif size
 
-        [ iParticle ] = BH_resample3d(iParticle, angles, shiftVAL, ...
-                                                        'Bah', 'GPU', 'inv');
+            [ iParticle ] = BH_resample3d(iParticle, angles, shiftVAL, ...
+                                                            'Bah', 'GPU', 'inv');
 
-        if (use_v2_SF3D)
-          [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
-                                    'Bah', 'GPU', 'inv');
-        end  
-     
+            if (use_v2_SF3D)
+              [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
+                                        'Bah', 'GPU', 'inv');
+            end  
+          end
+
 
 
         iTrimParticle = iParticle(padWindow(1,1)+1 : end - padWindow(2,1), ...
@@ -837,7 +854,6 @@ for iGold = 1:1+flgGold
 
 
 
-          
                                       
             if (use_v2_SF3D)
  
