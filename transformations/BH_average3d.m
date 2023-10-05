@@ -1799,8 +1799,12 @@ end
 % multi-reference alignment.
 if strcmpi(STAGEofALIGNMENT, 'Cluster')
   masterTM.(cycleNumber).(ClusterGeomNAME) = geometry;
-elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment && ~flgClassify
-  masterTM.(cycleNumber).('ClusterRefGeom') = geometry;
+elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment 
+  if (flgClassify)
+    masterTM.(cycleNumber).('ClusterClsGeom') = geometry;
+  else
+    masterTM.(cycleNumber).('ClusterRefGeom') = geometry;
+  end
 else
   masterTM.(cycleNumber).('Avg_geometry') = geometry;
 end
@@ -1890,6 +1894,7 @@ end
 
 subTomoMeta = gather(masterTM);
 subTomoMeta.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT) = symmetry;
+subTomoMeta.(cycleNumber).('ClassVector').(STAGEofALIGNMENT) = classVector;
 cycleNumber = gather(cycleNumber);                                                            
 subTomoMeta.('currentCycle') = gather(CYCLE);
 

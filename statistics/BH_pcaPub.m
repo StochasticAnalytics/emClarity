@@ -225,7 +225,21 @@ end
 
 load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
-geometry = subTomoMeta.(cycleNumber).Avg_geometry;
+
+try
+  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+catch
+  flgMultiRefAlignment = 0;
+end
+
+geom_name=''
+if (flgMultiRefAlignment )
+  geom_name='ClusterClsGeom';
+else
+  geom_name='Avg_geometry';
+end
+geometry = subTomoMeta.(cycleNumber).(geom_name);
+
 
 try
   flgCutOutVolumes = pBH.('flgCutOutVolumes');
@@ -704,15 +718,14 @@ for iGold = 1:1+flgGold
      if (flgNorm)
          
 
-        bins = 1./[1000,800,600,400,300,200,150,100,80,60,50,40,35,30,28,26,24,22,20,18,16,14,12,10,8,6,4,2]; 
-        bins = [0, bins];
+        % bins = 1./[1000,800,600,400,300,200,150,100,80,60,50,40,35,30,28,26,24,22,20,18,16,14,12,10,8,6,4,2]; 
+        % bins = [0, bins];
         
         [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(avgMotif_FT{iGold, iScale}),'Cartesian',...
                                                     'GPU',{'none'},1,0,1);
 
-        % Make sure the corners don't blow up
-        radialGrid(radialGrid >= 0.5) = pixelSize;
-        radialGrid = radialGrid ./ pixelSize;
+        bins = radialGrid(1:floor(size(avgMotif_FT{iGold, iScale},1)/2),1,1);
+        bins = bins(bins < 0.5);
         
         radialMask = cell(length(bins)-1,1);
         
@@ -897,13 +910,13 @@ for iGold = 1:1+flgGold
           end
         else
           nIgnored = nIgnored + 1;
-          masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
+          masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
         end
 
 
       else
         nIgnored = nIgnored + 1;
-        masterTM.(cycleNumber).Avg_geometry.(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
+        masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
 
       end % end of ignore new particles
 

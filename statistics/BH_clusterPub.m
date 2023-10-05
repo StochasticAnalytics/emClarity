@@ -131,16 +131,26 @@ catch
   %  'hextop' (default) | 'randtop' | 'gridtop' | 'tritop'
   topologyFcn = 'hextop';
 end
+load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+masterTM = subTomoMeta; clear subTomoMeta
 
 
 try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-  geometry_clean = subTomoMeta.(cycleNumber).Avg_geometry;
-  geometry       = subTomoMeta.(cycleNumber).Avg_geometry; 
-  masterTM = subTomoMeta; clear subTomoMeta
-catch 
-  error('failed to load geometry')
+  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+catch
+  flgMultiRefAlignment = 0;
 end
+
+geom_name=''
+if (flgMultiRefAlignment )
+  geom_name='ClusterClsGeom';
+else
+  geom_name='Avg_geometry';
+end
+geometry_clean = masterTM.(cycleNumber).(geom_name);
+geometry = masterTM.(cycleNumber).(geom_name);
+
+
 
 for iGold = 1:1+flgGold
   if (flgGold)

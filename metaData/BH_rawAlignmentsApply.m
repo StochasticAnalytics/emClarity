@@ -1,7 +1,7 @@
 
 function [UPDATED_GEOMETRY] = ...
                             BH_rawAlignmentsApply( INPUT_GEOMETRY , ...
-                            BEST_ANGLES, SAMPLING, nPeaks, rotConvention, updateWeights)
+                            BEST_ANGLES, SAMPLING, nPeaks, rotConvention, updateWeights, updateClassByBestReferenceScore)
 %Apply class alignments to the full set of subTomograms
 %   
 %
@@ -61,13 +61,13 @@ for iTomo = 1:nTomograms
     if ~isempty(newAlignment)
       
  for iPeak = 1:nPeaks   
-    includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999);
+    includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999)
    
     for iParticle = includeList'
      % assuming all classes are sequential, only discarded between cycles.
-     particleIDX =  positionList(iParticle,4 + 26*(iPeak-1));
+     particleIDX =  positionList(iParticle,4 + 26*(iPeak-1))
       
-     pIndex = find(newAlignment(:,2) == particleIDX);
+     pIndex = find(newAlignment(:,2) == particleIDX)
     
      
      newAngles = newAlignment(pIndex,[3:5] + 10*(iPeak-1));
@@ -101,6 +101,10 @@ for iTomo = 1:nTomograms
      % classification maybe. FIXME.
      if (updateWeights)
       positionList(iParticle,2+26*(iPeak-1)) = gather(newAlignment(pIndex,[7] + 10*(iPeak-1)));
+     end
+
+     if (updateClassByBestReferenceScore)
+      positionList(iParticle,26+26*(iPeak-1)) = gather(newAlignment(pIndex,[1] + 10*(iPeak-1)));
      end
 
     end

@@ -68,6 +68,7 @@ cycleNumber = sprintf('cycle%0.3u', CYCLE);
 load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR; 
 reconScaling = 1;
+
 try
   nPeaks = pBH.('nPeaks');
 catch
@@ -133,6 +134,16 @@ try
 catch
   flgMultiRefAlignment = 0;
 end
+
+try 
+  updateClassByBestReferenceScore = pBH.('updateClassByBestReferenceScore');
+catch
+  updateClassByBestReferenceScore = false;
+end
+if (~flgMultiRefAlignment)
+  updateClassByBestReferenceScore = false;
+end
+
 try
   flgCenterRefCOM = pBH.('flgCenterRefCOM');
 catch
@@ -215,11 +226,9 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
 
 
 classVector{1}  = pBH.('Raw_classes_odd')(1,:);
-classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
 
 
 classVector{2}  = pBH.('Raw_classes_eve')(1,:);
-classSymmetry{2}= pBH.('Raw_classes_eve')(2,:);
 
 
 % % % % if (flgClassify || flgMultiRefAlignment)
@@ -313,13 +322,15 @@ else
   limitToOne = pBH.('nCpuCores');
 end
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
-for iParProc = 1:nParProcesses
-  iterList{iParProc}
-  iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
-end
 
+nParProcesses = 0;
+iterList = {};
 if ( flgReverseOrder )
+  fprintf('nCpuCores is %d\n', limitToOne);
+  [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
+  for iParProc = 1:nParProcesses
+    iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
+  end
   % Flip the order for reverse processing on a second machine. This will also disable saving of 
   % of the metadata so there aren't conflicts.
   for iParProc = 1:nParProcesses
@@ -327,17 +338,34 @@ if ( flgReverseOrder )
   end
   
 elseif ( flgStartThird )
+  fprintf('nCpuCores is %d\n', limitToOne);
+  [ nParProcesses, iterList_full] = BH_multi_parallelJobs(nTomograms,nGPUs*cycle_denominator, sizeCalc(1),limitToOne*cycle_denominator);   
+
+  for iParProc = 1:nParProcesses
+    iterList_full{iParProc} = sortedTomoIDX(iterList_full{iParProc})';
+  end
+
+  % Need to scale this back down
+  nParProcesses = limitToOne;
 
   % Shift to start at one third through to process on a third machine. This will also disable saving of 
   % of the metadata so there aren't conflicts.
+  iterList = {};
   for iParProc = 1:nParProcesses
-    % Note the use of floor is more like ceiling here (rounds away from
-    % zero)
-    nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
-    fIDX = 1+(cycle_numerator - 1)*nParts;
-    lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
-    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX)
+    idx = cycle_numerator + (iParProc-1)*cycle_denominator;
+    if (idx <= length(iterList_full))
+      iterList{iParProc} = iterList_full{idx};
+    end
   end
+
+else
+  fprintf('nCpuCores is %d\n', limitToOne);
+  [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
+  for iParProc = 1:nParProcesses
+    iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
+  end
+
+
 end
 
 if any(peakSearch > maskRadius)
@@ -732,7 +760,7 @@ if ~(use_v2_SF3D)
   end   
 end
 parVect = 1:nParProcesses;
-
+fprintf('Starting main loopwith N references %d\n', nReferences(1));
 parfor iParProc = parVect
   symmetry = symmetry_op; % Why TF would this be necessary?
 % for iParProc = 1:nParProcesses
@@ -983,13 +1011,16 @@ parfor iParProc = parVect
         half_set = positionList(iSubTomo, 7);
      
 
-        if classVector{half_set}(1,:) == 0
-          classPosition = 1;
-          flgAllClasses = true;
-        else
-          classPosition = find(classVector{half_set}(1,:) == classIDX);
-          flgAllClasses = false;
-        end
+        % if classVector{half_set}(1,:) == 0
+        %   classPosition = 1;
+        %   flgAllClasses = true;
+        % else
+        %   classPosition = find(classVector{half_set}(1,:) == classIDX);
+        %   flgAllClasses = false;
+        % end
+        % Align all valid subtomos, even if the do not belong to the classes we've selected as references.
+        % To ignore particles, remove them with geometry RemoveClases.m
+        flgAllClasses = true;
 
 
 
@@ -1783,11 +1814,15 @@ parfor iParProc = parVect
        
         end
         
+        
+        cccInitial(1,1) = classVector{iGold}(cccInitial(1,1));
+        cccStorageBest{iPeak}(iSubTomo,1) = classVector{iGold}(cccStorageBest{iPeak}(iSubTomo,1));
         if (flgRefine)
+          cccPreRefineSort(1,1) = classVector{iGold}(cccPreRefineSort(1,1));
           fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
                    '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
                    '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:), ...
+                   'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:), ...
                    'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
                    cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
                    'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
@@ -1795,7 +1830,7 @@ parfor iParProc = parVect
         else
           fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
                    '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                   'PreInitial',iPeak,classIDX,cccInitial(1,1:end-3),printShifts(1,:),...
+                   'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:),...
                    'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
           
         end
@@ -1821,7 +1856,7 @@ parfor iParProc = parVect
     iWedgeMask = [];
     rotPart_FT = [];
     rotParticle = [];
-        end % end loop over possible peaks
+      end % end loop over possible peaks
         
         if use_v2_SF3D
           iMaxWedgeIfft = [];
@@ -1893,7 +1928,7 @@ else
 %   save('bestAnglesTemp.mat', 'bestAngles');  
    save('bestAngles.mat', 'bestAngles');
  
-  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks, rotConvention, updateWeights);
+  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks, rotConvention, updateWeights, updateClassByBestReferenceScore);
   masterTM.(cycleNumber).('RawAlign') = rawAlign;
   masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
   masterTM.('updatedWeights') = true;

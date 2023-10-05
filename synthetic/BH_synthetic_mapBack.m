@@ -17,9 +17,14 @@ buildTomo=1;% % % % % % %
 METHOD = 'GPU';
 flgRunAlignments = true;
 COLOR_MAP= '0';
-flgColorMap = 0;
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
+
+try
+  flgColorMap = pBH.('flgColorMap');
+catch 
+  flgColorMap = 0;
+end
 
 try
   preShift = pBH.('preShift');
@@ -897,9 +902,17 @@ end
                                        
       
       if (nRefs > 1)
+        % Assuming generally there are fewer classes seleceted as references than there are total classes
+        % For those that aren't on of the select ones, we could try to track the best matched reference from the most recent
+        % alignment
         iClassIDX = positionList(iSubTomo,26);
+        if ~(ismember(iClassIDX,classVector{1}) || ismember(iClassIDX,classVector{2}))
+          iClassIDX = datasample(classVector{1},1);
+          iRefIDX = find(classVector{1} == iClassIDX);
+        end
       else
         iClassIDX = 1;
+        iRefIDX = 1;
       end
       
 
@@ -922,13 +935,13 @@ end
 
 
        if positionList(iSubTomo,7) == 1
-        iAvgResamp = BH_resample3d(refVol{1}{iClassIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');  
+        iAvgResamp = BH_resample3d(refVol{1}{iRefIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');  
        elseif positionList(iSubTomo,7) ==2
-         iAvgResamp = BH_resample3d(refVol{2}{iClassIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
+         iAvgResamp = BH_resample3d(refVol{2}{iRefIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
        else
          error('positionList iSubtomo %d col 7 is %d',iSubTomo,positionList(iSubTomo,7));
        end
-       iMaskResamp = BH_resample3d(particleMask{iClassIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
+       iMaskResamp = BH_resample3d(particleMask{iRefIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
          
 
 
@@ -943,14 +956,10 @@ end
                         % Set value to class average number
             iColorMap = iMaskResamp;
             iColorMap(iColorMap < 0.05) = 0;
-            iColorMap(iColorMap >= 0.05)= iClassIDX;
+            iColorMap(iColorMap >= 0.05)= iRefIDX;
             iColorMap = gather(int16(iColorMap));  
           end
 
-
-          if ( flgClassAvg )
-
-          end
           
           avgColor(indVAL(1,1):indVAL(2,1), ...
                    indVAL(1,2):indVAL(2,2), ...
@@ -1064,7 +1073,7 @@ end
 %                        '%smapBack%d/%s.bin%dTomo%d.mrc'], ...
 %                        tmpTomoBin,mbOUT{1:3},iSave,mbOUT{1:3},tmpTomoBin,iSave));
 %       end
-      
+      tmpTomoBin = 2;
       if (flgColorMap || flgClassAvg)                 
         system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomoColor ',...
                        '%smapBack%d/%s.bin%dTomoColor.mrc'], ...

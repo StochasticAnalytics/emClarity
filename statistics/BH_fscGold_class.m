@@ -781,7 +781,7 @@ for iRef = 1:nReferences
            ( 1.5 + 1.4142./sqrt(nEffective) );
         
 
-  halfBIT= ( 0.2077+1.9102./sqrt(nEffective) ) ./ ...
+  halfBIT= ( 0.207+1.9102./sqrt(nEffective) ) ./ ...
            ( 1.2071 + 0.9102./sqrt(nEffective) );
          
   aliBIT = mean([oneBIT,halfBIT]);          

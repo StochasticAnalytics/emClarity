@@ -32,7 +32,8 @@ fprintf('found totalMem on GPU1 %3.3e, nWorkers %d, so scaling nProcs by %2.2f\n
 nParProcesses =  ceil(scaleMem .* nGPUs .*  (floor(384./calcSize).^2+ceil(256./calcSize)))
 fprintf('scaleMem %f nGpus %f calcSize %f nParProc %f\n',scaleMem,nGPUs,calcSize,nParProcesses);
 %nParProcesses = min(2*nTomograms, nGPUs .*  (floor(scaleMem.*384./calcSize).^2+ceil(scaleMem.*288./calcSize)));
-nParProcesses = min(nParProcesses, pInfo.NumWorkers)
+nParProcesses = min(nParProcesses, pInfo.NumWorkers);
+fprintf('nParProcesses in parallelJobs %d\n',nParProcesses);
 if ( flgAvg )
   if flgAvg == -1
     % Linear interpolation
@@ -42,6 +43,8 @@ if ( flgAvg )
      nParProcesses = min(flgAvg,nParProcesses);
   end
 end
+
+fprintf('nParProcesses in parallelJobs1 %d\n',nParProcesses);
 
 
 
@@ -73,7 +76,6 @@ nIters = min(nParProcesses,nTomograms);
 iterList = cell(nIters,1);
 for iParProc = 1:nIters
   iterList{iParProc} = iParProc:nIters:nTomograms;
-  iterList{iParProc}
 end
 
 end
