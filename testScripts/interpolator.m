@@ -181,7 +181,7 @@ classdef interpolator < handle
 %          warning('The requested symmetry (%s) is different from that initialized (%s)\n',symmetry,obj.symmetry_type);
        end
        
-       if (symmetry(1) ~= 'C' && convention ~= 'Bah')
+       if (symmetry(1) ~= 'C' && ~strcmp(convention, 'Bah'))
          error('Alternate conventions like Helical (%s encountered) only support CX symmetry\n', convention)
        end
        
