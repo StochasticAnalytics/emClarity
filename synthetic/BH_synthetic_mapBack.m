@@ -365,7 +365,9 @@ classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
 classVector{2}  = pBH.('Raw_classes_eve')(1,:);
 classSymmetry{2}= pBH.('Raw_classes_eve')(2,:);
 
-nRefs = length(classVector{1});
+nRefs = length(classVector{1})
+
+
 particleMask = cell(nRefs,1);
 for iGold = 1:2
 
@@ -900,19 +902,17 @@ end
       rSubTomo = reshape(positionList(iSubTomo,17:25),3,3);
       prjVector = (positionList(iSubTomo,11:13)./samplingRate) - originVol + reconShift;
                                        
-      
+      iRefIDX = 1;
+      iClassIDX = 1;
       if (nRefs > 1)
         % Assuming generally there are fewer classes seleceted as references than there are total classes
         % For those that aren't on of the select ones, we could try to track the best matched reference from the most recent
         % alignment
         iClassIDX = positionList(iSubTomo,26);
         if ~(ismember(iClassIDX,classVector{1}) || ismember(iClassIDX,classVector{2}))
-          iClassIDX = datasample(classVector{1},1);
-          iRefIDX = find(classVector{1} == iClassIDX);
+          iClassIDX = datasample(classVector{1},1);          
         end
-      else
-        iClassIDX = 1;
-        iRefIDX = 1;
+        iRefIDX = find(classVector{1} == iClassIDX);
       end
       
 
@@ -956,10 +956,14 @@ end
                         % Set value to class average number
             iColorMap = iMaskResamp;
             iColorMap(iColorMap < 0.05) = 0;
-            iColorMap(iColorMap >= 0.05)= iRefIDX;
+            iColorMap(iColorMap >= 0.05) = iRefIDX;
             iColorMap = gather(int16(iColorMap));  
           end
 
+
+          if ( flgClassAvg )
+
+          end
           
           avgColor(indVAL(1,1):indVAL(2,1), ...
                    indVAL(1,2):indVAL(2,2), ...
@@ -2242,15 +2246,16 @@ end
 %   end
 % end
 % Since we've updated (potentially) mapBackRePrjSize, save the new metaData.
-subTomoMeta.currentTomoCPR =  subTomoMeta.currentTomoCPR + 1;
-if isfield(subTomoMeta,'tomoCPR_run_in_cycle')
-  subTomoMeta.('tomoCPR_run_in_cycle') = cat(1,subTomoMeta.('tomoCPR_run_in_cycle'),...
-                                              [subTomoMeta.currentTomoCPR,CYCLE]);
-else
-  subTomoMeta.('tomoCPR_run_in_cycle') = [subTomoMeta.currentTomoCPR,CYCLE];
-end
+if (flgRunAlignments)
+  subTomoMeta.currentTomoCPR =  subTomoMeta.currentTomoCPR + 1;
 
-if ( flgRunAlignments )
+  if isfield(subTomoMeta,'tomoCPR_run_in_cycle')
+    subTomoMeta.('tomoCPR_run_in_cycle') = cat(1,subTomoMeta.('tomoCPR_run_in_cycle'),...
+                                                [subTomoMeta.currentTomoCPR,CYCLE]);
+  else
+    subTomoMeta.('tomoCPR_run_in_cycle') = [subTomoMeta.currentTomoCPR,CYCLE];
+  end
+
   save(pBH.('subTomoMeta'), 'subTomoMeta');
 end
 

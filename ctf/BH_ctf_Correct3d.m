@@ -280,6 +280,19 @@ else
 
 end
 
+try
+  max_ctf3dDepth = pBH.('max_ctf3dDepth');
+catch
+  max_ctf3dDepth = 500*10^-9;
+end
+
+if (max_ctf3dDepth < 1 * 10^-9 || max_ctf3dDepth > 1000 * 10^-9)
+  error('max_ctf3dDepth should be between 1 and 1000 nm');
+else
+  fprintf('Using a max_ctfDepth of %2.2f nm\n',max_ctf3dDepth*10^9);
+end
+
+fprintf('Using a target resolution of %2.2f Angstroms\n',resTarget);
 
 nGPUs = pBH.('nGPUs');
 % Optionally specify gpu idxs
@@ -575,7 +588,11 @@ parfor iGPU = 1:nGPUs%
                                               2048, TLT(1,19), ...
                                               resTarget,maxZ*10, ...
                                               dampeningMax,CYCLE);
-      fprintf('\n\nUsing a ctfDepth of %2.2f nm for %s\n\n',ctf3dDepth*10^9,tiltList{iTilt});
+      fprintf('\n\nCalculated a ctfDepth of %2.2f nm for %s\n\n',ctf3dDepth*10^9,tiltList{iTilt});
+      if (ctf3dDepth > max_ctf3dDepth)
+        ctf3dDepth = max_ctf3dDepth;
+        fprintf('Calculated ctfDepth exceeds user specified max, so actually using a max_ctfDepth of %2.2f nm\n',ctf3dDepth*10^9);
+      end
       % sections centered at 0, which for now is also supposed to coincide with
       % the mean defocus determination, although this could be corrected using
       % knowledge of particle positions given assurance that particles are the
@@ -634,13 +651,12 @@ parfor iGPU = 1:nGPUs%
         
       catch
         fprintf('\nTiltErrorFile %s not found.\n', tiltErrorFile);
-        fprintf('\nUsing 0 degrees for beam tilt error.\n')
+        fprintf('\nUsing 0 degrees for beam tilt error.\n',tiltErrorFile)
         tiltError = 0;
       end
       
 
     else
-      fprintf('\nUsing 0 degrees for beam tilt error b/c no polishing yet.\n')
       tiltError = 0;
     end
     
