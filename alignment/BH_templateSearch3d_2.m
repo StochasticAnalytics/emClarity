@@ -37,19 +37,19 @@ startTime = clock ;
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 
+% Currently hardcoded to always expect a tomogram constructed with ctf correction
+% using emClarity ctf3d paramN.m templateSearch
+use_ctf3d_templateSearch=true;
 if ctf3dNoSubTomoMeta
    mapBackIter = 0;
-  shouldBeCTF = 1;
 else
   try
     load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
     mapBackIter = subTomoMeta.currentTomoCPR
-  %   clear subTomoMeta
-    % Make sure we get a CTF corrected stack
-    shouldBeCTF = 1
   catch
+    % TODO: is there a better check on whether we are using ctf3d templateSearch vs ctf 3d?
     mapBackIter = 0;
-    shouldBeCTF = -1;
+    shouldBeCTF = false;
   end
 end
   samplingRate  = pBH.('Tmp_samplingRate');
@@ -77,6 +77,17 @@ try
 catch
   super_sample = '';
   expand_lines = '';
+end
+
+try 
+  tmpVal = pBH.('whitenPS');
+  if (numel(tmpVal) == 3)
+    wiener_constant = tmpVal(3);
+  else
+    error('flgWhitenPS should be a 3 element vector');
+  end
+catch
+  wiener_constant = 0.0;
 end
 
  peakThreshold = pBH.('Tmp_threshold');
@@ -179,24 +190,25 @@ catch
     stats_diameter_fraction = 1
 end
 
-sum_of_x =  [];
-sum_of_x2 = [];
+
+mean_r2 = 0;
+mean_r_mask = 0;
+reference_mask = [];
 try 
-  rescale_mip = pBH.('rescale_mip');
+  scale_mip = pBH.('scale_mip');
 catch
-  rescale_mip = false;
+  scale_mip = false;
 end
 
 % Limit to the first zero if we are NOT using the CTF rec
-if (shouldBeCTF ~= 1)
+if ~( use_ctf3d_templateSearch )
 TLT = load(sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tomoName,mapBackIter+1));
   def = mean(-1.*TLT(:,15))*10^6; %TODO if you switch to POSITIVEDEFOCUS this will be wrong
   firstZero = -0.2*def^2 +5.2*def +11;
-
+  % FIXME: if you have a ctf 3d tomo why limit to the firsts zero?  
   % Take the lower of firstZero lowResCut or Nyquist
   bp_vals(3) = max(bp_vals(3), firstZero);
   fprintf('\nUsing max (%f) of specified resolution cutoff of %f and first ctf zero %f Angstrom\n',bp_vals(3), wantedCut, firstZero);
-
 end
 
 if pixelSize*2 >  bp_vals(3)
@@ -236,13 +248,11 @@ fprintf('\neraseMaskType %s, eraseMaskRadius %dx%dx%d pixels\n',eraseMaskType,er
   % For wedgeMask
 particleThickness =  latticeRadius(3);
 
-%  [ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
-%                                       reconCoords, mapBackIter, samplingRate,...
-%                                       shouldBeCTF*gpuIDX, reconScaling,1,'','ctf'); 
 
-[ tomogram ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
+
+[ tomogram, reconGeometry ] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
                                     reconCoords, mapBackIter, samplingRate,...
-                                    shouldBeCTF*gpuIDX, reconScaling,1,'',super_sample); 
+                                    gpuIDX, reconScaling,1,'',super_sample); 
                                            
 
 % We'll handle image statistics locally, but first place the global environment
@@ -288,7 +298,11 @@ templateBIN = BH_reScale3d(gather(template),'',sprintf('%f',1/samplingRate),'cpu
 templateBIN = templateBIN - mean(templateBIN(:));
 templateBIN = templateBIN  ./rms(templateBIN(:));
 
-[templateMask] = gather(EMC_maskReference(gpuArray(templateBIN),pixelSize,{'fsc', true}));
+[templateMask] = (EMC_maskReference(gpuArray(templateBIN),pixelSize,{'fsc', true}));
+templateMask = gather(templateMask);
+
+% templateMask = gather(EMC_maskShape('sphere', size(templateBIN), [3,3,3].*2, 'gpu', {'shift', [0,0,0];'kernel',false}));
+
 
 
 sizeTemp = size(template);
@@ -335,6 +349,8 @@ end
                                                                        
 
 highThr=sqrt(2).*erfcinv(ceil(peakThreshold.*0.10).*2./(prod(size(tomogram)).*nAngles(1)))
+
+
 
 [ OUTPUT ] = BH_multi_iterator( [targetSize; ...
                                  size(tomogram);...
@@ -390,6 +406,7 @@ fprintf('valid Calc       %d %d %d\n', validCalc);
 fprintf('# of iterations  %d %d %d\n', nIters);
 fprintf('-----\n');
 
+valid_ratio = prod(sizeChunk) ./ prod(validCalc);
 size(tomogram)
 
 % [ tomogram ] = BH_padZeros3d(tomogram, tomoPre, tomoPost, ...
@@ -399,7 +416,9 @@ tomogram = padarray(tomogram,tomoPost,'symmetric','post');
 sizeTomo = size(tomogram);
 
 
-[ validAreaMask ] = gather(BH_mask3d('rectangle',sizeChunk,validCalc./2,[0,0,0]));
+[ validCalcMask ] = BH_mask3d('rectangle',sizeChunk,validCalc./2,[0,0,0]);
+
+
 [ vA ] = BH_multi_padVal( validArea, sizeChunk );
 % This would need to be changed to take a mask size and not just a radius.
 % Currently, this would not produce the correct results for odd size area
@@ -411,12 +430,7 @@ RESULTS_angle= zeros(sizeTomo, 'single');
 if ( tmpDecoy )
   RESULTS_decoy = RESULTS_peak;
 end
-if (rescale_mip)
-  sum_of_x = zeros(sizeTomo, 'single'); 
-  sum_of_x2 = zeros(sizeTomo, 'single'); 
-end
-% Loop over tomogram
-% Set this up second
+
 
 
 % % % % optimize fft incase a power of two is not used, this will make things run ok.
@@ -425,6 +439,7 @@ end
 % % % fftn(opt);
 % % % clear opt ans
 [ bhF ] = fourierTransformer(randn(sizeChunk, 'single','gpuArray'));
+
 
 sum_template = mean(templateBIN(:));
 sum_templateMask = mean(templateMask(:));
@@ -480,8 +495,22 @@ kVal = 0;
 tomoIDX = 1;
 nTomograms = prod(nIters);
 
+try
+  test_local = pBH.('test_local');
+catch
+  test_local = false;
+end
+if (test_local)
+  scale_mip = false;
+end
+
+test_local
+scale_mip
 
 tomoStack = zeros([sizeChunk,nTomograms], 'single');
+if test_local
+  localStack = zeros([sizeChunk,nTomograms], 'single');
+end
 % tomoNonZero = zeros(nTomograms,6,'uint64');
 
 % backgroundVol = zeros(sizeChunk,'single');
@@ -558,38 +587,63 @@ for  iX = 1:nIters(1)
     [ averageMask, flgOOM ] = BH_movingAverage_2(tomoChunk, statsRadius(1)); 
     rmsMask =  BH_movingAverage_2(tomoChunk.^2, statsRadius(1)); 
     rmsMask = sqrt(rmsMask - averageMask.^2);
-    tomoChunk = (tomoChunk - averageMask) ./ rmsMask;
+
+    % SAVE_IMG(BH_padZeros3d(real(single(...
+    %   (rmsMask))),...
+    %   trimValid(1,:),trimValid(2,:),'GPU','single'),'rmsMask.mrc');
+    % SAVE_IMG(templateMask,'templateMask.mrc');
+    % tempPADMask = zeros(size(tomoChunk),'single','gpuArray');
+    % tempPADMask(padBIN(1,1)+1: end - padBIN(2,1), ...
+    %             padBIN(1,2)+1: end - padBIN(2,2), ...
+    %             padBIN(1,3)+1: end - padBIN(2,3)) = templateMask;
+    % tempPADMask = tempPADMask ./ sum(tempPADMask(:));
+    % SAVE_IMG(tempPADMask,'tempPADMaskPre.mrc');
+    % tempPADMask = (conj(bhF.fwdFFT(bhF.normalization_factor.^-1 .* tempPADMask )));% ./ (sum(tempPADMask > 0.01)./sum(tempPADMask(:)))));
+    % SAVE_IMG(bhF.invFFT(conj(tempPADMask)),'tempPADMask.mrc');
+    % ms = real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor.^3 .*tomoChunk.^2.*validCalcMask),'fwd').*tempPADMask));
+    % ma = real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor.^3 .*tomoChunk.*validCalcMask),'fwd').*tempPADMask)).^2;
+    % md = BH_padZeros3d(real(single(...
+    %                       (ms-ma))),...
+    %                       trimValid(1,:),trimValid(2,:),'GPU','single');
+    % SAVE_IMG(md,'md.mrc');
+    % SAVE_IMG(sqrt(md), 'smd.mrc')
+    % SAVE_IMG(BH_padZeros3d(real(single(...
+    %   ms)),...
+    %   trimValid(1,:),trimValid(2,:),'GPU','single'),'ms.mrc');
+    % SAVE_IMG(BH_padZeros3d(real(single(...
+    %   (ma))),...
+    %   trimValid(1,:),trimValid(2,:),'GPU','single'),'ma.mrc');
+    % error('asdf')
+    % correctedRMS = (ms - ma);
+    % correctedRMS = sqrt(BH_padZeros3d(real(single(...
+    %   correctedRMS)),...%./(tomoNorm.*tempNorm))))),...
+    %                     trimValid(1,:),trimValid(2,:),'GPU','single'));
+    % mean(correctedRMS(:))
+    % 1/mean(correctedRMS(:))
+    % SAVE_IMG(correctedRMS,'correctedRMS.mrc');
+    % error('asdf')
+    if (test_local)
+      localStack(:,:,:,tomoIDX) = gather(rmsMask);
+    else 
+      if ~(scale_mip)
+        tomoChunk = (tomoChunk - averageMask) ./ rmsMask;
+      end
+    end
     clear rmsMask averageMask
-%     averageMask = gather(averageMask);
 
-%         [ rmsMask ] = gather(BH_movingRMS_3(tomoChunk, statsRadius(1), averageMask)); 
-        
 
-%     tomoChunk = tomoChunk - averageMask; 
-% tomoChunk = tomoChunk ./ rmsMask;
-%     if (save_average_filtered)
-%               tomoChunk = gpuArray(tomogram(cutX:cutX+sizeChunk(1)-1,...
-%                                   cutY:cutY+sizeChunk(2)-1,...
-%                                   cutZ:cutZ+sizeChunk(3)-1));
-%       avgFiltRec = zeros(size(tomogram),'single');
-%     end        
-% statsRadius(1)
-%     [ rmsMask ] = BH_movingRMS_2(tomoChunk-averageMask, statsRadius(1));
-%     statsRadius(1)
-%     tomoChunk = tomoChunk ./ rmsMask;
-% figure, imshow3D(BH_padZeros3d(gather(averageMask),'fwd',trimValid,'cpu','single'))
-% figure, imshow3D(BH_padZeros3d(gather(rmsMask),'fwd',trimValid,'cpu','single'))
-% return
-%     clear avgerageMask 
+
+    tomoChunk = gather(tomoChunk .*validCalcMask);   
+    
+
  
+    tmp_sum = sum(tomoChunk(validCalcMask > 0.1)); % REVERT
+    % tmp_sum = sum(tomoChunk(:));
 
-    tomoChunk = gather(((-1*shouldBeCTF) .* tomoChunk )).*validAreaMask;   
- 
-%     tomoChunk = tomoChunk .* (-1*shouldBeCTF); % This is backwards, but I don't know why
-    tmp_sum = sum(tomoChunk(validAreaMask > 0.1));
-    fullX = fullX + tmp_sum;
+    fullX = fullX + gather(tmp_sum);
     fullX2 = fullX2 + gather(tmp_sum.^2);
     fullnX = fullnX + gather(prod(sizeChunk));
+
     
     tomoStack(:,:,:,tomoIDX) = tomoChunk;
 
@@ -605,13 +659,12 @@ end % end of loop over X chunks
 globalVariance = (fullX2/fullnX) - (fullX/fullnX)^2;
 %fprintf('After local normalization, scaling also the global variance %3.3e\n',globalVariance);
 
-for iChunk = 1:tomoIDX-1
-  tomoStack(:,:,:,iChunk) = tomoStack(:,:,:,iChunk) ./ sqrt(globalVariance);
-end
+% for iChunk = 1:tomoIDX-1
+%   tomoStack(:,:,:,iChunk) = tomoStack(:,:,:,iChunk) ./sqrt(globalVariance);
+% end
 
 
-  
-clear tomoWedgeMask   bandpassFilter statBinary validAreaMask tomoChunk
+clear tomoWedgeMask validCalcMask  bandpassFilter statBinary  tomoChunk
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -628,17 +681,17 @@ firstLoopOverTomo = true;
 
     % Center the spectrum by multiplication not swapping (this should just
     % be in the fourierTransformer class if it isn't already)
-    % swapPhase(obj, inputVol, direction) with fwd should do it
-    [dU,dV,dW] = BH_multi_gridCoordinates(size(tomoStack(:,:,:,1)),...
-                                         'Cartesian','GPU', ...
-                                          {'none'},1,1,0);
+    % % swapPhase(obj, inputVol, direction) with fwd should do it
+    % [dU,dV,dW] = BH_multi_gridCoordinates(size(tomoStack(:,:,:,1)),...
+    %                                      'Cartesian','GPU', ...
+    %                                       {'none'},1,1,0);
                                         
-    swapQuadrants = exp((-2i*pi).*(dU.*(floor(size(dU,1)/2)+1) + ...
-                                  (dV.*(floor(size(dV,2)/2)+1) + ...          
-                                  (dW.*(floor(size(dW,3)/2)+1)))));  
-    clear dU dV dW
+    % swapQuadrants = exp((-2i*pi).*(dU.*(floor(size(dU,1)/2)+1) + ...
+    %                               (dV.*(floor(size(dV,2)/2)+1) + ...          
+    %                               (dW.*(floor(size(dW,3)/2)+1)))));  
+    % clear dU dV dW
     
-    swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
+    % swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
 
 if (use_new_grid_search)
   theta_search = 1:gridSearch.number_of_out_of_plane_angles;
@@ -648,7 +701,7 @@ end
 
 
 for iAngle = theta_search
-  
+
   if (use_new_grid_search)
     theta = gridSearch.parameter_map.theta(iAngle);
     numRefIter = gridSearch.number_of_angles_at_each_theta(iAngle);
@@ -663,12 +716,9 @@ for iAngle = theta_search
   tempImg = gpuArray(templateBIN); %%%%% NEW switch to bin
 
   
-  interpolationNormFactor = sum(abs(tempImg(:)).^2);
+  % interpolationNormFactor = sum(abs(tempImg(:)).^2);
 
 
-  clear referenceStack tempFilter
-  % Calculate all references for each out of plane tilt only once
-  referenceStack = zeros([sizeTempBIN,numRefIter], 'single', 'gpuArray');
                                                          
   tomoIDX = 1;
   firstLoopOverAngle = true;
@@ -683,7 +733,6 @@ for iAngle = theta_search
   templateMask_interpolator = '';
   [templateMask_interpolator, ~] = interpolator(gpuArray(templateMask),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
 
-  
 
 
   
@@ -700,21 +749,38 @@ for iAngle = theta_search
     % Truth value to initialize temp results matrix each new tomo
     % chunk.
     firstLoopOverChunk = true;
-    
+
     if (use_new_grid_search)
-      fprintf('Working on tilt(%d/%d) tomoChunk(idx%d/%d)\t' ...
+      fprintf('Working on tilt(%d/%d) tomoChunk(%d/%d)\t' ...
                             ,iAngle,gridSearch.number_of_out_of_plane_angles, tomoIDX,nTomograms);      
     else
-      fprintf('working on tilt(%d/%d) tomoChunk(idx%d/%d)\t' ...
+      fprintf('working on tilt(%d/%d) tomoChunk(%d/%d)\t' ...
                             ,iAngle,size(angleStep,1), tomoIDX,nTomograms);
     end
 
 
       tomoFou = gpuArray(tomoStack(:,:,:,tomoIDX));
-      tomoFou = swapQuadrants.*bhF.fwdFFT(tomoFou);
+      if test_local
+        localFou = BH_padZeros3d(localStack(:,:,:,tomoIDX),trimValid(1,:),trimValid(2,:),'GPU','single');
+%                              localStack(:,:,:,tomoIDX));
+      end
+      % % profile on
+      if (scale_mip)
+        tomoFou_2 = bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou.^2)), 'fwd');
+      end
 
 
+      tomoFou = bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou)), 'fwd');
 
+
+            % profile on
+      % if (scale_mip)
+      %   tomoFou_2 = swapQuadrants.*bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou.^2));
+      % end
+
+
+      % tomoFou = swapQuadrants.*bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou));
+      
 
 
     if (use_new_grid_search)
@@ -725,6 +791,7 @@ for iAngle = theta_search
     
     for iAzimuth = phi_search
 
+
       if (use_new_grid_search)
         phi = iAzimuth;
       else
@@ -732,6 +799,7 @@ for iAngle = theta_search
       end
 
       for iInPlane = inPlaneSearch
+
         psi = iInPlane;
 
         %calc references only on first chunk
@@ -742,50 +810,83 @@ for iAngle = theta_search
         end
                               
         [ tempRot ] = template_interpolator.interp3d(...
-                                                   [phi, theta, psi - phi],... 
-                                                   [1,1,1],rotConvention,...
+                                                    [phi, theta, psi - phi],... 
+                                                    [0,0,0],rotConvention,...
                                                   'forward','C1');  
 
-         
+          
 
           tempPAD = tempPAD .* 0;
           tempPAD(padBIN(1,1)+1: end - padBIN(2,1), ...
                   padBIN(1,2)+1: end - padBIN(2,2), ...
                   padBIN(1,3)+1: end - padBIN(2,3)) = tempRot;
-                
-          tempFou = conj(bhF.fwdFFT(tempPAD));          
+
+          tempPAD = tempPAD - mean(tempPAD(:));
+
+          if (scale_mip)
+            %  I should probaly switch to using the SF3D masked reference, but that also changes the baseline implementation
+            %  so I'll leave it for now.
+
+            
+         
+            tempPADMask  = tempPADMask .* 0;
+
+            tempPADMask(padBIN(1,1)+1: end - padBIN(2,1), ...
+                        padBIN(1,2)+1: end - padBIN(2,2), ...
+                        padBIN(1,3)+1: end - padBIN(2,3)) = templateMask_interpolator.interp3d(...
+                                                            [phi, theta, psi - phi],... 
+                                                            [0,0,0],rotConvention,...
+                                                            'forward','C1');
+                                                        
+            tempPADMask = tempPADMask ./ sum(tempPADMask(:));
+            tempMaskFou = (conj(bhF.fwdFFT(bhF.normalization_factor.^-1 .* tempPADMask )));% ./ (sum(tempPADMask > 0.01)./sum(tempPADMask(:)))));
+            md = BH_padZeros3d(...
+                               real(bhF.invFFT(tomoFou_2.*tempMaskFou)) - real(bhF.invFFT(tomoFou.*tempMaskFou)).^2,...
+                                                                                  trimValid(1,:),trimValid(2,:),'GPU','single');                                                            
+
+            mip_scaling = sqrt(md);
+   
+
+            
+          end
+              
+
+          tempFou = conj(bhF.fwdFFT(tempPAD));  
+ 
 
 
-        ccfmap = BH_padZeros3d((real(single(...
-                               bhF.invFFT(tomoFou.*tempFou)))),...%./(tomoNorm.*tempNorm))))),...
-                               trimValid(1,:),trimValid(2,:),'GPU','single');
+          ccfmap = BH_padZeros3d(real(single(...
+                                bhF.invFFT(tomoFou.*tempFou))),...%./(tomoNorm.*tempNorm))))),...
+                                trimValid(1,:),trimValid(2,:),'GPU','single');
 %                              
 
-        ccfmap = ccfmap ./ std(ccfmap(:));
-        
-        if ( tmpDecoy > 0 )
+          if ~(scale_mip)
+            ccfmap = ccfmap ./ std(ccfmap(:));
+          end
+
+          if ( tmpDecoy > 0 )
+            
+            if (firstLoopOverAngle)
+
+              decoy = BH_padZeros3d(BH_reScale3d(tempRot./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
+                                    padDecoy(1,:),padDecoy(2,:),'GPU','single');
+            else
+                % Probably just make a second decoy stack to avoid
+                % re-interpolating. If it works, then do this.
+                error('This is temp broken with new interpolator');
+  %              decoy = BH_padZeros3d(BH_reScale3d(referenceStack(:,:,:,intraLoopAngle)./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
+  %                                    padDecoy(1,:),padDecoy(2,:),'GPU','single');                              
+            end
+            
+
           
-           if (firstLoopOverAngle)
+            decoy = BH_padZeros3d(fftshift(real(single( ...
+                                  ifftn(tomoFou.*conj(fftn(decoy)))))),..../(decoyNorm.*tomoNorm))))),
+                                  trimValid(1,:), ...
+                                  trimValid(2,:),'GPU','single');
+                                
 
-             decoy = BH_padZeros3d(BH_reScale3d(tempRot./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
-                                   padDecoy(1,:),padDecoy(2,:),'GPU','single');
-           else
-              % Probably just make a second decoy stack to avoid
-              % re-interpolating. If it works, then do this.
-              error('This is temp broken with new interpolator');
-%              decoy = BH_padZeros3d(BH_reScale3d(referenceStack(:,:,:,intraLoopAngle)./decoyNorm,'',tmpDecoy,'GPU',decoyShift),...
-%                                    padDecoy(1,:),padDecoy(2,:),'GPU','single');                              
-           end
-           
-
-         
-           decoy = BH_padZeros3d(fftshift(real(single( ...
-                                 ifftn(tomoFou.*conj(fftn(decoy)))))),..../(decoyNorm.*tomoNorm))))),
-                                 trimValid(1,:), ...
-                                 trimValid(2,:),'GPU','single');
-                               
-
-        elseif ( tmpDecoy < 0 )
+          elseif ( tmpDecoy < 0 )
           
           % Just use the mirror image of the template, i.e. take the conj
           % (of the conj) so just the padded FFT of the ref.
@@ -794,12 +895,93 @@ for iAngle = theta_search
                                  trimValid(1,:), ...
                                  trimValid(2,:),'GPU','single');          
       
-        end
-        clear tempRot
-        % If first loop over tomo, initialize the storage volumes, if
-        % first loop over the chunk but not over the tomo, pull storage
-        % chunks from storage volume.
-        if (firstLoopOverTomo && firstLoopOverChunk)
+          end
+
+          if (scale_mip)
+
+            % tempFou = conj(bhF.fwdFFT(tempPADMask.*bhF.normalization_factor^2));  
+            % tempFou = conj(bhF.fwdFFT(tempPADMask.*bhF.normalization_factor^0));  
+
+            % mip_scaling = (1.0/mean_r_mask) .* ...
+            %               BH_padZeros3d(real(single(...
+            %                 bhF.invFFT(tomoFou.*tempFou))),...%./(tomoNorm.*tempNorm))))),...
+            %                 trimValid(1,:),trimValid(2,:),'GPU','single').^2;
+
+            % mip_scaling =   BH_padZeros3d(real(single(...
+            %                   bhF.invFFT(tomoFou_2.*tempFou))),...%./(tomoNorm.*tempNorm))))),...
+            %                   trimValid(1,:),trimValid(2,:),'GPU','single') ...
+            %                   - ...
+            %                   mip_scaling;
+            
+
+
+                          
+            % try
+
+            %   mip_scaling =  sqrt(mean_r2) .*sqrt(mip_scaling); % FIXME add check on zero                            
+            % catch
+     
+            %   lowval =  mip_scaling < 0;
+            %   numel(mip_scaling)
+            %   sum(lowval,'all')
+            %   mean(mip_scaling(lowval),'all')
+            %   mean(mip_scaling(~lowval),'all')
+            %   fprintf('\nmean_r_mask %3.3e mean_r2 %3.3e\n',mean_r_mask,mean_r2);
+            %   fprintf('norm factor %f\n', bhF.normalization_factor);
+            %   a = conj(bhF.fwdFFT(tempPAD.^2));
+            %   b = conj(bhF.fwdFFT(tempPADMask));
+            %   a(2:end) = 0;
+            %   b(2:end) = 0;
+            %   a = bhF.invFFT(a);
+            %   b = bhF.invFFT(b);
+            %   fprintf('mean_r_mask %3.3e mean_r2 %3.3e\n',1.0/b(1),a(1));
+            %   fprintf('mean_r_mask %3.3e mean_r2 %3.3e\n',1.0/b(5),a(5));
+
+
+            %   fprintf('iAngle %d idx %d iAzimuth %d iInPlane %d\n',iAngle,tomoIDX,iAzimuth,iInPlane);
+            %   SAVE_IMG(tempPADMask,sprintf('tempPADMask_%d.mrc',tomoIDX));
+            %   SAVE_IMG(ccfmap,sprintf('ccfmap_%d.mrc',tomoIDX));
+            %   SAVE_IMG( BH_padZeros3d(real(single(...
+            %             bhF.invFFT(tomoFou))),...%./(tomoNorm.*tempNorm))))),...
+            %             trimValid(1,:),trimValid(2,:),'GPU','single'), sprintf('tomoFou_%d.mrc',tomoIDX));
+            %     SAVE_IMG( BH_padZeros3d((real(single(...
+            %               bhF.invFFT(tomoFou_2)))),...%./(tomoNorm.*tempNorm))))),...
+            %               trimValid(1,:),trimValid(2,:),'GPU','single'), sprintf('tomoFou_2_%d.mrc',tomoIDX));
+            %   SAVE_IMG(BH_padZeros3d(real(single(...
+            %                 bhF.invFFT(tomoFou_2.*tempFou))),...%./(tomoNorm.*tempNorm))))),...
+            %                 trimValid(1,:),trimValid(2,:),'GPU','single'), sprintf('mip_scaling_2_%d.mrc',tomoIDX));  
+            %   SAVE_IMG(...
+            %           BH_padZeros3d((real(single(...
+            %           bhF.invFFT(tomoFou.*tempFou)))),...%./(tomoNorm.*tempNorm))))),...
+            %           trimValid(1,:),trimValid(2,:),'GPU','single').^2, sprintf('mip_scaling_%d.mrc',tomoIDX));
+ 
+            %   error('Faild on mip scaling caclulation');
+            % end              
+ 
+            % mip_scaling(abs(mip_scaling) < 1e-6) = 1e-6;
+
+            % print the min,max and mean of the mip_scaling
+            % fprintf('\nmip_scaling min %3.3e max %3.3e mean %3.3e\n',min(mip_scaling(:)),max(mip_scaling(:)),mean(mip_scaling(:)));
+            ccfmap = ccfmap ./ mip_scaling;
+    
+            % Now scale the CCF to be an SNR by using the global variance which should be mostly noise peaks.
+            ccfmap = ccfmap ./ std(ccfmap(:));
+
+          end
+
+          if test_local
+            % SAVE_IMG(ccfmap,sprintf('ccfmap_%d.mrc',tomoIDX));
+            ccfmap = ccfmap ./ localFou;
+            ccfmap = ccfmap ./ std(ccfmap(:));
+            % SAVE_IMG(ccfmap,sprintf('ccfmap_%d.mrc',tomoIDX+1));
+            % error('asdf')
+          end
+          clear tempRot
+
+          % If first loop over tomo, initialize the storage volumes, if
+          % first loop over the chunk but not over the tomo, pull storage
+          % chunks from storage volume.
+          if (firstLoopOverTomo && firstLoopOverChunk)
             %store ccfmap as complex with phase = angle of reference
             magTmp = ccfmap;
             if ( tmpDecoy )
@@ -807,178 +989,127 @@ for iAngle = theta_search
             end
             angTmp = ones(size(magTmp), 'single','gpuArray');
 
-            if (rescale_mip)
-              sum_of_x_tmp = ccfmap; 
-              sum_of_x2_tmp = ccfmap.^2; 
-            end
-            
             firstLoopOverTomo  = false;
             firstLoopOverChunk = false;
             
             intraLoopAngle = intraLoopAngle + 1;
             currentGlobalAngle = currentGlobalAngle + 1;
 
-        elseif (firstLoopOverChunk)
-          % These double cuts are old, and don't really make sense. Make
-          % this more consistant with current operations when there is
-          % time.
-          magTmp =  RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                 iCut(3):iCut(3)+sizeChunk(3)-1);
-          angTmp = RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                 iCut(3):iCut(3)+sizeChunk(3)-1);
-          if ( tmpDecoy )
-            decoyTmp = RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                     iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                     iCut(3):iCut(3)+sizeChunk(3)-1);   
-            decoyTmp = gpuArray(decoyTmp(vA(1,1) + 1:end - vA(2,1), ...
-                                         vA(1,2) + 1:end - vA(2,2), ...
-                                         vA(1,3) + 1:end - vA(2,3))); 
-            decoyTmp(decoyTmp < decoy) = decoy(decoyTmp < decoy);                                       
-          end
+          elseif (firstLoopOverChunk)
+            % These double cuts are old, and don't really make sense. Make
+            % this more consistant with current operations when there is
+            % time.
+            magTmp =  RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                  iCut(3):iCut(3)+sizeChunk(3)-1);
+            angTmp = RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                  iCut(3):iCut(3)+sizeChunk(3)-1);
+            if ( tmpDecoy )
+              decoyTmp = RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                      iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                      iCut(3):iCut(3)+sizeChunk(3)-1);   
+              decoyTmp = gpuArray(decoyTmp(vA(1,1) + 1:end - vA(2,1), ...
+                                          vA(1,2) + 1:end - vA(2,2), ...
+                                          vA(1,3) + 1:end - vA(2,3))); 
+              decoyTmp(decoyTmp < decoy) = decoy(decoyTmp < decoy);                                       
+            end
           
           
-          magTmp = gpuArray(magTmp(vA(1,1) + 1:end - vA(2,1), ...
-                                   vA(1,2) + 1:end - vA(2,2), ...
-                                   vA(1,3) + 1:end - vA(2,3)));    
-          angTmp = gpuArray(angTmp(vA(1,1) + 1:end - vA(2,1), ...
-                                   vA(1,2) + 1:end - vA(2,2), ...
-                                   vA(1,3) + 1:end - vA(2,3)));
-          
-          firstLoopOverChunk = false;
-
-          replaceTmp = ( magTmp < ccfmap );
-          
-          magTmp(replaceTmp) = ccfmap(replaceTmp);
-          angTmp(replaceTmp) = currentGlobalAngle;
-          
-          if (rescale_mip)
-              
-            sum_of_x_tmp = sum_of_x(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                     iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                     iCut(3):iCut(3)+sizeChunk(3)-1);   
-            sum_of_x_tmp = gpuArray(sum_of_x_tmp(vA(1,1) + 1:end - vA(2,1), ...
-                                         vA(1,2) + 1:end - vA(2,2), ...
-                                         vA(1,3) + 1:end - vA(2,3))); 
-            sum_of_x_tmp = sum_of_x_tmp + ccfmap; 
+            magTmp = gpuArray(magTmp(vA(1,1) + 1:end - vA(2,1), ...
+                                    vA(1,2) + 1:end - vA(2,2), ...
+                                    vA(1,3) + 1:end - vA(2,3)));    
+            angTmp = gpuArray(angTmp(vA(1,1) + 1:end - vA(2,1), ...
+                                    vA(1,2) + 1:end - vA(2,2), ...
+                                    vA(1,3) + 1:end - vA(2,3)));
             
-            sum_of_x2_tmp = sum_of_x2(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                     iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                     iCut(3):iCut(3)+sizeChunk(3)-1);   
-            sum_of_x2_tmp = gpuArray(sum_of_x2_tmp(vA(1,1) + 1:end - vA(2,1), ...
-                                         vA(1,2) + 1:end - vA(2,2), ...
-                                         vA(1,3) + 1:end - vA(2,3))); 
-            sum_of_x2_tmp = sum_of_x2_tmp + ccfmap.^2;              
-          end         
-
-          intraLoopAngle = intraLoopAngle + 1;
-          currentGlobalAngle = currentGlobalAngle + 1;
-          clear replaceTmp
-
-        else
-            % update higher values of ccfmap with new reference if applicable.
-
+            firstLoopOverChunk = false;
 
             replaceTmp = ( magTmp < ccfmap );
+            
+            magTmp(replaceTmp) = ccfmap(replaceTmp);
+            angTmp(replaceTmp) = currentGlobalAngle;
+            
+      
 
+            intraLoopAngle = intraLoopAngle + 1;
+            currentGlobalAngle = currentGlobalAngle + 1;
+            clear replaceTmp
+
+          else
+            % update higher values of ccfmap with new reference if applicable.
+            replaceTmp = ( magTmp < ccfmap );
 
             magTmp(replaceTmp) = ccfmap(replaceTmp);
             angTmp(replaceTmp) = currentGlobalAngle;
             if ( tmpDecoy )
               decoyTmp(decoyTmp < decoy) = decoy(decoyTmp < decoy);
             end
-            
-            if (rescale_mip)
-              sum_of_x_tmp = sum_of_x_tmp + ccfmap;              
-              sum_of_x2_tmp = sum_of_x2_tmp + ccfmap.^2;              
-            end         
-            
+              
+              
             intraLoopAngle = intraLoopAngle + 1;
             currentGlobalAngle = currentGlobalAngle + 1;
             clear replaceTmp
+          end
+          nComplete = nComplete + 1;
         end
-      nComplete = nComplete + 1;
       end
-    end
-
-    % After searching all angles on this chunk, but out meaningful
+      % profile viewer
+      % return
+      % After searching all angles on this chunk, but out meaningful
     % portion for storage.
-
-    
-    % FIXME this double cutting and temporary allocation is ridiculous.
-    magStoreTmp =  RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                iCut(3):iCut(3)+sizeChunk(3)-1);
-    angStoreTmp = RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                iCut(3):iCut(3)+sizeChunk(3)-1);
-
-
-    magStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
-                vA(1,2) + 1:end - vA(2,2), ...
-                vA(1,3) + 1:end - vA(2,3)) = gather(magTmp);
-    angStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
-                vA(1,2) + 1:end - vA(2,2), ...
-                vA(1,3) + 1:end - vA(2,3)) = gather(angTmp);
-
-
-     RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = magStoreTmp;
-                
-     clear magStoreTmp
-
-    RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = angStoreTmp;
-     clear angStoreTmp
-    
-    if ( tmpDecoy )
-      decoyStoreTmp =  RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                iCut(3):iCut(3)+sizeChunk(3)-1);
-      decoyStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
-                vA(1,2) + 1:end - vA(2,2), ...
-                vA(1,3) + 1:end - vA(2,3)) = gather(decoyTmp);   
-     RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = decoyStoreTmp;              
       
+      % FIXME this double cutting and temporary allocation is ridiculous.
+      magStoreTmp =  RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                  iCut(3):iCut(3)+sizeChunk(3)-1);
+      angStoreTmp = RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                  iCut(3):iCut(3)+sizeChunk(3)-1);
+
+
+      magStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
+                  vA(1,2) + 1:end - vA(2,2), ...
+                  vA(1,3) + 1:end - vA(2,3)) = gather(magTmp);
+      angStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
+                  vA(1,2) + 1:end - vA(2,2), ...
+                  vA(1,3) + 1:end - vA(2,3)) = gather(angTmp);
+
+
+      RESULTS_peak(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                    iCut(2):iCut(2)+sizeChunk(2)-1,...
+                    iCut(3):iCut(3)+sizeChunk(3)-1) = magStoreTmp;
+                  
+      clear magStoreTmp
+
+      RESULTS_angle(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                    iCut(2):iCut(2)+sizeChunk(2)-1,...
+                    iCut(3):iCut(3)+sizeChunk(3)-1) = angStoreTmp;
+      clear angStoreTmp
+    
+      if ( tmpDecoy )
+        decoyStoreTmp =  RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                                  iCut(2):iCut(2)+sizeChunk(2)-1,...
+                                  iCut(3):iCut(3)+sizeChunk(3)-1);
+        decoyStoreTmp(vA(1,1) + 1:end - vA(2,1), ...
+                  vA(1,2) + 1:end - vA(2,2), ...
+                  vA(1,3) + 1:end - vA(2,3)) = gather(decoyTmp);   
+      RESULTS_decoy(iCut(1):iCut(1)+sizeChunk(1)-1,...
+                    iCut(2):iCut(2)+sizeChunk(2)-1,...
+                    iCut(3):iCut(3)+sizeChunk(3)-1) = decoyStoreTmp;              
+        
+      end
+    
+    
+      tomoTime = toc;
+      totalTime = totalTime + toc; timeEstimate = totalTime * (nTomograms*nAngles(1)./(nComplete-1));
+      fprintf('elapsed time = %f s  est remain %f s\n', tomoTime, timeEstimate);
+      tomoIDX = tomoIDX + 1;
+      firstLoopOverAngle = false;
+      currentGlobalAngle = currentGlobalAngle - intraLoopAngle + 1;
     end
-    
-    if ( rescale_mip )
-      sum_of_x_store =  sum_of_x(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                 iCut(3):iCut(3)+sizeChunk(3)-1);
-      sum_of_x_store(vA(1,1) + 1:end - vA(2,1), ...
-                     vA(1,2) + 1:end - vA(2,2), ...
-                     vA(1,3) + 1:end - vA(2,3)) = gather(sum_of_x_tmp);   
-     sum_of_x(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = sum_of_x_store;              
-      clear sum_of_x_store
-      
-      sum_of_x2_store =  sum_of_x2(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                                 iCut(2):iCut(2)+sizeChunk(2)-1,...
-                                 iCut(3):iCut(3)+sizeChunk(3)-1);
-      sum_of_x2_store(vA(1,1) + 1:end - vA(2,1), ...
-                     vA(1,2) + 1:end - vA(2,2), ...
-                     vA(1,3) + 1:end - vA(2,3)) = gather(sum_of_x2_tmp);   
-     sum_of_x2(iCut(1):iCut(1)+sizeChunk(1)-1,...
-                  iCut(2):iCut(2)+sizeChunk(2)-1,...
-                  iCut(3):iCut(3)+sizeChunk(3)-1) = sum_of_x2_store;              
-      clear sum_of_x2_store      
-    end    
-    tomoTime = toc;
-    totalTime = totalTime + toc; timeEstimate = totalTime * (nTomograms*nAngles(1)./(nComplete-1));
-    fprintf('elapsed time = %f s  est remain %f s\n', tomoTime, timeEstimate);
-    tomoIDX = tomoIDX + 1;
-    firstLoopOverAngle = false;
-    currentGlobalAngle = currentGlobalAngle - intraLoopAngle + 1;
-  end
-  
   currentGlobalAngle = currentGlobalAngle + intraLoopAngle -  1;
+
 end
 %save('angle_list.txt','angle_list','-ascii');
 clear tomoStack
@@ -1000,35 +1131,7 @@ if ( tmpDecoy )
   
 end
 
-if ( rescale_mip )
-  sum_of_x = sum_of_x(1+tomoPre(1):end-tomoPost(1),...
-                            1+tomoPre(2):end-tomoPost(2),...
-                            1+tomoPre(3):end-tomoPost(3)) ./ currentGlobalAngle;
-                          
-  sum_of_x2 = sum_of_x2(1+tomoPre(1):end-tomoPost(1),...
-                            1+tomoPre(2):end-tomoPost(2),...
-                            1+tomoPre(3):end-tomoPost(3)) ./ currentGlobalAngle;
 
-   %SAVE_IMG(sum_of_x,'sum_of_x.mrc');
-   %SAVE_IMG(sum_of_x2,'sum_of_x2.mrc');
-   %SAVE_IMG(RESULTS_peak,'prescaling.mrc');
-
-  RESULTS_peak = RESULTS_peak - sum_of_x;
-  sum_of_x  = sqrt(sum_of_x2 - sum_of_x.^2);
-  clear sum_of_x2;
-%   SAVE_IMG(sum_of_x,'stddev.mrc');
-%   mov = mean(sum_of_x(:));
-% %   sov = std(sum_of_x(:));
-%   sov = 0;
-%   sum_of_x(sum_of_x < (mov - 1*sov)) = max(sum_of_x(:));
-%   SAVE_IMG(sum_of_x,'stddev_clipped.mrc');
-
-  RESULTS_peak = RESULTS_peak ./ sum_of_x;
-  
-  RESULTS_peak = RESULTS_peak - mean(RESULTS_peak(:));
-  RESULTS_peak = RESULTS_peak ./ rms(RESULTS_peak(:));
-  clear sum_of_x;
-end
 gpuDevice(useGPU);
 clear bhF
 
@@ -1049,7 +1152,7 @@ resultsOUT = sprintf('./%s/%s_convmap.mrc',convTMPNAME,mapName);
 anglesOUT  = sprintf('./%s/%s_angles.mrc',convTMPNAME,mapName);
 angleListOUT = sprintf('./%s/%s_angles.list',convTMPNAME,mapName);
 SAVE_IMG(MRCImage(mag),resultsOUT);
-SAVE_IMG(MRCImage(RESULTS_angle),anglesOUT);
+% SAVE_IMG(MRCImage(RESULTS_angle),anglesOUT);
 if ( tmpDecoy )
   decoyOUT = sprintf('./%s/%s_decoy.mrc',convTMPNAME,mapName);
   SAVE_IMG(MRCImage((RESULTS_decoy)),decoyOUT);
@@ -1288,55 +1391,42 @@ fileID2 = fopen(pos_out,'w');
 errID  = fopen(sprintf('./%s/%s.errID',convTMPNAME,mapName));
 
 
-
-n=1
+n=1;
+nSym=1;
 for i = 1:length(peakMat(:,1))
-   if all(peakMat(i,1:3))
+  if all(peakMat(i,1:3))
         
-        if SYMMETRY > 1
-          % Generate a uniform distribution over the in-plane
-          % randomizations
-          iSym = rem( n + SYMMETRY, SYMMETRY)+1;
-          r = reshape(BH_defineMatrix(peakMat(i,4:6), rotConvention , 'inv') *...
-                      symOps.symmetry_matrices{iSym},1,9); 
-        else
-          r = reshape(BH_defineMatrix(peakMat(i,4:6), rotConvention , 'inv'),1,9);
-        end
-        fprintf(fileID,['%1.2f %d %d %d %d %d %d %d %d %d %f %f %f %d %d %d ',...
-                        '%f %f %f %f %f %f %f %f %f %d '],peakMat(i,10),samplingRate,0, ...
-                        i+nPreviousSubTomos,1,1,1,1,1,0,peakMat(i,1:3), ...
-                        peakMat(i,4:6),r,1);
+    iSym = mod(nSym,symOps.nSymMats)+1;
+    % Generate a uniform distribution over the in-plane
+    % randomizations
+
+    r = reshape(BH_defineMatrix(peakMat(i,4:6), rotConvention , 'inv') * symOps.symmetry_matrices{iSym},1,9); 
+    nSym = nSym + 1;
+    fprintf(fileID,['%1.2f %d %d %d %d %d %d %d %d %d %f %f %f %d %d %d ',...
+                    '%f %f %f %f %f %f %f %f %f %d '],peakMat(i,10),samplingRate,0, ...
+                    i+nPreviousSubTomos,1,1,1,1,1,0,peakMat(i,1:3), ...
+                    peakMat(i,4:6),r,1);
          
-        if nPeaks > 1
-          
-          for iPeak = 2:nPeaks
-            if SYMMETRY > 1
-              % Generate a uniform distribution over the in-plane
-              % randomizations
-              iSym = rem( n + SYMMETRY, SYMMETRY)+1;
-              r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), rotConvention , 'inv')*...
-                          symOps.symmetry_matrices{iSym},1,9);
-            else
-              r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), rotConvention , 'inv'),1,9);
-            end            
-            fprintf(fileID,['%1.2f %d %d %d %d %d %d %d %d %d %f %f %f %d %d %d ',...
-                        '%f %f %f %f %f %f %f %f %f %d '],peakMat(i,10),samplingRate,0, ...
-                        i+nPreviousSubTomos,1,1,1,1,1,0,peakMat(i,[1:3]+10*(iPeak-1)), ...
-                        peakMat(i,[4:6]+10*(iPeak-1)),r,1);          
-          end
-          
-          
-        end
-                      
-         fprintf(fileID,'\n');           
-                      
-                      
-                      
-                      
-        fprintf(fileID2,'%f %f %f\n',peakMat(i,1:3)./samplingRate);                      
+    if nPeaks > 1
+      for iPeak = 2:nPeaks
+
+        iSym = mod(nSym,symOps.nSymMats)+1;
+        r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), rotConvention , 'inv') * symOps.symmetry_matrices{iSym},1,9);
+        nSym = nSym + 1;
+        fprintf(fileID,['%1.2f %d %d %d %d %d %d %d %d %d %f %f %f %d %d %d ',...
+                      '%f %f %f %f %f %f %f %f %f %d '],peakMat(i,10),samplingRate,0, ...
+                      i+nPreviousSubTomos,1,1,1,1,1,0,peakMat(i,[1:3]+10*(iPeak-1)), ...
+                      peakMat(i,[4:6]+10*(iPeak-1)),r,1);          
 
         
-        n = n +1;
+      end   
+    end
+                  
+    fprintf(fileID,'\n');                         
+    fprintf(fileID2,'%f %f %f\n',peakMat(i,1:3)./samplingRate);  
+
+
+    n = n + 1;
    end
 end
 
@@ -1344,6 +1434,8 @@ end
 
 fclose(fileID);
 fclose(fileID2);
+
+
 
 system(sprintf('point2model -number 1 -sphere 3 -scat ./%s/%s.pos ./%s/%s.mod', convTMPNAME,mapName,convTMPNAME, mapName));
 

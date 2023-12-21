@@ -65,9 +65,9 @@ for iTomo = 1:nTomograms
    
     for iParticle = includeList'
      % assuming all classes are sequential, only discarded between cycles.
-     particleIDX =  positionList(iParticle,4 + 26*(iPeak-1))
+     particleIDX =  positionList(iParticle,4 + 26*(iPeak-1));
       
-     pIndex = find(newAlignment(:,2) == particleIDX)
+     pIndex = find(newAlignment(:,2) == particleIDX);
     
      
      newAngles = newAlignment(pIndex,[3:5] + 10*(iPeak-1));

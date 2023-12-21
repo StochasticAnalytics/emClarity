@@ -46,6 +46,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
   // Input array, could also just pass the dimensions
   mxGPUArray const * inputArray  = mxGPUCreateFromMxArray(prhs[0]);
+
 //  mxGPUArray const * mex_EO = mxGPUCreateFromMxArray(prhs[1]);
   invTrim =  (int *) mxGetData(prhs[1]);
 
@@ -57,18 +58,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
   // Assuming we are only doing either R2C or C2R
   mxComplexity output_data_type;
-  if ( input_type == mxREAL )
-  {
+  if ( input_type == mxREAL ) {
 //    mexPrintf("It is real bitches\n");
     output_data_type =  mxCOMPLEX ;
     pReal = (cufftReal *)(mxGPUGetDataReadOnly(inputArray));
   }
-  else if (input_type == mxCOMPLEX)
-  {
+  else if (input_type == mxCOMPLEX) {
     fwd_xform = false;
 
     output_data_type = mxREAL ;
     pComplex = (cufftComplex *)(mxGPUGetDataReadOnly(inputArray));
+  }
+  else
+  {
+    mexErrMsgIdAndTxt("MATLAB:mexFFT:rhs",
+          "This inputArray is not real or complex.");
   }
 
   if (nrhs > 2)
@@ -132,9 +136,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 
+
   int xFormRank;
   int fft_dims[input_dims];
   int batchSize;
+  
   if (input_dims > 2) 
   { fft_dims[2] = (int) input_size[0];
     fft_dims[1] = (int) input_size[1];
@@ -200,14 +206,33 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     // Make the arrays persistent
     mexMakeArrayPersistent(plhs[1]);
     mexMakeArrayPersistent(plhs[2]);
-  
 
-    cufftPlanMany(plan,    xFormRank, fft_dims, 
-                  NULL, NULL, NULL, NULL, NULL, NULL,
-                  CUFFT_R2C, 1);
-    cufftPlanMany(planInv, xFormRank, fft_dims, 
-                  NULL, NULL, NULL, NULL, NULL, NULL,
-                  CUFFT_C2R, 1);
+
+
+
+    if ( ! fwd_xform ) {
+      mexErrMsgIdAndTxt("The cufft plan must be created on a forward transform.","womp");
+    }
+
+    if (input_dims == 3) {
+       cufftPlan3d(plan, fft_dims[0], fft_dims[1], fft_dims[2],  CUFFT_R2C);
+       cufftPlan3d(planInv, fft_dims[0], fft_dims[1],fft_dims[2], CUFFT_C2R);
+    }
+    else if (input_dims == 2) {
+       cufftPlan2d(plan, fft_dims[0], fft_dims[1],  CUFFT_R2C);
+       cufftPlan2d(planInv, fft_dims[0], fft_dims[1], CUFFT_C2R);
+    }
+    else {
+      mexErrMsgIdAndTxt("The cufft plan must be created on a 1, 2, or 3 dimensional array.","womp");
+    }
+
+
+    // cufftPlanMany(plan,    xFormRank, fft_dims, 
+    //               NULL, NULL, NULL, NULL, NULL, NULL,
+    //               CUFFT_R2C, 1);
+    // cufftPlanMany(planInv, xFormRank, fft_dims, 
+    //               NULL, NULL, NULL, NULL, NULL, NULL,
+    //               CUFFT_C2R, 1);
 
   }
 
@@ -229,7 +254,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     }
   }
 
+  // mxGPUCreateMxArrayOnGPU is used to wrap the output data in an MxArray that can be passed back to matlab.
   plhs[0] = mxGPUCreateMxArrayOnGPU(outputArray);
+
 
 //  mexPrintf("Afft_dimsress of plan is %d\n", *plan);
 //  mexPrintf("Afft_dimsress of planInv is %d\n", *planInv);

@@ -194,6 +194,17 @@ catch
   shape_mask_threshold = 2.4 - 0.4;
 end
 
+try 
+  tmpVal = pBH.('whitenPS');
+  if (numel(tmpVal) == 3)
+    wiener_constant = tmpVal(3);
+  else
+    error('flgWhitenPS should be a 3 element vector');
+  end
+catch
+  wiener_constant = 0.0;
+end
+
 try
   % Apply the mask with the given parameters, save and exit.
   shape_mask_test = pBH.('shape_mask_test');
@@ -437,17 +448,18 @@ if (PREVIOUS_PCA)
                               sprintf('%s_pcaVolMask.mrc',outputPrefix))));
 else
 
-if (constrain_symmetry)
-  gridSearch = eulerSearch(symmetry,180,5,360,5,0.0,1,true);
-  [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter, ...
-                                '3d', gridSearch.number_of_asymmetric_units);
-else
-  [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
-end
+  if (constrain_symmetry)
+    gridSearch = eulerSearch(symmetry,180,5,360,5,0.0,1,true);
+    [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter, ...
+                                  '3d', gridSearch.number_of_asymmetric_units);
+  else
+    [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
+  end
+
   if ( flgPcaShapeMask )
       % when combining the addition is harmless, but is a convenient way to
       % include when sets are left 100% separate.
-%       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '',''); 
+  %       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '',''); 
       volumeMask = volumeMask .* EMC_maskReference(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, ...
                                                   {'pca', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
 
@@ -749,7 +761,7 @@ for iGold = 1:1+flgGold
       % subset of peaks. FIXME
       includeParticle = positionList(iSubTomo, 8);
       
-
+      iPeak=0; % make sure this exists if we are no including the particle
       if (includeParticle) 
         make_sf3d = true;
         for iPeak = 0:nPeaks-1
@@ -767,9 +779,8 @@ for iGold = 1:1+flgGold
           radialGrid = '';
           padWdg = [0,0,0;0,0,0];
           [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
-                                          TLT, center,reconGeometry);
+                                          TLT, center,reconGeometry, wiener_constant);
           
-%           wedgeMask = sqrt(wedgeMask - min(wedgeMask(:)) + 10^-6);
         end
         
         % If flgGold there is no change, otherwise temporarily resample the
@@ -999,6 +1010,7 @@ for iGold = 1:1+flgGold
     U = cell(nScaleSpace,1);
     V = cell(nScaleSpace,1);
     S = cell(nScaleSpace,1);
+    sDiag = cell(nScaleSpace,1);
     coeffs = cell(nScaleSpace,1);
     varianceMap = cell(nScaleSpace,1);
     for iScale = 1:nScaleSpace
@@ -1007,8 +1019,8 @@ for iGold = 1:1+flgGold
       % Calculate the decomposition
       [ U{iScale},S{iScale},V{iScale}, convergenceFlag ] = svds(double(dataMatrix{iScale}), ...
                                                                 maxEigs, 'largest', ...
-                                                                'MaxIterations',500, ... % default 300
-                                                                'SubspaceDimension',max(krylovScalar*maxEigs,15),... % default max(3*maxEigs,15)
+                                                                'MaxIterations',1000, ... % default 300
+                                                                'SubspaceDimension',max(krylovScalar*maxEigs,30),... % default max(3*maxEigs,15)
                                                                 'Display',true); % Diagnostics default false (will this work in compiled?)
         U{iScale} = single(U{iScale});
         S{iScale} = single(S{iScale});
@@ -1016,13 +1028,13 @@ for iGold = 1:1+flgGold
 
 %             [U{iScale},S{iScale},V{iScale}] = svd(dataMatrix{iScale}, 0);
 
-
-      numNonZero = find(( diag(S{iScale}) ~= 0 ), 1, 'last');
+      sDiag{iScale} = diag(S{iScale});
+      numNonZero = find(( sDiag{iScale} ~= 0 ), 1, 'last');
       % For Method 1, save eigenvectors 1-4 (or user-specified max) as images
       eigsFound = min(maxEigs, numNonZero);
 
-      fprintf('Found %d / %d non-zero eigenvalues in set %s.\n All singular values converged is t/f ( %d ) ', ...
-                numNonZero, size(S{iScale}, 1),halfSet, convergenceFlag);
+      fprintf('Found %d / %d non-zero eigenvalues sum = %4.4f, in set %s.\n All singular values converged is t/f ( %d ) ', ...
+                numNonZero, size(S{iScale}, 1), sum(sDiag{iScale}), halfSet, convergenceFlag);
 
       coeffs{iScale} = S{iScale} * V{iScale}' 
 
@@ -1103,12 +1115,12 @@ for iGold = 1:1+flgGold
       end
       
     end
-    save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList');
+    save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList', 'sDiag');
   else
     if (randomSubset)
       save(sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet),'U', 'idxList','peakList');
     else
-      save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList');
+      save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList', 'sDiag');
     end
   end
   

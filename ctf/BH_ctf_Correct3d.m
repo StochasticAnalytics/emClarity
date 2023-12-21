@@ -69,6 +69,7 @@ recWithoutMat = false;
 reconstructionParameters = 0;
 filterProjectionsForTomoCPRBackground=0;
 loadSubTomoMeta = true;
+flgWhitenPS = [0,0,0.0];
 if nargin > 2
   if ~isempty(EMC_str2double(varargin{1}))
     reconstructionParameters = EMC_str2double(varargin{1});
@@ -88,8 +89,9 @@ if nargin > 2
   end
 elseif nargin > 1
   if strcmpi(varargin{1},'templateSearch')
-    recWithoutMat = true
-    loadSubTomoMeta = false
+    recWithoutMat = true;
+    loadSubTomoMeta = false;
+    flgWhitenPS = [0,0,1.0];
     if (bh_global_turn_on_phase_plate(1))
         fprintf('WARNING: the filtered tomogram should only be used for viz, not template matching.');
     end
@@ -105,9 +107,13 @@ end
 
 try 
   % -1, whiten before ctf, 1 whiten after - test both.
-  flgWhitenPS = [pBH.('whitenPS')(1),0,pBH.('whitenPS')(2)];
+  usr_flgWhitenPS = pBH.('whitenPS');
+  if (numel(usr_flgWhitenPS) == 3)
+    flgWhitenPS = usr_flgWhitenPS;
+  else
+    error('flgWhitenPS should be a 3 element vector');
+  end
 catch
-  flgWhitenPS = [0,0,0];
 end
 
 if (bh_global_turn_on_phase_plate(1) && flgWhitenPS(1))

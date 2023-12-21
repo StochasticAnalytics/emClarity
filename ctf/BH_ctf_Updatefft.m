@@ -674,7 +674,7 @@ if (flgShiftEucentric && mapBackIter)
   
       % Workaround for partial numbers - need something better. FIXME
       n_tomos_found = 0;
-      for jTomo = 1:size(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords,1) %subTomoMeta.mapBackGeometry.(STACK_PRFX).nTomos
+      for jTomo = 1:size(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords,1) 
         if any(subTomoMeta.mapBackGeometry.(STACK_PRFX).coords(jTomo,:))
             n_tomos_found = n_tomos_found + 1;
           % We might have skipped the update if tomoCPR failed.

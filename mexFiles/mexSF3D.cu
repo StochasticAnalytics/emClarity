@@ -92,7 +92,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   // TODO if these aren't typed properly in the mex call, I can't cast them appropriatley here
   // TODO general angles, here assume single-Y-axis tilt
   /* Check for proper number of arguments. TODO add checks on narg and types*/
-    if ( nrhs != 14 & nrhs != 15 ) 
+    if ( nrhs != 15 & nrhs != 16 ) 
     {
         mexErrMsgIdAndTxt("MATLAB:mexSF3D:rhs",
             "requires 14 inputs.");
@@ -113,6 +113,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   float* exposure   =  (float*) mxGetData(prhs[12]);
   float* occupancy  =  (float*) mxGetData(prhs[13]);
   int*   launch     = (int *) mxGetData(prhs[14]); // should be an int16 in matlab
+  float* wiener_constant = (float *) mxGetData(prhs[15]);
 
   float * d_output_img = NULL;
   float * d_ctf_img = NULL;
@@ -252,7 +253,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
     // Create the 2d ctf
     ctf<<< ctfGrid, ctfBlock ,0,cudaStreamPerThread >>>(d_ctf_img, ctf_dims, o_ctf_dims, b_ctf, fourierVoxelSize,
-                                 calc_centered, occupancy[iAng], exposure[iAng]);
+                                 calc_centered, occupancy[iAng], exposure[iAng], *wiener_constant);
 
 
     // Put the ctf in tex2

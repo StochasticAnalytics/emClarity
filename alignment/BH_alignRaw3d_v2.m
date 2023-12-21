@@ -87,6 +87,17 @@ catch
   flgCutOutVolumes=0
 end
 
+try 
+  tmpVal = pBH.('whitenPS');
+  if (numel(tmpVal) == 3)
+    wiener_constant = tmpVal(3);
+  else
+    error('flgWhitenPS should be a 3 element vector');
+  end
+catch
+  wiener_constant = 0.0;
+end
+
 % TODO decide on a "reasonable" padding based on expected shifts.
 try
   CUTPADDING = subTomoMeta.('CUTPADDING')
@@ -288,12 +299,12 @@ nTomograms = length(tomoList);
 tiltList = masterTM.tiltGeometry;
 ctfGroupList = masterTM.('ctfGroupSize');
 
-% Sort the list by number of active subtomos to improve parallelism
-sortedTomoList = zeros(nTomograms,1);
-for iTomo = 1:nTomograms
-  sortedTomoList(iTomo) = sum(geometry.(tomoList{iTomo})(:,26)~=-9999);
-end
-[~, sortedTomoIDX] = sort(sortedTomoList,'descend')
+% % Sort the list by number of active subtomos to improve parallelism
+% sortedTomoList = zeros(nTomograms,1);
+% for iTomo = 1:nTomograms
+%   sortedTomoList(iTomo) = sum(geometry.(tomoList{iTomo})(:,26)~=-9999);
+% end
+% [~, sortedTomoIDX] = sort(sortedTomoList,'descend')
 
 % mask defines area for angular search, peakRADIUS restricts translational
 
@@ -322,15 +333,13 @@ else
   limitToOne = pBH.('nCpuCores');
 end
 
-
-nParProcesses = 0;
-iterList = {};
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
 if ( flgReverseOrder )
-  fprintf('nCpuCores is %d\n', limitToOne);
-  [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
-  for iParProc = 1:nParProcesses
-    iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
-  end
+  % fprintf('nCpuCores is %d\n', limitToOne);
+  % [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
+  % for iParProc = 1:nParProcesses
+  %   iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
+  % end
   % Flip the order for reverse processing on a second machine. This will also disable saving of 
   % of the metadata so there aren't conflicts.
   for iParProc = 1:nParProcesses
@@ -338,32 +347,42 @@ if ( flgReverseOrder )
   end
   
 elseif ( flgStartThird )
-  fprintf('nCpuCores is %d\n', limitToOne);
-  [ nParProcesses, iterList_full] = BH_multi_parallelJobs(nTomograms,nGPUs*cycle_denominator, sizeCalc(1),limitToOne*cycle_denominator);   
+  % fprintf('nCpuCores is %d\n', limitToOne);
+  % [ nParProcesses, iterList_full] = BH_multi_parallelJobs(nTomograms,nGPUs*cycle_denominator, sizeCalc(1),limitToOne*cycle_denominator);   
 
-  for iParProc = 1:nParProcesses
-    iterList_full{iParProc} = sortedTomoIDX(iterList_full{iParProc})';
-  end
+  % for iParProc = 1:nParProcesses
+  %   iterList_full{iParProc} = sortedTomoIDX(iterList_full{iParProc})';
+  % end
 
-  % Need to scale this back down
-  nParProcesses = limitToOne;
+  % % Need to scale this back down
+  % nParProcesses = limitToOne;
 
   % Shift to start at one third through to process on a third machine. This will also disable saving of 
   % of the metadata so there aren't conflicts.
-  iterList = {};
+  % iterList = {};
+  % for iParProc = 1:nParProcesses
+  %   idx = cycle_numerator + (iParProc-1)*cycle_denominator;
+  %   if (idx <= length(iterList_full))
+  %     iterList{iParProc} = iterList_full{idx};
+  %   end
+  % end
   for iParProc = 1:nParProcesses
-    idx = cycle_numerator + (iParProc-1)*cycle_denominator;
-    if (idx <= length(iterList_full))
-      iterList{iParProc} = iterList_full{idx};
-    end
+    % Note the use of floor is more like ceiling here (rounds away from
+    % zero)
+    nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
+    fIDX = 1+(cycle_numerator - 1)*nParts;
+    lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
+    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX);
   end
 
+
 else
-  fprintf('nCpuCores is %d\n', limitToOne);
-  [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
-  for iParProc = 1:nParProcesses
-    iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
-  end
+  % error('not supported run config');
+  % fprintf('nCpuCores is %d\n', limitToOne);
+  % [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);   
+  % for iParProc = 1:nParProcesses
+  %   iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
+  % end
 
 
 end
@@ -1090,9 +1109,7 @@ parfor iParProc = parVect
           make_SF3D = false;
           if use_v2_SF3D
             % For now excluding the soften weight.
-            [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
-                                                                center,reconGeometry);
-              
+            [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);       
              imgWdgInterpolator = '';
              % The unshifted mask is kept in texture mem until no longer
              % needed

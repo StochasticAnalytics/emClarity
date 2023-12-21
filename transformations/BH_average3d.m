@@ -114,11 +114,21 @@ catch
   nPeaks = 1;
 end
 
+try 
+  tmpVal = pBH.('whitenPS');
+  if (numel(tmpVal) == 3)
+    wiener_constant = tmpVal(3);
+  else
+    error('flgWhitenPS should be a 3 element vector');
+  end
+catch
+  wiener_constant = 0.0;
+end
 
 try
   fscBfactor = pBH.('Fsc_bfactor');
 catch
-  fscBfactor = 0;
+  fscBfactor = 40;
 end
 
 mapBackIter = subTomoMeta.currentTomoCPR;
@@ -1252,16 +1262,17 @@ parfor iParProc = parVect
           angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
           wdgIDX = positionList(iSubTomo,9);
           
-          if (flgFinalAvg)
-            angles = reshape(angles,3,3)*oddRot;
-          end
+          % tmpang = BH_defineMatrix([0,0,-14],'Bah','inv');
+          % angles = reshape(angles,3,3)*tmpang;
+          % if (flgFinalAvg)
+          %   angles = reshape(angles,3,3)*oddRot;
+          % end
           
           TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
 
           if (make_sf3d)
             if (use_v2_SF3D)
-              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, ...
-                                                                center,reconGeometry);
+              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);
             else
               iSF3D =  gpuArray(wedgeMask{wdgIDX});
             end

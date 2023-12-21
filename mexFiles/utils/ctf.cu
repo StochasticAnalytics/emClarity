@@ -66,7 +66,7 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
 
 // createb_ctf
 __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, 
-                    bool calc_centered, float radial_weight, float total_exposure) 
+                    bool calc_centered, float radial_weight, float total_exposure, float wiener_constant) 
 {
 
 
@@ -112,19 +112,24 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
 
   radius_sq = radius_sq*radius_sq + tmp_coord*tmp_coord;
    
-  a[output_IDX] = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.defocus1 + b_ctf.defocus2 * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
+  tmp_coord = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.defocus1 + b_ctf.defocus2 * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
                   
                   
   // if you add the radial weighting you will need to fix this.
 
-
-  if (b_ctf.doSqCTF)
-  {
-    // Is this any better (or worse) than pow?
-    a[output_IDX] *= a[output_IDX];
+  if (wiener_constant > 0.f) {
+    tmp_coord *= tmp_coord;
+    tmp_coord /= (tmp_coord + wiener_constant);
+  }
+  else {
+    if (b_ctf.doSqCTF) {
+      // Is this any better (or worse) than pow?
+      tmp_coord *= tmp_coord;
+    }
   }
 
-  a[output_IDX] *= radial_weight* expf( (-0.5f * total_exposure) / (kvScale *(expA * powf(radius_sq, expB) + expC)));
+
+  a[output_IDX] = tmp_coord * radial_weight* expf( (-0.5f * total_exposure) / (kvScale *(expA * powf(radius_sq, expB) + expC)));
     
 }
 

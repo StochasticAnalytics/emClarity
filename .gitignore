@@ -17,3 +17,5 @@ testScripts/mccExcludedFiles.log
 testScripts/readme.txt
 testScripts/requiredMCRProducts.txt
 testScripts/unresolvedSymbols.txt
+
+__pycache__/

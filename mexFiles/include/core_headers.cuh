@@ -7,6 +7,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cufft.h>
+#include <cufftXt.h>
+
 #include "cublas_v2.h"
 
 // Utilities and timing functions
@@ -83,4 +85,4 @@ struct ctfParams {
 
 // Kernel defs
 __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered);
-__global__ void ctf(cufftReal* ctf, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered, float radial_weight, float total_exposure);
+__global__ void ctf(cufftReal* ctf, uint2 dims, uint2 o_dims, ctfParams b_ctf, float2 fourierVoxelSize, bool calc_centered, float radial_weight, float total_exposure, float wiener_constant = 0.f);

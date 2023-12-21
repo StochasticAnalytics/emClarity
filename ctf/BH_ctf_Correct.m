@@ -36,7 +36,7 @@ else
   for iStack = 1:length(STACK_LIST_tmp)
     if subTomoMeta.mapBackGeometry.(STACK_LIST_tmp{iStack}).nTomos
       STACK_LIST{nST} = STACK_LIST_tmp{iStack};
-      nST = nST +1;
+      nST = nST + 1;
     end
   end
   clear STACK_LIST_tmp

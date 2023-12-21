@@ -40,14 +40,13 @@ CUDA_LIB ...
 };
 
 
-
-if isfolder(sprintf('%s/compiled',mexPATH))
-  system(sprintf('rm -rf %s/compiled/*',mexPATH));
-elseif isfile(sprintf('%s/compiled',mexPATH))
+if isfile(sprintf('%s/compiled',mexPATH))
   system(sprintf('rm -rf %s/compiled',mexPATH));
   system(sprintf('mkdir -p %s/compiled',mexPATH));
 end
+
 for i =1: length(mexFILE)
+
   mexcuda( mexcuda_opts{:}, sprintf('%s/%s.cu',mexPATH,mexFILE{i}), inc{1}, inc{2});
 
   system(sprintf('mv %s.mexa64 %s/compiled',mexFILE{i}, mexPATH));

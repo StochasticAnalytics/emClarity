@@ -720,7 +720,6 @@ for iRef = 1:nReferences
 
  
     for iCone = 1:nCones+1
-      iCone
       fitFSC{iCone} = csape(shellsFreq(:,iCone),shellsFSC(:,iCone),'variational');
       fitNUM{iCone} = csape(shellsFreq(:,iCone),shellsNUM(:,iCone));
     end
@@ -1026,7 +1025,6 @@ clear fout famp1 famp2 fphase1 fphase2
 
       plot(osX,cRef{2}(osX),'k--'); 
       for iCone = 3:length(cRef)
-        iCone
         plot(osX,cRef{iCone}(osX),'k--');
       end
     end
@@ -1055,71 +1053,71 @@ clear fout famp1 famp2 fphase1 fphase2
 
     file_out = sprintf('%s-%d-cRefAli_%s', outputPrefix, iRef, halfSet);
     saveas(gcf, file_out,'pdf')  
-  % try
-    fitPower = fit(shellsFreq(:,1).^2,log(shellsPOWER(:,1)),'cubicSpline');
-    LR = 10;
-    MR = 7;
-    HR = min((1.05*fgold).^2, shellsFreq(end-1,1).^2);
-    if isempty(HR)
-      HR = lowCut1;
-    end
-    lowRes = find(shellsFreq(:,1).^2 > (1/LR)^2, 1,'first');
-    midRes = find(shellsFreq(:,1).^2 > (1/MR)^2, 1,'first');
-    endRes = find(shellsFreq(:,1).^2 > HR, 1,'first');
-    plot1 = false;
-    plot2 = false;
-    if (midRes - lowRes > 2)
-      bFactorFIT1 = fit(shellsFreq(lowRes:midRes,1).^2 , ...
-                      log(shellsPOWER(lowRes:midRes,1)),'poly1');
-      plot1= true;
-    end
-    if (endRes-midRes > 2)   
-      bFactorFIT2 = fit(shellsFreq(midRes:endRes,1).^2 , ...
-                      log(shellsPOWER(midRes:endRes,1)),'poly1'); 
-      plot2 = true;
-    end                
+  % % try
+  %   fitPower = fit(shellsFreq(:,1).^2,log(shellsPOWER(:,1)),'cubicSpline');
+  %   LR = 10;
+  %   MR = 7;
+  %   HR = min((1.05*fgold).^2, shellsFreq(end-1,1).^2);
+  %   if isempty(HR)
+  %     HR = lowCut1;
+  %   end
+  %   lowRes = find(shellsFreq(:,1).^2 > (1/LR)^2, 1,'first');
+  %   midRes = find(shellsFreq(:,1).^2 > (1/MR)^2, 1,'first');
+  %   endRes = find(shellsFreq(:,1).^2 > HR, 1,'first');
+  %   plot1 = false;
+  %   plot2 = false;
+  %   if (midRes - lowRes > 2)
+  %     bFactorFIT1 = fit(shellsFreq(lowRes:midRes,1).^2 , ...
+  %                     log(shellsPOWER(lowRes:midRes,1)),'poly1');
+  %     plot1= true;
+  %   end
+  %   if (endRes-midRes > 2)   
+  %     bFactorFIT2 = fit(shellsFreq(midRes:endRes,1).^2 , ...
+  %                     log(shellsPOWER(midRes:endRes,1)),'poly1'); 
+  %     plot2 = true;
+  %   end                
 
-    figure('Visible','off'), plot(osX.^2,fitPower(osX.^2),'k'); hold on;
-    if (plot1)
-        plot(osX.^2,bFactorFIT1(osX.^2),'b--');
-    else
-      bFactorFIT1 = struct()
-      bFactorFIT1.('p1') = 0;
-    end
-    if (plot2)
-                             plot(osX.^2,bFactorFIT2(osX.^2),'b--'); 
-    else
-      bFactorFIT2 = struct()
-      bFactorFIT2.('p1') = 0;
-    end
-                             line([(1/LR)^2,(1/LR)^2], ...
-                                  [min(log(shellsPOWER(:,1))), ...
-                                   max(log(shellsPOWER(:,1)))], ...
-                                  'Color','k','LineStyle','--'); 
-                             line([(1/MR)^2,(1/MR)^2], ...
-                                  [min(log(shellsPOWER(:,1))), ...
-                                   max(log(shellsPOWER(:,1)))], ...
-                                  'Color','k','LineStyle','--');                            
-                             line([HR,HR], ...
-                                  [min(log(shellsPOWER(:,1))), ...
-                                   max(log(shellsPOWER(:,1)))], ...
-                                  'Color','k','LineStyle','--');
-  %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--');
-              %   outCurve(:,1).^2,outCurve(:,8),'g');
+  %   figure('Visible','off'), plot(osX.^2,fitPower(osX.^2),'k'); hold on;
+  %   if (plot1)
+  %       plot(osX.^2,bFactorFIT1(osX.^2),'b--');
+  %   else
+  %     bFactorFIT1 = struct()
+  %     bFactorFIT1.('p1') = 0;
+  %   end
+  %   if (plot2)
+  %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--'); 
+  %   else
+  %     bFactorFIT2 = struct()
+  %     bFactorFIT2.('p1') = 0;
+  %   end
+  %                            line([(1/LR)^2,(1/LR)^2], ...
+  %                                 [min(log(shellsPOWER(:,1))), ...
+  %                                  max(log(shellsPOWER(:,1)))], ...
+  %                                 'Color','k','LineStyle','--'); 
+  %                            line([(1/MR)^2,(1/MR)^2], ...
+  %                                 [min(log(shellsPOWER(:,1))), ...
+  %                                  max(log(shellsPOWER(:,1)))], ...
+  %                                 'Color','k','LineStyle','--');                            
+  %                            line([HR,HR], ...
+  %                                 [min(log(shellsPOWER(:,1))), ...
+  %                                  max(log(shellsPOWER(:,1)))], ...
+  %                                 'Color','k','LineStyle','--');
+  % %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--');
+  %             %   outCurve(:,1).^2,outCurve(:,8),'g');
 
-             title({'Guinier Plot',sprintf('\nbFactor(%2.1f-%2.1f-%2.1f)\n %d,%d', ...
-                                   LR,MR,sqrt(1./HR),round(bFactorFIT1.p1*-4),...
-                                   round(bFactorFIT2.p1*-4))}); ...
-                                   xlabel('1/Ang^2'),...                               
-                                   ylabel('log(F)');
-                                   ylim([0.95*min(log(shellsPOWER(:,1))),...
-                                         1.05*max(log(shellsPOWER(:,1)))])
+  %            title({'Guinier Plot',sprintf('\nbFactor(%2.1f-%2.1f-%2.1f)\n %d,%d', ...
+  %                                  LR,MR,sqrt(1./HR),round(bFactorFIT1.p1*-4),...
+  %                                  round(bFactorFIT2.p1*-4))}); ...
+  %                                  xlabel('1/Ang^2'),...                               
+  %                                  ylabel('log(F)');
+  %                                  ylim([0.95*min(log(shellsPOWER(:,1))),...
+  %                                        1.05*max(log(shellsPOWER(:,1)))])
 
-             legend('uncorrected','corrected','Location','northeast',...
-                    'Orientation', 'vertical');
-    file_out = sprintf('%s-%d-guinier_%s', outputPrefix, iRef, halfSet);
-    savefig(gcf,file_out);
-    saveas(gcf, file_out,'pdf') 
+  %            legend('uncorrected','corrected','Location','northeast',...
+  %                   'Orientation', 'vertical');
+  %   file_out = sprintf('%s-%d-guinier_%s', outputPrefix, iRef, halfSet);
+  %   savefig(gcf,file_out);
+  %   saveas(gcf, file_out,'pdf') 
   % catch
   %   fprintf('\nRan into some error in the guinier analysis.\n');
   %   fprintf('\nSince this is not critical, skipping and continue.\n');

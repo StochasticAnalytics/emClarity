@@ -180,7 +180,6 @@ function [ fsc3D, weights ] = calc_anisoFSC(fscParams, radialGrid, weights, bFac
   inc = 0.5 / (bin*pixelSize);
 
   for iCone = firstCone:nCones
-    iCone
 
     iFSCfit = csape(fscParams{1}(:,1),fscParams{2}(:,iCone+1),'variational');
 

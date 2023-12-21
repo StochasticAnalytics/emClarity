@@ -1,5 +1,5 @@
 function [ SF3D ] = BH_weightMaskMex(SIZE, SAMPLING, TLT, ...
-                                     xyzSubTomo,reconGeometry)
+                                     xyzSubTomo,reconGeometry, wiener_constant)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -48,7 +48,8 @@ fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
                 gather(single(iDefocus + iddF)), ...
                 gather(single(iDefocus - iddF)), ...
                 idPHI,iPhaseShift,nTilts,tiltAngles, ...
-                exposure,fractionOfElastics.*fractionOfDose,int16(1));
+                exposure,fractionOfElastics.*fractionOfDose,int16(1), ...
+                gather(single(wiener_constant)));
 
 
 % SF3D = SF3D ./ (WGT+0.01);

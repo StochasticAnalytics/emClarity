@@ -6,6 +6,7 @@ classdef fourierTransformer < handle
 
     bandpass; % for now create one internally and just chop off half.
     inputSize = '';
+    phaseSwapOffset = '';
     is2d;
     halfDim;
     halfDimSize;
@@ -56,6 +57,8 @@ classdef fourierTransformer < handle
       obj.inputSize = size(inputVol);
       obj.halfDim = 1;
       obj.halfDimSize = floor(obj.inputSize(1)/2)+1;
+
+      obj.phaseSwapOffset = mod(obj.inputSize,2);
       
 
       
@@ -153,6 +156,7 @@ classdef fourierTransformer < handle
 
       [ ft ] = mexFFT(inputVol,obj.invTrim,obj.plan_FWD, obj.plan_INV);
       
+      % For some reason calling this is OUTRAGEOUSLY slow, add option to jsut pass it in to the mexFFT
       if (doNorm)
         ft = ft .* (obj.normalization_factor^doNorm);
       end
@@ -195,29 +199,32 @@ classdef fourierTransformer < handle
     
     function [inputVol] = swapPhase(obj, inputVol, direction)
       
+
       % Create the phase swap indices if needed
       if isempty(obj.phaseCenter) 
         if obj.is2d
           [ obj.phaseCenter, dV ] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
                                     {'none'},1,0,0,{'halfgrid'});
           if (obj.inputSize(1) == obj.inputSize(2))
-            obj.phaseCenter = exp(-2i.*pi.*(obj.halfDimSize-obj.OddSizeOversampled).*(obj.phaseCenter+dV));
+            sx = obj.halfDimSize-1+obj.phaseSwapOffset(1);
+            obj.phaseCenter = exp(-2i.*pi.*sx.*(obj.phaseCenter+dV));
             clear dU dV
           else
-            hX = floor(obj.inputSize(1)/2) + 1;
-            hY = floor(obj.inputSize(2)/2) + 1;
+            hX = floor(obj.inputSize(1)/2) + obj.phaseSwapOffset(1);
+            hY = floor(obj.inputSize(2)/2) + obj.phaseSwapOffset(2);
             obj.phaseCenter = exp(-2i.*pi.*(hX.*obj.phaseCenter+hY.*dV));
           end
         else
           [ obj.phaseCenter, dV, dW] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
                                     {'none'},1,0,0,{'halfgrid'});
-          if (obj.inputSize(1) == obj.inputSize(2) == obj.inputSize(3))
-            obj.phaseCenter = exp(-2i.*pi.*(obj.halfDimSize-obj.OddSizeOversampled).*(obj.phaseCenter+dV+dW));
+          if ((obj.inputSize(1) == obj.inputSize(2)) && (obj.inputSize(2) == obj.inputSize(3)))
+            sx = obj.halfDimSize-1+obj.OddSizeOversampled;
+            obj.phaseCenter = exp(-2i.*pi.*sx.*(obj.phaseCenter+dV+dW));
             clear dU dV dW        
           else
-            hX = floor(obj.inputSize(1)/2);% + 1;
-            hY = floor(obj.inputSize(2)/2);% + 1;
-            hZ = floor(obj.inputSize(3)/2);% + 1;
+            hX = floor(obj.inputSize(1)/2) + obj.phaseSwapOffset(1);
+            hY = floor(obj.inputSize(2)/2) + obj.phaseSwapOffset(2);
+            hZ = floor(obj.inputSize(3)/2) + obj.phaseSwapOffset(3);
             obj.phaseCenter = exp(-2i.*pi.*(hX.*obj.phaseCenter+hY.*dV+hZ.*dW));
             clear dU dV dW
           end

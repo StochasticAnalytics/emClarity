@@ -3,6 +3,9 @@ function [ ctfMask, Hqz] = BH_ctfCalc(PixelSize, Cs, Lamda, Defocus, ...
 % Calculate a ctf and with the given modification to information at resolution
 % lower than the first peak. Also return the unmodified ctf.
 
+% FIXME: I think the need for double was for overflow in the phase
+% we use single in cisTEM, so it must just be  scaling issue. Or better yet, switch over to mexCTF
+
 precision = 'single';
 flgComplex = 0;
 calcOneD = 0;
