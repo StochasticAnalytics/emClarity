@@ -45,7 +45,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=7
 bugs=0
-nightly=14
+nightly=15
 
 binaryOutName="${major}_${minor}_${bugs}_${nightly}"
 scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"
@@ -77,7 +77,8 @@ else
   mexCompile=""
 fi
 
-${MATLAB_FOR_COMPILING} -nosplash -nodisplay -nojvm -r " ${mexCompile} mcc -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+# NOTE: warnings are disabled to ensure that failed builds are caught. Ideally they would be addressed and removed.
+${MATLAB_FOR_COMPILING} -nosplash -nodisplay -nojvm -r " ${mexCompile} mcc -w disable -w off -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
           
 wait
 

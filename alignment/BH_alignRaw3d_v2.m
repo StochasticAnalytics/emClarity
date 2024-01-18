@@ -161,6 +161,7 @@ catch
   flgCenterRefCOM = 1;
 end
 
+% FIXME: unused, fix experimental options option
 try
   flgSymmetrizeSubTomos = pBH.('flgSymmetrizeSubTomos');
 catch 
@@ -284,7 +285,7 @@ end
 % make sure the number of references match the unique groups in the classVector
 % and also that the class/group pairs match the class/ref pairs.
 nReferences(1:2) = [length(unique(refGroup{1})),length(unique(refGroup{1}))];
-nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})]
+nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})]''
 
 
 nRefOut(1:2) = [length(unique(refGroup{1})) + sum(( refSym{1} < 0 )),...

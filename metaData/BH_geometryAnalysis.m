@@ -260,20 +260,14 @@ switch OPERATION
                masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
 
       
-      try
-        newTLT = sprintf('fixedStacks/ctf/%s_ali%d_ctf_refine.tlt', ...
-                                                    STACK_PRFX,mapBackIter+1);
 
-	geometry.(tomoList{iTomo}) = load(newTLT);
-        fprintf('Updating refined TLT %s\n', newTLT);
-      catch  
-        newTLT = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt', ...
-                                                    STACK_PRFX,mapBackIter+1); 
- 
-      
-        geometry.(tomoList{iTomo}) = load(newTLT);
-        fprintf('Updating TLT %s\n', newTLT);
-      end
+      newTLT = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt', ...
+                                                  STACK_PRFX,mapBackIter+1); 
+
+    
+      geometry.(tomoList{iTomo}) = load(newTLT);
+      fprintf('Updating TLT %s\n', newTLT);
+     
 
       clear newTLT STACK_PRFX
     end

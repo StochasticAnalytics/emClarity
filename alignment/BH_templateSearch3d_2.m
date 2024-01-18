@@ -22,7 +22,7 @@ end
 
 tomoNumber = EMC_str2double(tomoNumber);
 
-[ useGPU ] = BH_multi_checkGPU( gpuIDX )
+[ useGPU ] = BH_multi_checkGPU( gpuIDX );
 
 
 

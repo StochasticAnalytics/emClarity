@@ -90,13 +90,7 @@ catch
   end
 end
 
-% If true, then parameters will be adjusted to make this initial estimate
-% faster, since it is less critical to be exact.
-try
-  do_ctf_refine = pBH.('skip_ctf_refine');
-catch
-  do_ctf_refine = true;
-end
+
 
 PIXEL_SIZE = pBH.('PIXEL_SIZE');
 Cs = pBH.('Cs');
@@ -183,11 +177,7 @@ backGroundBuffer = 0.9985;
 try
   deltaZTolerance = pBH.('deltaZTolerance');
 catch
-  if (do_ctf_refine)
-    deltaZTolerance = 50e-9;
-  else
-    deltaZTolerance = 100e-9;
-  end 
+  deltaZTolerance = 100e-9;
 end
 
 try 
@@ -203,11 +193,9 @@ end
 try
   maxNumberOfTiles = pBH.('ctfMaxNumberOfTiles');
 catch
-  if (do_ctf_refine)
-    maxNumberOfTiles = 4000;
-  else
-    maxNumberOfTiles = 10000;
-  end
+
+  maxNumberOfTiles = 10000;
+  
 end
 
 % Starting at +/- 100nm
@@ -783,16 +771,10 @@ end
 for iTilt = 1:3
 
   if (skipFitting)
-        currentDefocusEst = defEST;
-
+    currentDefocusEst = defEST;
 
     % Add the determined defocus, and write out with mic paramters as well.
     TLT(:,15) = repmat(-1.*defEST,size(TLT,1),1);
-%    if (flgAstigmatism) && (refineCCC(c,3)~=-9999)
-%      TLT(:,12) = repmat(gather(refineCCC(c,2)),size(TLT,1),1);
-%      TLT(:,13) = repmat(gather(refineCCC(c,1)),size(TLT,1),1);
-%    end
-    
 
     [~, idx] = sortrows(abs(TLT(:,4)), -1);
     TLT = TLT(idx,:);
@@ -809,16 +791,11 @@ for iTilt = 1:3
   end
 
   radialAvg = [rotAvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
-%   radialPS = [AvgPowerSpec((paddedSize/2)+1:end,(paddedSize/2)+1,iTilt)]';
 
 
   defRange = [currentDefocusEst-currentDefocusWin,currentDefocusEst+currentDefocusWin];
 
-% % %   if defRange(2) > -0.05
-% % %     fprintf('\n\nCapping defocus to 50nm from wanted %f. Do you mean to search so close to focus??\n\n',abs(defRange(2)));
-% % %     defRange(2) = -0.05;
-% % %   end
- defInc   = [0.01];
+  defInc   = 0.01;
 
   defVal = (defRange(1):defInc:defRange(2))';
 
@@ -829,7 +806,6 @@ for iTilt = 1:3
     DF = iDF*10^-6;
 
     % TODO add a global switch for the damping
-%     [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
 
     if (PIXEL_SIZE < 1*10^-10)
       [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0,-1);
@@ -854,7 +830,7 @@ for iTilt = 1:3
   end
 
   [~,maxVal] = max(cccStorage(:,2));
-  maxDef = cccStorage(maxVal,1)
+  maxDef = cccStorage(maxVal,1);
 
   if (iTilt == 1)
       % Only save for the "true" defocus at the tilt-axes
@@ -884,14 +860,9 @@ for iTilt = 1:3
   end
 
 
-  % [ diagnosticIMG ] = make_diagnosticIMG( Hqz, pixelOUT, bandpass, bg, {rotAvgPowerSpec});
-  % 
-  % SAVE_IMG(MRCImage(diagnosticIMG), ...
-  %                        sprintf('%s/ctf/%s_diag%s',pathName,fileName,extension));
+    clear STACK exposureFilter 
 
-                       clear STACK exposureFilter 
-
-    pdfOUT = sprintf('%s/ctf/%s_psRadial_%d.pdf',pathName,stackNameOUT,iTilt)
+    pdfOUT = sprintf('%s/ctf/%s_psRadial_%d.pdf',pathName,stackNameOUT,iTilt);
 
 
     bgSubPS = (abs(radialAvg) - bg(freqVector)').*bandpass;
@@ -955,20 +926,14 @@ for iTilt = 1:3
                                   [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0);    
     end
 
-  %         [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff ,...
-  %                                              freqVector, radialPS, radialAstig); 
 
-
-          [ iCCC ] = calc_CCC( radialAstig, bgSubPS, bandpass, AvgPowerSpec, Hqz, cccScale)                                            
-
-
+          [ iCCC ] = calc_CCC( radialAstig, bgSubPS, bandpass, AvgPowerSpec, Hqz, cccScale);                                          
 
           initAstigCCC(n,:) = [iAng,iDelDF*astigStep,iCCC]; 
           n = n + 1;                 
           fprintf('%d / %d coarse astigmatism search\n',n,size(initAstigCCC,1));
         end
       end
-
 
       nPeaks = 1;
       top3 = zeros(nPeaks,3,'gpuArray');
@@ -978,8 +943,6 @@ for iTilt = 1:3
         top3(iCCC,:) = initAstigCCC(c,:);
         initAstigCCC = initAstigCCC(initAstigCCC(:,1)~=initAstigCCC(c,1),:);
       end
-
-      top3
 
       refineCCC = zeros(length(fineDefSearch)*length(fineAngSearch)*nPeaks,3,'gpuArray');
 
@@ -998,23 +961,23 @@ for iTilt = 1:3
             % values |df1| < |df2| which is against convention.
             if abs(df1) >= abs(df2)
 
-    if (PIXEL_SIZE < 1*10^-10)
+              if (PIXEL_SIZE < 1*10^-10)
 
-              [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-                                  [df1,df2,iAng+mAng], ...
-                                  size(radialForCTF{1}), -AMPCONT,-1.0,-1);
-    else
-              [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-                                  [df1,df2,iAng+mAng], ...
-                                  size(radialForCTF{1}), -AMPCONT,-1.0);      
-    end
+                        [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                                            [df1,df2,iAng+mAng], ...
+                                            size(radialForCTF{1}), -AMPCONT,-1.0,-1);
+              else
+                        [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                                            [df1,df2,iAng+mAng], ...
+                                            size(radialForCTF{1}), -AMPCONT,-1.0);      
+              end
 
 
               [ iCCC ] = calc_CCC( radialAstig,bgSubPS, bandpass, ...
-                                   AvgPowerSpec, Hqz,cccScale )   
+                                   AvgPowerSpec, Hqz,cccScale );  
 
             else
-              iCCC = -9999
+              iCCC = -9999;
             end
 
             refineCCC(n,:) = [iAng+mAng,mDef + iDelDF,iCCC]; 
@@ -1106,11 +1069,8 @@ else
     
 end % end flgSkip
 
-if (do_ctf_refine)
  % TODO should I restart the parallel pool
  BH_ctf_Refine2(varargin{1},varargin{2});
- 
-end
 
 
 end % end of ctf estimate function

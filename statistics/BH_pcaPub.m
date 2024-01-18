@@ -83,6 +83,15 @@ if (nargin ~= 3)
 %  error('PARAMETER_FILE, CYCLE, PREVIOUS_PCA')
 end
 
+
+% FIXME:
+% To test seeding the classification with existing classes, rather than always reverting to the global average,
+% use the mechanism in place to handle  multiple references at different length scales derived from the global average,
+% to instead be used for multiple distinct classes. If the results are promising, then expand so each ref may also be
+% looked at over its own scale space.
+test_multi_ref_diffmap = true;
+test_scale_space_bug_fix = false;
+
 startTime =  clock;
 
 CYCLE = EMC_str2double(CYCLE);
@@ -144,6 +153,13 @@ randomSubset   = pBH.('Pca_randSubset');
 maxEigs        = pBH.('Pca_maxEigs');
 pixelSize = pBH.('PIXEL_SIZE').*10^10.*samplingRate;
 refPixelSize = pBH.('PIXEL_SIZE').*10^10.*refSamplingRate;
+
+% FIMXE: Probably remove this incomplete idea
+if (refSamplingRate ~= samplingRate)
+  error('refSamplingRate ~= samplingRate')
+end
+
+% FIXME: SuperResolution should be deprecated
 if pBH.('SuperResolution')
   pixelSize = pixelSize * 2;
   refPixelSize = refPixelSize * 2;
@@ -243,13 +259,20 @@ catch
   flgMultiRefAlignment = 0;
 end
 
+if (test_multi_ref_diffmap && ~flgMultiRefAlignment)
+  test_multi_ref_diffmap = false;
+  fprintf("WARNING: test_multi_ref_diffmap is incompatible with ~flgMultiRefAlignment, disabling\n");
+end
+
 geom_name=''
 if (flgMultiRefAlignment )
-  geom_name='ClusterClsGeom';
+    geom_name='ClusterClsGeom';
+
 else
   geom_name='Avg_geometry';
 end
 geometry = subTomoMeta.(cycleNumber).(geom_name);
+
 
 
 try
@@ -298,8 +321,11 @@ cpuVols = struct;
                  BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
 
 
-refName = 0;
-averageMotif = cell(2,1);
+if (test_multi_ref_diffmap) 
+  refName = pBH.('Raw_className');
+else
+  refName = 0;
+end
 
 % If flgClassify is negative combine the data for clustering, but don't set
 % any of the alignment changes to be persistant so that extracted class
@@ -313,6 +339,7 @@ else
     oddRot = reshape(aliParams(1,:),3,3)';
     % refine the translation per particle.
   catch
+    error('This block sshould not be reached.');
     fprintf('\nReverting from %s to Raw in loading fitFSC\n','REF');
     aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev))
     oddRot = reshape(aliParams(1,:),3,3)';
@@ -321,44 +348,67 @@ else
   clear iRefPrev
 end
 
-    
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Added for test_multi_ref_diffmap %%
+refVector = cell(2,1);
+refGroup = cell(2,1);
+classVector{1}  = pBH.('Raw_classes_odd')(1,:);
+classVector{2}  = pBH.('Raw_classes_eve')(1,:);
+refVectorFull{1}= [pBH.('Raw_classes_odd');classVector{1} ]
+refVectorFull{2}= [pBH.('Raw_classes_eve');classVector{2} ]
+for iGold = 1:2
+  % Sort low to high, because order is rearranged as such unstack
+  refVectorFull{iGold} = sortrows(refVectorFull{iGold}', 1)';
+  % class id corresponding to membership in ???_refName
+  refVector{iGold} = refVectorFull{iGold}(1,:)
+  % reference id, so multiple classes can be merged into one
+  refGroup{iGold}  = refVectorFull{iGold}(3,:)
+end
+
+
+% make sure the number of references match the unique groups in the classVector
+% and also that the class/group pairs match the class/ref pairs.
+nReferences(1:2) = [length(unique(refGroup{1})),length(unique(refGroup{1}))];
+nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})];
+
+averageMotif = cell(2,1);
+
+if (test_multi_ref_diffmap)
+  fprintf('nScaleSpace = %d\n',nScaleSpace);
+  fprintf('nReferences = %d\n',nReferences);
+  nScaleSpace = nReferences(1);
+  pause(3);
+else
+  nReferences = [1,1];  
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for iGold = 1:2
   
-%   if (flgGold)
-    if iGold == 1;
-      halfSet = 'ODD';
-    else
-      halfSet = 'EVE';
-    end
-%   else
-%     halfSet = 'STD';
-%   end
-
-  try
+  if iGold == 1;
+    halfSet = 'ODD';
+  else
+    halfSet = 'EVE';
+  end
 
 
-        imgNAME = sprintf('class_%d_Locations_Raw_%s', refName, halfSet);
+
+
+    imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
  
 
-      [ averageMotif{iGold} ] = BH_unStackMontage4d(1, ...
-                                   masterTM.(cycleNumber).(imgNAME){1}, ...
-                                   masterTM.(cycleNumber).(imgNAME){2},...
-                                   preSizeMask);
-
-  catch
-
-        imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
- 
-
-      [ averageMotif{iGold} ] = BH_unStackMontage4d(1, ...
+    [ averageMotif{iGold} ] = BH_unStackMontage4d(1:nReferences(iGold), ...
                                    masterTM.(cycleNumber).(imgNAME){1}, ...
                                    masterTM.(cycleNumber).(imgNAME){2},...
                                    preSizeMask);
     
+
+
+  if ~(test_multi_ref_diffmap)
+    averageMotif{iGold} = averageMotif{iGold}{1};
   end
-  
-  averageMotif{iGold} = averageMotif{iGold}{1};
-  masterTM.(cycleNumber).(imgNAME){1}
   if (flgLoadMask) && (iGold == 1)
     fprintf('\n\nLoading external mask\n');
     externalMask = getVolume(MRCImage(sprintf('%s-pcaMask',masterTM.(cycleNumber).(imgNAME){1})));
@@ -367,13 +417,19 @@ end
 
 % IF combining for analysis, resample prior to any possible binning.
 if ~(flgGold)
-  averageMotif{1} = averageMotif{2} + ...
-                    BH_resample3d(gather(averageMotif{1}), ...
-                                         oddRot, ...
-                                         aliParams(2,1:3), ...
-                                         {'Bah',1,'spline'}, 'cpu', ...
-                                         'forward');
-  averageMotif{2} = [];
+  if (nReferences(1) ~= nReferences(2))
+    error('When combining half sets, the number of references must match')
+  end
+  size(averageMotif)
+  for iRef = 1:nReferences(1)
+    averageMotif{1}{iRef} = averageMotif{2}{iRef} + ...
+                      BH_resample3d(gather(averageMotif{1}{iRef}), ...
+                                          oddRot, ...
+                                          aliParams(2,1:3), ...
+                                          {'Bah',1,'spline'}, 'cpu', ...
+                                          'forward');
+    averageMotif{2}{iRef} = [];
+  end
 end
   
 %%% incomplete, the idea is to generate an antialiased scaled volume for PCA
@@ -457,6 +513,10 @@ else
   end
 
   if ( flgPcaShapeMask )
+    % For testing we won't handle this block
+    if (test_multi_ref_diffmap)
+      error('test_multi_ref_diffmap is incompatible with flgPcaShapeMask')
+    end
       % when combining the addition is harmless, but is a convenient way to
       % include when sets are left 100% separate.
   %       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '',''); 
@@ -466,6 +526,10 @@ else
   end
   
   if (flgLoadMask)
+    % For testing we won't handle this block
+    if (test_multi_ref_diffmap)
+      error('test_multi_ref_diffmap is incompatible with flgLoadMask')
+    end
     volumeMask = volumeMask .* externalMask;
   end
   
@@ -479,6 +543,9 @@ for iScale = 1:nScaleSpace
     stHALF = sprintf('h%d',iGold);
     stSCALE = sprintf('s%d',iScale);
     if (flgVarianceMap)
+      if (test_multi_ref_diffmap)
+        error('test_multi_ref_diffmap is incompatible with flgVarianceMap')
+      end
       volTMP = gather(volumeMask.*prevVarianceMaps.(stHALF).(stSCALE));
     else 
       volTMP = gather(volumeMask);
@@ -490,9 +557,6 @@ for iScale = 1:nScaleSpace
                                   masks.('binary').(stHALF).(stSCALE)(:);
     masks.('binaryApply').(stHALF).(stSCALE)  = (volTMP >= 0.01);
 
-% % % volBinaryMask = (volMask >= 0.5);
-% % % volBinaryApply = (volMask >= 0.01);
-% % % volBinaryMask = (volBinaryMask(:));
     nPixels(iGold,iScale) = gather(sum(masks.('binary').(stHALF).(stSCALE)));
     clear volTMP stHALF stSCALE
   end
@@ -507,69 +571,52 @@ clear volumeMask
 threeSigma = 1/3 .* (pcaScaleSpace ./ pixelSize)
 for iScale = 1:nScaleSpace
 
-%     if (test_updated_bandpass)
-%       % Filter with low res info constant to 100 Ang, but only a tight band
-%       % around the desired resolution.
-%       lowResInfo = BH_bandpass3d(sizeMask,1e-6,400,100,'GPU',pixelSize) + ...
-%                    BH_bandpass3d(sizeMask,1e-15,pcaScaleSpace(iScale),pcaScaleSpace(iScale),'GPU',pixelSize);
-%       masks.('scaleMask').(sprintf('s%d',iScale)) = gather(lowResInfo ./ max(lowResInfo(:)));
-%     else
-%       
-%     
-%      masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-%                              gather(BH_bandpass3d( sizeMask, 10^-6, 400, ...
-%                                    pcaScaleSpace(iScale).*0.9, 'GPU', pixelSize ));
-%     end
-
-%    masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-%                            gather(BH_bandpass3d( sizeMask, 0.1, 400, ...
-%                                  2.25.*pixelSize, 'GPU', pixelSize )) .* ...
-%                            fftn(BH_multi_gaussian3d( ...
-%                                                 sizeMask, -1.*stdDev(iScale)));
-
-%     masks.('scaleMask').(sprintf('s%d',iScale)) = ...
-%                             fftn(ifftshift(BH_multi_gaussian3d(sizeMask, 1.*stdDev(iScale))));
-
-    kernelSize = ceil(threeSigma(iScale)) + 3;
-    kernelSize = kernelSize + (1-mod(kernelSize,2));
+  kernelSize = ceil(threeSigma(iScale)) + 3;
+  kernelSize = kernelSize + (1-mod(kernelSize,2));
   masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
   
   masks.('scaleMask').(sprintf('s%d',iScale))
+
 end
+
 avgMotif_FT = cell(1+flgGold,nScaleSpace);
 avgFiltered = cell(1+flgGold,nScaleSpace);
 % Here always read in both, combine if flgGold = 0
 for iGold = 1:1+flgGold
   for iScale = 1:nScaleSpace
-    % Should I set these as double? Prob
-    iGold
 
-% % %     avgMotif_FT{iGold, iScale} = fftn(averageMotif{iGold}.*...
-% % %                                       masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))) .* ...
-% % %                                       masks.('scaleMask').(sprintf('s%d',iScale)) ;
-            
-% % % % %               masks.('scaleMask')
-% % % % %               masks.('binaryApply').(sprintf('h%d',iGold))
-% % % % %               masks.('volMask').(sprintf('h%d',iGold))
+    if (test_multi_ref_diffmap)
+      tmp_avg = averageMotif{iGold}{iScale};
+    else
+      tmp_avg = averageMotif{iGold};
+    end
 
-    averageMotif{iGold} = averageMotif{iGold} - mean(averageMotif{iGold}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
-    averageMotif{iGold} = averageMotif{iGold} ./ rms(averageMotif{iGold}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
-    averageMotif{iGold} = averageMotif{iGold} .* masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale));
-    averageMotif{iGold} = EMC_convn(single(gpuArray(averageMotif{iGold})) , single(gpuArray(masks.('scaleMask').(sprintf('s%d',iScale))) ));
 
+    tmp_avg = tmp_avg - mean(tmp_avg(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
+    tmp_avg = tmp_avg ./ rms(tmp_avg(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
+    tmp_avg = tmp_avg .* masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale));
+    % FIXME: ideally we would do both, but for testing I am stealing scaleSpace for iRef
+    if ~(test_multi_ref_diffmap)
+      tmp_avg = EMC_convn(single(gpuArray(tmp_avg)) , single(gpuArray(masks.('scaleMask').(sprintf('s%d',iScale))) ));
+    end
     avgMotif_FT{iGold, iScale} = ...
-                            BH_bandLimitCenterNormalize(averageMotif{iGold},...
+                            BH_bandLimitCenterNormalize(tmp_avg,...
                              BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize), ...           
                             masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
                                                         [0,0,0;0,0,0],'single');
-
-% % %       avgMotif_FT{iGold, iScale} = (real(ifftn( avgMotif_FT{iGold, iScale})));
-      avgFiltered{iGold, iScale} = real(ifftn(avgMotif_FT{iGold, iScale}));
+    % This reproduces the orginal behavior, which wrote over averageMotif. This is a bug, but who knows, it may be beneficial, so lets for now make it optional.
+    if (test_scale_space_bug_fix)
+      if (test_multi_ref_diffmap)
+        averageMotif{iGold}{iScale} = tmp_avg;
+      else
+        averageMotif{iGold} = tmp_avg;
+      end
+    end
+    avgFiltered{iGold, iScale} = real(ifftn(avgMotif_FT{iGold, iScale}));
 
     avgFiltered{iGold, iScale} = avgFiltered{iGold, iScale} - mean(avgFiltered{iGold, iScale}(masks.('binary').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     avgFiltered{iGold, iScale} = gather(avgFiltered{iGold, iScale} ./rms(avgFiltered{iGold, iScale}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)))) .* ...
                                                                                                     masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)));
-% % %     cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold,iScale)) = gather(avgMotif_FT{iGold, iScale});
   end
 end
 
@@ -578,6 +625,8 @@ end
 montOUT = BH_montage4d(avgFiltered(1,:),'');
 SAVE_IMG(MRCImage(montOUT), sprintf('test_filt.mrc'),pixelSize);
 clear montOUT
+
+
 
 % If randomSubset is string with a previous matfile use this, without any 
 % decomposition. 
@@ -700,7 +749,7 @@ for iGold = 1:1+flgGold
         
     tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
 
-    sprintf('Working on %d/%d volumes %s\n',iTomo,nTomograms,tomoName)
+    fprintf('Working on %d/%d volumes %s\n',iTomo,nTomograms,tomoName);
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry.(tomoList{iTomo});
     
@@ -775,7 +824,6 @@ for iGold = 1:1+flgGold
       
         if (use_v2_SF3D && make_sf3d)
           make_sf3d = false;
-          fprintf('calculating SF3D %d \n',iSubTomo);
           radialGrid = '';
           padWdg = [0,0,0;0,0,0];
           [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
@@ -906,7 +954,7 @@ for iGold = 1:1+flgGold
         if (keepTomo)
           idxList(1, nExtracted) = particleIDX;
           peakList(1,nExtracted) = iPeak+1; % This probably is not necessary - it should be 1:nPEaks,1:nPeaks,1:nPeaks...
-          nExtracted = nExtracted +1;
+          nExtracted = nExtracted + 1;
           nTemp = nTemp + 1;
 
           % pull data of the gpu every 1000 particls (adjust this to max mem)
@@ -921,12 +969,14 @@ for iGold = 1:1+flgGold
           end
         else
           nIgnored = nIgnored + 1;
+          fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
           masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
         end
 
 
       else
         nIgnored = nIgnored + 1;
+        fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
         masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
 
       end % end of ignore new particles
@@ -996,6 +1046,9 @@ for iGold = 1:1+flgGold
     oldPca = load(previousPCA);
     U = oldPca.U;
     clear oldPca;
+    sDiag = cell(nScaleSpace,1);
+    coeffs = cell(nScaleSpace,1);
+
     for iScale = 1:nScaleSpace
       % Sanity checks on the dimensionality
       numEigs = size(U{iScale}, 2);

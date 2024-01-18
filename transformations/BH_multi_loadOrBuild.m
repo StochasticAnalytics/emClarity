@@ -174,17 +174,17 @@ else
   failedLoads = 0;
   while failedLoads < 6
     try
-      fprintf('pwd is %s\n', pwd);
-      fprintf(...
-         'attempting to load %s\n', recon);
+      % fprintf('pwd is %s\n', pwd);
+      % fprintf(...
+        %  'attempting to load %s\n', recon);
       m = MRCImage(sprintf('%s', recon),0);
-      fprintf('Loaded the MRCImage\n');
+      % fprintf('Loaded the MRCImage\n');
       if ( flgLoad )
         IMG_OUT = single(getVolume(m));
-        fprintf('Loaded the volume\n');
+        % fprintf('Loaded the volume\n');
       else
         IMG_OUT = m;
-        fprintf('Did not load the full Volume\n');
+        % fprintf('Did not load the full Volume\n');
       end
       failedLoads = 6;
     catch

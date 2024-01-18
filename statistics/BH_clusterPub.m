@@ -49,6 +49,8 @@ cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 pBH = BH_parseParameterFile(PARAMETER_FILE);
 
+test_multi_ref_diffmap=true;
+
 flgClassify = pBH.('flgClassify');
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
@@ -143,7 +145,7 @@ end
 
 geom_name=''
 if (flgMultiRefAlignment )
-  geom_name='ClusterClsGeom';
+    geom_name='ClusterClsGeom';
 else
   geom_name='Avg_geometry';
 end
@@ -215,7 +217,6 @@ for iGold = 1:1+flgGold
       peakList = [];
     end
     
-    numParticles = oldPca.nTOTAL;
     clear oldPca;
   catch 
     error('trouble loading the previous pcs mat file.')
@@ -447,7 +448,7 @@ for iGold = 1:1+flgGold
           geometry.(tomoList{iTomo}) = positionList;
           fprintf('Size iTomo %d %d\n',size(positionList));
         else
-          positionList(lIndPart, 26) = class(lIndClass);
+          positionList(lIndPart, 26) = class(lIndClass); % this is where it is breaking
           geometry.(tomoList{iTomo}) = positionList;
           
         end

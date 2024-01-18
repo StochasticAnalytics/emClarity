@@ -71,16 +71,10 @@ parfor iGPU = 1:nGPUs
 
     STACK_PRFX = ITER_LIST{iGPU}{iTilt};
 
-    try
-      % make sure there isn't a refined version first.
-      TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf_refine.tlt',STACK_PRFX,mapBackIter+1);
-      TLT = load(TLTNAME)
-      fprintf('using refined TLT %s\n', TLTNAME);
-    catch
-      TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',STACK_PRFX,mapBackIter+1);
-      TLT = load(TLTNAME);
-      fprintf('using TLT %s\n', TLTNAME);
-    end
+
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',STACK_PRFX,mapBackIter+1);
+    TLT = load(TLTNAME);
+    fprintf('using TLT %s\n', TLTNAME);
  
     inputStack = sprintf('aliStacks/%s_ali%d.fixed',STACK_PRFX,mapBackIter+1);
     outputStack = sprintf('ctfStacks/%s_ali%d_ctf.fixed',STACK_PRFX,mapBackIter+1);

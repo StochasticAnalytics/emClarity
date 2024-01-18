@@ -82,6 +82,9 @@ catch
 end
 
 
+% FIXME: hacking in a test
+test_fuzz=false;
+test_multi_ref_diffmap= true;
 
 % Explicit reference to location of variables in main memory, or on the GPU.
 cpu = struct();
@@ -293,13 +296,8 @@ saveClassSum = -1;
 switch STAGEofALIGNMENT
   case 'RawAlignment'
     
-    
-    if (flgClassify)
-      fieldPrefix = 'Raw'
-
-    else
-      fieldPrefix = 'REF'
-    end
+      fieldPrefix = 'REF';
+   
 
 
       classVector{1}  = pBH.(sprintf('%s_classes_odd','Raw'));
@@ -308,11 +306,13 @@ switch STAGEofALIGNMENT
       className    = pBH.(sprintf('%s_className','Raw'));
       samplingRate = pBH.('Ali_samplingRate'); 
       
-     if (flgMultiRefAlignment && ~flgClassify)
-       className    = pBH.(sprintf('Raw_className'))
-       saveClassSum = pBH.(sprintf('Raw_className'))
+
+     if (flgMultiRefAlignment && (test_multi_ref_diffmap || ~flgClassify))
+
+       className    = pBH.(sprintf('Raw_className'));
+       saveClassSum = pBH.(sprintf('Raw_className'));
      elseif (flgMultiRefAlignment && flgClassify)
-       fprintf('\n\nMutliRef and Classify enabled.\n');
+       fprintf('\n\nMutliRef and Classify enabled without test_multi_ref_diffmap.\n');
        fprintf('Only creating the global class average for PCA\n\n.');
        className = 0;
        saveClassSum = 0;
@@ -331,40 +331,19 @@ switch STAGEofALIGNMENT
     samplingRate = pBH.(sprintf('Cls_samplingRate'));
     classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
     className    = pBH.(sprintf('%s_className',fieldPrefix));
-
-  case 'NoAlignment'
-    % Special case for the first cycle
-    fieldPrefix = 'Raw';
-    
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
-
-    className    = pBH.(sprintf('%s_className',fieldPrefix));
-    samplingRate = pBH.('Ali_samplingRate');
-    if (flgClassify)
-     % samplingRate = pBH.('Pca_samplingRate');
-    else
-      %samplingRate = pBH.('Raw_samplingRate');
-      fieldPrefix = 'REF';
-    end
     
   case 'FinalAlignment'
     % Special case for the final cycle.
     % Assuming RawAlignment already run for this cycle and FSC is calculated
     % Goal is to re-extract odd-half, applying the xform found in fscGold
-    fieldPrefix = 'Raw'
+    fieldPrefix = 'REF'
    
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
+    classVector{1}  = pBH.(sprintf('%s_classes_odd','Raw'));
+    classVector{2}  = pBH.(sprintf('%s_classes_eve','Raw'));
     
-    className    = pBH.(sprintf('%s_className',fieldPrefix));
+    className    = pBH.(sprintf('%s_className','Raw'));
     samplingRate = pBH.('Ali_samplingRate');
-    if (flgClassify)
-      %samplingRate = pBH.('Pca_samplingRate');
-    else
-      %samplingRate = pBH.('Raw_samplingRate');
-      fieldPrefix = 'REF'
-    end
+
     
     flgFinalAvg = 1;
     % Update at some point to handle multiple classes, for now just test on the
@@ -591,8 +570,13 @@ end
 
         geometry = BH_mergeClassGeometry(geometry{1}, geometry{2});
       else
-         cN{1} = sprintf('%s_%d_%d_nClass_%d_STD',outputPrefix,classCoeffs{1}(1,1), ...
+        if (test_fuzz)
+          cN{1} = sprintf('%s_%d_%d_nClass_%d_STD','cycle002_full_2',classCoeffs{1}(1,1), ...
+            classCoeffs{1}(1,end), className)
+        else
+          cN{1} = sprintf('%s_%d_%d_nClass_%d_STD',outputPrefix,classCoeffs{1}(1,1), ...
                                           classCoeffs{1}(1,end), className)
+        end
 
         geometry = subTomoMeta.(cycleRead).ClusterResults.(cN{1});        
       end
@@ -631,6 +615,13 @@ catch
   error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
+class_idx='';
+class_weights='';
+if (test_fuzz)
+  % FIXME: testing fuzzy classification, this is hardcoded
+  class_idx = masterTM.(cycleRead).ClusterResults.cycle002_full_2_0_64_nClass_36_STD_idxList;
+  class_weights = masterTM.(cycleRead).ClusterResults.cycle002_full_2_0_64_nClass_36_STD_p;
+end
 
 if isfield(masterTM,('tomoCPR_run_in_cycle'))
   
@@ -1472,9 +1463,33 @@ parfor iParProc = parVect
            % Flag the particle as ignored
            positionList(iSubTomo, 26:26:nPeaks*26) = -9999;
           else
-% % %             iParticle = iParticle -  mean(double(iParticle(:)));
-% % %             iParticle = iParticle .*  rms(double(iParticle(:)));
 
+            if (test_fuzz)
+              % Find the right row in the weight array
+              iProb_row = find(class_idx == positionList(iSubTomo,4));
+              iProb = class_weights(iProb_row,:);
+              % iProb_weight = 4;
+              % iProb = iProb.^iProb_weight ./ sum(iProb.^iProb_weight);
+              iParticle = gather(iParticle .* peakWgt(iPeak));
+              iWedgeMask = gather(iWedgeMask .* peakWgt(iPeak));
+
+              % Results are weird so override and see if it replicates the "normal" behavior by only taking the class with the minimum 
+              % distance 
+              [tmin,tidx] = min(iProb);
+              iProb = iProb.*0;
+              iProb(tidx) = 1;
+
+              for iWeight = 1:length(iProb)
+                avgVolume_tmp{iWeight, positionList(iSubTomo,7)} =  ...
+                avgVolume_tmp{iWeight, positionList(iSubTomo,7)}  + (iParticle .* iProb(iWeight)); 
+
+                avgWedge_tmp{ iWeight, positionList(iSubTomo,7)} = ...
+                avgWedge_tmp{ iWeight, positionList(iSubTomo,7)}  + (iWedgeMask .* iProb(iWeight));
+                nExtracted_tmp(iWeight, positionList(iSubTomo,7)) = ...
+                  nExtracted_tmp(iWeight, positionList(iSubTomo,7)) + iProb(iWeight);
+              end
+
+            else
               if positionList(iSubTomo,7) == 1 %%%%|| (flgGold == 0)
                 iTempParticleODD = iTempParticleODD + iParticle.*peakWgt(iPeak); 
 
@@ -1508,6 +1523,8 @@ parfor iParProc = parVect
                 tomoCount = tomoCount + 1;
               end
 
+            end % end test fuzz
+
           end
           
           else
@@ -1540,14 +1557,17 @@ parfor iParProc = parVect
                                                        gather(iTempWedgeEVE);                                                     
           end
         else
-          avgVolume_tmp{ iClassPos, 1} =  avgVolume_tmp{ iClassPos, 1} + ...
-                                                             gather(iTempParticleODD);
-          avgVolume_tmp{ iClassPos, 2} =  avgVolume_tmp{ iClassPos, 2} + ...
-                                                             gather(iTempParticleEVE);
-            avgWedge_tmp{  iClassPos, 1} = avgWedge_tmp{  iClassPos, 1} + ...
-                                                             gather(iTempWedgeODD);
-            avgWedge_tmp{  iClassPos, 2} = avgWedge_tmp{  iClassPos, 2} + ...
-                                                             gather(iTempWedgeEVE);
+          % for the fuzz each particle goes into every class, so we need to pull earlier
+          if ~(test_fuzz)
+            avgVolume_tmp{ iClassPos, 1} =  avgVolume_tmp{ iClassPos, 1} + ...
+                                                              gather(iTempParticleODD);
+            avgVolume_tmp{ iClassPos, 2} =  avgVolume_tmp{ iClassPos, 2} + ...
+                                                              gather(iTempParticleEVE);
+              avgWedge_tmp{  iClassPos, 1} = avgWedge_tmp{  iClassPos, 1} + ...
+                                                              gather(iTempWedgeODD);
+              avgWedge_tmp{  iClassPos, 2} = avgWedge_tmp{  iClassPos, 2} + ...
+                                                              gather(iTempWedgeEVE);
+          end
         end
       end % end of loop over classes
     end% Update geometry to include information on ignored particles.
@@ -1810,10 +1830,11 @@ end
 % multi-reference alignment.
 if strcmpi(STAGEofALIGNMENT, 'Cluster')
   masterTM.(cycleNumber).(ClusterGeomNAME) = geometry;
-elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment 
+elseif ( strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment )
   if (flgClassify)
     masterTM.(cycleNumber).('ClusterClsGeom') = geometry;
   else
+    error('This branch is broken, ClusterRefGeom');
     masterTM.(cycleNumber).('ClusterRefGeom') = geometry;
   end
 else
@@ -1879,16 +1900,16 @@ for iGold = 1:2-flgFinalAvg
         [montOUT, imgLocations] = BH_montage4d(classSum(iGold), '');
 
         imout = sprintf('%s_class%d_%s_%s_NoWgt.mrc',outputPrefix, ...
-                                           saveClassSum, 'Raw', halfSet);
-        classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'Raw', halfSet);                        
+                                           saveClassSum, 'REF', halfSet);
+        classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'REF', halfSet);                        
         SAVE_IMG(montOUT, imout,pixelSize);
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
 
         [montOUT, imgLocations] = BH_montage4d(classWgtSum(iGold), '');
 
         imout = sprintf('%s_class%d_%s_%s_Wgt.mrc',outputPrefix, ...
-                                           saveClassSum, 'Raw', halfSet);
-        classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'Raw', halfSet);
+                                           saveClassSum, 'REF', halfSet);
+        classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'REF', halfSet);
         SAVE_IMG(montOUT, imout,pixelSize);
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
 
@@ -1995,7 +2016,7 @@ if ~( flgEstSNR )
     for iRef = 1:nClassesReWgt
       fprintf('Stage of alignment %s\niRef %d\n',STAGEofALIGNMENT,iRef);
       if strcmpi(STAGEofALIGNMENT, 'RawAlignment') || strcmpi(STAGEofALIGNMENT, 'NoAlignment')   
-        savePrefix = 'Raw'
+        savePrefix = 'REF'
       else
         savePrefix = fieldPrefix
       end
@@ -2029,6 +2050,7 @@ if ~( flgEstSNR )
         aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
         mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
       catch
+        error('This block should not be reached.');
         fprintf('\nReverting from %s to Raw in loading fitFSC\n',savePrefix);
         fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d','Raw',iRefPrev));
         aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev));

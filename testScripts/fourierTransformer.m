@@ -10,8 +10,8 @@ classdef fourierTransformer < handle
     is2d;
     halfDim;
     halfDimSize;
-    padValIn;
-    padValOut;
+    padValIn = '';
+    padValOut = '';
     
 %   end
 %   
@@ -27,6 +27,9 @@ classdef fourierTransformer < handle
     phaseCenter = '';
     indexCenterFWD = '';  
     indexCenterINV = ''
+    paddedVolumeNeedsToBeInitialized = true;
+    paddedVolumeIsNonZero = true;
+    shouldPad = false;
     
     OddSizeOversampled = 0;
     
@@ -40,10 +43,23 @@ classdef fourierTransformer < handle
       
       
       if nargin > 1
-        if (strcmpi(varargin{1},'OddSizeOversampled'))
-          obj.OddSizeOversampled = 1;
+        if (ischar(varargin{1}))
+          if (strcmpi(varargin{1},'OddSizeOversampled'))
+            obj.OddSizeOversampled = 1;
+          else
+            error('Did not recognize the extra argument when intializing the fourierTransformer');
+          end
         else
-          error('Did not recognize the extra argument when intializing the fourierTransformer');
+            if (isnumeric(varargin{1}))
+              if (numel(varargin{1}) == 6)
+                padValIn = varargin{1};
+                shouldPad = true;
+              else
+                error('Did not recognize the extra argument as a padding value when intializing the fourierTransformer');
+              end
+            else
+              error('Did not recognize the extra argument as str or number when intializing the fourierTransformer');
+            end 
         end
       end
       % Must be single and on gpu

@@ -76,14 +76,14 @@ if nargin > 2
     recWithoutMat = true;
     if length(varargin) > 2
       % Full recon for tomoCPR
-      bh_global_turn_on_phase_plate = 0
-      filterProjectionsForTomoCPRBackground = 28
+      bh_global_turn_on_phase_plate = 0;
+      filterProjectionsForTomoCPRBackground = 28;
     else
       loadSubTomoMeta = false;
       % Default to on for subregion picking
       % If user has specified phakePhasePlate, don;t use ...otherwise
       if isempty(bh_global_turn_on_phase_plate(1)) || bh_global_turn_on_phase_plate(1) == 0
-        bh_global_turn_on_phase_plate = [1,2]
+        bh_global_turn_on_phase_plate = [1,2];
       end
     end
   end
@@ -116,9 +116,9 @@ try
 catch
 end
 
-if (bh_global_turn_on_phase_plate(1) && flgWhitenPS(1))
+if (bh_global_turn_on_phase_plate(1) && any(flgWhitenPS))
     fprintf('WARNING: phakePhasePlate and whitening are conflicting preocesses. Turning off whitening.\n')
-    flgWhitenPS(1) = 0;
+    flgWhitenPS = [0,0,0];
 end
 
 
@@ -379,9 +379,7 @@ end
 % Divide the tilt series up over each gpu
 iterList = cell(nGPUs,1);
 % If there is only one tilt, things break in a weird way
-nGPUs
-nTilts
-nGPUs = min(nGPUs, nTilts)
+nGPUs = min(nGPUs, nTilts);
 for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
@@ -402,16 +400,9 @@ parfor iGPU = 1:nGPUs
     % For now, since the tilt geometry is not necessarily updated (it is manual)
     % in the masterTM, check that newer (possible perTilt refined) data is
     % not present.
-    try
-      % make sure there isn't a refined version first.
-      TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf_refine.tlt',tiltList{iTilt},mapBackIter+1);
-      TLT = load(TLTNAME);
-      fprintf('using refined TLT %s\n', TLTNAME);
-    catch
-      TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
-      TLT = load(TLTNAME);
-      fprintf('using TLT %s\n', TLTNAME);
-    end
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
+    TLT = load(TLTNAME);
+    fprintf('using TLT %s\n', TLTNAME);
     
        
     % Get all the tomogram names that belong to a given tilt-series.
@@ -489,19 +480,11 @@ parfor iGPU = 1:nGPUs%
     iTomoList = cell(nTomos,1);
 
     
-    % For now, since the tilt geometry is not necessarily updated (it is manual)
-    % in the masterTM, check that newer (possible perTilt refined) data is
-    % not present.
-    try
-      % make sure there isn't a refined version first.
-      TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf_refine.tlt',tiltList{iTilt},mapBackIter+1);
-      TLT = load(TLTNAME);
-      fprintf('using refined TLT %s\n', TLTNAME);
-    catch
-      TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
-      TLT = load(TLTNAME);
-      fprintf('using TLT %s\n', TLTNAME);
-    end
+
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
+    TLT = load(TLTNAME);
+    fprintf('using TLT %s\n', TLTNAME);
+
     
        
     if (~recWithoutMat)
@@ -693,12 +676,7 @@ parfor iGPU = 1:nGPUs%
        % like there is something odd about its use with a parfor loop
        % FIXME, when setting up the iterator, make clean copies for each
        % worker that are local in scope.e
-       
-% This is slated to be deleted, just leave pre erasure to happen in ctf estimate/update      
-%       if ~(flgEraseBeads_aferCTF)
-%         scalePixelsBy = samplingRate;
-%         maskedStack = BH_eraseBeads(maskedStack,eraseRadius, tiltList{iTilt}, scalePixelsBy,mapBackIter,sortrows(TLT,1));
-%       end
+
       
       [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixelSize,maskedStack,...
@@ -745,6 +723,8 @@ parfor iGPU = 1:nGPUs%
             TA = TA(:,4);
           else
             if (mapBackIter)
+              % FIXME: I don't think this block should work, it should only be the tilt angles!
+              error('THis block should not be reached.')
               TA = load(sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt},...
                                                          mapBackIter));      
             else
@@ -765,17 +745,6 @@ parfor iGPU = 1:nGPUs%
             LOCAL = sprintf('%sfixedStacks/%s.local',CWD,tiltList{iTilt});
           end
           
-          % Put a local copy if using a nondefault cache
-%           if ( flgCleanCache )
-%          sprintf('cp %s/%s %s/%s',CWD,rawTLT,tmpCache,rawTLT)
-%          sprintf('cp %s/%s %s/%s',CWD,LOCAL,tmpCache,LOCAL)
-%             system(sprintf('cp %s/%s %s/%s',CWD,rawTLT,tmpCache,rawTLT));
-%             system(sprintf('cp %s/%s %s/%s',CWD,LOCAL,tmpCache,LOCAL));
-%             rawTLT = sprintf('%s/%s',tmpCache,rawTLT)
-%             LOCAL = sprintf('%s/%s',tmpCache,LOCAL)
-%             
-%           end
-            
 
           fprintf('Local file %s\n',LOCAL);
           
@@ -1336,17 +1305,17 @@ for iPrj = 1:nPrjs
 
 
   if (useSurfaceFit)
-    %rZ = (surfaceFit.p00 + surfaceFit.p10.*(rX+oX)) + surfaceFit.p01.*(rY+oY);
-    try
-      rZ = feval(surfaceFit,rX,rY);
-    catch
-      d1
-      d2 
-      rX
-      rY
-      surfaceFit
-      error('surface fit failed');
-    end
+      %rZ = (surfaceFit.p00 + surfaceFit.p10.*(rX+oX)) + surfaceFit.p01.*(rY+oY);
+      try
+        rZ = feval(surfaceFit,rX,rY);
+      catch
+        d1
+        d2 
+        rX
+        rY
+        surfaceFit
+        error('surface fit failed');
+      end
   else
     rZ = zeros([d1,d2],'single','gpuArray');
   end
@@ -1373,41 +1342,38 @@ for iPrj = 1:nPrjs
   
   % To track sampling in case I put in overlap
   samplingMask = zeros([d1,d2],'single','gpuArray');
-  
 
   for iDefocus = minDefocus-ctf3dDepth/1:ctf3dDepth/1:maxDefocus+ctf3dDepth/1
-%    fprintf('correcting for iDefocus %3.3e\n',iDefocus);
-    %search tz take those xy and add to the prj and mask
+    defVect = [iDefocus - ddF, iDefocus + ddF, dPhi];
+  
+    if (phakePhasePlate(1) > 0)
 
-      defVect = [iDefocus - ddF, iDefocus + ddF, dPhi];
-   
-      if (phakePhasePlate(1) > 0)
-         if numel(phakePhasePlate) == 2
-           modPower = floor(phakePhasePlate(2));
-           SNR = rem(phakePhasePlate(2),1);
-         else
-          modPower = 1;
-          SNR = 1;
-         end
-         
-        
-         [Hqz, ~] = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,1,SNR);
-
-         Hqz = (-1).^modPower.*(phakePhasePlate(1).*Hqz).^1;
- 
-
-         modHqz = [];
+      if numel(phakePhasePlate) == 2
+        modPower = floor(phakePhasePlate(2));
+        SNR = rem(phakePhasePlate(2),1);
       else
-       if PIXEL_SIZE < 2.0e-10
-         % use double precision - this is not enabled, but needs to be -
-         % requires changes to radial grid as well.
-         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
-       else
-         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1);
-       end  
+        modPower = 1;
+        SNR = 1;
       end
+
+        
+      [Hqz, ~] = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,1,SNR);
+
+      Hqz = (-1).^modPower.*(phakePhasePlate(1).*Hqz).^1;
+
+
+      modHqz = [];
+    else
+      if PIXEL_SIZE < 2.0e-10
+        % use double precision - this is not enabled, but needs to be -
+        % requires changes to radial grid as well.
+        Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
+      else
+        Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1);
+      end  
+    end
       
-     
+
      if (flgWhitenPS(3))
         tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz./(abs(Hqz).^2+flgWhitenPS(3)))),trimVal(1,:),trimVal(2,:),'GPU','single');
      else
