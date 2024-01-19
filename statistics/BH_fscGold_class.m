@@ -159,14 +159,13 @@ if iscell(STAGEofALIGNMENT)
   elseif size(STAGEofALIGNMENT{1}) ~= size(STAGEofALIGNMENT{2})
     error('Size of img1 and img2 are inconsistent.')
   else
-    %flgAlignImages = 0;
     IMG1 = STAGEofALIGNMENT{1};
     IMG2 = STAGEofALIGNMENT{2}; 
     flgJustFSC=1;
     nReferences=2;
       refVector{1} =1;
       refVector{2}= 1;
-      STAGEofALIGNMENT = 'NoAlignment';
+      STAGEofALIGNMENT = 'RawAlignment';
       fieldPrefix = 'REF'
   end
 else
@@ -174,7 +173,6 @@ else
   switch STAGEofALIGNMENT
     case 'RawAlignment'
       savePrefix = 'Raw';
-% % % %      if (flgClassify || flgMultiRefAlignment)
        if (flgClassify) 
           fieldPrefix = 'Raw';
        

@@ -93,10 +93,6 @@ GPU = struct();
 startTime =  clock;
 CYCLE = EMC_str2double(CYCLE);
 
-% Until people forget this existed
-if strcmpi(STAGEofALIGNMENT,'NoAlignment')
-  STAGEofALIGNMENT = 'RawAlignment';
-end
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
     % Ensure we don't have any duplicates: TODO: add an override flag
@@ -296,8 +292,13 @@ saveClassSum = -1;
 switch STAGEofALIGNMENT
   case 'RawAlignment'
     
-      fieldPrefix = 'REF';
-   
+    
+    if (flgClassify)
+      fieldPrefix = 'Raw'
+
+    else
+      fieldPrefix = 'REF'
+    end
 
 
       classVector{1}  = pBH.(sprintf('%s_classes_odd','Raw'));
@@ -306,13 +307,11 @@ switch STAGEofALIGNMENT
       className    = pBH.(sprintf('%s_className','Raw'));
       samplingRate = pBH.('Ali_samplingRate'); 
       
-
      if (flgMultiRefAlignment && (test_multi_ref_diffmap || ~flgClassify))
-
-       className    = pBH.(sprintf('Raw_className'));
-       saveClassSum = pBH.(sprintf('Raw_className'));
+       className    = pBH.(sprintf('Raw_className'))
+       saveClassSum = pBH.(sprintf('Raw_className'))
      elseif (flgMultiRefAlignment && flgClassify)
-       fprintf('\n\nMutliRef and Classify enabled without test_multi_ref_diffmap.\n');
+       fprintf('\n\nMutliRef and Classify enabled.\n');
        fprintf('Only creating the global class average for PCA\n\n.');
        className = 0;
        saveClassSum = 0;
@@ -336,14 +335,19 @@ switch STAGEofALIGNMENT
     % Special case for the final cycle.
     % Assuming RawAlignment already run for this cycle and FSC is calculated
     % Goal is to re-extract odd-half, applying the xform found in fscGold
-    fieldPrefix = 'REF'
+    fieldPrefix = 'Raw'
    
-    classVector{1}  = pBH.(sprintf('%s_classes_odd','Raw'));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve','Raw'));
+    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
+    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
     
-    className    = pBH.(sprintf('%s_className','Raw'));
+    className    = pBH.(sprintf('%s_className',fieldPrefix));
     samplingRate = pBH.('Ali_samplingRate');
-
+    if (flgClassify)
+      %samplingRate = pBH.('Pca_samplingRate');
+    else
+      %samplingRate = pBH.('Raw_samplingRate');
+      fieldPrefix = 'REF'
+    end
     
     flgFinalAvg = 1;
     % Update at some point to handle multiple classes, for now just test on the
@@ -531,14 +535,6 @@ end
   switch STAGEofALIGNMENT
     case 'ClassAlignment'
       geometry = subTomoMeta.(cycleRead).ClassAlignment;
-%%%    case 'NoAlignment'
-%%%      geometry = subTomoMeta.(cycleRead).geometry; 
-      % Extract an average from each tomogram for visual inspection, filter to
-      % 0.75xtemplateSearch_lowpass
-%%%      eachTomo = true;
-% %%      lpTomo = pBH.('Tmp_bandpassFilter');
-%%%      doNotTrim = true;
-        
     case 'RawAlignment' 
       if ( CYCLE )
         geometry = subTomoMeta.(cycleRead).RawAlign;
@@ -1830,11 +1826,10 @@ end
 % multi-reference alignment.
 if strcmpi(STAGEofALIGNMENT, 'Cluster')
   masterTM.(cycleNumber).(ClusterGeomNAME) = geometry;
-elseif ( strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment )
+elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment 
   if (flgClassify)
     masterTM.(cycleNumber).('ClusterClsGeom') = geometry;
   else
-    error('This branch is broken, ClusterRefGeom');
     masterTM.(cycleNumber).('ClusterRefGeom') = geometry;
   end
 else
@@ -1900,16 +1895,16 @@ for iGold = 1:2-flgFinalAvg
         [montOUT, imgLocations] = BH_montage4d(classSum(iGold), '');
 
         imout = sprintf('%s_class%d_%s_%s_NoWgt.mrc',outputPrefix, ...
-                                           saveClassSum, 'REF', halfSet);
-        classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'REF', halfSet);                        
+                                           saveClassSum, 'Raw', halfSet);
+        classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'Raw', halfSet);                        
         SAVE_IMG(montOUT, imout,pixelSize);
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
 
         [montOUT, imgLocations] = BH_montage4d(classWgtSum(iGold), '');
 
         imout = sprintf('%s_class%d_%s_%s_Wgt.mrc',outputPrefix, ...
-                                           saveClassSum, 'REF', halfSet);
-        classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'REF', halfSet);
+                                           saveClassSum, 'Raw', halfSet);
+        classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'Raw', halfSet);
         SAVE_IMG(montOUT, imout,pixelSize);
         masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
 
@@ -1948,7 +1943,6 @@ end
 % The final condition is setting up RefAlignment which with classification
 % would have been averaging with 'Cluster' == Stageof
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment') || ...
-   strcmpi(STAGEofALIGNMENT, 'NoAlignment')  || ...
    strcmpi(STAGEofALIGNMENT, 'RefAlignment') 
   BH_fscGold_class(PARAMETER_FILE, num2str(CYCLE), STAGEofALIGNMENT); 
 elseif strcmpi(STAGEofALIGNMENT, 'Alignment') 
@@ -2015,8 +2009,8 @@ if ~( flgEstSNR )
 
     for iRef = 1:nClassesReWgt
       fprintf('Stage of alignment %s\niRef %d\n',STAGEofALIGNMENT,iRef);
-      if strcmpi(STAGEofALIGNMENT, 'RawAlignment') || strcmpi(STAGEofALIGNMENT, 'NoAlignment')   
-        savePrefix = 'REF'
+      if strcmpi(STAGEofALIGNMENT, 'RawAlignment')   
+        savePrefix = 'Raw'
       else
         savePrefix = fieldPrefix
       end
@@ -2050,7 +2044,6 @@ if ~( flgEstSNR )
         aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
         mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
       catch
-        error('This block should not be reached.');
         fprintf('\nReverting from %s to Raw in loading fitFSC\n',savePrefix);
         fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d','Raw',iRefPrev));
         aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev));
