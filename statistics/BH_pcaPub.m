@@ -174,11 +174,6 @@ catch
   scaleCalcSize = 1.5;
 end
 
-try
-  use_v2_SF3D = emc.('use_v2_SF3D')
-catch
-  use_v2_SF3D = true
-end
 outputPrefix   = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 %%%flgGold      = emc.('flgGoldStandard');
 
@@ -817,13 +812,12 @@ for iGold = 1:1+flgGold
         angles = positionList(iSubTomo,[17:25]+26*iPeak);
         
       
-        if (use_v2_SF3D && make_sf3d)
+        if ( make_sf3d )
           make_sf3d = false;
           radialGrid = '';
           padWdg = [0,0,0;0,0,0];
           [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
                                           TLT, center,reconGeometry, wiener_constant);
-          
         end
         
         % If flgGold there is no change, otherwise temporarily resample the
@@ -883,9 +877,7 @@ for iGold = 1:1+flgGold
             use_only_once = true;
             [ ~, iParticle ] = interpolator(gpuArray(iParticle),angles, shiftVAL, 'Bah', 'inv', symmetry, use_only_once); 
             
-            if (use_v2_SF3D)         
-              [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', symmetry, use_only_once);
-            end
+            [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', symmetry, use_only_once);
 
           else
           % Transform the particle, and then trim to motif size
@@ -893,10 +885,8 @@ for iGold = 1:1+flgGold
             [ iParticle ] = BH_resample3d(iParticle, angles, shiftVAL, ...
                                                             'Bah', 'GPU', 'inv');
 
-            if (use_v2_SF3D)
-              [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
+            [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
                                         'Bah', 'GPU', 'inv');
-            end  
           end
 
 
@@ -922,15 +912,10 @@ for iGold = 1:1+flgGold
 
 
                                       
-            if (use_v2_SF3D)
  
-              [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
+          [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
                                     flgNorm,pixelSize,radialMask, padWdg);
-            else
-                
-                iWmd = real(ifftn(abs(iPrt) .* exp(1i.*(angle(iPrt) - angle(avgMotif_FT{iGold, iScale})))));
-            end
-                            
+      
 
 
           if all(isfinite(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale)))))

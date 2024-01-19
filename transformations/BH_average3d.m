@@ -166,11 +166,7 @@ catch
   scaleCalcSize = 1.5;
 end
 
-try
-  use_v2_SF3D = emc.('use_v2_SF3D')
-catch
-  use_v2_SF3D = true
-end
+
 global bh_global_ML_compressByFactor;
 global bh_global_ML_angleTolerance;
 if isempty(bh_global_ML_compressByFactor)
@@ -593,49 +589,7 @@ padVal = minDIM - sizeMask;
 padVal = padVal .* (padVal > 0);
 fscPAD = padCalc;%[floor(padVal./2); ceil((padVal)./2)]
 
-if ~(use_v2_SF3D)
-  
-  delete(gcp('nocreate'));
-  EMC_parpool(nGPUs);
 
-  % TODO need some way of only sending out the command for one tilt or
-  % something to prevent collisions that result in no complete recon.
-
-  tiltNameList = fieldnames(masterTM.mapBackGeometry);
-  tiltNameList = tiltNameList(~ismember(tiltNameList,{'tomoName','viewGroups'}));
-  wgtList = tomoList;
-
-  for iGPU = 1:nGPUs
-    nThisGPU = 0;
-    for iParProc = iGPU:nGPUs:nParProcesses
-      for iTomo = iterList{iParProc}
-        iTilt = masterTM.mapBackGeometry.tomoName.(wgtList{iTomo}).tiltName;
-        if (any(ismember(tiltNameList,iTilt)))
-          tiltNameList{ismember(tiltNameList,iTilt)} = 'continue';
-        else
-          wgtList{iTomo} = 'continue';
-        end
-      end
-    end
-  end
-  wgtList=wgtList(~ismember(wgtList,'continue'));
-  maxPerGPU = ceil(length(wgtList)/nGPUs) + 1;
-
-
-  parfor iGPU = 1:nGPUs
-  % for iGPU = 1:nGPUs
-    for iParProc = iGPU:nGPUs:length(wgtList)
-      % Caclulating weights takes up a lot of memory, so do all that are necessary
-      % prior to the main loop
-
-        BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,wgtList{iParProc},samplingRate ,...
-                                  sizeCalc,geometry,'single',iGPU);
-
-
-
-    end
-  end
-end
 
 try
   EMC_parpool(nParProcesses+1)
@@ -1003,12 +957,7 @@ parfor iParProc = parVect
     iTiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName; 
     wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);
     nCtfGroups = ctfGroupList.(tomoList{1})(1);
-    if ~(use_v2_SF3D)
-     wedgeMask = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
-                                      ceil(sqrt(nCtfGroups)).*[1,1],''); 
-    end
                                     
-
 
     % Work on each class seperately pushing to main memory when finished.
      for iGold = 1:2-flgFinalAvg
@@ -1115,11 +1064,7 @@ parfor iParProc = parVect
           TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
 
           if (make_sf3d)
-            if (use_v2_SF3D)
-              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);
-            else
-              iSF3D =  gpuArray(wedgeMask{wdgIDX});
-            end
+            [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);
             make_sf3d = false;
           end
                                                       

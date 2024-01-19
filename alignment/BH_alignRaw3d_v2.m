@@ -90,11 +90,7 @@ catch
   CUTPADDING=20
 end
 
-try
-  use_v2_SF3D = emc.('use_v2_SF3D')
-catch
-  use_v2_SF3D = true;
-end
+
 
 try
   symmetry_op = emc.('symmetry');
@@ -740,51 +736,22 @@ size(ref_FT2)
 system('mkdir -p alignResume');
 
 system(sprintf('mkdir -p alignResume/%s',outputPrefix));
-softenWeight = 1/sqrt(samplingRate);
-if ~(use_v2_SF3D)
-  for iParProc = 1:nParProcesses
 
-    % Caclulating weights takes up a lot of memory, so do all that are necessary
-    % prior to the main loop -- CHANGE THE CHECK TO JUST READ THE HEADER NOT LOAD
-    % THE WEIGHT INTO GPU MEMORY
-
-    for iTomo = iterList{iParProc}
-
-      BH_multi_loadOrCalcWeight(masterTM,ctfGroupList,tomoList{iTomo},samplingRate ,...
-                                sizeCalc,geometry,flgPrecision,1);
-
-
-    end
-  end
-
-  % Clear all of the GPUs prior to entering the main processing loop
-  for iGPU = 1:nGPUs
-    g = gpuDevice(iGPU);
-    fprintf('\n\nClear gpu %d mem prior to main loop, %3.3e available\n\n',iGPU,g.AvailableMemory);
-    clear g
-  end   
-end
 parVect = 1:nParProcesses;
 fprintf('Starting main loopwith N references %d\n', nReferences(1));
 parfor iParProc = parVect
   symmetry = symmetry_op; % Why TF would this be necessary?
-% for iParProc = 1:nParProcesses
-%profile on
+
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
 
-% % %     % Get the gpuIDX assigned to this process
-% % %     iGPUidx = gpuDevice();
-% % %     iGPUidx = iGPUidx.Index;
-    gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;
-    iGPUidx = gpuIDXList(iParProc);
-    gpuDevice(iGPUidx);
-    fprintf('parProc %d/%d assigned to GPU %d\n',iParProc,nParProcesses,iGPUidx);
+  gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;
+  iGPUidx = gpuIDXList(iParProc);
+  gpuDevice(iGPUidx);
+  fprintf('parProc %d/%d assigned to GPU %d\n',iParProc,nParProcesses,iGPUidx);
+
   for iTomo = iterList{iParProc}
 
-
-    
-  nCtfGroups = ctfGroupList.(tomoList{iTomo})(1);
   % Check for interupted alignment.
   previousAlignment = sprintf('alignResume/%s/%s.txt',outputPrefix,tomoList{iTomo});
   if exist(previousAlignment,'file')
@@ -891,29 +858,10 @@ parfor iParProc = parVect
 
 
       iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
-      if ~(use_v2_SF3D)
-        wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);       
-%         wgtName = sprintf('cache/%s_bin%d.wgt', tomoList{iTomo},...
-%                                                 samplingRate);
-        maxWedgeMask = BH_unStackMontage4d(1:nCtfGroups,wgtName,...
-                                          ceil(sqrt(nCtfGroups)).*[1,1],'');
-        maxWedgeIfft = maxWedgeMask;
 
-        for iWdg = 1:length(maxWedgeMask)
-          if ~isempty(maxWedgeMask{iWdg})    
-            maxWedgeMask{iWdg} = (maxWedgeMask{iWdg} - min(maxWedgeMask{iWdg}(:))) + 1e-3;
-            maxWedgeMask{iWdg} = maxWedgeMask{iWdg}.^softenWeight;
-            maxWedgeIfft{iWdg} = ifftshift(maxWedgeMask{iWdg});
-            
-          end
-        end
-        fprintf('loaded %s.\n',wgtName);
-
-      end
-      
 
         
-              % Can't clear inside the parfor, but make sure we don't have two tomograms
+      % Can't clear inside the parfor, but make sure we don't have two tomograms
       % in memory at once.
      
      tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
@@ -960,33 +908,7 @@ parfor iParProc = parVect
 
       make_SF3D = true;
       breakPeak = 0; % for try catch on cut out vols    
-      if (wdgIDX ~= positionList(iSubTomo,9)) && ~(use_v2_SF3D)
-        % Geometry is sorted on this value so that tranfers are minimized,
-        % as these can take up a lot of mem. For 9 ctf Groups on an 80s
-        % ribo at 2 Ang/pix at full sampling ~ 2Gb eache.
 
-        wdgIDX = positionList(iSubTomo,9);
-        fprintf('pulling the wedge %d onto the GPU\n',wdgIDX);
-        % Avoid temporar
-
-        iMaxWedgeMask = []; iMaxWedgeIfft = [];
-        iMaxWedgeMask = gpuArray(maxWedgeMask{wdgIDX});
-        iMaxWedgeIfft = gpuArray(maxWedgeIfft{wdgIDX});  
-        imgWdgInterpolator = '';
-        [imgWdgInterpolator, ~] = interpolator(iMaxWedgeMask,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-
-
-      end
-      
-
-%         [~,iw1,iw2,iw3] = BH_resample3d(iMaxWedgeMask, eye(3), [0,0,0], ...
-%                               {'Bah',1,'linear',1,wdgBinary_tmp}, ...
-%                                                          'GPU', 'inv');  
-%         inputWgtVectors = {iw1,iw2,iw3};
-%         iw1 = []; iw2 = []; iw3 = [];
-                                        
-
-      
       for iPeak = 1:emc.nPeaks
         
         if (track_stats)
@@ -994,8 +916,6 @@ parfor iParProc = parVect
           mip.('x') = {};
           mip.('x2') = {};
           mip.('N') = 0;
-%           mip.('X') = zeros(1,3,'single','gpuArray');
-%           mip.('X2') = zeros(3,3,'single','gpuArray');
         end
         if (breakPeak) 
           continue;
@@ -1003,9 +923,6 @@ parfor iParProc = parVect
         getInitialCCC = 1;
         cccInitial = zeros(nReferences(1),10,flgPrecision, 'gpuArray');
         cccStorage2= zeros(nAngles(1).*nReferences(1),10,'gpuArray');
-        powerOut = zeros(nAngles(1).*nReferences(1),1,'gpuArray');
-      
-    
     
         % Used in refinment loop
         angCount = 1;
@@ -1093,16 +1010,14 @@ parfor iParProc = parVect
 
         if (make_SF3D)
           make_SF3D = false;
-          if use_v2_SF3D
-            % For now excluding the soften weight.
-            [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, emc.wiener_constant);       
-             imgWdgInterpolator = '';
-             % The unshifted mask is kept in texture mem until no longer
-             % needed
-             [imgWdgInterpolator, ~] = interpolator(iMaxWedgeIfft,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-             iMaxWedgeIfft =ifftshift(iMaxWedgeIfft);
+          % For now excluding the soften weight.
+          [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, emc.wiener_constant);       
+          imgWdgInterpolator = '';
+          % The unshifted mask is kept in texture mem until no longer
+          % needed
+          [imgWdgInterpolator, ~] = interpolator(iMaxWedgeIfft,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+          iMaxWedgeIfft =ifftshift(iMaxWedgeIfft);
 
-          end
           % Just use C1 to initialize, whether or not this is the final
           refInterpolator = '';
           refWdgInterpolator= '';
@@ -1247,22 +1162,12 @@ parfor iParProc = parVect
                                  
                      end           
 
-%                         iWedgeMask = BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-%                                                  {rotConvention ,symmetry,'linear',1,wdgBinary_tmp}, ...
-%                                                  'GPU', 'inv',inputWgtVectors);
                     
                     [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                                                    RotMat,... 
                                                    [0,0,0],rotConvention ,...
                                                   'inv',symmetry); 
 
-
-
-
-
-                
-                 
-% % %                  powerOut(angCount) =   sum(abs(iTrimParticle(volBinary_tmp))).^2;
                  
               end
 
@@ -1278,13 +1183,11 @@ parfor iParProc = parVect
                   error('flgMultiRefAlignment is not 0,1,2')
               end
 
-              for iRef = refToAlign % 1:max(nReferences(:)) 
+              for iRef = refToAlign 
 
                 switch alignLoop
                   
                   case 1
-
-                  
                     % use transpose of RotMat
 
                     [ iRotRef ] = refInterpolator.interp3d(...
@@ -1849,9 +1752,7 @@ parfor iParProc = parVect
     rotParticle = [];
       end % end loop over possible peaks
         
-        if use_v2_SF3D
-          iMaxWedgeIfft = [];
-        end
+    iMaxWedgeIfft = [];
     end % loop over subTomos
 
     
