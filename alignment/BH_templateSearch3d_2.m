@@ -79,16 +79,6 @@ catch
   expand_lines = '';
 end
 
-try 
-  tmpVal = emc.('whitenPS');
-  if (numel(tmpVal) == 3)
-    wiener_constant = tmpVal(3);
-  else
-    error('flgWhitenPS should be a 3 element vector');
-  end
-catch
-  wiener_constant = 0.0;
-end
 
  peakThreshold = emc.('Tmp_threshold');
 

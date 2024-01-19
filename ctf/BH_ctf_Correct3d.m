@@ -116,9 +116,9 @@ try
 catch
 end
 
-if (bh_global_turn_on_phase_plate(1) && any(flgWhitenPS))
+if (bh_global_turn_on_phase_plate(1) && any(emc.whitenPS))
     fprintf('WARNING: phakePhasePlate and whitening are conflicting preocesses. Turning off whitening.\n')
-    flgWhitenPS = [0,0,0];
+    emc.whitenPS = [0,0,0];
 end
 
 
@@ -270,8 +270,8 @@ else
     % we expect the resolution to improve beyond our current value, we
     % multiply by 1/2, which gives a (only loosely optimized) resTarget.
     resTarget = mean(masterTM.('currentResForDefocusError')*0.5);
-    if (flgWhitenPS(1))
-      flgWhitenPS(2) = resTarget;
+    if (emc.whitenPS(1))
+      emc.whitenPS(2) = resTarget;
     end
   else
     % For template search
@@ -686,7 +686,7 @@ parfor iGPU = 1:nGPUs%
                                             useSurfaceFit,invertDose,...
                                             bh_global_turn_on_phase_plate,...
                                             filterProjectionsForTomoCPRBackground,...
-                                            flgWhitenPS);  
+                                            emc.whitenPS);  
       end
       % Write out the stack to the cache directory as a tmp file
 
@@ -903,138 +903,6 @@ if (flgCleanCache)
 end
 
 end
-
-% % % function [STACK, evalMask, deltaZ] = loadAndMaskStack(TLT, STACK_PRFX, ...
-% % %                                                       mapBackIter,maxZpix,...
-% % %                                                       samplingRate,...
-% % %                                                       PosControl2d,...
-% % %                                                       tiltWeight,flgWhitenPS,pixelSize)
-% % % 
-% % % if (PosControl2d) 
-% % %   prefix = 'ctf';
-% % %   suffix = '_ctf'
-% % % else
-% % %   prefix = 'ali';
-% % %   suffix = '';
-% % % end
-% % % 
-% % % if samplingRate > 1
-% % %   fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
-% % %                        prefix,STACK_PRFX,mapBackIter+1,suffix);
-% % %   inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
-% % %                        STACK_PRFX,mapBackIter+1,suffix,samplingRate);
-% % %   if ~exist(inputStack, 'file')
-% % % %     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s > /dev/null',samplingRate,fullStack,inputStack);
-% % % %%     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s ',samplingRate,fullStack,inputStack);
-% % % % 
-% % % %     system(binCMD);
-% % %     BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
-% % %    
-% % %   end
-% % % else
-% % %   inputStack = sprintf('%sStacks/%s_ali%d%s.fixed',...
-% % %                         prefix,STACK_PRFX,mapBackIter+1,suffix)
-% % % end
-% % % 
-% % % system(sprintf('header %s',inputStack));
-% % % % iHeader = MRCImage(inputStack,0);
-% % % % STACK = gpuArray(single(getVolume(iHeader)));
-% % % 
-% % % STACK = single(getVolume(MRCImage(inputStack)));
-% % % 
-% % % % iHeader = getHeader(iHeader);
-% % % % iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
-% % % %                 iHeader.cellDimensionY/iHeader.nY, ...
-% % % %                 iHeader.cellDimensionZ/iHeader.nZ];
-% % % 
-% % % 
-% % % [d1,d2,d3] = size(STACK);
-% % % nPrjs = d3;
-% % % 
-% % % useableArea = [d1-128,d2-128,maxZpix];
-% % %   
-% % % 
-% % %   
-% % %   [evalMask, deltaZ ] = BH_multi_projectionMask( [d1,d2,d3;useableArea], TLT, 'cpu' );
-% % %   
-% % %  
-% % %   
-% % %  
-% % %   % Local normalization doesn't address any large scale gradients in the
-% % %   % images. Do a simple high pass over the lowest 7 frequencyBinns
-% % %   bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
-% % % 
-% % %   taperMask = gpuArray(fspecial('gaussian',[9,9],1.5));
-% % %   
-% % % 
-% % %   for iPrj = 1:nPrjs
-% % % 
-% % % 
-% % %     iEvalMask = gpuArray(evalMask(:,:,TLT(iPrj,1)));
-% % %     fprintf('iPrj %d size %d, %d\n',iPrj,size(STACK,3),TLT(iPrj,1));
-% % %     iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
-% % %     
-% % % %     iMask = convn(single(iEvalMask),taperMask,'same');
-% % % 
-% % % 
-% % %      iProjection = iProjection - mean(iProjection(iEvalMask));
-% % %     if ( flgWhitenPS(1) )
-% % %       %fprintf('confirm whitening PS\n.'); 
-% % %       flgWhitenPS
-% % %       [iProjection,~] = BH_whitenNoiseSpectrum(iProjection,'',[600,14,pixelSize,160],flgWhitenPS);
-% % %       mean2(iProjection)
-% % %     else
-% % %      iProjection  = real(ifftn(fftn(iProjection).*bandNyquist));
-% % %     end
-% % % %      iProjection  = real(ifftn(fftn(iProjection.*iMask).*bandNyquist));
-% % % 
-% % % 
-% % %     inFin = ~(isfinite(iProjection)); nInf = sum(inFin(:));
-% % %     if (nInf)
-% % %     % fprintf('Removing %d (%2.4f) inf from prj %d\n',nInf,100*nInf/numel(iProjection),TLT(iPrj,1));
-% % %      iProjection(inFin) = 0;
-% % %     end
-% % % 
-% % %     iRms = rms(iProjection(iEvalMask));
-% % %     outliers = (iProjection > 6 * iRms); nOutliers = sum(outliers(:));
-% % %     tiltScale = 1- ( abs(sind(TLT(iPrj,4))).* tiltWeight(1));
-% % %     if (nOutliers)
-% % % 
-% % % %       iProjection(outliers) = sign(iProjection(outliers)).*3.*iRms.*((rand(size(iProjection(outliers)))./2)+0.5);
-% % %       iProjection(outliers) = 6.*iRms.* (rand(size(iProjection(outliers)))-0.5);
-% % %       iProjection = iProjection ./ ( rms(iProjection(iEvalMask)) ./ tiltScale);
-% % %     else
-% % %       iProjection = iProjection ./ ( iRms ./ tiltScale);
-% % %     end
-% % % 
-% % % %     if ( flgWhitenPS )
-% % % %       %fprintf('confirm whitening PS\n.'); 
-% % % %       [iProjection,~] = BH_whitenNoiseSpectrum(iProjection,'',pixelSize,1);
-% % % %     end
-% % % 
-% % %     if tiltWeight(2)
-% % %       % I don't think this makes sense, but test keeping the power constant
-% % %       % after application of the exposure filter.
-% % %       iProjection = fftn(iProjection);
-% % %       iPower = sum(abs(iProjection(:)));
-% % %       iProjection = iProjection .* iExpFilter;
-% % %       STACK(:,:,TLT(iPrj,1)) = gather(single(real(ifftn(iProjection.* ...
-% % %                                     (iPower./sum(abs(iProjection(:))))))));
-% % %     else
-% % %       STACK(:,:,TLT(iPrj,1)) = gather(iProjection);%gather(single(real(ifftn(fftn(iProjection) .* iExpFilter))));
-% % %     end
-% % % %     STACK(:,:,TLT(iPrj,1)) = gather(single(iMask.*real(ifftn(fftn(iProjection) .* iExpFilter))));
-% % %   %   STACK(:,:,TLT(iPrj,1)) = gather(single(iProjection.*iMask));
-% % %     clear iProjection iMask iExpFilter iEvalMask 
-% % %   end
-% % % 
-% % % 
-% % %   clear bandNyquist iMask exposureFilter  iProjection lowRMSMAsk
-% % % 
-% % % 
-% % % end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [] = preBinStacks(TLT, STACK_PRFX, mapBackIter,usableArea,...
                                                       samplingRate,...

@@ -82,16 +82,6 @@ catch
   flgCutOutVolumes=0
 end
 
-try 
-  tmpVal = emc.('whitenPS');
-  if (numel(tmpVal) == 3)
-    wiener_constant = tmpVal(3);
-  else
-    error('flgWhitenPS should be a 3 element vector');
-  end
-catch
-  wiener_constant = 0.0;
-end
 
 % TODO decide on a "reasonable" padding based on expected shifts.
 try
@@ -1105,7 +1095,7 @@ parfor iParProc = parVect
           make_SF3D = false;
           if use_v2_SF3D
             % For now excluding the soften weight.
-            [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);       
+            [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, emc.wiener_constant);       
              imgWdgInterpolator = '';
              % The unshifted mask is kept in texture mem until no longer
              % needed
