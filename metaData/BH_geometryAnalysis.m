@@ -93,11 +93,8 @@ switch STAGEofALIGNMENT
   case 'Cluster_cls'
     fieldPrefix = 'Cls';
     STAGEofALIGNMENT = 'Cluster';
-  case 'Cluster_ref'
-    fieldPrefix = 'Ref';   
-    STAGEofALIGNMENT = 'Cluster';
   otherwise
-    error('STAGEofALIGNMENT incorrect, should be [Tilt,Class,No,Raw]Alignment, not %s', ...
+    error('STAGEofALIGNMENT incorrect, should be Cluster_cls or [Tilt,Raw]Alignment, not %s', ...
                                                         STAGEofALIGNMENT);
 end
 

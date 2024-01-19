@@ -218,23 +218,6 @@ else
       outputPrefix = sprintf('%s_NoA', outputPrefix);
     case 'Cluster'
       error('Fsc calculation for cluster results is not implemented.')
-    case 'RefAlignment'
-      savePrefix = 'REF';
-      imageName{1} = sprintf('class_%d_Locations_REF_ODD_NoWgt', refName);
-      imageName{2} = sprintf('class_%d_Locations_REF_EVE_NoWgt', refName);
-      weightName{1} = sprintf('class_%d_Locations_REF_ODD_Wgt', refName);
-      weightName{2} = sprintf('class_%d_Locations_REF_EVE_Wgt', refName);
-      
-      outputPrefix = sprintf('%s_Ref', outputPrefix);
-      refVector{1} = 1; %pBH.('ref_Ref_odd')(1,:);
-      refVector{2} = 1; %pBH.('ref_Ref_eve')(1,:);
-      
-      fieldPrefix = 'REF';
-      if length(refVector{1}) ~= length(refVector{2})
-        error('Fsc ref vectors are not the same length.')
-      else
-        nReferences = length(refVector{1});
-      end
     case 'SnrEstimate'
       savePrefix = 'SNR';
       flgEstSNR = 1;

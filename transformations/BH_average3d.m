@@ -377,41 +377,7 @@ switch STAGEofALIGNMENT
     className    = pBH.(sprintf('%s_className',fieldPrefix));
     if flgClassify < 0
       flgGold = 0;
-    end     
-  case 'Cluster_ref'
-    STAGEofALIGNMENT = 'Cluster';
-    ClusterGeomNAME = 'ClusterRefGeom';
-    fieldPrefix = 'Ref';
-  
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
-
-    classCoeffs{1} =  pBH.('Pca_coeffs');
-    classCoeffs{2} =  pBH.('Pca_coeffs');
-
-    samplingRate = pBH.('Cls_samplingRate');
-    className    = pBH.(sprintf('%s_className',fieldPrefix));
-    if flgClassify < 0
-      flgGold = 0;
-    end     
-  case 'RefAlignment'
-    
-    fieldPrefix = 'REF';
-      
-    refVector{1}  = pBH.(sprintf('%s_references_odd','Ref'));
-    refVector{2}  = pBH.(sprintf('%s_references_eve','Ref'));
-
-    samplingRate = pBH.(sprintf('%s_samplingRate','Cls'));
-    % note the exchange of class to ref
-
-    for iGold = 1:2
-      % get just unique group names, which are subbed in for class id
-      [iGroup, groupIDX, ~] = unique(refVector{iGold}(3,:));
-      classVector{iGold} = [ iGroup ; refVector{iGold}(2, groupIDX) ];
-    end
-    classVector{1}
-    classVector{2}
-    className    = pBH.(sprintf('%s_className','Ref'));
+    end        
     
   case 'SnrEstimate'
     
@@ -568,12 +534,7 @@ end
       
       subTomoMeta.(cycleRead).('KmsSampling') = samplingRate;
       doNotTrim = true;
-    case 'RefAlignment'
- 
-      
-      geometry = subTomoMeta.(cycleRead).('RefAlignment')
-      subTomoMeta.(cycleRead).('Cls_Sampling') = samplingRate;
-      doNotTrim = true;
+
     case 'SnrEstimate'
       flgEstSNR = 1;
       if ( CYCLE )
@@ -1928,13 +1889,11 @@ for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
 end
 
-% The final condition is setting up RefAlignment which with classification
-% would have been averaging with 'Cluster' == Stageof
-if strcmpi(STAGEofALIGNMENT, 'RawAlignment') || ...
-   strcmpi(STAGEofALIGNMENT, 'RefAlignment') 
+
+if strcmpi(STAGEofALIGNMENT, 'RawAlignment') 
   BH_fscGold_class(PARAMETER_FILE, num2str(CYCLE), STAGEofALIGNMENT); 
-elseif strcmpi(STAGEofALIGNMENT, 'Alignment') 
-  BH_fscGold_class(PARAMETER_FILE, num2str(CYCLE), 'RawAlignment');
+else
+  error('This block should not be reached');
 end
 
 
@@ -1987,8 +1946,7 @@ if ~( flgEstSNR )
 
   % This is slow ass when using cones and class averages and wouldn't be too
   % hard to put into parallel. Do that once the next manuscript is finished.
-% % % %     if (flgMultiRefAlignment && ~flgClassify && ~strcmpi(STAGEofALIGNMENT, 'RefAlignment'))
-    if (~flgMultiRefAlignment && ~flgClassify && ~strcmpi(STAGEofALIGNMENT, 'RefAlignment'))
+    if (~flgMultiRefAlignment && ~flgClassify )
 
 	      nClassesReWgt = 1;
     else
