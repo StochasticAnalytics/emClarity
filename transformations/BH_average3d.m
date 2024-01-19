@@ -75,8 +75,6 @@ fprintf('track stats is %d\n',emc.track_stats)
 if ( emc.classification ); emc.classification = -1 ; end
 
 flgGold=1;
-emc.pixel_size_angstroms = emc.('PIXEL_SIZE').*10^10;
-
 
 % Optionally specify gpu idxs
 if numel(emc.nGPUs) == 1
@@ -84,13 +82,6 @@ if numel(emc.nGPUs) == 1
 else
   gpuList = emc.nGPUs;
   emc.nGPUs = length(gpuList);
-end
-
-
-try
-  loadTomo = emc.('loadTomo')
-catch
-  loadTomo = 0
 end
 
 try
@@ -253,12 +244,7 @@ catch
   flgLimitToOneProcess = 0;
 end
 
-if ( loadTomo )
-  limitToOne = loadTomo;
-  if (flgLimitToOneProcess)
-    limitToOne = min(limitToOne, flgLimitToOneProcess);
-  end
-elseif interpOrder == 4
+if (interpOrder == 4)
   limitToOne = 1;
 elseif (flgLimitToOneProcess)
   limitToOne = flgLimitToOneProcess;
@@ -867,16 +853,9 @@ parfor iParProc = parVect
       [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( ...
         tomoList{iTomo}, ...
         reconCoords, mapBackIter, ...
-        samplingRate,iGPUidx,reconScaling,loadTomo);
+        samplingRate,iGPUidx,reconScaling,0);
       
-      if ( loadTomo )
-        volHeader = struct();
-        volHeader.('nX') = size(volumeData,1);
-        volHeader.('nY') = size(volumeData,2);
-        volHeader.('nZ') = size(volumeData,3);
-      else
-        volHeader = getHeader(volumeData);
-      end
+      volHeader = getHeader(volumeData);
     end
     
     
@@ -1052,18 +1031,10 @@ parfor iParProc = parVect
                   continue;
                 end
               else
-                
-                if ( loadTomo )
-                  iParticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
-                    indVAL(1,2):indVAL(2,2), ...
-                    indVAL(1,3):indVAL(2,3)));
-                  
-                else
-                  iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                    [indVAL(1,2),indVAL(2,2)], ...
-                    [indVAL(1,3),indVAL(2,3)],'keep'));
-                end
-                
+
+                iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+                  [indVAL(1,2),indVAL(2,2)], ...
+                  [indVAL(1,3),indVAL(2,3)],'keep'));
               end
               
               

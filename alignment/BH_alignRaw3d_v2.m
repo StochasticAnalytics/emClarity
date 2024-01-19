@@ -139,11 +139,7 @@ peakSearch   = (emc.('particleRadius')./emc.pixel_size_angstroms);
 peakCOM      = [1,1,1].*3;
 className    = emc.('Raw_className');
 
-try
-  loadTomo = emc.('loadTomo')
-catch
-  loadTomo = 0;
-end
+
 try
   eraseMaskType = emc.('Peak_mType');
   eraseMaskRadius = emc.('Peak_mRadius')./emc.pixel_size_angstroms;
@@ -265,12 +261,7 @@ catch
   flgLimitToOneProcess = 0;
 end
 
-if ( loadTomo )
-  limitToOne = loadTomo;
-  if (flgLimitToOneProcess)
-    limitToOne = min(limitToOne, flgLimitToOneProcess);
-  end
-elseif (flgLimitToOneProcess)
+if (flgLimitToOneProcess)
   limitToOne = flgLimitToOneProcess;
 else
   limitToOne = emc.('nCpuCores');
@@ -832,15 +823,8 @@ parfor iParProc = parVect
       else
         [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
           reconCoords, mapBackIter, ...
-          samplingRate,iGPUidx,reconScaling,loadTomo);
-        if ( loadTomo )
-          volHeader = struct();
-          volHeader.('nX') = size(volumeData,1);
-          volHeader.('nY') = size(volumeData,2);
-          volHeader.('nZ') = size(volumeData,3);
-        else
+          samplingRate,iGPUidx,reconScaling,0);
           volHeader = getHeader(volumeData);
-        end
       end
       
       
@@ -949,18 +933,10 @@ parfor iParProc = parVect
                   continue;
                 end
               else
-                
-                if ( loadTomo )
-                  iparticle = gpuArray(volumeData(indVAL(1,1):indVAL(2,1), ...
-                    indVAL(1,2):indVAL(2,2), ...
-                    indVAL(1,3):indVAL(2,3)));
-                  
-                else
-                  iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                    [indVAL(1,2),indVAL(2,2)], ...
-                    [indVAL(1,3),indVAL(2,3)],'keep'));
-                end
-                
+
+                iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+                  [indVAL(1,2),indVAL(2,2)], ...
+                  [indVAL(1,3),indVAL(2,3)],'keep'));
               end
               [ iparticle ] = BH_padZeros3d(iparticle,  padVAL(1,1:3), ...
                 padVAL(2,1:3), 'GPU', 'singleTaper');
