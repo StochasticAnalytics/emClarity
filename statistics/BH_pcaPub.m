@@ -264,13 +264,6 @@ end
 geometry = subTomoMeta.(cycleNumber).(geom_name);
 
 
-
-try
-  flgCutOutVolumes = emc.('flgCutOutVolumes');
-catch
-  flgCutOutVolumes = 0;
-end
-
 try
   CUTPADDING = subTomoMeta.('CUTPADDING')
 catch
@@ -719,7 +712,7 @@ for iGold = 1:1+flgGold
     TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
     
     
-    if (flgCutOutVolumes)
+    if (emc.flgCutOutVolumes)
       volumeData = [];
     else
       [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
@@ -729,13 +722,7 @@ for iGold = 1:1+flgGold
     end
     
     
-    nCtfGroups = masterTM.('ctfGroupSize').(tomoList{iTomo})(1);
     iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
-    wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);
-    %       wgtName = sprintf('cache/%s_bin%d.wgt', tomoList{iTomo},...
-    
-    
-    
     
     tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
     
@@ -829,7 +816,7 @@ for iGold = 1:1+flgGold
           wedgeMask = wedgeMask .* wdgBP;
           
           % Find range to extract, and check for domain error.
-          if (flgCutOutVolumes)
+          if (emc.flgCutOutVolumes)
             [ indVAL, padVAL, shiftVAL ] = ...
               BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
               sizeWindow, maskRadius, center);
@@ -849,7 +836,7 @@ for iGold = 1:1+flgGold
             particleIDX = positionList(iSubTomo, 4); % Same for all peaks
             
             
-            if (flgCutOutVolumes)
+            if (emc.flgCutOutVolumes)
               
               particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak+1);
               iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...

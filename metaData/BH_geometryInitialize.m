@@ -272,20 +272,11 @@ for iTomo = 1:nTomogramsTotal
   end
   
   
-  subTomoMeta.('ctfGroupSize').(fileInfo{iTomo,2}) = [nCTFgroups,0];
-  iX = subTomoMeta.('mapBackGeometry').(fileInfo{iTomo,1}).('coords')(tomoNumber,1);
-  subTomoMeta.('ctfGroupSize').(fileInfo{iTomo,2})(2) = floor(iX./...
-    nCTFgroups);
-  % % %   subTomoMeta.('mapExt').(fileInfo{iTomo,2})  = fileInfo{iTomo,3};
-  % % %   subTomoMeta.('mapPath').(fileInfo{iTomo,1}) = fileInfo{iTomo,2};
-  
   
 end
 
 % For now, just assuming all of the maps are in the same place and have the same
 % suffix - generalize later.
-
-
 
 if nGPUs > nTomogramsTotal
   nGPUs = nTomogramsTotal
@@ -493,9 +484,6 @@ for iGPU = 1:nGPUs
     mapName = fileInfo{iTomo,2};
     tmpGeom = parResults{iGPU}.(mapName);
     
-    tmpGeom(:,9:26:26*emc.nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
-      subTomoMeta.('ctfGroupSize').(mapName)(2)),1,emc.nPeaks);
-    
     % Sort so that CTFs can be left in main mem, and only pulled when needed and only
     % once per round of alignment.
     tmpGeom = sortrows(tmpGeom,9);
@@ -506,17 +494,7 @@ for iGPU = 1:nGPUs
       
       nIDX = nIDX +1;
     end
-    
-    
-    %tmpGeom(:,9) = ceil(tmpGeom(:,11)./ ...
-    %                    subTomoMeta.('ctfGroupSize').(mapName)(2));
-    
-    % Using my template matching, there should never be a tomo so close to
-    % the edge for this to be problem, but when working with coordinates
-    % from relion, I've noticed out of bounds conditions. Check explicitly
-    % here.
-    tmpGeom( tmpGeom(:,9)> nCTFgroups, 9 ) = nCTFgroups;
-    
+        
     subTomoMeta.('cycle000').('geometry').(mapName) = tmpGeom;
   end
 end

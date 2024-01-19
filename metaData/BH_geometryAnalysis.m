@@ -397,9 +397,7 @@ switch OPERATION
           if isfield(masterTM.tiltGeometry.(f{iOrig}))
             masterTM.tiltGeometry = rmfield(masterTM.tiltGeometry,f{iOrig});
           end
-          if isfield(masterTM.ctfGroupSize.(f{iOrig}))
-            masterTM.ctfGroupSize = rmfield(masterTM.ctfGroupSize,f{iOrig});
-          end
+
           if isfield(masterTM.(cycleNumber).RawAlign.f{iOrig})
             masterTM.(cycleNumber).RawAlign = rmfield(masterTM.(cycleNumber).RawAlign,(f{iOrig}));
           end

@@ -86,8 +86,6 @@ for iProj = 1:nProj
     masterTM.subTomoMeta.tiltGeometry.(tomoNames{iField}) = ...
       tmpTM.subTomoMeta.tiltGeometry.(tomoNames{iField});  
     
-    masterTM.subTomoMeta.ctfGroupSize.(tomoNames{iField}) = ...
-      tmpTM.subTomoMeta.ctfGroupSize.(tomoNames{iField});
     
   end
   

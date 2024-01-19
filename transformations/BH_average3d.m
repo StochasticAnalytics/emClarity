@@ -32,39 +32,15 @@ load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 reconScaling = 1;
 
 
-
-try
-  fscBfactor = emc.('Fsc_bfactor');
-catch
-  fscBfactor = 40;
-end
-
 mapBackIter = subTomoMeta.currentTomoCPR;
 
-if (CYCLE)
-  try
-    flgQualityWeight = emc.('flgQualityWeight');
-  catch
-    flgQualityWeight = 5;
-  end
-else
+if (CYCLE == 0)
   fprintf('No quality weighting in the initial cycle after template matching\n');
-  flgQualityWeight = 0;
-end
-% Experimental downweighting of higher frequency info farther from focus.
-% Could also consider filtering pre reconstruction
-try
-  flgFilterDefocus = emc.('filterDefocus');
-  fprintf('\nFiltering by defocus using exp[-(%d*(argmax(def-1,0,5).*q)^%d)]\n',flgFilterDefocus);
-catch
-  flgFilterDefocus = 0;
+  emc.flgQualityWeight = 0;
 end
 
-try
-  flgCutOutVolumes = emc.('flgCutOutVolumes');
-catch
-  flgCutOutVolumes = 0;
-end
+
+
 
 try
   projectVolumes = emc.('flgProjectVolumes');
@@ -72,26 +48,21 @@ catch
   projectVolumes = false;
 end
 
-if (projectVolumes && ~flgCutOutVolumes)
-  flgCutOutVolumes = true;
+if (projectVolumes && ~emc.flgCutOutVolumes)
+  emc.flgCutOutVolumes = true;
 end
 
-doCut = 0
-if (flgCutOutVolumes)
+volumesNeedToBeExtracted = 0;
+if (emc.flgCutOutVolumes)
   if isfield(subTomoMeta,'volumesAreCutOut')
     if ~(subTomoMeta.volumesAreCutOut)
-      doCut = 1
+      volumesNeedToBeExtracted = 1;
     end
   else
-    doCut = 1
+    volumesNeedToBeExtracted = 1;
   end
 end
 
-try
-  track_stats = emc.('track_stats');
-catch
-  track_stats = false;
-end
 
 % Note this will be set to false unless we are averging after an update
 try
@@ -101,13 +72,7 @@ catch
 end
 
 rotConvention = 'Bah';
-% Check and override the rotational convention to get helical averaging.
-% Replaces the former hack of adding a fifth dummy value to the angular search
-try
-  doHelical = emc.('doHelical');
-catch
-  doHelical = 0;
-end
+
 if ( doHelical )
   rotConvention = 'Helical';
 end
@@ -117,16 +82,16 @@ rotConvention
 
 % The weights are only re-estimated for an out of plane search. Until this
 % happens, they are not valid.
-if (track_stats)
+if (emc.track_stats)
   if isfield(subTomoMeta,'updatedWeights')
-    if subTomoMeta.updatedWeights == false
-      track_stats = false;
+    if ~(subTomoMeta.updatedWeights)
+      emc.track_stats = false;
     end
   else
-    track_stats = false;
+    emc.track_stats = false;
   end
 end
-fprintf('track stats is %d\n',track_stats)
+fprintf('track stats is %d\n',emc.track_stats)
 
 flgClassify= emc.('flgClassify');
 %%% For general release, I've disabled class average alignment and
@@ -489,13 +454,11 @@ end
 % Get the number of tomograms to process.
 tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);
-ctfGroupList = masterTM.('ctfGroupSize');
-
 
 
 if (flgClassify)
   
-  [ maskType, maskSize, maskRadius, maskCenter ] = ...
+  [ ~, maskSize, maskRadius, maskCenter ] = ...
     BH_multi_maskCheck(emc, 'Ali', pixelSize);
   % These are used when 'Cluster' is called, to take the masking parameters
   % from focused PCA/Classification, to produce a montage with reduced
@@ -504,11 +467,11 @@ if (flgClassify)
   % version or else graphical deletion of classes will fail.
   
   
-  [~, pcaMaskSize, pcaMaskRadius, pcaMaskCenter ] = ...
+  [~, ~, ~, pcaMaskCenter ] = ...
     BH_multi_maskCheck(emc, 'Cls', pixelSize);
 else
   
-  [ maskType, maskSize, maskRadius, maskCenter ] = ...
+  [ ~, maskSize, maskRadius, maskCenter ] = ...
     BH_multi_maskCheck(emc, 'Ali', pixelSize);
   
 end
@@ -606,7 +569,7 @@ catch
 end
 spike_info = struct();
 spike_info.('std_dev') = nan;
-if (flgQualityWeight)
+if (emc.flgQualityWeight)
   %get the average CCC for calculation of particle quality weighting.
   
   cccVect = [];
@@ -720,7 +683,7 @@ if (flgQualityWeight)
   addedWeight = 0;
   for iParProc = 1:nParProcesses
     for iTomo = iterList{iParProc}
-      if (track_stats)
+      if (emc.track_stats)
         geometry.(tomoList{iTomo})(:,1:26:26*emc.nPeaks) = geometry.(tomoList{iTomo})(:,1:26:26*emc.nPeaks)./geometry.(tomoList{iTomo})(:,2:26:26*emc.nPeaks);
       end
       
@@ -806,10 +769,10 @@ if (flgQualityWeight)
   %     figure, hist((wgtVect./median(wgtVect)).^weightScale,29)
   %     error('asdf')
   
-  if (track_stats)
-    fprintf('Avgerage score is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,flgQualityWeight);
+  if (emc.track_stats)
+    fprintf('Avgerage score is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,emc.flgQualityWeight);
   else
-    fprintf('Avgerage CCC is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,flgQualityWeight);
+    fprintf('Avgerage CCC is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,emc.flgQualityWeight);
   end
   
   
@@ -854,7 +817,7 @@ parfor iParProc = parVect
   
   
   
-  if (flgQualityWeight)
+  if (emc.flgQualityWeight)
     [cccWeight,~,~,~,~,~] = BH_multi_gridCoordinates(sizeCalc, ...
       'Cartesian','GPU',...
       {'none'},1,0,1);
@@ -934,7 +897,7 @@ parfor iParProc = parVect
     fprintf('Loading tomo %d from tilt %s \n',tomoNumber,tiltName);
     reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
     
-    if (flgCutOutVolumes && ~doCut)
+    if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
       volumeData = [];
     else
       
@@ -956,7 +919,6 @@ parfor iParProc = parVect
     
     iTiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);
-    nCtfGroups = ctfGroupList.(tomoList{1})(1);
     
     
     % Work on each class seperately pushing to main memory when finished.
@@ -1025,7 +987,7 @@ parfor iParProc = parVect
               emc.nPeaks,  ...
               masterTM.(cycleNumber).('score_sigma') ,...
               iSubTomo, tomoList{iTomo},...
-              track_stats);
+              emc.track_stats);
             % Update any re-ordering or elimination
             positionList(iSubTomo,:) = sortedList;
           else
@@ -1070,17 +1032,17 @@ parfor iParProc = parVect
             
             
             
-            if (flgQualityWeight)
+            if (emc.flgQualityWeight)
               iCCC = positionList(iSubTomo,[1]+26*(iPeak-1));
               
-              if (track_stats)
+              if (emc.track_stats)
                 % Downweight higher frequency in all subTomos with iCCC below the mean
-                iBfactor = (flgQualityWeight.*(iCCC - maxCCC)./4)
+                iBfactor = (emc.flgQualityWeight.*(iCCC - maxCCC)./4)
                 iCCCweight = exp(iBfactor.*cccWeight);
               else
                 if iCCC < avgCCC
                   % Downweight higher frequency in all subTomos with iCCC below the mean
-                  iBfactor = -1.*(flgQualityWeight.*(acosd(iCCC) - acosd(avgCCC)))^2;
+                  iBfactor = -1.*(emc.flgQualityWeight.*(acosd(iCCC) - acosd(avgCCC)))^2;
                   iCCCweight = exp(iBfactor.*cccWeight);
                   
                 else
@@ -1089,18 +1051,18 @@ parfor iParProc = parVect
                 
               end
               
-              if ( any(flgFilterDefocus))
+              if ( any(emc.filterDefocus))
                 iDef = abs(mean(tiltGeometry(:,15))*10^6);
-                iDef = -1.*(flgFilterDefocus(1)*max(iDef-1,0.5))^flgFilterDefocus(2);
+                iDef = -1.*(emc.filterDefocus(1)*max(iDef-1,0.5))^emc.filterDefocus(2);
                 fprintf('Using iDef %f\n',iDef);
                 % Frequency is already squared so adjust to match iDef scale
                 % factor.
-                iCCCweight = iCCCweight.*exp(iDef.*cccWeight.^(flgFilterDefocus(2)/2));
+                iCCCweight = iCCCweight.*exp(iDef.*cccWeight.^(emc.filterDefocus(2)/2));
               end
             end
             
             % Find range to extract, and check for domain error.
-            if (flgCutOutVolumes && ~doCut)
+            if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
               [ indVAL, padVAL, shiftVAL ] = ...
                 BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
                 sizeWindow, maskRadius, center);
@@ -1114,7 +1076,7 @@ parfor iParProc = parVect
             if ~ischar(indVAL)
               
               
-              if (flgCutOutVolumes && ~doCut)
+              if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
                 try
                   particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
                   iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
@@ -1147,7 +1109,7 @@ parfor iParProc = parVect
               
               
               
-              if (flgCutOutVolumes && doCut)
+              if (emc.flgCutOutVolumes && volumesNeedToBeExtracted)
                 % Test with some generic padding , only to be used on bin 1 at
                 % first!!! TODO add a flag to check this.
                 
@@ -1239,7 +1201,7 @@ parfor iParProc = parVect
               iParticle = iParticle -  mean(iParticle(interpMask_tmpBinary));
               iParticle = iParticle ./  rms(iParticle(interpMask_tmpBinary));
               iParticle = iParticle .* interpMask_tmp;
-              if (flgQualityWeight && numel(iCCCweight) > 1)
+              if (emc.flgQualityWeight && numel(iCCCweight) > 1)
                 
                 iParticle = real(ifftn(fftn(BH_padZeros3d(iParticle,...
                   'fwd',padCalc,'GPU','singleTaper')).*iCCCweight));
@@ -1865,9 +1827,9 @@ if ~( flgEstSNR )
     
     % Only send the lowest Bfactor if not flgFinalAvg
     if (flgFinalAvg)
-      bFactorSend = fscBfactor;
+      bFactorSend = emc.Fsc_bfactor;
     else
-      bFactorSend = fscBfactor(1);
+      bFactorSend = emc.Fsc_bfactor(1);
     end
     
     refTMP = gather(BH_multi_cRef_Vnorm(fscParams, aliParams, mskParams,...
@@ -1903,9 +1865,9 @@ if ~( flgEstSNR )
     % Save the unweighted, weighted imgs, weightes, optionally filtered.
     
     if (flgFinalAvg)
-      for iBfactor = 1:length(fscBfactor)
+      for iBfactor = 1:length(emc.Fsc_bfactor)
         imout = sprintf('%s_class%d_%s_bFact-%d.mrc',outputPrefix, ...
-          className, 'final',fscBfactor(iBfactor));
+          className, 'final',emc.Fsc_bfactor(iBfactor));
         
         SAVE_IMG(refTMP{iBfactor}, imout, pixelSize);
       end
@@ -1925,7 +1887,7 @@ if ~( flgEstSNR )
   
   subTomoMeta = masterTM;
   subTomoMeta.('CUTPADDING') = CUTPADDING;
-  if (flgCutOutVolumes && doCut)
+  if (emc.flgCutOutVolumes && volumesNeedToBeExtracted)
     subTomoMeta.('volumesAreCutOut') = 1;
   end
   save(emc.('subTomoMeta'), 'subTomoMeta');

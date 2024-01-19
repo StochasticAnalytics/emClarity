@@ -70,19 +70,6 @@ mapBackIter = subTomoMeta.currentTomoCPR;
 reconScaling = 1;
 
 
-try
-  track_stats = emc.('track_stats');
-catch
-  track_stats = false;
-end
-
-try
-  flgCutOutVolumes=emc.('flgCutOutVolumes')
-catch
-  flgCutOutVolumes=0
-end
-
-
 % TODO decide on a "reasonable" padding based on expected shifts.
 try
   CUTPADDING = subTomoMeta.('CUTPADDING')
@@ -190,17 +177,6 @@ if ( doHelical )
   rotConvention = 'Helical'
 end
 
-rotConvention
-
-try
-  bFactor = emc.('Fsc_bfactor');
-catch
-  bFactor = 0;
-end
-if length(bFactor) > 1
-  fprintf('multiple bFactors specified, using the first for alignment.\n');
-  bFactor = bFactor(1);
-end
 
 try
   scaleCalcSize = emc.('scaleCalcSize');
@@ -279,7 +255,6 @@ nRefOut(1:2) = [length(unique(refGroup{1})) + sum(( refSym{1} < 0 )),...
 tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);
 tiltList = masterTM.tiltGeometry;
-ctfGroupList = masterTM.('ctfGroupSize');
 
 % % Sort the list by number of active subtomos to improve parallelism
 % sortedTomoList = zeros(nTomograms,1);
@@ -482,12 +457,12 @@ stat_mask = [];
 if (eraseMask)
   peakMask = EMC_maskShape(eraseMaskType,sizeCalc,floor(eraseMaskRadius),'cpu',{'kernel',false});
   
-  if track_stats
+  if ( emc.track_stats )
     stat_mask =  single(find(peakMask > 0.95));
   end
   
 else
-  if track_stats
+  if ( emc.track_stats )
     stat_mask =   EMC_maskShape('sphere', sizeCalc, [1,1,1].*floor(max(peakSearch)), 'cpu', {'shift', maskCenter});
     stat_mask = single(find(stat_mask > 0.95));
   end
@@ -527,9 +502,9 @@ if (flgClassify || flgMultiRefAlignment)
     radialGrid = single(radialGrid./pixelSize);
     % returns a cpu array
     if (flgWeightCCC)
-      [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1);
+      [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, emc.Fsc_bfactor(1), 1, 1);
     else
-      [ bandpassFilt{iRef}, ~] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1);
+      [ bandpassFilt{iRef}, ~] =  BH_multi_cRef( fscINFO, radialGrid, emc.Fsc_bfactor(1), 1);
     end
     
     
@@ -547,9 +522,9 @@ else
     radialGrid = single(radialGrid./pixelSize);
     % returns a cpu array
     if (flgWeightCCC)
-      [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1, 1 );
+      [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, emc.Fsc_bfactor(1), 1, 1 );
     else
-      [ bandpassFilt{iRef},~ ] =  BH_multi_cRef( fscINFO, radialGrid, bFactor, 1 );
+      [ bandpassFilt{iRef},~ ] =  BH_multi_cRef( fscINFO, radialGrid, emc.Fsc_bfactor(1), 1 );
     end
     
     bandpassFiltREF{iRef} = 1;
@@ -795,7 +770,7 @@ parfor iParProc = parVect
       peakMaskInterpolator  = '';
       peakMaskInterpolator = interpolator(gpuArray(peakMask),[0,0,0],[0,0,0], rotConvention , 'forward', 'C1', false);
       
-      if (track_stats)
+      if (emc.track_stats)
         mip = struct();
         mip.('mask') = gpuArray(stat_mask);
       end
@@ -869,7 +844,7 @@ parfor iParProc = parVect
       reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
       TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
       
-      if (flgCutOutVolumes)
+      if (emc.flgCutOutVolumes)
         volumeData = [];
       else
         [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
@@ -911,7 +886,7 @@ parfor iParProc = parVect
         
         for iPeak = 1:emc.nPeaks
           
-          if (track_stats)
+          if (emc.track_stats)
             measure_noise = true;
             mip.('x') = {};
             mip.('x2') = {};
@@ -954,7 +929,7 @@ parfor iParProc = parVect
             angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
             
             % Find range to extract, and check for domain error.
-            if (flgCutOutVolumes)
+            if (emc.flgCutOutVolumes)
               % Need some check that the windowsize has not changed! TODO TODO
               
               [ indVAL, padVAL, shiftVAL ] = ...
@@ -976,7 +951,7 @@ parfor iParProc = parVect
             else
               
               
-              if (flgCutOutVolumes)
+              if (emc.flgCutOutVolumes)
                 % Test with some generic padding , only to be used on bin 1 at
                 % first!!! TODO add a flag to check this.
                 try
@@ -1223,7 +1198,7 @@ parfor iParProc = parVect
                               iTrimParticle,...
                               bandpassFilt_tmp{iRef} ,'',padCalc,flgPrecision);
                             
-                            if (track_stats && measure_noise)
+                            if (emc.track_stats && measure_noise)
                               
                               
                               [ ~, mip ] =  BH_multi_xcf_Translational_2( ...
@@ -1687,7 +1662,7 @@ parfor iParProc = parVect
                 
               end
               
-              if (track_stats)
+              if (emc.track_stats)
                 
                 if thetaInc > 0
                   cccStorageBest{iPeak}(iSubTomo,end-3) = gather(mean(mip.x , 'all')./std(mip.x,0,'all')./thetaInc);
