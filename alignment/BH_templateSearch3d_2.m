@@ -35,7 +35,7 @@ SYMMETRY=1;
 
 startTime = clock ;
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 % Currently hardcoded to always expect a tomogram constructed with ctf correction
 % using emClarity ctf3d paramN.m templateSearch
@@ -44,7 +44,7 @@ if ctf3dNoSubTomoMeta
    mapBackIter = 0;
 else
   try
-    load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+    load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
     mapBackIter = subTomoMeta.currentTomoCPR
   catch
     % TODO: is there a better check on whether we are using ctf3d templateSearch vs ctf 3d?
@@ -52,16 +52,16 @@ else
     shouldBeCTF = false;
   end
 end
-  samplingRate  = pBH.('Tmp_samplingRate');
+  samplingRate  = emc.('Tmp_samplingRate');
 
 try
-  tmpDecoy = pBH.('templateDecoy')
+  tmpDecoy = emc.('templateDecoy')
 catch
   tmpDecoy = 0
 end
 
 try
-  super_sample = pBH.('super_sample');
+  super_sample = emc.('super_sample');
   if (super_sample > 0)
     [~,v] = system('cat $IMOD_DIR/VERSION');
     v = split(v,'.');
@@ -80,7 +80,7 @@ catch
 end
 
 try 
-  tmpVal = pBH.('whitenPS');
+  tmpVal = emc.('whitenPS');
   if (numel(tmpVal) == 3)
     wiener_constant = tmpVal(3);
   else
@@ -90,39 +90,39 @@ catch
   wiener_constant = 0.0;
 end
 
- peakThreshold = pBH.('Tmp_threshold');
+ peakThreshold = emc.('Tmp_threshold');
 
 
-latticeRadius = pBH.('particleRadius');
+latticeRadius = emc.('particleRadius');
 try
-  targetSize    = pBH.('Tmp_targetSize')
+  targetSize    = emc.('Tmp_targetSize')
 catch
   targetSize = [512,512,512];
 end
-angleSearch   = pBH.('Tmp_angleSearch');
+angleSearch   = emc.('Tmp_angleSearch');
 
 
 convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 
 try 
-  use_new_grid_search = pBH.('use_new_grid_search');
+  use_new_grid_search = emc.('use_new_grid_search');
 catch
   use_new_grid_search = true;
 end
 
 try
-  symmetry = pBH.('symmetry');
+  symmetry = emc.('symmetry');
 catch
   error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try 
-  eraseMaskType = pBH.('Peak_mType');
+  eraseMaskType = emc.('Peak_mType');
 catch
   eraseMaskType = 'sphere';
 end
 try
-  eraseMaskRadius = pBH.('Peak_mRadius');
+  eraseMaskRadius = emc.('Peak_mRadius');
 catch
   eraseMaskRadius = 1.0.*latticeRadius;
 end
@@ -132,27 +132,27 @@ nPreviousSubTomos = 0;
 
 reconScaling = 1;
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
 
 ignore_threshold = false;
 try
-  max_tries = pBH.('max_peaks');
+  max_tries = emc.('max_peaks');
 catch
   max_tries = 10000;
 end
 
 try
-  over_ride =  pBH.('Override_threshold_and_return_N_peaks')
+  over_ride =  emc.('Override_threshold_and_return_N_peaks')
   ignore_threshold = true;
   fprintf('Override_threshold_and_return_N_peaks set to true, returning exactly %d peaks\n', over_ride);
   peakThreshold = over_ride;
 end
 
-pixelSizeFULL = pBH.('PIXEL_SIZE').*10^10;
-if pBH.('SuperResolution')
+pixelSizeFULL = emc.('PIXEL_SIZE').*10^10;
+if emc.('SuperResolution')
   pixelSizeFULL = pixelSizeFULL * 2;
 end
 
@@ -161,7 +161,7 @@ pixelSize = pixelSizeFULL.*samplingRate;
 % For testing
 print_warning=false;
 try 
-  wantedCut = pBH.('lowResCut');
+  wantedCut = emc.('lowResCut');
   fprintf('lowResCut is deprecated and will be removed in future versions.\n')
   fprintf('please switch to Tmp_bandpass\n\n');
   bp_vals = [1e-3,600,wantedCut];
@@ -171,7 +171,7 @@ catch
 end
 
 try
-    bp_vals = pBH.('Tmp_bandpass');
+    bp_vals = emc.('Tmp_bandpass');
     if numel(bp_vals) ~= 3
         error('Tmp_bandpass is [filter at zero freq, res high-pass cutoff, res low-pass cutoff]');
     end
@@ -185,7 +185,7 @@ catch
 
 end
 try
-    stats_diameter_fraction = pBH.('diameter_fraction_for_local_stats')
+    stats_diameter_fraction = emc.('diameter_fraction_for_local_stats')
 catch
     stats_diameter_fraction = 1
 end
@@ -195,7 +195,7 @@ mean_r2 = 0;
 mean_r_mask = 0;
 reference_mask = [];
 try 
-  scale_mip = pBH.('scale_mip');
+  scale_mip = emc.('scale_mip');
 catch
   scale_mip = false;
 end
@@ -273,7 +273,7 @@ clear temp_bp
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
 fprintf('size of provided template %d %d %d\n',size(template));
-trimTemp = BH_multi_padVal(size(template),ceil(2.0.*max(pBH.('Ali_mRadius')./pixelSizeFULL)));
+trimTemp = BH_multi_padVal(size(template),ceil(2.0.*max(emc.('Ali_mRadius')./pixelSizeFULL)));
 % template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
 % SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
@@ -322,7 +322,7 @@ rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
 try
-  doHelical = pBH.('doHelical');
+  doHelical = emc.('doHelical');
 catch
   doHelical = 0;
 end
@@ -496,7 +496,7 @@ tomoIDX = 1;
 nTomograms = prod(nIters);
 
 try
-  test_local = pBH.('test_local');
+  test_local = emc.('test_local');
 catch
   test_local = false;
 end
@@ -518,7 +518,7 @@ tomoCoords= zeros(nTomograms, 3, 'uint16');
 
 
 try
-  doMedFilt = pBH.('Tmp_medianFilter');
+  doMedFilt = emc.('Tmp_medianFilter');
   if ~ismember(doMedFilt,[3,5,7])
     error('Tmp_medianFilter can only be 3,5, or 7');
   else

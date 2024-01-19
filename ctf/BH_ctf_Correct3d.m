@@ -11,7 +11,7 @@ function [  ] = BH_ctf_Correct3d( PARAMETER_FILE, varargin )
 
 % Read in 2dCtf stacks to trouble shoot
 PosControl2d=0;
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 % Apply a Wiener filter with this many zeros during Ctf multiplication
 global bh_global_turn_on_phase_plate
@@ -24,7 +24,7 @@ shiftDefocusOrigin = 1;
 tiltStart = 1;
 
 try 
-  flgEraseBeads_aferCTF = pBH.('erase_beads_after_ctf');
+  flgEraseBeads_aferCTF = emc.('erase_beads_after_ctf');
 catch
   flgEraseBeads_aferCTF = false; % If false they SHOULD be erased in ctf estimate/update, but since the user could change parameter, include here.
 end
@@ -32,7 +32,7 @@ end
 % Test David's new super sampling in reconstruction. No check that this
 % version (currently 4.10.40) is properly sourced.
 try
-  super_sample = pBH.('super_sample');
+  super_sample = emc.('super_sample');
   if (super_sample > 0)
     [~,v] = system('cat $IMOD_DIR/VERSION');
     v = split(v,'.');
@@ -52,7 +52,7 @@ end
 
 
 try
-  expand_lines = pBH.('expand_lines');
+  expand_lines = emc.('expand_lines');
   if isempty(super_sample) || expand_lines == false
     expand_lines = '';
   else
@@ -107,7 +107,7 @@ end
 
 try 
   % -1, whiten before ctf, 1 whiten after - test both.
-  usr_flgWhitenPS = pBH.('whitenPS');
+  usr_flgWhitenPS = emc.('whitenPS');
   if (numel(usr_flgWhitenPS) == 3)
     flgWhitenPS = usr_flgWhitenPS;
   else
@@ -123,7 +123,7 @@ end
 
 
 try
-  applyExposureFilter = pBH.('applyExposureFilter')
+  applyExposureFilter = emc.('applyExposureFilter')
 catch
   applyExposureFilter = 1;
 end
@@ -131,14 +131,14 @@ end
 % This will be set false if the reconstruction is for template matching or
 % for tomoCPR
 try
-  useSurfaceFit = pBH.('useSurfaceFit')
+  useSurfaceFit = emc.('useSurfaceFit')
 catch
   useSurfaceFit = 1
 end
 
 try
   % Not for normal use, pass the total dose less first frame to flip values.
-  invertDose = pBH.('invertDose')
+  invertDose = emc.('invertDose')
 catch
   invertDose = 0;
 end
@@ -152,7 +152,7 @@ fprintf('tiltweight is %f %f\n',tiltWeight);
 
 
 
-tmpCache= pBH.('fastScratchDisk');
+tmpCache= emc.('fastScratchDisk');
 
 if strcmpi(tmpCache, 'ram') 
   if isempty(getenv('EMC_CACHE_MEM'))
@@ -203,7 +203,7 @@ system(sprintf('mkdir -p %s','cache')); % This should exist, but to be safe.
 if (recWithoutMat)
   useSurfaceFit = false;
   if (loadSubTomoMeta)
-    load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+    load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
     mapBackIter = subTomoMeta.currentTomoCPR;
     masterTM = subTomoMeta; clear subTomoMeta
     CYCLE = masterTM.currentCycle;   
@@ -212,7 +212,7 @@ if (recWithoutMat)
     CYCLE = 0;
   end
 else
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR;
   masterTM = subTomoMeta; clear subTomoMeta
   CYCLE = masterTM.currentCycle;
@@ -233,13 +233,13 @@ end
 
 
 try
-  flgDampenAliasedFrequencies = pBH.('flgDampenAliasedFrequencies')
+  flgDampenAliasedFrequencies = emc.('flgDampenAliasedFrequencies')
 catch
   flgDampenAliasedFrequencies = 0
 end
 
 try
-  flg2dCTF = pBH.('flg2dCTF');
+  flg2dCTF = emc.('flg2dCTF');
 catch
   flg2dCTF = 0;
 end   
@@ -248,13 +248,13 @@ try
   % Part of the experiment with template matching using higher res info, also 
   % allow for a median filter post CTF correction, pre reconstruction to 
   % further denoise prior to template matching.
-  flgMedianFilter = pBH.('ctfMedianFilter');
+  flgMedianFilter = emc.('ctfMedianFilter');
 catch
   flgMedianFilter = 0;
 end
   
 
-% ctf3dDepth=pBH.('defocusErrorEst')
+% ctf3dDepth=emc.('defocusErrorEst')
 %mean in case cones.
 
 
@@ -263,7 +263,7 @@ if (reconstructionParameters(1))
   samplingRate = reconstructionParameters(2);
 else
   if (loadSubTomoMeta)
-    samplingRate = pBH.('Ali_samplingRate');
+    samplingRate = emc.('Ali_samplingRate');
     % This number is used to roughly balance the trade off between
     % achievable resolution, and run time during reconstruction as
     % determined by the thickness of each 3d slab reconstructed. Given that
@@ -275,9 +275,9 @@ else
     end
   else
     % For template search
-    samplingRate = pBH.('Tmp_samplingRate');
+    samplingRate = emc.('Tmp_samplingRate');
     try 
-      resTarget = pBH.('lowResCut');
+      resTarget = emc.('lowResCut');
     catch
       resTarget = 12;
     end
@@ -287,7 +287,7 @@ else
 end
 
 try
-  max_ctf3dDepth = pBH.('max_ctf3dDepth');
+  max_ctf3dDepth = emc.('max_ctf3dDepth');
 catch
   max_ctf3dDepth = 500*10^-9;
 end
@@ -300,7 +300,7 @@ end
 
 fprintf('Using a target resolution of %2.2f Angstroms\n',resTarget);
 
-nGPUs = pBH.('nGPUs');
+nGPUs = emc.('nGPUs');
 % Optionally specify gpu idxs
 if numel(nGPUs) == 1
   gpuList = 1:nGPUs;
@@ -309,17 +309,17 @@ else
   nGPUs = length(gpuList);
 end
 
-pixelSize = pBH.('PIXEL_SIZE').*10^10 .* samplingRate;
+pixelSize = emc.('PIXEL_SIZE').*10^10 .* samplingRate;
 
 % if (recWithoutMat)
 %   reconstructionParameters(1) = ')(i) =(1) ./ pixelSize;
 % end
 
-if pBH.('SuperResolution')
+if emc.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
 
-eraseRadius = ceil(1.5.*(pBH.('beadDiameter')./pBH.('PIXEL_SIZE').*0.5) / samplingRate);
+eraseRadius = ceil(1.5.*(emc.('beadDiameter')./emc.('PIXEL_SIZE').*0.5) / samplingRate);
 
 nTomosPerTilt = 0;
 recGeom = 0;

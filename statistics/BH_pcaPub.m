@@ -140,19 +140,19 @@ flgWMDs = 3;
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 reconScaling = 1;
 %%% Put this in the param file later - the input values should be in angstrom
 %%% and are the relevant scale spaces for classification.
 
-pcaScaleSpace  = pBH.('pcaScaleSpace');
+pcaScaleSpace  = emc.('pcaScaleSpace');
 nScaleSpace = numel(pcaScaleSpace);
-samplingRate   = pBH.('Cls_samplingRate');
-refSamplingRate= pBH.('Ali_samplingRate');
-randomSubset   = pBH.('Pca_randSubset');
-maxEigs        = pBH.('Pca_maxEigs');
-pixelSize = pBH.('PIXEL_SIZE').*10^10.*samplingRate;
-refPixelSize = pBH.('PIXEL_SIZE').*10^10.*refSamplingRate;
+samplingRate   = emc.('Cls_samplingRate');
+refSamplingRate= emc.('Ali_samplingRate');
+randomSubset   = emc.('Pca_randSubset');
+maxEigs        = emc.('Pca_maxEigs');
+pixelSize = emc.('PIXEL_SIZE').*10^10.*samplingRate;
+refPixelSize = emc.('PIXEL_SIZE').*10^10.*refSamplingRate;
 
 % FIMXE: Probably remove this incomplete idea
 if (refSamplingRate ~= samplingRate)
@@ -160,37 +160,37 @@ if (refSamplingRate ~= samplingRate)
 end
 
 % FIXME: SuperResolution should be deprecated
-if pBH.('SuperResolution')
+if emc.('SuperResolution')
   pixelSize = pixelSize * 2;
   refPixelSize = refPixelSize * 2;
 end
-nCores  = BH_multi_parallelWorkers(pBH.('nCpuCores'));
+nCores  = BH_multi_parallelWorkers(emc.('nCpuCores'));
 pInfo = parcluster();
 
-nTempParticles = pBH.('PcaGpuPull');
+nTempParticles = emc.('PcaGpuPull');
 try
-  scaleCalcSize = pBH.('scaleCalcSize');
+  scaleCalcSize = emc.('scaleCalcSize');
 catch
   scaleCalcSize = 1.5;
 end
 
 try
-  use_v2_SF3D = pBH.('use_v2_SF3D')
+  use_v2_SF3D = emc.('use_v2_SF3D')
 catch
   use_v2_SF3D = true
 end
-outputPrefix   = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
-%%%flgGold      = pBH.('flgGoldStandard');
+outputPrefix   = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
+%%%flgGold      = emc.('flgGoldStandard');
 
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
 
-flgNorm = 1;% pBH.('flgNormalizeWMDs');
+flgNorm = 1;% emc.('flgNormalizeWMDs');
 try
-  flgPcaShapeMask = pBH.('flgPcaShapeMask');
+  flgPcaShapeMask = emc.('flgPcaShapeMask');
 catch
   flgPcaShapeMask = 1;
 end
@@ -199,19 +199,19 @@ end
 % mask since we are concerned with densities that are likely damped during
 % averaging due to low occupancy.
 try
-  shape_mask_lowpass = pBH.('shape_mask_lowpass');
+  shape_mask_lowpass = emc.('shape_mask_lowpass');
 catch
   shape_mask_lowpass = 14 + 10; 
 end
 
 try
-  shape_mask_threshold = pBH.('shape_mask_threshold');
+  shape_mask_threshold = emc.('shape_mask_threshold');
 catch
   shape_mask_threshold = 2.4 - 0.4;
 end
 
 try 
-  tmpVal = pBH.('whitenPS');
+  tmpVal = emc.('whitenPS');
   if (numel(tmpVal) == 3)
     wiener_constant = tmpVal(3);
   else
@@ -223,18 +223,18 @@ end
 
 try
   % Apply the mask with the given parameters, save and exit.
-  shape_mask_test = pBH.('shape_mask_test');
+  shape_mask_test = emc.('shape_mask_test');
 catch
   shape_mask_test = false;
 end
 
 try
-  test_updated_bandpass = pBH.('test_updated_bandpass');
+  test_updated_bandpass = emc.('test_updated_bandpass');
 catch
   test_updated_bandpass = false;
 end
 
-flgClassify = pBH.('flgClassify');
+flgClassify = emc.('flgClassify');
 
 % Removed flgGold everywhere else, but keep ability to classify full data set at
 % the end (after all alignment is finished.) 
@@ -250,11 +250,11 @@ else
 end
 
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
 
 try
-  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
 catch
   flgMultiRefAlignment = 0;
 end
@@ -276,7 +276,7 @@ geometry = subTomoMeta.(cycleNumber).(geom_name);
 
 
 try
-  flgCutOutVolumes = pBH.('flgCutOutVolumes');
+  flgCutOutVolumes = emc.('flgCutOutVolumes');
 catch
   flgCutOutVolumes = 0;
 end
@@ -302,10 +302,10 @@ nTomograms = length(tomoList);
 
                                                      
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Cls', pixelSize);
+                                  BH_multi_maskCheck(emc, 'Cls', pixelSize);
 
 [ preMaskType, preMaskSize, preMaskRadius, preMaskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', refPixelSize);
+                                  BH_multi_maskCheck(emc, 'Ali', refPixelSize);
 
 % This is prob not a good way to make sure the mask size matches::w
 maskSize=preMaskSize;
@@ -322,7 +322,7 @@ cpuVols = struct;
 
 
 if (test_multi_ref_diffmap) 
-  refName = pBH.('Raw_className');
+  refName = emc.('Raw_className');
 else
   refName = 0;
 end
@@ -353,10 +353,10 @@ end
 %% Added for test_multi_ref_diffmap %%
 refVector = cell(2,1);
 refGroup = cell(2,1);
-classVector{1}  = pBH.('Raw_classes_odd')(1,:);
-classVector{2}  = pBH.('Raw_classes_eve')(1,:);
-refVectorFull{1}= [pBH.('Raw_classes_odd');classVector{1} ]
-refVectorFull{2}= [pBH.('Raw_classes_eve');classVector{2} ]
+classVector{1}  = emc.('Raw_classes_odd')(1,:);
+classVector{2}  = emc.('Raw_classes_eve')(1,:);
+refVectorFull{1}= [emc.('Raw_classes_odd');classVector{1} ]
+refVectorFull{2}= [emc.('Raw_classes_eve');classVector{2} ]
 for iGold = 1:2
   % Sort low to high, because order is rearranged as such unstack
   refVectorFull{iGold} = sortrows(refVectorFull{iGold}', 1)';
@@ -487,14 +487,14 @@ if (flgVarianceMap)
 end
 
 try
-  symmetry = pBH.('symmetry');
+  symmetry = emc.('symmetry');
   fprintf('\n\tWarning: As of emClarity 1.7.0.12 the symmetry parameter is applied to the volume and mask in PCA!\n')
 catch
   error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try
-  constrain_symmetry = pBH.('Pca_constrain_symmetry');
+  constrain_symmetry = emc.('Pca_constrain_symmetry');
 catch
   constrain_symmetry = false;
 end
@@ -1007,7 +1007,7 @@ for iGold = 1:1+flgGold
   masterTM.(cycleNumber).('newIgnored_PCA').(halfSet) = gather(nIgnored);
   
   subTomoMeta = masterTM;
-  save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 
   for iScale = 1:nScaleSpace
     dataMatrix{iScale}(:,1+nTempPrev:nTemp-1+nTempPrev) = ...

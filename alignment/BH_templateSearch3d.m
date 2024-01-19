@@ -35,9 +35,9 @@ gpuDevice(useGPU);
 SYMMETRY = EMC_str2double(SYMMETRY);
 startTime = clock ;
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR
 %   clear subTomoMeta
   % Make sure we get a CTF corrected stack
@@ -46,22 +46,22 @@ catch
   mapBackIter = 0;
   shouldBeCTF = -1
 end
-samplingRate  = pBH.('Tmp_samplingRate');
+samplingRate  = emc.('Tmp_samplingRate');
 
 try
-  tmpDecoy = pBH.('templateDecoy')
+  tmpDecoy = emc.('templateDecoy')
 catch
   tmpDecoy = 0
 end
 
 try
-  scale_mip = pBH.('scale_mip');
+  scale_mip = emc.('scale_mip');
 catch
   scale_mip = false;
 end
 
 try
-  max_tries = pBH.('max_peaks');
+  max_tries = emc.('max_peaks');
 catch
   max_tries = 10000;
 end
@@ -69,30 +69,30 @@ end
 if ( cmdLineThresh )
  peakThreshold = cmdLineThresh;
  fprintf('\nOverride peakThreshold from paramfile (%d) with cmd line arg (%d)\n\n',...
-         cmdLineThresh, pBH.('Tmp_threshold'));
+         cmdLineThresh, emc.('Tmp_threshold'));
 else
- peakThreshold = pBH.('Tmp_threshold');
+ peakThreshold = emc.('Tmp_threshold');
 end
 
-latticeRadius = pBH.('particleRadius');
+latticeRadius = emc.('particleRadius');
 try
-  targetSize    = pBH.('Tmp_targetSize')
+  targetSize    = emc.('Tmp_targetSize')
 catch
   targetSize = [512,512,512];
 end
-angleSearch   = pBH.('Tmp_angleSearch');
+angleSearch   = emc.('Tmp_angleSearch');
 
 statsRadius = 1;
 
 convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 
 try 
-  eraseMaskType = pBH.('Peak_mType');
+  eraseMaskType = emc.('Peak_mType');
 catch
   eraseMaskType = 'sphere';
 end
 try
-  eraseMaskRadius = pBH.('Peak_mRadius');
+  eraseMaskRadius = emc.('Peak_mRadius');
 catch
   eraseMaskRadius = 0.75.*latticeRadius;
 end
@@ -102,13 +102,13 @@ nPreviousSubTomos = 0;
 
 reconScaling = 1;
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
 
-pixelSizeFULL = pBH.('PIXEL_SIZE').*10^10;
-if pBH.('SuperResolution')
+pixelSizeFULL = emc.('PIXEL_SIZE').*10^10;
+if emc.('SuperResolution')
   pixelSizeFULL = pixelSizeFULL * 2;
 end
 
@@ -118,7 +118,7 @@ pixelSize = pixelSizeFULL.*samplingRate;
   
 
 try 
-  wantedCut = pBH.('lowResCut');
+  wantedCut = emc.('lowResCut');
 catch
   wantedCut = 28;
 end
@@ -170,7 +170,7 @@ clear recGeom
 % The template will be padded later, trim for now to minimum so excess
 % iterations can be avoided.
 fprintf('size of provided template %d %d %d\n',size(template));
-trimTemp = BH_multi_padVal(size(template),ceil(2.*max(pBH.('Ali_mRadius')./pixelSizeFULL)));
+trimTemp = BH_multi_padVal(size(template),ceil(2.*max(emc.('Ali_mRadius')./pixelSizeFULL)));
 template = BH_padZeros3d(template, trimTemp(1,:),trimTemp(2,:),'cpu','singleTaper');
 SAVE_IMG(MRCImage(template),'template_trimmed.mrc');
 clear trimTemp
@@ -226,7 +226,7 @@ rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
 try
-  doHelical = pBH.('doHelical');
+  doHelical = emc.('doHelical');
 catch
   doHelical = 0;
 end
@@ -400,7 +400,7 @@ tomoCoords= zeros(nTomograms, 3, 'uint16');
 clear wedgeMask
 
 try
-  doMedFilt = pBH.('Tmp_medianFilter');
+  doMedFilt = emc.('Tmp_medianFilter');
   if ~ismember(doMedFilt,[3,5,7])
     error('Tmp_medianFilter can only be 3,5, or 7');
   else
@@ -1294,8 +1294,8 @@ fclose(fileID);
 % [ subTomoMeta ] = BH_fscSplit( preFscSplit );
 % subTomoMeta.('currentCycle') = 0;
 
-% save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-% save(sprintf('./convmap/%s.mat~', pBH.('subTomoMeta')), 'subTomoMeta');
+% save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
+% save(sprintf('./convmap/%s.mat~', emc.('subTomoMeta')), 'subTomoMeta');
 %save('test.pos','a','-ascii');
 
 

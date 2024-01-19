@@ -21,15 +21,15 @@ function [  ] = BH_removeDuplicates( PARAMETER_FILE, CYCLE )
 
 CYCLE = EMC_str2double(CYCLE); 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
-dupSampling = ceil(10e-10 / pBH.('PIXEL_SIZE'));
+dupSampling = ceil(10e-10 / emc.('PIXEL_SIZE'));
 
-pixelSize = pBH.('PIXEL_SIZE').*dupSampling.*10^10;
-if pBH.('SuperResolution')
+pixelSize = emc.('PIXEL_SIZE').*dupSampling.*10^10;
+if emc.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
-latticeRadius = pBH.('particleRadius');
+latticeRadius = emc.('particleRadius');
 
 dupRadius = max(1,floor(0.2*min(latticeRadius)/pixelSize));
 dupTolerance = (2.*dupRadius)+1;
@@ -42,13 +42,13 @@ if (nargin ~= 2)
 end
 
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
 % Backup the current geometry
-  system(sprintf('cp %s.mat preDupRemoval_%s.mat',pBH.('subTomoMeta'),pBH.('subTomoMeta')));
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  system(sprintf('cp %s.mat preDupRemoval_%s.mat',emc.('subTomoMeta'),emc.('subTomoMeta')));
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   geometry = subTomoMeta.(cycleNumber).RawAlign;
 % % %   mapExt = subTomoMeta.mapExt;
 % % %   mapPath= subTomoMeta.mapPath;
@@ -167,7 +167,7 @@ fprintf('%d of %d particles removed\n', nRemoved, nTotal);
 
 subTomoMeta = masterTM;
 subTomoMeta.(cycleNumber).RawAlign = geometry;
-save(pBH.('subTomoMeta'), 'subTomoMeta');
+save(emc.('subTomoMeta'), 'subTomoMeta');
 
 end
  

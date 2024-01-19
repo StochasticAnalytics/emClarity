@@ -104,17 +104,13 @@ end
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE)
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+emc = BH_parseParameterFile(PARAMETER_FILE);
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 reconScaling = 1;
-try
-  nPeaks = pBH.('nPeaks');
-catch
-  nPeaks = 1;
-end
+
 
 try 
-  tmpVal = pBH.('whitenPS');
+  tmpVal = emc.('whitenPS');
   if (numel(tmpVal) == 3)
     wiener_constant = tmpVal(3);
   else
@@ -125,7 +121,7 @@ catch
 end
 
 try
-  fscBfactor = pBH.('Fsc_bfactor');
+  fscBfactor = emc.('Fsc_bfactor');
 catch
   fscBfactor = 40;
 end
@@ -134,7 +130,7 @@ mapBackIter = subTomoMeta.currentTomoCPR;
 
 if (CYCLE)
   try
-    flgQualityWeight = pBH.('flgQualityWeight');
+    flgQualityWeight = emc.('flgQualityWeight');
   catch
     flgQualityWeight = 5;
   end
@@ -145,20 +141,20 @@ end
 % Experimental downweighting of higher frequency info farther from focus.
 % Could also consider filtering pre reconstruction
 try 
-  flgFilterDefocus = pBH.('filterDefocus');
+  flgFilterDefocus = emc.('filterDefocus');
   fprintf('\nFiltering by defocus using exp[-(%d*(argmax(def-1,0,5).*q)^%d)]\n',flgFilterDefocus);
 catch
   flgFilterDefocus = 0;
 end
 
 try
-  flgCutOutVolumes = pBH.('flgCutOutVolumes');
+  flgCutOutVolumes = emc.('flgCutOutVolumes');
 catch
   flgCutOutVolumes = 0;
 end
 
 try
-  projectVolumes = pBH.('flgProjectVolumes');
+  projectVolumes = emc.('flgProjectVolumes');
 catch   
     projectVolumes = false;
 end
@@ -179,14 +175,14 @@ if (flgCutOutVolumes)
 end
 
 try 
-  track_stats = pBH.('track_stats');
+  track_stats = emc.('track_stats');
 catch
   track_stats = false;
 end
 
 % Note this will be set to false unless we are averging after an update
 try
-  flgShiftEucentric =  pBH.('eucentric_fit');
+  flgShiftEucentric =  emc.('eucentric_fit');
 catch
   flgShiftEucentric = 0;
 end
@@ -195,7 +191,7 @@ rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
 try
-  doHelical = pBH.('doHelical');
+  doHelical = emc.('doHelical');
 catch
   doHelical = 0;
 end
@@ -219,22 +215,22 @@ if (track_stats)
 end
 fprintf('track stats is %d\n',track_stats)
 
-flgClassify= pBH.('flgClassify');
+flgClassify= emc.('flgClassify');
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
 if ( flgClassify ); flgClassify = -1 ; end
 try
-  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
 catch
   flgMultiRefAlignment = 0;
 end
 flgGold=1;
-pixelSize = pBH.('PIXEL_SIZE').*10^10;
-if pBH.('SuperResolution')
+pixelSize = emc.('PIXEL_SIZE').*10^10;
+if emc.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
-nGPUs = pBH.('nGPUs');
+nGPUs = emc.('nGPUs');
 % Optionally specify gpu idxs
 if numel(nGPUs) == 1
   gpuList = 1:nGPUs;
@@ -246,19 +242,19 @@ end
 
 
 try
-  loadTomo = pBH.('loadTomo')
+  loadTomo = emc.('loadTomo')
 catch
   loadTomo = 0
 end
 
 try
-  scaleCalcSize = pBH.('scaleCalcSize');
+  scaleCalcSize = emc.('scaleCalcSize');
 catch
   scaleCalcSize = 1.5;
 end
 
 try
-  use_v2_SF3D = pBH.('use_v2_SF3D')
+  use_v2_SF3D = emc.('use_v2_SF3D')
 catch
   use_v2_SF3D = true
 end
@@ -301,15 +297,15 @@ switch STAGEofALIGNMENT
     end
 
 
-      classVector{1}  = pBH.(sprintf('%s_classes_odd','Raw'));
-      classVector{2}  = pBH.(sprintf('%s_classes_eve','Raw'));
+      classVector{1}  = emc.(sprintf('%s_classes_odd','Raw'));
+      classVector{2}  = emc.(sprintf('%s_classes_eve','Raw'));
 
-      className    = pBH.(sprintf('%s_className','Raw'));
-      samplingRate = pBH.('Ali_samplingRate'); 
+      className    = emc.(sprintf('%s_className','Raw'));
+      samplingRate = emc.('Ali_samplingRate'); 
       
      if (flgMultiRefAlignment && (test_multi_ref_diffmap || ~flgClassify))
-       className    = pBH.(sprintf('Raw_className'))
-       saveClassSum = pBH.(sprintf('Raw_className'))
+       className    = emc.(sprintf('Raw_className'))
+       saveClassSum = emc.(sprintf('Raw_className'))
      elseif (flgMultiRefAlignment && flgClassify)
        fprintf('\n\nMutliRef and Classify enabled.\n');
        fprintf('Only creating the global class average for PCA\n\n.');
@@ -327,15 +323,15 @@ switch STAGEofALIGNMENT
     % Goal is to re-extract odd-half, applying the xform found in fscGold
     fieldPrefix = 'Raw'
    
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
+    classVector{1}  = emc.(sprintf('%s_classes_odd',fieldPrefix));
+    classVector{2}  = emc.(sprintf('%s_classes_eve',fieldPrefix));
     
-    className    = pBH.(sprintf('%s_className',fieldPrefix));
-    samplingRate = pBH.('Ali_samplingRate');
+    className    = emc.(sprintf('%s_className',fieldPrefix));
+    samplingRate = emc.('Ali_samplingRate');
     if (flgClassify)
-      %samplingRate = pBH.('Pca_samplingRate');
+      %samplingRate = emc.('Pca_samplingRate');
     else
-      %samplingRate = pBH.('Raw_samplingRate');
+      %samplingRate = emc.('Raw_samplingRate');
       fieldPrefix = 'REF'
     end
     
@@ -367,14 +363,14 @@ switch STAGEofALIGNMENT
     ClusterGeomNAME = 'ClusterClsGeom';
     fieldPrefix = 'Cls';
 
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
+    classVector{1}  = emc.(sprintf('%s_classes_odd',fieldPrefix));
+    classVector{2}  = emc.(sprintf('%s_classes_eve',fieldPrefix));
 
-    classCoeffs{1} =  pBH.('Pca_coeffs');
-    classCoeffs{2} =  pBH.('Pca_coeffs');
+    classCoeffs{1} =  emc.('Pca_coeffs');
+    classCoeffs{2} =  emc.('Pca_coeffs');
 
-    samplingRate = pBH.(sprintf('Cls_samplingRate'));
-    className    = pBH.(sprintf('%s_className',fieldPrefix));
+    samplingRate = emc.(sprintf('Cls_samplingRate'));
+    className    = emc.(sprintf('%s_className',fieldPrefix));
     if flgClassify < 0
       flgGold = 0;
     end        
@@ -390,7 +386,7 @@ switch STAGEofALIGNMENT
     classVector{2}  = [1:25;ones(1,25)];
 
     className    = 25;
-    samplingRate = pBH.(sprintf('%s_samplingRate','Ali'));
+    samplingRate = emc.(sprintf('%s_samplingRate','Ali'));
     
   otherwise
     error('STAGEofALIGNMENT incorrect')
@@ -399,24 +395,24 @@ end
 fprintf('StOAlign = %s, fieldPrefix = %s\n', STAGEofALIGNMENT, fieldPrefix);
 
 
-flgCones     = pBH.('flgCones');
+flgCones     = emc.('flgCones');
 
 try
   % if > 1 keep this many subtomos
   % if < 1 keep this fraction
-  cccCutOff    = pBH.('flgCCCcutoff');
+  cccCutOff    = emc.('flgCCCcutoff');
 catch
   cccCutOff = 0.0;
 end
-cutPrecision = 'single'; %pBH.('flgPrecision');
+cutPrecision = 'single'; %emc.('flgPrecision');
 try
-  interpOrder = pBH.('interpOrder');
+  interpOrder = emc.('interpOrder');
 catch
   interpOrder = 1;
 end
 
 try 
-  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
+  flgLimitToOneProcess = emc.('flgLimitToOneProcess');
 catch
   flgLimitToOneProcess = 0;
 end
@@ -431,7 +427,7 @@ elseif interpOrder == 4
 elseif (flgLimitToOneProcess)
   limitToOne = flgLimitToOneProcess;
 else
-  limitToOne = pBH.('nCpuCores'); 
+  limitToOne = emc.('nCpuCores'); 
   interpOrder = 1;
 end
 
@@ -444,10 +440,10 @@ fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOne);
 if ~(ismember(interpOrder,[1,4]))
   error('interpolationOrder must be 1,,4 - linear,sinc');
 end
-outputPrefix = sprintf('%s_%s',cycleNumber, pBH.('subTomoMeta'));
+outputPrefix = sprintf('%s_%s',cycleNumber, emc.('subTomoMeta'));
 
 pixelSize = pixelSize .* samplingRate;
-peakSearch   = floor(0.85.*pBH.('particleRadius')./pixelSize)
+peakSearch   = floor(0.85.*emc.('particleRadius')./pixelSize)
 peakCOM      = [1,1,1].*3;
     
 
@@ -467,7 +463,7 @@ if subTomoMeta.('currentCycle') == CYCLE - 1
 
   cycleRead = sprintf('cycle%0.3u', CYCLE - 1);
   % Save a backup of the cycles total geometry
-  save(sprintf('%s_%s_backup.mat',cycleRead,pBH.('subTomoMeta')), ...
+  save(sprintf('%s_%s_backup.mat',cycleRead,emc.('subTomoMeta')), ...
                                                                'subTomoMeta');
 end
   
@@ -555,7 +551,7 @@ end
     masterTM = subTomoMeta; clear subTomoMeta
 
 try
-  symmetry = pBH.('symmetry');
+  symmetry = emc.('symmetry');
 catch
   error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
@@ -591,7 +587,7 @@ ctfGroupList = masterTM.('ctfGroupSize');
 if (flgClassify)           
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize);
+                                  BH_multi_maskCheck(emc, 'Ali', pixelSize);
   % These are used when 'Cluster' is called, to take the masking parameters
   % from focused PCA/Classification, to produce a montage with reduced
   % Z-dimension & low pass filtering to be used in decision making but not
@@ -600,11 +596,11 @@ if (flgClassify)
 
 
   [~, pcaMaskSize, pcaMaskRadius, pcaMaskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Cls', pixelSize);
+                                  BH_multi_maskCheck(emc, 'Cls', pixelSize);
 else
   
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize);
+                                  BH_multi_maskCheck(emc, 'Ali', pixelSize);
   
 end
 
@@ -737,7 +733,7 @@ end
 
 maxCCC = 0;
 try
-  spike_prior = pBH.('spike_prior')
+  spike_prior = emc.('spike_prior')
 catch
   spike_prior = false
 end
@@ -802,7 +798,7 @@ if (flgQualityWeight)
 
 
         [ normal_vect, chi2 ] = BH_fit_ellipsoidal_prior(pixelSize .* particle_coords(positions_to_analyze,3:5), ...
-                                                               pBH.('particleRadius')(3), ...
+                                                               emc.('particleRadius')(3), ...
                                                                radial_shrink_factor, ...
                                                                display_fit);
 
@@ -1875,7 +1871,7 @@ cycleNumber = gather(cycleNumber);
 subTomoMeta.('currentCycle') = gather(CYCLE);
 
 
-save(pBH.('subTomoMeta'), 'subTomoMeta'); 
+save(emc.('subTomoMeta'), 'subTomoMeta'); 
 
 
 
@@ -1912,7 +1908,7 @@ end
 
 
 if ~( flgEstSNR )
-    load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+    load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
     masterTM = subTomoMeta;
     %%%%%%%%%%%%%55 Reweight now that the FSC is calculated
 
@@ -1947,7 +1943,6 @@ if ~( flgEstSNR )
   % This is slow ass when using cones and class averages and wouldn't be too
   % hard to put into parallel. Do that once the next manuscript is finished.
     if (~flgMultiRefAlignment && ~flgClassify )
-
 	      nClassesReWgt = 1;
     else
         nClassesReWgt = maxClasses;
@@ -2076,7 +2071,7 @@ if ~( flgEstSNR )
   if (flgCutOutVolumes && doCut)
     subTomoMeta.('volumesAreCutOut') = 1;
   end
-  save(pBH.('subTomoMeta'), 'subTomoMeta');
+  save(emc.('subTomoMeta'), 'subTomoMeta');
   
 end
 

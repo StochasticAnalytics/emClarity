@@ -3,82 +3,82 @@ function [ ] = BH_runAutoAlign(PARAMETER_FILE, runPath,findBeadsPath,stackIN,til
 %  sadf
 
 % TODO add options for experimenting.
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 skip_tilts = 0;
 if nargin > 6
   skip_tilts = EMC_str2double(varargin{1});  
 end
 
-pixelSize = pBH.('PIXEL_SIZE').*10^10;
+pixelSize = emc.('PIXEL_SIZE').*10^10;
 imgRotation = EMC_str2double(imgRotation);
 
 try 
-  RESOLUTION_CUTOFF = pBH.('autoAli_max_resolution');
+  RESOLUTION_CUTOFF = emc.('autoAli_max_resolution');
 catch
   RESOLUTION_CUTOFF=18;
 end
 
 % Min and max sampling rate in Ang/Pix (for patch tracking)
 try
-  MIN_SAMPLING_RATE = pBH.('autoAli_min_sampling_rate');
+  MIN_SAMPLING_RATE = emc.('autoAli_min_sampling_rate');
 catch
   MIN_SAMPLING_RATE = 10.0;
 end
 try
-  MAX_SAMPLING_RATE = pBH.('autoAli_max_sampling_rate');
+  MAX_SAMPLING_RATE = emc.('autoAli_max_sampling_rate');
 catch
   MAX_SAMPLING_RATE = 4.0;
 end
 
 try
-  PATCH_SIZE_FACTOR = pBH.('autoAli_patch_size_factor');
+  PATCH_SIZE_FACTOR = emc.('autoAli_patch_size_factor');
 catch
   PATCH_SIZE_FACTOR = 4;
 end
 
 % Check this first to allow only patch tracking even if there are beads
 try
-  REFINE_ON_BEADS = pBH.('autoAli_refine_on_beads');
+  REFINE_ON_BEADS = emc.('autoAli_refine_on_beads');
 catch
   REFINE_ON_BEADS = false;
 end
 
 % Check this first to allow only patch tracking even if there are beads
 try
-  BORDER_SIZE_PIXELS = pBH.('autoAli_patch_tracking_border');
+  BORDER_SIZE_PIXELS = emc.('autoAli_patch_tracking_border');
 catch
   BORDER_SIZE_PIXELS = 64;
 end
 
 % Check this first to allow only patch tracking even if there are beads
 try
-  N_ITERS_NO_ROT = pBH.('autoAli_n_iters_no_rotation');
+  N_ITERS_NO_ROT = emc.('autoAli_n_iters_no_rotation');
 catch
   N_ITERS_NO_ROT = 3;
 end
 
 try
-  PATCH_OVERLAP = pBH.('autoAli_patch_overlap');
+  PATCH_OVERLAP = emc.('autoAli_patch_overlap');
 catch
   PATCH_OVERLAP = 0.5;
 end
 
 try
-  ITERATIONS_PER_BIN = pBH.('autoAli_iterations_per_bin');
+  ITERATIONS_PER_BIN = emc.('autoAli_iterations_per_bin');
 catch
   ITERATIONS_PER_BIN = 3;
 end
 
 % FIXME this should probably be specified in Ang
 try
-  FIRST_ITER_SHIFT_LIMIT_PIXELS  =  ceil(pBH.('autoAli_max_shift_in_angstroms')./pixelSize);   
+  FIRST_ITER_SHIFT_LIMIT_PIXELS  =  ceil(emc.('autoAli_max_shift_in_angstroms')./pixelSize);   
 catch
   FIRST_ITER_SHIFT_LIMIT_PIXELS = ceil(40 ./ pixelSize);
 end
 
 try
-  DIVIDE_SHIFT_LIMIT_BY =  pBH.('autoAli_max_shift_factor');
+  DIVIDE_SHIFT_LIMIT_BY =  emc.('autoAli_max_shift_factor');
 catch
   DIVIDE_SHIFT_LIMIT_BY = 1;
   % int(max_shift / (iter^DIVI...)) + 1
@@ -86,7 +86,7 @@ end
                                                    
 % Now get the bead diameter, if it is zeros override the default to refine
 % on beads after patch tracking.
-beadDiameter = pBH.('beadDiameter') * 10^10;
+beadDiameter = emc.('beadDiameter') * 10^10;
 if beadDiameter == 0
   REFINE_ON_BEADS = false;
 end

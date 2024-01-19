@@ -63,32 +63,32 @@ end
 
 
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR; 
 reconScaling = 1;
 
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
 
 try 
-  track_stats = pBH.('track_stats');
+  track_stats = emc.('track_stats');
 catch
   track_stats = false;
 end
 
 try
-  flgCutOutVolumes=pBH.('flgCutOutVolumes')
+  flgCutOutVolumes=emc.('flgCutOutVolumes')
 catch
   flgCutOutVolumes=0
 end
 
 try 
-  tmpVal = pBH.('whitenPS');
+  tmpVal = emc.('whitenPS');
   if (numel(tmpVal) == 3)
     wiener_constant = tmpVal(3);
   else
@@ -106,25 +106,25 @@ catch
 end
 
 try
-  use_v2_SF3D = pBH.('use_v2_SF3D')
+  use_v2_SF3D = emc.('use_v2_SF3D')
 catch
   use_v2_SF3D = true;
 end
 
 try
-  symmetry_op = pBH.('symmetry');
+  symmetry_op = emc.('symmetry');
 catch
   error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try 
-  use_new_grid_search = pBH.('use_new_grid_search');
+  use_new_grid_search = emc.('use_new_grid_search');
 catch
   use_new_grid_search = true;
 end
 
 try
-  force_no_symmetry = pBH.('force_no_symmetry');
+  force_no_symmetry = emc.('force_no_symmetry');
 catch
   force_no_symmetry = false;
 end
@@ -136,18 +136,18 @@ end
 maxGoldStandard = subTomoMeta.('maxGoldStandard');
 
 
-nGPUs = pBH.('nGPUs')
+nGPUs = emc.('nGPUs')
 
 
-flgClassify= pBH.('flgClassify');
+flgClassify= emc.('flgClassify');
 try
-  flgMultiRefAlignment=pBH.('flgMultiRefAlignment');
+  flgMultiRefAlignment=emc.('flgMultiRefAlignment');
 catch
   flgMultiRefAlignment = 0;
 end
 
 try 
-  updateClassByBestReferenceScore = pBH.('updateClassByBestReferenceScore');
+  updateClassByBestReferenceScore = emc.('updateClassByBestReferenceScore');
 catch
   updateClassByBestReferenceScore = false;
 end
@@ -156,39 +156,39 @@ if (~flgMultiRefAlignment)
 end
 
 try
-  flgCenterRefCOM = pBH.('flgCenterRefCOM');
+  flgCenterRefCOM = emc.('flgCenterRefCOM');
 catch
   flgCenterRefCOM = 1;
 end
 
 % FIXME: unused, fix experimental options option
 try
-  flgSymmetrizeSubTomos = pBH.('flgSymmetrizeSubTomos');
+  flgSymmetrizeSubTomos = emc.('flgSymmetrizeSubTomos');
 catch 
   flgSymmetrizeSubTomos = 0;
 end
-flgRaw_shapeMask =  0;%= pBH.('experimentalOpts')(3)
-samplingRate = pBH.('Ali_samplingRate');
+flgRaw_shapeMask =  0;%= emc.('experimentalOpts')(3)
+samplingRate = emc.('Ali_samplingRate');
 
-pixelSize      = pBH.('PIXEL_SIZE').*10^10.*samplingRate;
-if pBH.('SuperResolution')
+pixelSize      = emc.('PIXEL_SIZE').*10^10.*samplingRate;
+if emc.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
 
-flgPrecision = 'single'; %pBH.('flgPrecision');
-angleSearch  = pBH.('Raw_angleSearch');
-peakSearch   = (pBH.('particleRadius')./pixelSize);
+flgPrecision = 'single'; %emc.('flgPrecision');
+angleSearch  = emc.('Raw_angleSearch');
+peakSearch   = (emc.('particleRadius')./pixelSize);
 peakCOM      = [1,1,1].*3;
-className    = pBH.('Raw_className');  
+className    = emc.('Raw_className');  
 
 try 
-  loadTomo = pBH.('loadTomo')
+  loadTomo = emc.('loadTomo')
 catch
   loadTomo = 0;
 end
 try 
-  eraseMaskType = pBH.('Peak_mType');
-	eraseMaskRadius = pBH.('Peak_mRadius')./pixelSize;
+  eraseMaskType = emc.('Peak_mType');
+	eraseMaskRadius = emc.('Peak_mRadius')./pixelSize;
   fprintf('Further restricting peak search to radius %f %f %f\n',...
           eraseMaskRadius);
   eraseMask = 1;
@@ -201,7 +201,7 @@ rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
 try
-  doHelical = pBH.('doHelical');
+  doHelical = emc.('doHelical');
 catch
   doHelical = 0;
 end
@@ -212,7 +212,7 @@ end
 rotConvention
 
 try
-  bFactor = pBH.('Fsc_bfactor');
+  bFactor = emc.('Fsc_bfactor');
 catch
   bFactor = 0;
 end
@@ -222,40 +222,40 @@ if length(bFactor) > 1
 end
 
 try
-  scaleCalcSize = pBH.('scaleCalcSize');
+  scaleCalcSize = emc.('scaleCalcSize');
 catch
   scaleCalcSize = 1.5;
 end
 % % % % if (flgClassify || flgMultiRefAlignment)
 if (flgClassify)
-  refName      = pBH.('Ref_className');
+  refName      = emc.('Ref_className');
 else
-  refName = pBH.('Raw_className');
+  refName = emc.('Raw_className');
 end
  
-outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
+outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 
 
-classVector{1}  = pBH.('Raw_classes_odd')(1,:);
+classVector{1}  = emc.('Raw_classes_odd')(1,:);
 
 
-classVector{2}  = pBH.('Raw_classes_eve')(1,:);
+classVector{2}  = emc.('Raw_classes_eve')(1,:);
 
 
 % % % % if (flgClassify || flgMultiRefAlignment)
 if (flgClassify)
   geometry = subTomoMeta.(cycleNumber).ClassAlignment;
-  refVectorFull{1}= [pBH.('Ref_references_odd');1]
-  refVectorFull{2}= [pBH.('Ref_references_eve');1]
+  refVectorFull{1}= [emc.('Ref_references_odd');1]
+  refVectorFull{2}= [emc.('Ref_references_eve');1]
 elseif (flgMultiRefAlignment)
   geometry = subTomoMeta.(cycleNumber).ClusterRefGeom;
-  refVectorFull{1}= [pBH.('Raw_classes_odd');classVector{1} ]
-  refVectorFull{2}= [pBH.('Raw_classes_eve');classVector{2} ]
+  refVectorFull{1}= [emc.('Raw_classes_odd');classVector{1} ]
+  refVectorFull{2}= [emc.('Raw_classes_eve');classVector{2} ]
 else
   geometry = subTomoMeta.(cycleNumber).Avg_geometry;
-  refVectorFull{1} = [pBH.('Raw_classes_odd');1];
-  refVectorFull{2} = [pBH.('Raw_classes_eve');1];
+  refVectorFull{1} = [emc.('Raw_classes_odd');1];
+  refVectorFull{2} = [emc.('Raw_classes_eve');1];
 end
 
 
@@ -311,14 +311,14 @@ ctfGroupList = masterTM.('ctfGroupSize');
 
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize)
+                                  BH_multi_maskCheck(emc, 'Ali', pixelSize)
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
                                        BH_multi_validArea( maskSize, maskRadius, scaleCalcSize  )
 
 
 try 
-  flgLimitToOneProcess = pBH.('flgLimitToOneProcess');
+  flgLimitToOneProcess = emc.('flgLimitToOneProcess');
 catch
   flgLimitToOneProcess = 0;
 end
@@ -331,7 +331,7 @@ if ( loadTomo )
 elseif (flgLimitToOneProcess)
   limitToOne = flgLimitToOneProcess;
 else
-  limitToOne = pBH.('nCpuCores');
+  limitToOne = emc.('nCpuCores');
 end
 
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);                                   
@@ -684,7 +684,7 @@ if (use_new_grid_search)
   inPlaneSearch = gridSearch.parameter_map.psi
 
 try
-  symmetry_constrained_search = pBH.('symmetry_constrained_search');
+  symmetry_constrained_search = emc.('symmetry_constrained_search');
   fprintf('Using symmetry constrained search\n');
 catch
   symmetry_constrained_search = false;
@@ -1953,7 +1953,7 @@ else
 
   clear bestAngles rawAlign
   subTomoMeta = masterTM;
-  save(pBH.('subTomoMeta'), 'subTomoMeta');
+  save(emc.('subTomoMeta'), 'subTomoMeta');
   
 
 

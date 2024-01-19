@@ -3,30 +3,30 @@ function [  ] = BH_ctf_Updatefft( PARAMETER_FILE, STACK_PRFX, applyFullorUpdate)
 
 global bh_global_do_2d_fourier_interp;
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 flgSkipUpdate = 0;
 % To avoid accidently masking any failures in subsequent update, clean out
 % all stacks and reconstructions from the local cache.
 try
-  eucentric_minTilt = pBH.('eucentric_minTilt');
+  eucentric_minTilt = emc.('eucentric_minTilt');
 catch
   eucentric_minTilt = 15;
 end
 try
-  flgShiftEucentric =  pBH.('eucentric_fit');
+  flgShiftEucentric =  emc.('eucentric_fit');
 catch
   flgShiftEucentric = 0;
 end
 try
     % Should be negative, but to test.
-    defShiftSign = pBH.('testFlipSign');
+    defShiftSign = emc.('testFlipSign');
 catch
     defShiftSign = -1;
 end
 
 try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR; 
 catch
   mapBackIter = 0;
@@ -45,7 +45,7 @@ else
                                     PARAMETER_FILE,subTomoMeta.currentCycle, ...
                                     subTomoMeta.currentCycle);
  % fprintf('%s/n',updateCMD);
-  nGPUs = pBH.('nGPUs');
+  nGPUs = emc.('nGPUs');
   ITER_LIST = cell(nGPUs,1);
 
   [STACK_LIST, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
@@ -61,7 +61,7 @@ if flgShiftEucentric
 end
 % BH_geometryAnalysis(sprintf('%s',PARAMETER_FILE),sprintf('%d',subTomoMeta.currentCycle),'TiltAlignment','UpdateTilts',sprintf('[%d,0,0]',subTomoMeta.currentCycle),'STD')
 try
-  conserveDiskSpace = pBH.('conserveDiskSpace');
+  conserveDiskSpace = emc.('conserveDiskSpace');
 catch
   conserveDiskSpace = 0;
 end
@@ -161,8 +161,8 @@ parfor iGPU = 1:nGPUs
   eraseStack = sprintf('rm cache/%s_*.fixed',STACK_PRFX);
   eraseRec   = sprintf('rm cache/%s_*.rec',STACK_PRFX);
   % Converte bead diameter to pixels and add a little to be safe.
-  PIXEL_SIZE = pBH.('PIXEL_SIZE');
-  SuperResolution = pBH.('SuperResolution');
+  PIXEL_SIZE = emc.('PIXEL_SIZE');
+  SuperResolution = emc.('SuperResolution');
 
   % Don't apply any fourier cropping of super-res data if only updating,
   % as it would already be done.
@@ -176,9 +176,9 @@ parfor iGPU = 1:nGPUs
     PIXEL_SIZE = 2.* PIXEL_SIZE;
   end
 
-  eraseSigma = 3;%pBH.('beadSigma');
+  eraseSigma = 3;%emc.('beadSigma');
 
-  eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5));
+  eraseRadius = ceil(1.2.*(emc.('beadDiameter')./PIXEL_SIZE.*0.5));
   flgImodErase = 0
 
   % FIXME, this should be stored from previous mask calc and accessed there.
@@ -298,7 +298,7 @@ parfor iGPU = 1:nGPUs
   oldStackName = sprintf('%s/%s%s',outputDirectory,PRJ_OLD,INPUT_CELL{iStack,5});
   
   try 
-    erase_beads_after_ctf = pBH.('erase_beads_after_ctf');
+    erase_beads_after_ctf = emc.('erase_beads_after_ctf');
   catch
     erase_beads_after_ctf = false;
   end
@@ -641,7 +641,7 @@ if (flgShiftEucentric && mapBackIter)
         end
     end
   end
-  save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 end
     
 if ( flgParallel )

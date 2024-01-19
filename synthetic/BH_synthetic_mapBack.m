@@ -18,40 +18,40 @@ METHOD = 'GPU';
 flgRunAlignments = true;
 COLOR_MAP= '0';
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 try
-  flgColorMap = pBH.('flgColorMap');
+  flgColorMap = emc.('flgColorMap');
 catch 
   flgColorMap = 0;
 end
 
 try
-  preShift = pBH.('preShift');
+  preShift = emc.('preShift');
 catch
   preShift = [-0.5,-0.5,0.5];
 end
 
 try
-  postShift = pBH.('postShift');
+  postShift = emc.('postShift');
 catch
   postShift = [-0.5,-0.5];
 end
 
 try
-  prjVectorShift = pBH.('prjVectorShift')';
+  prjVectorShift = emc.('prjVectorShift')';
 catch
   prjVectorShift = [0.5,0.5,1.0]';
 end
 
 try
-  pixelShift = pBH.('pixelShift');
+  pixelShift = emc.('pixelShift');
 catch
   pixelShift = -1;
 end
 
 try
-  pixelMultiplier = pBH.('pixelMultiplier');
+  pixelMultiplier = emc.('pixelMultiplier');
 catch
   pixelMultiplier = 1;
 end
@@ -87,13 +87,13 @@ cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 
 reconScaling = 1;
-samplingRate = pBH.('Ali_samplingRate');
+samplingRate = emc.('Ali_samplingRate');
 % used to determine the number of fiducials/patch for local area. 
-MOL_MASS = pBH.('particleMass');
+MOL_MASS = emc.('particleMass');
 molMass = MOL_MASS.*(25/samplingRate); 
 
 try
-  tomoCPR_random_subset = pBH.('tomoCPR_randomSubset')
+  tomoCPR_random_subset = emc.('tomoCPR_randomSubset')
 catch
   tomoCPR_random_subset = -1
 end
@@ -101,7 +101,7 @@ end
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018
 
  try
-   rmsScale = pBH.('rmsScale');
+   rmsScale = emc.('rmsScale');
  catch
    % Larger RMS downweights the contribution of the tomogram. The use of
    % the molecular mass in MDa fits with experiments from the ribosome that
@@ -113,13 +113,13 @@ end
  end
  
 try
-  probabilityPeakiness = pBH.('probPeakiness');
+  probabilityPeakiness = emc.('probPeakiness');
 catch
   probabilityPeakiness = 0;
 end
 
 try
-  useAverageDefocus = pBH.('useAverageDefocus');
+  useAverageDefocus = emc.('useAverageDefocus');
 catch
   % While it seems like using the per fiducial defocus max for the
   % refinement makes sense, have the default be the average of the
@@ -128,7 +128,7 @@ catch
 end
 
 try
-  whitenProjections = pBH.('whitenProjections');
+  whitenProjections = emc.('whitenProjections');
 catch
   whitenProjections = 0;
 end
@@ -141,94 +141,94 @@ end
 %%% Playing around with the model
 n_surfaces=2;
 try 
-  rot_option_global = pBH.('rot_option_global'); 
+  rot_option_global = emc.('rot_option_global'); 
 catch
   rot_option_global = 1; 
 end
 try 
-  rot_option_local = pBH.('rot_option_local'); 
+  rot_option_local = emc.('rot_option_local'); 
 catch
   rot_option_local = 1;
 end
 try 
-  rot_default_grouping_global = pBH.('rot_default_grouping_global'); 
+  rot_default_grouping_global = emc.('rot_default_grouping_global'); 
 catch
   rot_default_grouping_global = 3;
 end
 try 
-  rot_default_grouping_local = pBH.('rot_default_grouping_local');
+  rot_default_grouping_local = emc.('rot_default_grouping_local');
 catch
   rot_default_grouping_local = 3;
 end
 try
-  mag_option_global = pBH.('mag_option_global');
+  mag_option_global = emc.('mag_option_global');
 catch
   mag_option_global = 1;
 end
 try
-  mag_option_local = pBH.('mag_option_local');
+  mag_option_local = emc.('mag_option_local');
 catch
   mag_option_local = 1;
 end
 try
-  mag_default_grouping_global = pBH.('mag_default_grouping_global');
+  mag_default_grouping_global = emc.('mag_default_grouping_global');
 catch
   mag_default_grouping_global = 5;
 end
 try
-  mag_default_grouping_local = pBH.('mag_default_grouping_local');
+  mag_default_grouping_local = emc.('mag_default_grouping_local');
 catch
   mag_default_grouping_local = 5;
 end
 try
-  tilt_option_global = pBH.('tilt_option_global');
+  tilt_option_global = emc.('tilt_option_global');
 catch
   tilt_option_global = 5;
 end
 try
-  tilt_option_local = pBH.('tilt_option_local');
+  tilt_option_local = emc.('tilt_option_local');
 catch
   tilt_option_local = 5;
 end
 try
-  tilt_default_grouping_global = pBH.('tilt_default_grouping_global');
+  tilt_default_grouping_global = emc.('tilt_default_grouping_global');
 catch
   tilt_default_grouping_global = 5;
 end
 try
-  tilt_default_grouping_local = pBH.('tilt_default_grouping_local');
+  tilt_default_grouping_local = emc.('tilt_default_grouping_local');
 catch
   tilt_default_grouping_local = 5;
 end
 try
-  nFiducialsPerPatch = pBH.('n_fiducials_per_patch');
+  nFiducialsPerPatch = emc.('n_fiducials_per_patch');
 catch
   % TODO how smooth should the solutions really be - should multiple
   % results be run and compared?
   nFiducialsPerPatch = ceil(100./sqrt(molMass));
 end
 try
-  target_patch_size = pBH.('target_patch_size');
+  target_patch_size = emc.('target_patch_size');
 catch
   target_patch_size = 500;
 end
 try
-  peak_mask_fraction = pBH.('peak_mask_fraction');
+  peak_mask_fraction = emc.('peak_mask_fraction');
 catch
   peak_mask_fraction = 0.4;
 end
 try
-  min_overlap = pBH.('min_overlap');
+  min_overlap = emc.('min_overlap');
 catch
   min_overlap = 0.5;
 end
 try
-  k_factor_scaling = pBH.('k_factor_scaling');
+  k_factor_scaling = emc.('k_factor_scaling');
 catch
   k_factor_scaling = nan;
 end
 try
-  shift_z_to_to_centroid = pBH.('shift_z_to_to_centroid');
+  shift_z_to_to_centroid = emc.('shift_z_to_to_centroid');
 catch
   shift_z_to_to_centroid = true;
 end
@@ -236,7 +236,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 try
-  use_PCF =  pBH.('use_PCF')
+  use_PCF =  emc.('use_PCF')
 catch
   use_PCF = 0;
 end
@@ -252,7 +252,7 @@ if (skip_to_the_end_and_run)
   % so override the tmpCache.
   tmpCache = '';
 else
- tmpCache= pBH.('fastScratchDisk');
+ tmpCache= emc.('fastScratchDisk');
 end
 
 if strcmpi(tmpCache, 'ram') 
@@ -272,10 +272,10 @@ if strcmpi(tmpCache, 'ram')
 end
 
 % % % nWorkers = EMC_str2double(nWORKERS)
-nGPUs = pBH.('nGPUs');
+nGPUs = emc.('nGPUs');
 pInfo = parcluster();
 gpuScale=3*samplingRate;
-nWorkers = min(nGPUs*gpuScale,pBH.('nCpuCores')); % 18
+nWorkers = min(nGPUs*gpuScale,emc.('nCpuCores')); % 18
 fprintf('Using %d workers as max of %d %d*nGPUs and %d nWorkers visible\n', ...
         nWorkers,gpuScale,nGPUs*gpuScale,pInfo.NumWorkers);
       
@@ -304,17 +304,17 @@ end
 system(sprintf('mkdir -p %s',tmpCache));
 
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
 
 
 
 
 % Add error check onrange for reasonable values.
-ctfRange = pBH.('tomoCprDefocusRange')*10^10; 
-ctfInc = pBH.('tomoCprDefocusStep')*10^10;
+ctfRange = emc.('tomoCprDefocusRange')*10^10; 
+ctfInc = emc.('tomoCprDefocusStep')*10^10;
 
-calcCTF = pBH.('tomoCprDefocusRefine');
+calcCTF = emc.('tomoCprDefocusRefine');
 
 
 [tiltNameList, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
@@ -353,18 +353,18 @@ end
 refVol = cell(2,1);
 
   
-refName = pBH.('Raw_className');
+refName = emc.('Raw_className');
 
 try
-  symmetry = pBH.('symmetry');
+  symmetry = emc.('symmetry');
 catch
   error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
-classVector{1}  = pBH.('Raw_classes_odd')(1,:);
-classSymmetry{1}= pBH.('Raw_classes_odd')(2,:);
-classVector{2}  = pBH.('Raw_classes_eve')(1,:);
-classSymmetry{2}= pBH.('Raw_classes_eve')(2,:);
+classVector{1}  = emc.('Raw_classes_odd')(1,:);
+classSymmetry{1}= emc.('Raw_classes_odd')(2,:);
+classVector{2}  = emc.('Raw_classes_eve')(1,:);
+classSymmetry{2}= emc.('Raw_classes_eve')(2,:);
 
 nRefs = length(classVector{1})
 
@@ -403,18 +403,18 @@ end
 
 % try
 %   refNameODD = sprintf('%s_%s_class0_REF_ODD.mrc', ...
-%                                              cycleNumber,pBH.('subTomoMeta'));
+%                                              cycleNumber,emc.('subTomoMeta'));
 %   refNameEVE = sprintf('%s_%s_class0_REF_EVE.mrc', ...
-%                                              cycleNumber,pBH.('subTomoMeta'));     
+%                                              cycleNumber,emc.('subTomoMeta'));     
 %   refODD = getVolume(MRCImage(refNameODD));
 %   refEVE = getVolume(MRCImage(refNameEVE));                                           
 % catch
 %   fprintf('\nDid not find either %s or %s, trying Raw prefix\n',refNameODD,refNameEVE);
 %   try
 %     refNameODD = sprintf('%s_%s_class0_Raw_ODD.mrc', ...
-%                                              cycleNumber,pBH.('subTomoMeta'));
+%                                              cycleNumber,emc.('subTomoMeta'));
 %     refNameEVE = sprintf('%s_%s_class0_Raw_EVE.mrc', ...
-%                                              cycleNumber,pBH.('subTomoMeta'));                                             
+%                                              cycleNumber,emc.('subTomoMeta'));                                             
 % 
 %     refODD = getVolume(MRCImage(refNameODD));
 %     refEVE = getVolume(MRCImage(refNameEVE));
@@ -424,7 +424,7 @@ end
 % end
 
 try
-  conserveDiskSpace = pBH.('conserveDiskSpace');
+  conserveDiskSpace = emc.('conserveDiskSpace');
 catch
   conserveDiskSpace = 0;
 end
@@ -501,15 +501,15 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   % The model is scaled to full sampling prior to passing to tiltalign,
   % make sure the header in the synthetic stack is set appropriately.
-  fullPixelSize = pBH.('PIXEL_SIZE').*10^10;
-  if pBH.('SuperResolution')
+  fullPixelSize = emc.('PIXEL_SIZE').*10^10;
+  if emc.('SuperResolution')
     fullPixelSize = fullPixelSize * 2;
   end
   pixelSize = fullPixelSize.*samplingRate;
   
 try 
-  eraseMaskType = pBH.('Peak_mType');
-	eraseMaskRadius = pBH.('Peak_mRadius')./pixelSize;
+  eraseMaskType = emc.('Peak_mType');
+	eraseMaskRadius = emc.('Peak_mRadius')./pixelSize;
   fprintf('Further restricting peak search to radius %f %f %f\n',...
           eraseMaskRadius);
   eraseMask = 1;
@@ -519,14 +519,14 @@ catch
 end
 
 
-  [ ~,~,maskRadius,~ ] = BH_multi_maskCheck(pBH,'Ali',pixelSize)
-   PARTICLE_RADIUS = floor(max(pBH.('particleRadius')./pixelSize));
+  [ ~,~,maskRadius,~ ] = BH_multi_maskCheck(emc,'Ali',pixelSize)
+   PARTICLE_RADIUS = floor(max(emc.('particleRadius')./pixelSize));
   
-  %PARTICLE_RADIUS = floor(mean(pBH.('particleRadius')./pixelSize));
+  %PARTICLE_RADIUS = floor(mean(emc.('particleRadius')./pixelSize));
   % TODO, is this too restricted?
   peakSearchRad = floor(peak_mask_fraction*PARTICLE_RADIUS.*[1,1]);
   try
-    lowPassCutoff = pBH.('tomoCprLowPass');
+    lowPassCutoff = emc.('tomoCprLowPass');
     fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.',...
             lowPassCutoff);
   catch
@@ -548,7 +548,7 @@ end
  min_res_for_ctf_fitting = 10.0; 
   if (calcCTF)
     try 
-      min_res_for_ctf_fitting = pBH.('min_res_for_ctf_fitting');
+      min_res_for_ctf_fitting = emc.('min_res_for_ctf_fitting');
     catch
     end
     
@@ -615,7 +615,7 @@ end
   end
   fprintf('init with %d workers\n',nWorkers);
 
-  outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
+  outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 
 
@@ -2257,7 +2257,7 @@ if (flgRunAlignments)
     subTomoMeta.('tomoCPR_run_in_cycle') = [subTomoMeta.currentTomoCPR,CYCLE];
   end
 
-  save(pBH.('subTomoMeta'), 'subTomoMeta');
+  save(emc.('subTomoMeta'), 'subTomoMeta');
 end
 
 end

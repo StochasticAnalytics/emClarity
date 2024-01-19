@@ -54,14 +54,14 @@ startTime =  clock;
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 try
-  conserveDiskSpace = pBH.('conserveDiskSpace');
+  conserveDiskSpace = emc.('conserveDiskSpace');
 catch
   conserveDiskSpace = 0;
 end
 try
-  percentCut   = pBH.('removeBottomPercent');
+  percentCut   = emc.('removeBottomPercent');
 catch
   percentCut = 0.0;
 end
@@ -99,16 +99,16 @@ switch STAGEofALIGNMENT
 end
 
 
-samplingRate = pBH.(sprintf('%s_samplingRate','Ali'));
+samplingRate = emc.(sprintf('%s_samplingRate','Ali'));
 
-className    = pBH.(sprintf('%s_className',fieldPrefix));
+className    = emc.(sprintf('%s_className',fieldPrefix));
 
 
-outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
+outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 
 %try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   switch STAGEofALIGNMENT
     case 'TiltAlignment'
      geometry = subTomoMeta.tiltGeometry;
@@ -117,7 +117,7 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
       if (undoOP)
         subTomoMeta.(cycleNumber).RawAlign = ...
         subTomoMeta.(cycleNumber).(sprintf('Pre_%s_RawAlign', OPERATION));
-        save(pBH.('subTomoMeta'), 'subTomoMeta');
+        save(emc.('subTomoMeta'), 'subTomoMeta');
         error('No Error, just exiting.\n')
       else      
         geometry = subTomoMeta.(cycleNumber).RawAlign;
@@ -126,18 +126,18 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
     case 'Cluster'
   
         try
-          classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
+          classVector{1}  = emc.(sprintf('%s_classes_odd',fieldPrefix));
         catch
-          classVector{1}  = pBH.(sprintf('%s_classes',fieldPrefix));
+          classVector{1}  = emc.(sprintf('%s_classes',fieldPrefix));
         end
         
-        classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
+        classVector{2}  = emc.(sprintf('%s_classes_eve',fieldPrefix));
 
         try
-          classCoeffs{1} =  pBH.('Pca_coeffs_odd');
-          classCoeffs{2} =  pBH.('Pca_coeffs_eve');
+          classCoeffs{1} =  emc.('Pca_coeffs_odd');
+          classCoeffs{2} =  emc.('Pca_coeffs_eve');
         catch
-          classCoeffs{1} = pBH.('Pca_coeffs');
+          classCoeffs{1} = emc.('Pca_coeffs');
         end
 
       cN = sprintf('%s_%d_%d_nClass_%d_%s',outputPrefix,classCoeffs{halfNUM(1)}(1,1), ...
@@ -149,7 +149,7 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
       if (undoOP)
         subTomoMeta.(cycleNumber).ClusterResults.(cN) = ...
         subTomoMeta.(cycleNumber).(sprintf('Pre_%s_ClusterResults', OPERATION)).(cN);
-        save(pBH.('subTomoMeta'), 'subTomoMeta');
+        save(emc.('subTomoMeta'), 'subTomoMeta');
         error('No Error, just exiting.\n')
       else     
 
@@ -543,7 +543,7 @@ switch STAGEofALIGNMENT
 end
 
     subTomoMeta = masterTM;
-    save(pBH.('subTomoMeta'), 'subTomoMeta');
+    save(emc.('subTomoMeta'), 'subTomoMeta');
 end
 
 

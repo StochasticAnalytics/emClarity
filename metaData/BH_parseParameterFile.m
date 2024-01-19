@@ -1,4 +1,4 @@
-function [ pStruct ] = BH_parseParameterFile( PARAMETER_FILE )
+function [ emc ] = BH_parseParameterFile( PARAMETER_FILE )
 %Parse a parameter file & check for valid parameters.
 %   experimental
 
@@ -18,7 +18,7 @@ for i = 1:size(p{1},1)
 end
 clear p
 
-pStruct = struct();
+emc = struct();
 % Check that all paramters are name: value pairs
 stringValues = {'subTomoMeta'; ...
                 'Ali_mType';'Cls_mType';'Cls_mType';'Raw_mType';'Fsc_mType'; ...
@@ -33,13 +33,18 @@ for i = 1:size(p2,1)
   else
 
     if any(strcmp(stringValues, pNameVal{1}))
-      pStruct.(pNameVal{1}) = pNameVal{2};
+      emc.(pNameVal{1}) = pNameVal{2};
     else
-      pStruct.(pNameVal{1}) = EMC_str2double(pNameVal{2});
+      emc.(pNameVal{1}) = EMC_str2double(pNameVal{2});
     end
   end
 end
 
+% Now check for optional parameters
+
+if ~isfield(emc, 'nPeaks')
+  emc.('nPeaks') = 1;
+end
 
 end
 

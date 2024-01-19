@@ -27,17 +27,17 @@ end
 % explicity copied here.
 cycleNumber = sprintf('cycle%0.3u', EMC_str2double(CYCLE));
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
-flgClassify = pBH.('flgClassify');
+flgClassify = emc.('flgClassify');
 try
-  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
 catch
   flgMultiRefAlignment = 0;
 end
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
-outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
+outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
@@ -65,7 +65,7 @@ else
         ['the former requires the latter to exist.\n']);
 end
 
-save(pBH.('subTomoMeta'), 'subTomoMeta');   
+save(emc.('subTomoMeta'), 'subTomoMeta');   
 
 
 end

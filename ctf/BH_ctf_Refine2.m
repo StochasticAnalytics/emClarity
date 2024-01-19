@@ -4,16 +4,16 @@ function [ cccStorage, maxAst, maxAng, astigAngSearch] = BH_ctf_Refine2(PARAMETE
 % mean 
 
 % Load in the tomo and tilt info
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR; clear subTomoMeta
 catch
   mapBackIter = 0;
 end
 
 try
-  testNoRefine = pBH.('force_no_defocus_stretch');
+  testNoRefine = emc.('force_no_defocus_stretch');
 catch
   testNoRefine = false;
 end
@@ -26,14 +26,14 @@ end
 % improve the thon rings on tilted data. Zero will produce the "normal"
 % process, 1 will use the same area as the min tilt, 
 try 
-  fraction_of_extra_tilt_data = pBH.('fraction_of_extra_tilt_data')
+  fraction_of_extra_tilt_data = emc.('fraction_of_extra_tilt_data')
 catch
   fraction_of_extra_tilt_data = 0.25
 end
 % set the search ranges - should change ctf_est to save the parameters used so
 % this can be loaded automatically.
 
-nWorkers = min(pBH.('nCpuCores'),7*pBH.('nGPUs'));
+nWorkers = min(emc.('nCpuCores'),7*emc.('nGPUs'));
 nWorkers = BH_multi_parallelWorkers(nWorkers)
 
 
@@ -50,12 +50,12 @@ if isempty(pathName)
   pathName = '.';
 end
 
-PIXEL_SIZE = pBH.('PIXEL_SIZE');
+PIXEL_SIZE = emc.('PIXEL_SIZE');
 
 
-Cs = pBH.('Cs');
-VOLTAGE = pBH.('VOLTAGE');
-AMPCONT = pBH.('AMPCONT');
+Cs = emc.('Cs');
+VOLTAGE = emc.('VOLTAGE');
+AMPCONT = emc.('AMPCONT');
 
 ctfParams = [PIXEL_SIZE*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT];
 
@@ -83,7 +83,7 @@ FIXED_FIRSTZERO =  PIXEL_SIZE / 40*10^-10 ;
 
 % Size to padTile to should be even, large, and preferably a power of 2
 try
-  paddedSize = pBH.('paddedSize');
+  paddedSize = emc.('paddedSize');
 catch
   paddedSize = 768;
 end

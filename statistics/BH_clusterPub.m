@@ -47,11 +47,11 @@ startTime =  clock;
 CYCLE = EMC_str2double(CYCLE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 test_multi_ref_diffmap=true;
 
-flgClassify = pBH.('flgClassify');
+flgClassify = emc.('flgClassify');
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
@@ -63,18 +63,18 @@ else
 end
 
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
 
-nRows = length(pBH.('pcaScaleSpace'));
+nRows = length(emc.('pcaScaleSpace'));
 featureVector = cell(2,1);
 if flgGold
-  featureVector{1,1} = pBH.('Pca_coeffs_odd');
-  featureVector{2,1} = pBH.('Pca_coeffs_eve');
+  featureVector{1,1} = emc.('Pca_coeffs_odd');
+  featureVector{2,1} = emc.('Pca_coeffs_eve');
 else
-  featureVector{1,1} = pBH.('Pca_coeffs')
+  featureVector{1,1} = emc.('Pca_coeffs')
   featureVector{1,1}
 end
 
@@ -83,62 +83,62 @@ if (nFeatures(1) ~= nRows)
     error('There should be a set of indices for each pcaScaleSpace, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
 end
 
-clusterVector= pBH.('Pca_clusters');
+clusterVector= emc.('Pca_clusters');
 
 try
-  kDIST        = pBH.('Pca_distMeasure');
+  kDIST        = emc.('Pca_distMeasure');
 catch
   kDIST = 'sqeuclidean';
 end
 try
-  kREP         = pBH.('Pca_nReplicates');
+  kREP         = emc.('Pca_nReplicates');
 catch
   kREP = 256;
 end
 
 try
-  flgRefineKmeans = pBH.('Pca_refineKmeans')
+  flgRefineKmeans = emc.('Pca_refineKmeans')
 catch
   flgRefineKmeans = false
 end
 
-nCores       = BH_multi_parallelWorkers(pBH.('nCpuCores'));
+nCores       = BH_multi_parallelWorkers(emc.('nCpuCores'));
 
 % try
-%   relativeScale = pBH.('Pca_relativeScale')
+%   relativeScale = emc.('Pca_relativeScale')
 % catch
 %   relativeScale= ones(size(clusterVector,1),1);
 % end
 
 try
-  flgFlattenEigs = pBH.('Pca_flattenEigs')
+  flgFlattenEigs = emc.('Pca_flattenEigs')
 catch
   flgFlattenEigs=1
 end
 
 
 try 
-  coverSteps = pBH.('Pca_som_coverSteps');
+  coverSteps = emc.('Pca_som_coverSteps');
 catch
   coverSteps = 100;
 end
 try
-  initNeighbor = pBH.('Pca_som_initNeighbor');
+  initNeighbor = emc.('Pca_som_initNeighbor');
 catch
   initNeighbor = 3;
 end
 try
-  topologyFcn = pBH.('Pca_som_topologyFcn');
+  topologyFcn = emc.('Pca_som_topologyFcn');
 catch
   %  'hextop' (default) | 'randtop' | 'gridtop' | 'tritop'
   topologyFcn = 'hextop';
 end
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 masterTM = subTomoMeta; clear subTomoMeta
 
 
 try
-  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
 catch
   flgMultiRefAlignment = 0;
 end
@@ -168,8 +168,8 @@ for iGold = 1:1+flgGold
     randSet = [1,2];
   end 
   
-  coeffMatrix  = sprintf('%s_%s_%s_pcaFull.mat',cycleNumber,pBH.('subTomoMeta'),halfSet);
-  outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
+  coeffMatrix  = sprintf('%s_%s_%s_pcaFull.mat',cycleNumber,emc.('subTomoMeta'),halfSet);
+  outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
   % Get the number of tomograms to process.
   tomoList = fieldnames(geometry_clean);
   nTomograms = length(tomoList);
@@ -402,7 +402,7 @@ for iGold = 1:1+flgGold
         newClass(class == ndx(i)) = i;
       end
 
-      fileOUT = fopen(sprintf('%s_%s_ClassIDX.txt',pBH.('subTomoMeta'),cycleNumber), 'a');
+      fileOUT = fopen(sprintf('%s_%s_ClassIDX.txt',emc.('subTomoMeta'),cycleNumber), 'a');
       fprintf(fileOUT, '\n\n%s, %s, %s\n','position','idx','count'); 
       for iClass = 1:nClusters
         fprintf(fileOUT, '%d, %d\n',iClass,sum(newClass == iClass));
@@ -471,7 +471,7 @@ for iGold = 1:1+flgGold
 
   subTomoMeta = masterTM;
 
-  save(pBH.('subTomoMeta'), 'subTomoMeta');
+  save(emc.('subTomoMeta'), 'subTomoMeta');
 
   %save(sprintf('%s_pca.mat',OUTPUT_PREFIX), 'nTOTAL','U', 'S', 'V', 'coeffs')
   fprintf('Total execution time on set %s: %f seconds\n', halfSet,etime(clock, startTime));

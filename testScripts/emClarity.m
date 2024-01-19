@@ -141,7 +141,7 @@ multiGPUs = 1;
 if nArgs > 1 && ~(emcHelp || emcProgramHelp)
   switch varargin{1}
     case 'ctf'
-      pBH = emC_testParse(varargin{3});
+      emc = emC_testParse(varargin{3});
     case 'rescale'
       % nothing to parse
       multiGPUs = 0;
@@ -162,11 +162,11 @@ if nArgs > 1 && ~(emcHelp || emcProgramHelp)
       multiGPUs = 0;
 
     otherwise
-      pBH = emC_testParse(varargin{2});
+      emc = emC_testParse(varargin{2});
   end
   if ( multiGPUs )
     % wanted num gpus
-    nGPUs_wanted = pBH.('nGPUs');
+    nGPUs_wanted = emc.('nGPUs');
     cudaStart = getenv('CUDA_VISIBLE_DEVICES')
     nGPUs_visible = gpuDeviceCount;
     if nGPUs_visible < nGPUs_wanted
@@ -683,12 +683,12 @@ end
 
 
 
-function [ pBH  ] = emC_testParse( paramTest )
+function [ emc  ] = emC_testParse( paramTest )
 % Try to parse the parameter file make sure it's okay.
 %
 % Add some actual error handling here to help trouble shoot.
 try
-  pBH = BH_parseParameterFile( paramTest );
+  emc = BH_parseParameterFile( paramTest );
   
   
 
@@ -702,7 +702,7 @@ try
 
   global bh_global_window_cutoff;
   try 
-    bh_global_window_cutoff = pBH.('windowCutoff');
+    bh_global_window_cutoff = emc.('windowCutoff');
   catch
     bh_global_window_cutoff = -2;
   end
@@ -742,7 +742,7 @@ try
   global bh_global_turn_on_phase_plate;
 
   try
-    bh_global_turn_on_phase_plate = pBH.('phakePhasePlate');
+    bh_global_turn_on_phase_plate = emc.('phakePhasePlate');
   catch
     bh_global_turn_on_phase_plate = 0;
   end
@@ -752,14 +752,14 @@ try
   %%%% ready
   global bh_global_do_2d_fourier_interp;
   try
-    bh_global_do_2d_fourier_interp = pBH.('useFourierInterp');
+    bh_global_do_2d_fourier_interp = emc.('useFourierInterp');
   catch
     bh_global_do_2d_fourier_interp = 1;
   end
   
   global bh_global_save_tomoCPR_diagnostics;
   try
-    bh_global_save_tomoCPR_diagnostics = pBH.('tomoCprDiagnostics');
+    bh_global_save_tomoCPR_diagnostics = emc.('tomoCprDiagnostics');
   catch
     bh_global_save_tomoCPR_diagnostics = 0;
   end
@@ -772,14 +772,14 @@ try
   %%%%% For profiling
   global bh_global_do_profile;
   try 
-    bh_global_do_profile = pBH.('doProfile');
+    bh_global_do_profile = emc.('doProfile');
   catch
     bh_global_do_profile = false;
   end
     
 
   try
-    bh_global_fast_scratch_disk  = pBH.('fastScratchDisk');
+    bh_global_fast_scratch_disk  = emc.('fastScratchDisk');
   catch
     bh_global_fast_scratch_disk='';
   end
@@ -787,7 +787,7 @@ try
 
     
   try
-    bh_global_ram_disk = pBH.('ramDisk');
+    bh_global_ram_disk = emc.('ramDisk');
   catch
     bh_global_ram_disk = '/dev/shm';
   end
@@ -804,27 +804,27 @@ try
 
   
   try   
-    bh_global_binary_mask_low_pass = pBH.('setMaskLowPass');
+    bh_global_binary_mask_low_pass = emc.('setMaskLowPass');
   catch
     % These seem to be okay for higher-resolution data (EMPIAR ribo sets)
     bh_global_binary_mask_low_pass = 14;
   end
   
   try
-    bh_global_binary_mask_threshold = pBH.('setMaskThreshold');
+    bh_global_binary_mask_threshold = emc.('setMaskThreshold');
   catch
     bh_global_binary_mask_threshold = 2.5;
   end
   
   try
-    bh_global_binary_pcaMask_threshold = pBH.('setPcaMaskThreshold');
+    bh_global_binary_pcaMask_threshold = emc.('setPcaMaskThreshold');
   catch
     bh_global_binary_pcaMask_threshold = 0.5;
   end
 
   global bh_global_kFactorScaling;
   try
-    bh_global_kFactorScaling = pBH.('kFactorScaling');
+    bh_global_kFactorScaling = emc.('kFactorScaling');
   catch
     bh_global_kFactorScaling = 1.0;
   end
@@ -832,7 +832,7 @@ try
 
   
   try
-    bh_global_vol_est_scaling = pBH.('setParticleVolumeScaling');
+    bh_global_vol_est_scaling = emc.('setParticleVolumeScaling');
   catch
     % The low pass version of the map used for the estimate overestimates
     % the molecular volume at the hydration radius of the underlying atoms.
@@ -848,21 +848,21 @@ try
     % 0 - off, 2 original (matches closely measured MTF), 1 stronger
     % Anthing else, float, iX = scalar, dX = cap val e.g. 
     % opiton 1 100.04 and 2 (default) is 25.06
-    bh_global_MTF = pBH.('mtfVal');
+    bh_global_MTF = emc.('mtfVal');
   catch
     bh_global_MTF = 2;
   end
 
   global bh_global_print_shifts_in_particle_basis;
   try 
-    bh_global_print_shifts_in_particle_basis = pBH.('printShiftsInParticleBasis');
+    bh_global_print_shifts_in_particle_basis = emc.('printShiftsInParticleBasis');
   catch
     bh_global_print_shifts_in_particle_basis = true;
   end
   
   global bh_global_zero_lag_score;
   try 
-    bh_global_zero_lag_score = pBH.('useZeroLagScore');
+    bh_global_zero_lag_score = emc.('useZeroLagScore');
   catch
     bh_global_zero_lag_score = false;
   end
@@ -870,12 +870,12 @@ try
   global bh_global_ML_compressByFactor;
   global bh_global_ML_angleTolerance;
   try
-    bh_global_ML_compressByFactor = pBH.('ML_compressByFactor');
+    bh_global_ML_compressByFactor = emc.('ML_compressByFactor');
   catch
     bh_global_ML_compressByFactor = 2.0;
   end
   try
-    bh_global_ML_angleTolerance = pBH.('ML_angleTolerance');
+    bh_global_ML_angleTolerance = emc.('ML_angleTolerance');
   catch
     bh_global_ML_angleTolerance = 5;
   end

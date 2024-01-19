@@ -68,18 +68,18 @@ useFixedNotAliStack = false;
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 reconScaling = 1;
-samplingRate = 1; % Always working at full binning. pBH.('Ali_samplingRate');
+samplingRate = 1; % Always working at full binning. emc.('Ali_samplingRate');
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 resForFitting = 1.3*mean(subTomoMeta.currentResForDefocusError);
 
 
-nGPUs = pBH.('nGPUs');
+nGPUs = emc.('nGPUs');
 pInfo = parcluster();
 gpuScale=3*samplingRate
-nWorkers = min(nGPUs*gpuScale,pBH.('nCpuCores')); % 18
+nWorkers = min(nGPUs*gpuScale,emc.('nCpuCores')); % 18
 fprintf('Using %d workers as max of %d %d*nGPUs and %d nWorkers visible\n', ...
         nWorkers,gpuScale,nGPUs*gpuScale,pInfo.NumWorkers);
       
@@ -89,7 +89,7 @@ CWD = '';
 system(sprintf('mkdir -p %s',tmpCache));
 
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
 
 
@@ -172,12 +172,12 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   % The model is scaled to full sampling prior to passing to tiltalign,
   % make sure the header in the synthetic stack is set appropriately.
-  fullPixelSize = pBH.('PIXEL_SIZE').*10^10;
+  fullPixelSize = emc.('PIXEL_SIZE').*10^10;
 
   pixelSize = fullPixelSize.*samplingRate;
   
 
-  PARTICLE_RADIUS = floor(max(pBH.('particleRadius')./pixelSize));
+  PARTICLE_RADIUS = floor(max(emc.('particleRadius')./pixelSize));
   
 
   [~,tiltBaseName,~] = fileparts(tiltList{1});
@@ -646,10 +646,10 @@ for iTiltSeries = tiltStart:nTiltSeries
         sigma = 10.0;
         score = 10.0; % TODO test with scaled CCC score?
         scoreChange = 0.0;
-        pixelSize = pBH.('PIXEL_SIZE') * 10^10;
-        micVoltage = pBH.('VOLTAGE') * 10^-3;
-        micCS = pBH.('Cs') * 10^3;
-        ampContrast = pBH.('AMPCONT') * 10^0;
+        pixelSize = emc.('PIXEL_SIZE') * 10^10;
+        micVoltage = emc.('VOLTAGE') * 10^-3;
+        micCS = emc.('Cs') * 10^3;
+        ampContrast = emc.('AMPCONT') * 10^0;
         beamTiltX = 0.0;  
         beamTiltY = 0.0;  
         beamTiltShiftX = 0.0;  
@@ -701,7 +701,7 @@ fclose(starFile);
 
  SAVE_IMG(cat(3,output_cell{:}),sprintf('%s.mrc',baseFile),pixelSize);
  
- maxThreads = pBH.('nCpuCores');
+ maxThreads = emc.('nCpuCores');
 
  %%%%%%%%%%%%%%%%%%%%%%%%%%
  % Initial reconstruction
@@ -745,8 +745,8 @@ fclose(starFile);
   'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  : 
   '%2.2d\n', ...Max. threads to use for calculation [36]           : 
   ], getenv('EMC_RECONSTRUCT3D'),baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
-     symmetry,pBH.('PIXEL_SIZE')*10^10, ...
-     pBH.('particleMass')*10^3, 0.0, mean(pBH.('Ali_mRadius')), maxThreads);
+     symmetry,emc.('PIXEL_SIZE')*10^10, ...
+     emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
    
    fprintf(recScript, '\neof\n');
    
@@ -814,8 +814,8 @@ fclose(starFile);
   'no\n',...Threshold input reconstruction [No]                : 
   '%2.2d\n', ...Max. threads to use for calculation [36]           : 
    ],  getenv('EMC_REFINE3D'),baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
-     symmetry,pBH.('PIXEL_SIZE')*10^10, ...
-     pBH.('particleMass')*10^3, 0.0, mean(pBH.('Ali_mRadius')), ...
+     symmetry,emc.('PIXEL_SIZE')*10^10, ...
+     emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), ...
      resForFitting,resForFitting,maxThreads); 
   
     fprintf(refineScript, '\neof\n'); 
@@ -867,8 +867,8 @@ fclose(starFile);
   'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  : 
   '%2.2d\n', ...Max. threads to use for calculation [36]           : 
   ], getenv('EMC_RECONSTRUCT3D'), baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
-     symmetry,pBH.('PIXEL_SIZE')*10^10, ...
-     pBH.('particleMass')*10^3, 0.0, mean(pBH.('Ali_mRadius')), maxThreads);
+     symmetry,emc.('PIXEL_SIZE')*10^10, ...
+     emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
    
    fprintf(recScript, '\neof\n');
    

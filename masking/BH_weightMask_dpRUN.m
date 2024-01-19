@@ -26,10 +26,10 @@ tiltStop
 gpuIDX = BH_multi_checkGPU(useGPU);
 gDev = gpuDevice(gpuIDX);
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 cycleNumber = sprintf('cycle%0.3d',CYCLE);
 
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 
 
 geom = subTomoMeta.(cycleNumber).Avg_geometry;
@@ -39,7 +39,7 @@ mVal = subTomoMeta.(cycleNumber).fitFSC.MaskRaw1;
 aVal = subTomoMeta.(cycleNumber).fitFSC.ResampleRaw1;
 
 wgtSize = subTomoMeta.(cycleNumber).class_0_Locations_REF_ODD_Wgt{2}{1}(2:2:6);
-samplingRate = pBH.('Ali_samplingRate');
+samplingRate = emc.('Ali_samplingRate');
 
 tomoList = fieldnames(geom);
 if ( tiltStart )

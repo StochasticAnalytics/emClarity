@@ -25,7 +25,7 @@ else
   collectionORDER = sprintf('fixedStacks/%s.order',STACK_BASENAME);
   
 end
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 gpuIDX = BH_multi_checkGPU(-1);
 gDev = gpuDevice(gpuIDX);
@@ -57,7 +57,7 @@ if (modLocal)
 end
 skipFitting = 0;
 try
-  PHASE_PLATE_SHIFT = pBH.('PHASE_PLATE_SHIFT').*pi
+  PHASE_PLATE_SHIFT = emc.('PHASE_PLATE_SHIFT').*pi
 catch
   PHASE_PLATE_SHIFT = [0,0]
 end
@@ -67,14 +67,14 @@ end
 
 flgStandardOrdeDoCalc = 1;
 try
-  flgCosineDose = pBH.('oneOverCosineDose');
-  startingAngle = pBH.('startingAngle');
-  startingDirection = pBH.('startingDirection');
-  doseSymmetricIncrement = pBH.('doseSymmetricIncrement');
-  doseAtMinTilt = pBH.('doseAtMinTilt');
+  flgCosineDose = emc.('oneOverCosineDose');
+  startingAngle = emc.('startingAngle');
+  startingDirection = emc.('startingDirection');
+  doseSymmetricIncrement = emc.('doseSymmetricIncrement');
+  doseAtMinTilt = emc.('doseAtMinTilt');
 
   flgOldDose = 0;
-  tltOrder = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SHIFT);
+  tltOrder = calc_dose_scheme(emc,rawTLT,anglesSkipped,PHASE_PLATE_SHIFT);
   
   
 catch
@@ -92,11 +92,11 @@ end
 
 
 
-PIXEL_SIZE = pBH.('PIXEL_SIZE');
-Cs = pBH.('Cs');
-VOLTAGE = pBH.('VOLTAGE');
-AMPCONT = pBH.('AMPCONT');
-SuperResolution = pBH.('SuperResolution');
+PIXEL_SIZE = emc.('PIXEL_SIZE');
+Cs = emc.('Cs');
+VOLTAGE = emc.('VOLTAGE');
+AMPCONT = emc.('AMPCONT');
+SuperResolution = emc.('SuperResolution');
 
 if (SuperResolution)
   if SuperResolution == 1
@@ -141,7 +141,7 @@ if Cs == 0
   Cs = 1e-6;
 end
  
-CUM_e_DOSE = pBH.('CUM_e_DOSE');
+CUM_e_DOSE = emc.('CUM_e_DOSE');
 % test astigmatism vals
 flgAstigmatism = 1;
 if (flgAstigmatism ~=1 && flgAstigmatism ~= 0)
@@ -157,31 +157,31 @@ fineAngStep = deg2rad(0.5);
 
 eraseSigma = 3;
 
-eraseRadius = ceil(1.2.*(pBH.('beadDiameter')./PIXEL_SIZE.*0.5));
+eraseRadius = ceil(1.2.*(emc.('beadDiameter')./PIXEL_SIZE.*0.5));
 flgImodErase = 0
 
   
   
 % Assuming that the first CTF zero is always less than this value 
 FIXED_FIRSTZERO =  PIXEL_SIZE / (70*10^-10) ;
-highCutoff = PIXEL_SIZE/pBH.('defCutOff');
+highCutoff = PIXEL_SIZE/emc.('defCutOff');
 % I still use the def for underfocus < 0 as this places the origin at the
 % focal plan in the microscope rather than on the specimen. Which makes
 % more sense to me.
-defEST = -1.*pBH.('defEstimate').*10^6
-defWIN =  pBH.('defWindow').*10^6
+defEST = -1.*emc.('defEstimate').*10^6
+defWIN =  emc.('defWindow').*10^6
 tiltRange = [-1];
 
 backGroundBuffer = 0.9985;
 
 try
-  deltaZTolerance = pBH.('deltaZTolerance');
+  deltaZTolerance = emc.('deltaZTolerance');
 catch
   deltaZTolerance = 100e-9;
 end
 
 try 
-  zShift = abs(pBH.('zShift'));
+  zShift = abs(emc.('zShift'));
 catch
   zShift = 150e-9;
 end
@@ -191,7 +191,7 @@ if abs(zShift) > 100e-7
 end
 
 try
-  maxNumberOfTiles = pBH.('ctfMaxNumberOfTiles');
+  maxNumberOfTiles = emc.('ctfMaxNumberOfTiles');
 catch
 
   maxNumberOfTiles = 10000;
@@ -205,7 +205,7 @@ zShift = zShift / PIXEL_SIZE;
 
 % Tile size & overlap
 try 
-  tileSize = pBH.('ctfTileSize');
+  tileSize = emc.('ctfTileSize');
 catch
   tileSize = floor(680e-10 / PIXEL_SIZE);
 end
@@ -219,7 +219,7 @@ overlap = floor(tileSize ./ tileOverlap);
 
 % Size to padTile to should be even, large, and preferably a power of 2
 try
-  paddedSize = pBH.('paddedSize');
+  paddedSize = emc.('paddedSize');
 catch
   paddedSize = 768;
 end
@@ -369,7 +369,7 @@ mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
 
 try 
-  erase_beads_after_ctf = pBH.('erase_beads_after_ctf');
+  erase_beads_after_ctf = emc.('erase_beads_after_ctf');
 catch
   erase_beads_after_ctf = false;
 end
@@ -546,7 +546,7 @@ if (PIXEL_SIZE*10^10 < 0)
   % Redefining things down hear is a stupid thing to do. Fix this if you
   % keep the optino for cropping.
   FIXED_FIRSTZERO =  pixelOUT / 70 ;
-  highCutoff = (pixelOUT*10^-10)/pBH.('defCutOff');
+  highCutoff = (pixelOUT*10^-10)/emc.('defCutOff');
   
 else
   
@@ -1337,13 +1337,13 @@ function [ croppedIMG,pixelOUT ] = cropIMG(IMG,pixelIN)
   
 end
 
-function [ tltOrder ] = calc_dose_scheme(pBH,rawTLT,anglesSkipped,PHASE_PLATE_SHIFT)
+function [ tltOrder ] = calc_dose_scheme(emc,rawTLT,anglesSkipped,PHASE_PLATE_SHIFT)
 
-  flgCosineDose = pBH.('oneOverCosineDose');
-  startingAngle = pBH.('startingAngle');
-  startingDirection = pBH.('startingDirection');
-  doseSymmetricIncrement = pBH.('doseSymmetricIncrement');
-  doseAtMinTilt = pBH.('doseAtMinTilt');
+  flgCosineDose = emc.('oneOverCosineDose');
+  startingAngle = emc.('startingAngle');
+  startingDirection = emc.('startingDirection');
+  doseSymmetricIncrement = emc.('doseSymmetricIncrement');
+  doseAtMinTilt = emc.('doseAtMinTilt');
   nPrjs = length(rawTLT);
   tltOrder = zeros(nPrjs,5);
   

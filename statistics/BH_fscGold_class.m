@@ -31,49 +31,49 @@ CYCLE = EMC_str2double(CYCLE);
 % Put all out put in a subdirectory.
 system('mkdir -p FSC');
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
-load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+emc = BH_parseParameterFile(PARAMETER_FILE);
+load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 masterTM = subTomoMeta;
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 prevCycleNumber = sprintf('cycle%0.3u',CYCLE-1);
 
 
-flgCones = pBH.('flgCones');
-flgClassify= pBH.('flgClassify')
+flgCones = emc.('flgCones');
+flgClassify= emc.('flgClassify')
 try
-  flgMultiRefAlignment = pBH.('flgMultiRefAlignment');
+  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
 catch
   flgMultiRefAlignment = 0;
 end
 
 try
-  scaleCalcSize = pBH.('scaleCalcSize');
+  scaleCalcSize = emc.('scaleCalcSize');
 catch
   scaleCalcSize = 1.5;
 end
 
 try
-  flgFscShapeMask = pBH.('flgFscShapeMask');
+  flgFscShapeMask = emc.('flgFscShapeMask');
 catch
   flgFscShapeMask = 1;
 end
 
 try
-  shape_mask_lowpass = pBH.('shape_mask_lowpass');
+  shape_mask_lowpass = emc.('shape_mask_lowpass');
 catch
   shape_mask_lowpass = 14; 
 end
 
 try
-  shape_mask_threshold = pBH.('shape_mask_threshold');
+  shape_mask_threshold = emc.('shape_mask_threshold');
 catch
   shape_mask_threshold = 2.4;
 end
 
 try
   % Apply the mask with the given parameters, save and exit.
-  shape_mask_test = pBH.('shape_mask_test');
+  shape_mask_test = emc.('shape_mask_test');
 catch
   shape_mask_test = false;
 end
@@ -81,20 +81,20 @@ end
 % Estimating the particle volume still occasionaly goes awry. Place a cap and return a cautionary message.
 
 try 
-  minimumParticleVolume = pBH.('minimumparticleVolume');
+  minimumParticleVolume = emc.('minimumparticleVolume');
 catch
   minimumParticleVolume = 0.1;
 end
 
-try fscWithChimera = pBH.('fscWithChimera');
+try fscWithChimera = emc.('fscWithChimera');
 catch fscWithChimera = 0;
 end
 
-outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, pBH.('subTomoMeta')); 
-samplingRate = pBH.('Ali_samplingRate');
+outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta')); 
+samplingRate = emc.('Ali_samplingRate');
 
-pixelSize = pBH.('PIXEL_SIZE').*10^10.*samplingRate;
-if pBH.('SuperResolution')
+pixelSize = emc.('PIXEL_SIZE').*10^10.*samplingRate;
+if emc.('SuperResolution')
   pixelSize = pixelSize * 2;
 end
 
@@ -131,9 +131,9 @@ end
 
 
 % Note this is taken from the class section, not Fsc
-refName    = pBH.('Cls_className');% pBH.('Ref_className');
+refName    = emc.('Cls_className');% emc.('Ref_className');
 
-peakSearch   = floor(pBH.('particleRadius')./pixelSize);
+peakSearch   = floor(emc.('particleRadius')./pixelSize);
 peakCOM      =3;
 
 global bh_global_MTF
@@ -179,8 +179,8 @@ else
          className = 0;
          classVector = [0;1];
        else
-        className    = pBH.(sprintf('Raw_className'));
-        classVector   = pBH.(sprintf('Raw_classes_odd'));
+        className    = emc.(sprintf('Raw_className'));
+        classVector   = emc.(sprintf('Raw_classes_odd'));
         fieldPrefix = 'REF';      
       end
       
@@ -243,10 +243,10 @@ end
 
 
 % [ maskType, maskSize, maskRadius, maskCenter ] = ...
-%                                   BH_multi_maskCheck(pBH, 'Ali', pixelSize,'FSC')
+%                                   BH_multi_maskCheck(emc, 'Ali', pixelSize,'FSC')
                                
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(pBH, 'Ali', pixelSize)
+                                  BH_multi_maskCheck(emc, 'Ali', pixelSize)
                                 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
                                        BH_multi_validArea(  maskSize, maskRadius, scaleCalcSize )
@@ -1101,7 +1101,7 @@ clear fout famp1 famp2 fphase1 fphase2
 end
 
 subTomoMeta = masterTM;
-save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 clearvars -except refWGT
 end
 

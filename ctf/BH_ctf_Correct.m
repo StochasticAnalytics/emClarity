@@ -10,10 +10,10 @@ function [ ] = BH_ctf_Correct( PARAMETER_FILE, STACK_PRFX )
 %   tilt information.
 %
 
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 
 try
-  load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+  load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   mapBackIter = subTomoMeta.currentTomoCPR; 
 catch
   mapBackIter = 0;
@@ -27,7 +27,7 @@ if isnan(str2double(STACK_PRFX))
   ITER_LIST = {STACK_LIST};
 else
   flgParallel = 1;
-  nGPUs = pBH.('nGPUs');
+  nGPUs = emc.('nGPUs');
   
   STACK_LIST_tmp = fieldnames(subTomoMeta.mapBackGeometry);
   STACK_LIST_tmp = STACK_LIST_tmp(~ismember(STACK_LIST_tmp,'tomoName'));
@@ -45,7 +45,7 @@ else
   end
 end
 
-pixelSize = pBH.('PIXEL_SIZE');
+pixelSize = emc.('PIXEL_SIZE');
 !mkdir -p ctfStacks
 
 try 

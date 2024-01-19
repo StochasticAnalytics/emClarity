@@ -22,7 +22,7 @@ doImport=false;
 angleSgn=1;
 convention='Bah';
 direction='fwd';
-pBH = BH_parseParameterFile(PARAMETER_FILE);
+emc = BH_parseParameterFile(PARAMETER_FILE);
 if nargin > 1
   if length(varargin) == 1
     mapBackIter = EMC_str2double(varargin{1});
@@ -87,20 +87,20 @@ if nargin > 1
       
   end
 end
-nGPUs = pBH.('nGPUs');
+nGPUs = emc.('nGPUs');
 % This will have to do until a better approach based on PSF of positions
 % in projection space linked together can be used to define groups that
 % don't have co-mingled resolution. When splitOnTOmos, always run in serial, so
 % that we have the best chance of distributing the defocus variateion/tomoqualtiy.
-splitOnTomos = pBH.('fscGoldSplitOnTomos');
+splitOnTomos = emc.('fscGoldSplitOnTomos');
 if (splitOnTomos)
   nGPUs = 1;
   fprintf('override nGPUs to just 1 for initial step to evenly split crowded tomos because fscGoldSplitOnTomos is true')
 end
-nOrientations=1;%nOrientations = pBH.('pseudoMLnumber');
+nOrientations=1;%nOrientations = emc.('pseudoMLnumber');
 nCTFgroups = 9;
 try
-  nPeaks = pBH.('nPeaks');
+  nPeaks = emc.('nPeaks');
 catch
   nPeaks = 1;
 end
@@ -113,13 +113,13 @@ end
 
 % 40 may be too conservative, especially for low defocus tomos
 try
-  lowResCut = pBH.('lowResCut');
+  lowResCut = emc.('lowResCut');
 catch
   lowResCut = 40;
 end
 
-maxGoldStandard = lowResCut;%pBH.('Tmp_bandpassFilter')(3);
-dupSampling = pBH.('Tmp_samplingRate')
+maxGoldStandard = lowResCut;%emc.('Tmp_bandpassFilter')(3);
+dupSampling = emc.('Tmp_samplingRate')
 dupRadius = 2;
 dupTolerance = (2.*dupRadius)+1;
 dupMask = zeros(dupTolerance, dupTolerance, dupTolerance, 'single');
@@ -547,7 +547,7 @@ subTomoMeta.('currentCycle') = 0;
 subTomoMeta.('currentTomoCPR') = mapBackIter;
 subTomoMeta.('currentResForDefocusError') = lowResCut;
 subTomoMeta.('maxGoldStandard') = maxGoldStandard;
-save(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
+save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 
 
 if (bh_global_do_profile)
