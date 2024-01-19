@@ -89,7 +89,7 @@ end
 % use the mechanism in place to handle  multiple references at different length scales derived from the global average,
 % to instead be used for multiple distinct classes. If the results are promising, then expand so each ref may also be
 % looked at over its own scale space.
-test_multi_ref_diffmap = true;
+test_multi_ref_diffmap = false;
 test_scale_space_bug_fix = false;
 
 startTime =  datetime("now");
@@ -333,7 +333,7 @@ for iGold = 1:2
   
   
   
-  imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
+  imgNAME = sprintf('class_%d_Locations_Ref_%s', refName, halfSet);
   
   
   [ averageMotif{iGold} ] = BH_unStackMontage4d(1:nReferences(iGold), ...
@@ -358,15 +358,26 @@ if ~(flgGold)
     error('When combining half sets, the number of references must match')
   end
   size(averageMotif)
-  for iRef = 1:nReferences(1)
-    averageMotif{1}{iRef} = averageMotif{2}{iRef} + ...
-      BH_resample3d(gather(averageMotif{1}{iRef}), ...
+  if (nReferences(1) > 1)
+    for iRef = 1:nReferences(1)
+      averageMotif{1}{iRef} = averageMotif{2}{iRef} + ...
+        BH_resample3d(gather(averageMotif{1}{iRef}), ...
+        oddRot, ...
+        aliParams(2,1:3), ...
+        {'Bah',1,'spline'}, 'cpu', ...
+        'forward');
+      averageMotif{2}{iRef} = [];
+    end
+  else
+    averageMotif{1} = averageMotif{2} + ...
+      BH_resample3d(gather(averageMotif{1}), ...
       oddRot, ...
       aliParams(2,1:3), ...
       {'Bah',1,'spline'}, 'cpu', ...
       'forward');
-    averageMotif{2}{iRef} = [];
+    averageMotif{2} = [];
   end
+
 end
 
 %%% incomplete, the idea is to generate an antialiased scaled volume for PCA
@@ -446,7 +457,7 @@ else
     % include when sets are left 100% separate.
     %       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '','');
     volumeMask = volumeMask .* EMC_maskReference(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, ...
-      {'pca', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', shape_mask_threshold});
+      {'pca', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
     
   end
   
@@ -577,14 +588,14 @@ for iGold = 1:1+flgGold
   if (PREVIOUS_PCA)
     previousPCA = sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet);
     emc.Pca_randSubset = -1;
-    [ geometry, nTOTAL, nSUBSET ] = BH_emc.Pca_randSubset( geometry,'pca', -1 , randSet);
+    [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', -1 , randSet);
   else
     if (emc.Pca_randSubset)
       previousPCA = false;
-      [ geometry, nTOTAL, nSUBSET ] = BH_emc.Pca_randSubset( geometry,'pca', emc.Pca_randSubset, randSet );
+      [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', emc.Pca_randSubset, randSet );
     else
       previousPCA = false;
-      [ geometry, nTOTAL, nSUBSET ] = BH_emc.Pca_randSubset( geometry,'pca', -1 , randSet);
+      [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', -1 , randSet);
     end
   end
   

@@ -111,8 +111,8 @@ else
     case 'RawAlignment'
       if (emc.classification)
         % FIXME: This won't be correct for multi-ref alignment if testing out the multi-ref classifications
-        fieldPrefix = 'Cls';
-        savePrefix = 'Cls';
+        fieldPrefix = 'Ref';
+        savePrefix = 'Ref';
         className = 0;
         classVector = [0;1];
       else

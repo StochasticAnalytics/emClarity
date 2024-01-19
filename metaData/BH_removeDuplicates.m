@@ -44,7 +44,6 @@ end
 system(sprintf('cp %s.mat preDupRemoval_%s.mat',emc.('subTomoMeta'),emc.('subTomoMeta')));
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 geometry = subTomoMeta.(cycleNumber).RawAlign;
-masterTM = subTomoMeta; clear subTomoMeta
 
 
 % Get the number of tomograms to process.
@@ -60,11 +59,11 @@ for iTomo = 1:nTomograms
   
   nTotal = nTotal + length(includeList);
   
-  tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-  tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+  tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+  tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
   tomoName = sprintf('%s_%d',tiltName,tomoNumber);
   
-  recGeom = masterTM.reconGeometry.(tomoName);
+  recGeom = subTomoMeta.reconGeometry.(tomoName);
   %   iHeader = getHeader(MRCImage(tomoName));
   
   clear postionMatrix positionIDX
@@ -101,7 +100,6 @@ for iTomo = 1:nTomograms
   % Positions inbetween particle origins will also be non-zero, so restrict
   % search to be particle origins that are within radius.
   duplicateList = find( (positionMatrix) & (overlapMatrix > 1) );
-  length(duplicateList)
   for iDup = duplicateList'
     
     % get the positions within radius, get corresponding particle ids, find
@@ -135,7 +133,7 @@ for iTomo = 1:nTomograms
         
       end
     catch
-      iDup
+      iDup;
     end
     
     
@@ -157,7 +155,6 @@ end % end loop over tomorams
 
 fprintf('%d of %d particles removed\n', nRemoved, nTotal);
 
-subTomoMeta = masterTM;
 subTomoMeta.(cycleNumber).RawAlign = geometry;
 save(emc.('subTomoMeta'), 'subTomoMeta');
 
