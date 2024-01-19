@@ -41,7 +41,7 @@ function [  ] = BH_pcaPub(PARAMETER_FILE, CYCLE, PREVIOUS_PCA)
 %   Output variables:
 %
 %   None = files are written to disk in the current directory. This will be a
-%   mat file that has the 
+%   mat file that has the
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -61,7 +61,7 @@ function [  ] = BH_pcaPub(PARAMETER_FILE, CYCLE, PREVIOUS_PCA)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %   TODO
-%     - Error checking for memory limitations     
+%     - Error checking for memory limitations
 %     - In testing verify "implicit" gpu arrays are actually gpu arrays
 %     - Check binning
 %     - Confirm position 7 is where I want to keep FSC value
@@ -80,7 +80,7 @@ function [  ] = BH_pcaPub(PARAMETER_FILE, CYCLE, PREVIOUS_PCA)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if (nargin ~= 3)
-%  error('PARAMETER_FILE, CYCLE, PREVIOUS_PCA')
+  %  error('PARAMETER_FILE, CYCLE, PREVIOUS_PCA')
 end
 
 
@@ -104,7 +104,7 @@ use_new_interpolator = true;
 % calculated from a random subset of the data to project the full data set
 % onto each of the selected principle components. when true and < 0 run
 % with the same parameters as before, but this time load in the adjusted
-% variance maps to use as a mask for each scale space. 
+% variance maps to use as a mask for each scale space.
 % -2 use variance map, -1 use stdDev instead
 
 switch PREVIOUS_PCA
@@ -127,7 +127,7 @@ switch PREVIOUS_PCA
     flgVarianceMap = 0;
     flgStdDev = 0;
     flgLoadMask = 0;
-  case 1 
+  case 1
     % case 0 and 1 same except value of PREVIOUS_PCA
     flgVarianceMap = 0;
     flgStdDev = 0;
@@ -135,7 +135,7 @@ switch PREVIOUS_PCA
   otherwise
     error('PREVIOUS_PCA should be 1,0,-1,-2,-3')
 end
-    
+
 flgWMDs = 3;
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
@@ -191,7 +191,7 @@ end
 try
   shape_mask_lowpass = emc.('shape_mask_lowpass');
 catch
-  shape_mask_lowpass = 14 + 10; 
+  shape_mask_lowpass = 14 + 10;
 end
 
 try
@@ -200,7 +200,7 @@ catch
   shape_mask_threshold = 2.4 - 0.4;
 end
 
-try 
+try
   tmpVal = emc.('whitenPS');
   if (numel(tmpVal) == 3)
     wiener_constant = tmpVal(3);
@@ -227,7 +227,7 @@ end
 flgClassify = emc.('flgClassify');
 
 % Removed flgGold everywhere else, but keep ability to classify full data set at
-% the end (after all alignment is finished.) 
+% the end (after all alignment is finished.)
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
@@ -256,8 +256,8 @@ end
 
 geom_name=''
 if (flgMultiRefAlignment )
-    geom_name='ClusterClsGeom';
-
+  geom_name='ClusterClsGeom';
+  
 else
   geom_name='Avg_geometry';
 end
@@ -277,7 +277,7 @@ catch
   CUTPADDING=20
 end
 
-% % 
+% %
 % % pathList= subTomoMeta.mapPath;
 % % extList = subTomoMeta.mapExt;
 masterTM = subTomoMeta; clear subTomoMeta
@@ -290,12 +290,12 @@ gDev = gpuDevice(useGPU);
 tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);
 
-                                                     
+
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(emc, 'Cls', pixelSize);
+  BH_multi_maskCheck(emc, 'Cls', pixelSize);
 
 [ preMaskType, preMaskSize, preMaskRadius, preMaskCenter ] = ...
-                                  BH_multi_maskCheck(emc, 'Ali', refPixelSize);
+  BH_multi_maskCheck(emc, 'Ali', refPixelSize);
 
 % This is prob not a good way to make sure the mask size matches::w
 maskSize=preMaskSize;
@@ -304,14 +304,14 @@ maskSize=preMaskSize;
 cpuVols = struct;
 
 [ preSizeWindow, preSizeCalc, preSizeMask, prePadWindow, prePadCalc ] = ...
-                                    BH_multi_validArea(preMaskSize,preMaskRadius, scaleCalcSize )
+  BH_multi_validArea(preMaskSize,preMaskRadius, scaleCalcSize )
 
 
-  [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
-                 BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
+[ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
+  BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
 
 
-if (test_multi_ref_diffmap) 
+if (test_multi_ref_diffmap)
   refName = emc.('Raw_className');
 else
   refName = 0;
@@ -333,7 +333,7 @@ else
     fprintf('\nReverting from %s to Raw in loading fitFSC\n','REF');
     aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev))
     oddRot = reshape(aliParams(1,:),3,3)';
-    % refine the translation per particle.    
+    % refine the translation per particle.
   end
   clear iRefPrev
 end
@@ -370,7 +370,7 @@ if (test_multi_ref_diffmap)
   nScaleSpace = nReferences(1);
   pause(3);
 else
-  nReferences = [1,1];  
+  nReferences = [1,1];
 end
 
 
@@ -382,20 +382,20 @@ for iGold = 1:2
   else
     halfSet = 'EVE';
   end
-
-
-
-
-    imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
- 
-
-    [ averageMotif{iGold} ] = BH_unStackMontage4d(1:nReferences(iGold), ...
-                                   masterTM.(cycleNumber).(imgNAME){1}, ...
-                                   masterTM.(cycleNumber).(imgNAME){2},...
-                                   preSizeMask);
-    
-
-
+  
+  
+  
+  
+  imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet);
+  
+  
+  [ averageMotif{iGold} ] = BH_unStackMontage4d(1:nReferences(iGold), ...
+    masterTM.(cycleNumber).(imgNAME){1}, ...
+    masterTM.(cycleNumber).(imgNAME){2},...
+    preSizeMask);
+  
+  
+  
   if ~(test_multi_ref_diffmap)
     averageMotif{iGold} = averageMotif{iGold}{1};
   end
@@ -413,29 +413,29 @@ if ~(flgGold)
   size(averageMotif)
   for iRef = 1:nReferences(1)
     averageMotif{1}{iRef} = averageMotif{2}{iRef} + ...
-                      BH_resample3d(gather(averageMotif{1}{iRef}), ...
-                                          oddRot, ...
-                                          aliParams(2,1:3), ...
-                                          {'Bah',1,'spline'}, 'cpu', ...
-                                          'forward');
+      BH_resample3d(gather(averageMotif{1}{iRef}), ...
+      oddRot, ...
+      aliParams(2,1:3), ...
+      {'Bah',1,'spline'}, 'cpu', ...
+      'forward');
     averageMotif{2}{iRef} = [];
   end
 end
-  
+
 %%% incomplete, the idea is to generate an antialiased scaled volume for PCA
-if ( refSamplingRate ~= samplingRate ) 
-    fprintf('Resampling from %d refSampling to %d pcaSampling\n',refSamplingRate,samplingRate);
-    for iGold = 1:1+flgGold
-      averageMotif{iGold} = BH_reScale3d(averageMotif{iGold},'',sprintf('%f',1/samplingRate),'GPU');
-    end
-    
-    if (flgLoadMask)
-      externalMask = BH_reScale3d(externalMask,'',sprintf('%f',1/samplingRate),'GPU');
-    end
+if ( refSamplingRate ~= samplingRate )
+  fprintf('Resampling from %d refSampling to %d pcaSampling\n',refSamplingRate,samplingRate);
+  for iGold = 1:1+flgGold
+    averageMotif{iGold} = BH_reScale3d(averageMotif{iGold},'',sprintf('%f',1/samplingRate),'GPU');
+  end
+  
+  if (flgLoadMask)
+    externalMask = BH_reScale3d(externalMask,'',sprintf('%f',1/samplingRate),'GPU');
+  end
 end
-    
-  
-  
+
+
+
 prevVarianceMaps = struct();
 if (flgVarianceMap)
   
@@ -449,11 +449,11 @@ if (flgVarianceMap)
       end
     else
       halfSet = 'STD';
-    end    
-
+    end
+    
     % For randomsubset (PREVIOUS_PCA = 0) the suffix is *_pcaPart.mat) but
     % presumably we could have also just done full, so try that first
-
+    
     try
       load(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet))
     catch
@@ -465,12 +465,12 @@ if (flgVarianceMap)
     % parameter file, but in some data not even this may non-zero singluar
     % values are found, so the number could be different (lower)
     for iScale = 1:nScaleSpace
-      eigsFound = size(coeffs{iScale},1);    
+      eigsFound = size(coeffs{iScale},1);
       fname = sprintf('%s_varianceMap%d-%s-%d.mrc', ...
-                                 outputPrefix, eigsFound, halfSet, iScale);
+        outputPrefix, eigsFound, halfSet, iScale);
       
       prevVarianceMaps.(sprintf('h%d',iGold)).(sprintf('s%d',iScale)) = ...
-                                     getVolume(MRCImage(fname)).^flgStdDev;
+        getVolume(MRCImage(fname)).^flgStdDev;
     end
     clear v coeffs eigsFound idxList
   end
@@ -489,30 +489,30 @@ catch
   constrain_symmetry = false;
 end
 
-if (PREVIOUS_PCA) 
+if (PREVIOUS_PCA)
   volumeMask = gpuArray(getVolume(MRCImage( ...
-                              sprintf('%s_pcaVolMask.mrc',outputPrefix))));
+    sprintf('%s_pcaVolMask.mrc',outputPrefix))));
 else
-
+  
   if (constrain_symmetry)
     gridSearch = eulerSearch(symmetry,180,5,360,5,0.0,1,true);
     [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter, ...
-                                  '3d', gridSearch.number_of_asymmetric_units);
+      '3d', gridSearch.number_of_asymmetric_units);
   else
     [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
   end
-
+  
   if ( flgPcaShapeMask )
     % For testing we won't handle this block
     if (test_multi_ref_diffmap)
       error('test_multi_ref_diffmap is incompatible with flgPcaShapeMask')
     end
-      % when combining the addition is harmless, but is a convenient way to
-      % include when sets are left 100% separate.
-  %       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '',''); 
-      volumeMask = volumeMask .* EMC_maskReference(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, ...
-                                                  {'pca', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
-
+    % when combining the addition is harmless, but is a convenient way to
+    % include when sets are left 100% separate.
+    %       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '','');
+    volumeMask = volumeMask .* EMC_maskReference(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, ...
+      {'pca', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
+    
   end
   
   if (flgLoadMask)
@@ -537,16 +537,16 @@ for iScale = 1:nScaleSpace
         error('test_multi_ref_diffmap is incompatible with flgVarianceMap')
       end
       volTMP = gather(volumeMask.*prevVarianceMaps.(stHALF).(stSCALE));
-    else 
+    else
       volTMP = gather(volumeMask);
     end
     
     masks.('volMask').(stHALF).(stSCALE) = (volTMP);
     masks.('binary').(stHALF).(stSCALE)  = (volTMP >= bh_global_binary_pcaMask_threshold);
     masks.('binary').(stHALF).(stSCALE)  = ...
-                                  masks.('binary').(stHALF).(stSCALE)(:);
+      masks.('binary').(stHALF).(stSCALE)(:);
     masks.('binaryApply').(stHALF).(stSCALE)  = (volTMP >= 0.01);
-
+    
     nPixels(iGold,iScale) = gather(sum(masks.('binary').(stHALF).(stSCALE)));
     clear volTMP stHALF stSCALE
   end
@@ -554,19 +554,19 @@ end
 clear volumeMask
 
 
-      
+
 % radius, convert Ang to pix , denom = equiv stdv from normal to include, e.g.
 % for 95% use 1/sig = 1/2
 %stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize - 1)  .* 3.0./log(pcaScaleSpace)
 threeSigma = 1/3 .* (pcaScaleSpace ./ pixelSize)
 for iScale = 1:nScaleSpace
-
+  
   kernelSize = ceil(threeSigma(iScale)) + 3;
   kernelSize = kernelSize + (1-mod(kernelSize,2));
   masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
   
   masks.('scaleMask').(sprintf('s%d',iScale))
-
+  
 end
 
 avgMotif_FT = cell(1+flgGold,nScaleSpace);
@@ -574,14 +574,14 @@ avgFiltered = cell(1+flgGold,nScaleSpace);
 % Here always read in both, combine if flgGold = 0
 for iGold = 1:1+flgGold
   for iScale = 1:nScaleSpace
-
+    
     if (test_multi_ref_diffmap)
       tmp_avg = averageMotif{iGold}{iScale};
     else
       tmp_avg = averageMotif{iGold};
     end
-
-
+    
+    
     tmp_avg = tmp_avg - mean(tmp_avg(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     tmp_avg = tmp_avg ./ rms(tmp_avg(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     tmp_avg = tmp_avg .* masks.('volMask').(sprintf('h%d',iGold)).(sprintf('s%d',iScale));
@@ -590,10 +590,10 @@ for iGold = 1:1+flgGold
       tmp_avg = EMC_convn(single(gpuArray(tmp_avg)) , single(gpuArray(masks.('scaleMask').(sprintf('s%d',iScale))) ));
     end
     avgMotif_FT{iGold, iScale} = ...
-                            BH_bandLimitCenterNormalize(tmp_avg,...
-                             BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize), ...           
-                            masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
-                                                        [0,0,0;0,0,0],'single');
+      BH_bandLimitCenterNormalize(tmp_avg,...
+      BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize), ...
+      masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
+      [0,0,0;0,0,0],'single');
     % This reproduces the orginal behavior, which wrote over averageMotif. This is a bug, but who knows, it may be beneficial, so lets for now make it optional.
     if (test_scale_space_bug_fix)
       if (test_multi_ref_diffmap)
@@ -603,10 +603,10 @@ for iGold = 1:1+flgGold
       end
     end
     avgFiltered{iGold, iScale} = real(ifftn(avgMotif_FT{iGold, iScale}));
-
+    
     avgFiltered{iGold, iScale} = avgFiltered{iGold, iScale} - mean(avgFiltered{iGold, iScale}(masks.('binary').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
     avgFiltered{iGold, iScale} = gather(avgFiltered{iGold, iScale} ./rms(avgFiltered{iGold, iScale}(masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)))) .* ...
-                                                                                                    masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)));
+      masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)));
   end
 end
 
@@ -618,8 +618,8 @@ clear montOUT
 
 
 
-% If randomSubset is string with a previous matfile use this, without any 
-% decomposition. 
+% If randomSubset is string with a previous matfile use this, without any
+% decomposition.
 
 for iGold = 1:1+flgGold
   flgRefIsPadded = 0;
@@ -663,82 +663,82 @@ for iGold = 1:1+flgGold
     nTOTAL = nTOTAL*emc.nPeaks;
     nSUBSET = nSUBSET*emc.nPeaks;
   end
-
+  
   % Initialize array in main memory for pca
-  clear dataMatrix tempDataMatrix 
+  clear dataMatrix tempDataMatrix
   dataMatrix = cell(3,1);
   tempDataMatrix = cell(3,1);
   for iScale = 1:nScaleSpace
     dataMatrix{iScale} = zeros(nPixels(iGold,iScale), nSUBSET, 'single');
     tempDataMatrix{iScale} = zeros(nPixels(iGold,iScale), nTempParticles, 'single', 'gpuArray');
   end
-
+  
   % Pull masks onto GPU (which are cleared along with everything else when
   % the device is reset at the end of each loop.)
   gpuMasks = struct();
   
   for iScale = 1:nScaleSpace
-      stSCALE = sprintf('s%d',iScale);
-      
-      gpuMasks.('volMask').(stSCALE) = ...
-                            gpuArray(masks.('volMask').(stHALF).(stSCALE));
-      gpuMasks.('binary').(stSCALE) = ...
-                             gpuArray(masks.('binary').(stHALF).(stSCALE));
-      gpuMasks.('binaryApply').(stSCALE)  = ...
-                        gpuArray(masks.('binaryApply').(stHALF).(stSCALE));
-      gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));   
-      
-      
-      gpuMasks.('highPass').(stSCALE) = BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize);
+    stSCALE = sprintf('s%d',iScale);
+    
+    gpuMasks.('volMask').(stSCALE) = ...
+      gpuArray(masks.('volMask').(stHALF).(stSCALE));
+    gpuMasks.('binary').(stSCALE) = ...
+      gpuArray(masks.('binary').(stHALF).(stSCALE));
+    gpuMasks.('binaryApply').(stSCALE)  = ...
+      gpuArray(masks.('binaryApply').(stHALF).(stSCALE));
+    gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));
+    
+    
+    gpuMasks.('highPass').(stSCALE) = BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize);
   end
   
-% % %   for iGold_inner = 1:1+flgGold
-% % %     for iScale = 1:nScaleSpace
-% % %       avgMotif_FT{iGold_inner, iScale} = ...
-% % %                gpuArray(cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold_inner,iScale)));
-% % %     end
-% % %   end
-
-
+  % % %   for iGold_inner = 1:1+flgGold
+  % % %     for iScale = 1:nScaleSpace
+  % % %       avgMotif_FT{iGold_inner, iScale} = ...
+  % % %                gpuArray(cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold_inner,iScale)));
+  % % %     end
+  % % %   end
+  
+  
   nExtracted = 1;
   nTemp = 1;
   nTempPrev = 0;
   idxList = zeros(1,nSUBSET);
   peakList = zeros(1,nSUBSET);
-
+  
   firstLoop = true;  sI = 1;
   nIgnored = 0;
   for iTomo = 1:nTomograms
-
-
+    
+    
     tomoName = tomoList{iTomo};
     iGPU = 1;
-   tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-   tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-   reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-   TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
-
- 
+    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
+    
+    
     if (flgCutOutVolumes)
-     volumeData = [];
+      volumeData = [];
     else
       [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
-                                    reconCoords, mapBackIter, ...
-                                    samplingRate, iGPU, reconScaling,0); 
-        volHeader = getHeader(volumeData);                              
+        reconCoords, mapBackIter, ...
+        samplingRate, iGPU, reconScaling,0);
+      volHeader = getHeader(volumeData);
     end
     
-
-      nCtfGroups = masterTM.('ctfGroupSize').(tomoList{iTomo})(1);
-      iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
-      wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);       
-%       wgtName = sprintf('cache/%s_bin%d.wgt', tomoList{iTomo},...
-
- 
-
-        
+    
+    nCtfGroups = masterTM.('ctfGroupSize').(tomoList{iTomo})(1);
+    iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
+    wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);
+    %       wgtName = sprintf('cache/%s_bin%d.wgt', tomoList{iTomo},...
+    
+    
+    
+    
     tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
-
+    
     fprintf('Working on %d/%d volumes %s\n',iTomo,nTomograms,tomoName);
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry.(tomoList{iTomo});
@@ -746,53 +746,53 @@ for iGold = 1:1+flgGold
     % Loop over peaks inside each tomo to limit wedge mask xfer
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nSubTomos = size(positionList,1);
-
-
+    
+    
     if (flgWMDs == 0)
       % Make a wedge mask that can be interpolated with no extrapolation for
-      % calculating wedge weighting in class average alignment. 
-
+      % calculating wedge weighting in class average alignment.
+      
       % COMMMMMMENT
-        
+      
       % make a binary wedge
       [ wedgeMask ]= BH_weightMask3d(sizeMask, tiltGeometry, ...
-                     'binaryWedgeGPU',2*maskRadius,1, 1, samplingRate);
+        'binaryWedgeGPU',2*maskRadius,1, 1, samplingRate);
       
-
+      
       error('do not do it man');
-    end    
+    end
     
     
     % reset for each tomogram
     wdgIDX = 0;
     radialMask = '';
-     if (flgNorm)
-         
-
-        % bins = 1./[1000,800,600,400,300,200,150,100,80,60,50,40,35,30,28,26,24,22,20,18,16,14,12,10,8,6,4,2]; 
-        % bins = [0, bins];
-        
-        [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(avgMotif_FT{iGold, iScale}),'Cartesian',...
-                                                    'GPU',{'none'},1,0,1);
-
-        bins = radialGrid(1:floor(size(avgMotif_FT{iGold, iScale},1)/2),1,1);
-        bins = bins(bins < 0.5);
-        
-        radialMask = cell(length(bins)-1,1);
-        
-        for iBin = 1:length(bins)-1
-           radialMask{iBin} = find(radialGrid >= bins(iBin) & radialGrid < bins(iBin+1)); 
-        end
-                                                
-        radialGrid = '';
-            
+    if (flgNorm)
+      
+      
+      % bins = 1./[1000,800,600,400,300,200,150,100,80,60,50,40,35,30,28,26,24,22,20,18,16,14,12,10,8,6,4,2];
+      % bins = [0, bins];
+      
+      [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(avgMotif_FT{iGold, iScale}),'Cartesian',...
+        'GPU',{'none'},1,0,1);
+      
+      bins = radialGrid(1:floor(size(avgMotif_FT{iGold, iScale},1)/2),1,1);
+      bins = bins(bins < 0.5);
+      
+      radialMask = cell(length(bins)-1,1);
+      
+      for iBin = 1:length(bins)-1
+        radialMask{iBin} = find(radialGrid >= bins(iBin) & radialGrid < bins(iBin+1));
       end
-
+      
+      radialGrid = '';
+      
+    end
+    
     wdgBP = ifftshift(gpuMasks.('highPass').(sprintf('s%d',iScale)));
     for iSubTomo = 1:nSubTomos
       %%%%% %%%%%
-
-            
+      
+      
       % Check that the given subTomo is not to be ignored - for now, treat
       % all peaks as included. The assumption is that using this will be
       % for initializing the project to get a good starting model. "True"
@@ -801,199 +801,199 @@ for iGold = 1:1+flgGold
       includeParticle = positionList(iSubTomo, 8);
       
       iPeak=0; % make sure this exists if we are no including the particle
-      if (includeParticle) 
+      if (includeParticle)
         make_sf3d = true;
         for iPeak = 0:emc.nPeaks-1
-
-        % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
-        % and PEET. This also makes inplane shifts easier to see.
-
-        center = positionList(iSubTomo,[11:13]+26*iPeak)./samplingRate;
-        angles = positionList(iSubTomo,[17:25]+26*iPeak);
-        
-      
-        if ( make_sf3d )
-          make_sf3d = false;
-          radialGrid = '';
-          padWdg = [0,0,0;0,0,0];
-          [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
-                                          TLT, center,reconGeometry, wiener_constant);
-        end
-        
-        % If flgGold there is no change, otherwise temporarily resample the
-        % eve halfset to minimize differences due to orientaiton
-        if positionList(iSubTomo,7) == 1 % This is true for all peaks 
-          % TODO FIXME should this be the transpose of oddRot?
-          angles = reshape(angles,3,3) * oddRot;
-        end
-        wedgeMask = wedgeMask .* wdgBP;
-    
-        % Find range to extract, and check for domain error.
-        if (flgCutOutVolumes)
-            [ indVAL, padVAL, shiftVAL ] = ...
-                          BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
-                                            sizeWindow, maskRadius, center);
-        else
-          [ indVAL, padVAL, shiftVAL ] = ...
-                          BH_isWindowValid([volHeader.nX,volHeader.nY,volHeader.nZ], ...
-                                            sizeWindow, maskRadius, center);
-        end
-
-        if ~(flgGold)
-          shiftVAL = shiftVAL + aliParams(2,1:3)./samplingRate;
-        end
-
-        if ~ischar(indVAL)
-          % Read in and interpolate at single precision as the local values
-          % in the interpolant suffer from any significant round off errors.
-          particleIDX = positionList(iSubTomo, 4); % Same for all peaks
-
-
+          
+          % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
+          % and PEET. This also makes inplane shifts easier to see.
+          
+          center = positionList(iSubTomo,[11:13]+26*iPeak)./samplingRate;
+          angles = positionList(iSubTomo,[17:25]+26*iPeak);
+          
+          
+          if ( make_sf3d )
+            make_sf3d = false;
+            radialGrid = '';
+            padWdg = [0,0,0;0,0,0];
+            [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
+              TLT, center,reconGeometry, wiener_constant);
+          end
+          
+          % If flgGold there is no change, otherwise temporarily resample the
+          % eve halfset to minimize differences due to orientaiton
+          if positionList(iSubTomo,7) == 1 % This is true for all peaks
+            % TODO FIXME should this be the transpose of oddRot?
+            angles = reshape(angles,3,3) * oddRot;
+          end
+          wedgeMask = wedgeMask .* wdgBP;
+          
+          % Find range to extract, and check for domain error.
           if (flgCutOutVolumes)
-            
-            particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak+1);
-            iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
-                                                      [indVAL(1,1),indVAL(2,1)], ...
-                                                      [indVAL(1,2),indVAL(2,2)], ...
-                                                      [indVAL(1,3),indVAL(2,3)],'keep'));
-
+            [ indVAL, padVAL, shiftVAL ] = ...
+              BH_isWindowValid(2*CUTPADDING+sizeWindow, ...
+              sizeWindow, maskRadius, center);
           else
+            [ indVAL, padVAL, shiftVAL ] = ...
+              BH_isWindowValid([volHeader.nX,volHeader.nY,volHeader.nZ], ...
+              sizeWindow, maskRadius, center);
+          end
+          
+          if ~(flgGold)
+            shiftVAL = shiftVAL + aliParams(2,1:3)./samplingRate;
+          end
+          
+          if ~ischar(indVAL)
+            % Read in and interpolate at single precision as the local values
+            % in the interpolant suffer from any significant round off errors.
+            particleIDX = positionList(iSubTomo, 4); % Same for all peaks
             
-           iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                                            [indVAL(1,2),indVAL(2,2)], ...
-                                            [indVAL(1,3),indVAL(2,3)],'keep'));
-          end
-
-
-          if any(padVAL(:))
-            [ iParticle ] = BH_padZeros3d(iParticle,  padVAL(1,1:3), ...
-                                          padVAL(2,1:3), 'GPU', 'single');
-          end
-
-          if ( use_new_interpolator )
-            % Pulling in the newer interpolater from alignRaw3d_v2. There, I instantiate a new interpolator every subtomo, but it is generally
-            % being used many times, over the angle loop. It may be more efficient to do this outside the for subtomo loop here, but
-            % to start, just do it the same way.
-            use_only_once = true;
-            [ ~, iParticle ] = interpolator(gpuArray(iParticle),angles, shiftVAL, 'Bah', 'inv', symmetry, use_only_once); 
             
-            [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', symmetry, use_only_once);
-
-          else
-          % Transform the particle, and then trim to motif size
-
-            [ iParticle ] = BH_resample3d(iParticle, angles, shiftVAL, ...
-                                                            'Bah', 'GPU', 'inv');
-
-            [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
-                                        'Bah', 'GPU', 'inv');
-          end
-
-
-
-        iTrimParticle = iParticle(padWindow(1,1)+1 : end - padWindow(2,1), ...
-                                  padWindow(1,2)+1 : end - padWindow(2,2), ...
-                                  padWindow(1,3)+1 : end - padWindow(2,3));
-
-
-
-
-        for iScale = 1:nScaleSpace
-            
-          iPrt = EMC_convn(iTrimParticle , gpuMasks.('scaleMask').(sprintf('s%d',iScale)));
-
-          iPrt = BH_bandLimitCenterNormalize( ...
-                            iPrt .* ...
-                            gpuMasks.('volMask').(sprintf('s%d',iScale)), ...
-                            gpuMasks.('highPass').(sprintf('s%d',iScale)),...
-                            gpuMasks.('binary').(sprintf('s%d',iScale)),...
-                                                      [0,0,0;0,0,0],'single');
-
-
-
-                                      
- 
-          [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
-                                    flgNorm,pixelSize,radialMask, padWdg);
-      
-
-
-          if all(isfinite(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale)))))
-            keepTomo = 1;
-            tempDataMatrix{iScale}(:,nTemp) = single(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale))));
-          else
-            fprintf('inf or nan in subtomo %d scalePace %d',iSubTomo,iScale);
-            keepTomo = 0;
-          end
-
-        end
-        clear iAvg iWmd  iTrimParticle
-
-
-
-        if (keepTomo)
-          idxList(1, nExtracted) = particleIDX;
-          peakList(1,nExtracted) = iPeak+1; 
-          nExtracted = nExtracted + 1;
-          nTemp = nTemp + 1;
-
-          % pull data of the gpu every 1000 particls (adjust this to max mem)
-          if nTemp == nTempParticles - 1
-            for iScale = 1:nScaleSpace
-              dataMatrix{iScale}(:,1+nTempPrev:nTemp+nTempPrev-1) = ...
-                                gather(tempDataMatrix{iScale}(:,1:nTemp-1));
+            if (flgCutOutVolumes)
+              
+              particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak+1);
+              iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
+                [indVAL(1,1),indVAL(2,1)], ...
+                [indVAL(1,2),indVAL(2,2)], ...
+                [indVAL(1,3),indVAL(2,3)],'keep'));
+              
+            else
+              
+              iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+                [indVAL(1,2),indVAL(2,2)], ...
+                [indVAL(1,3),indVAL(2,3)],'keep'));
             end
-
-            nTempPrev = nTempPrev + nTemp - 1;
-            nTemp = 1;
-          end
-        else
-          nIgnored = nIgnored + 1;
-          fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
-          masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
-        end
-
-
-      else
-        nIgnored = nIgnored + 1;
-        fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
-        masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
-
-      end % end of ignore new particles
-
+            
+            
+            if any(padVAL(:))
+              [ iParticle ] = BH_padZeros3d(iParticle,  padVAL(1,1:3), ...
+                padVAL(2,1:3), 'GPU', 'single');
+            end
+            
+            if ( use_new_interpolator )
+              % Pulling in the newer interpolater from alignRaw3d_v2. There, I instantiate a new interpolator every subtomo, but it is generally
+              % being used many times, over the angle loop. It may be more efficient to do this outside the for subtomo loop here, but
+              % to start, just do it the same way.
+              use_only_once = true;
+              [ ~, iParticle ] = interpolator(gpuArray(iParticle),angles, shiftVAL, 'Bah', 'inv', symmetry, use_only_once);
+              
+              [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', symmetry, use_only_once);
+              
+            else
+              % Transform the particle, and then trim to motif size
+              
+              [ iParticle ] = BH_resample3d(iParticle, angles, shiftVAL, ...
+                'Bah', 'GPU', 'inv');
+              
+              [ iWedge ] = BH_resample3d(wedgeMask, angles, [0,0,0], ...
+                'Bah', 'GPU', 'inv');
+            end
+            
+            
+            
+            iTrimParticle = iParticle(padWindow(1,1)+1 : end - padWindow(2,1), ...
+              padWindow(1,2)+1 : end - padWindow(2,2), ...
+              padWindow(1,3)+1 : end - padWindow(2,3));
+            
+            
+            
+            
+            for iScale = 1:nScaleSpace
+              
+              iPrt = EMC_convn(iTrimParticle , gpuMasks.('scaleMask').(sprintf('s%d',iScale)));
+              
+              iPrt = BH_bandLimitCenterNormalize( ...
+                iPrt .* ...
+                gpuMasks.('volMask').(sprintf('s%d',iScale)), ...
+                gpuMasks.('highPass').(sprintf('s%d',iScale)),...
+                gpuMasks.('binary').(sprintf('s%d',iScale)),...
+                [0,0,0;0,0,0],'single');
+              
+              
+              
+              
+              
+              [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
+                flgNorm,pixelSize,radialMask, padWdg);
+              
+              
+              
+              if all(isfinite(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale)))))
+                keepTomo = 1;
+                tempDataMatrix{iScale}(:,nTemp) = single(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale))));
+              else
+                fprintf('inf or nan in subtomo %d scalePace %d',iSubTomo,iScale);
+                keepTomo = 0;
+              end
+              
+            end
+            clear iAvg iWmd  iTrimParticle
+            
+            
+            
+            if (keepTomo)
+              idxList(1, nExtracted) = particleIDX;
+              peakList(1,nExtracted) = iPeak+1;
+              nExtracted = nExtracted + 1;
+              nTemp = nTemp + 1;
+              
+              % pull data of the gpu every 1000 particls (adjust this to max mem)
+              if nTemp == nTempParticles - 1
+                for iScale = 1:nScaleSpace
+                  dataMatrix{iScale}(:,1+nTempPrev:nTemp+nTempPrev-1) = ...
+                    gather(tempDataMatrix{iScale}(:,1:nTemp-1));
+                end
+                
+                nTempPrev = nTempPrev + nTemp - 1;
+                nTemp = 1;
+              end
+            else
+              nIgnored = nIgnored + 1;
+              fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
+              masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
+            end
+            
+            
+          else
+            nIgnored = nIgnored + 1;
+            fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
+            masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
+            
+          end % end of ignore new particles
+          
         end % end of loop over peaks
         
       end % end of ignore if statment
       if ~rem(iSubTomo,100)
         fprintf('\nworking on %d/%d subTomo peak %d/%d from %d/%d Tomo\n', ...
-                                           iSubTomo, nSubTomos,iPeak+1,emc.nPeaks, iTomo,nTomograms);
-
+          iSubTomo, nSubTomos,iPeak+1,emc.nPeaks, iTomo,nTomograms);
+        
         fprintf('Total nExtracted = %d\n', nExtracted-1);
         fprintf('Total nIgnored = %d\n', nIgnored);
-
+        
       end
     end % end of the loop over subTomos
-
-  clear volumeData
+    
+    clear volumeData
   end % end of the loop over Tomograms,
   
-% % %   volBinaryMask = reshape(gather(volBinaryMask),sizeMask);
+  % % %   volBinaryMask = reshape(gather(volBinaryMask),sizeMask);
   for iScale = 1:nScaleSpace
     masks.('binary').(stHALF).(sprintf('s%d',iScale)) = ...
       reshape(masks.('binary').(stHALF).(sprintf('s%d',iScale)),sizeMask);
   end
   
-
+  
   masterTM.(cycleNumber).('newIgnored_PCA').(halfSet) = gather(nIgnored);
   
   subTomoMeta = masterTM;
   save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
-
+  
   for iScale = 1:nScaleSpace
     dataMatrix{iScale}(:,1+nTempPrev:nTemp-1+nTempPrev) = ...
-                                    gather(tempDataMatrix{iScale}(:,1:nTemp-1));
+      gather(tempDataMatrix{iScale}(:,1:nTemp-1));
   end
-
+  
   clear tempDataMatrix
   % Get rid of any zero vals from newly ignored particles which are there due to
   % pre-allocation. Assuming no zeros have found their way in anywhere else which
@@ -1006,13 +1006,13 @@ for iGold = 1:1+flgGold
     dataMatrix{iScale} = dataMatrix{iScale}(:,1:size(idxList,2));
     % Center the rows
     for row = 1:size(dataMatrix{iScale},1)
-     dataMatrix{iScale}(row,:) = dataMatrix{iScale}(row,:) -  mean(double(dataMatrix{iScale}(row,:)));                                
+      dataMatrix{iScale}(row,:) = dataMatrix{iScale}(row,:) -  mean(double(dataMatrix{iScale}(row,:)));
     end
   end
-
   
   
-
+  
+  
   %save('preparpoolSave.mat');
   try
     EMC_parpool(nCores);
@@ -1020,7 +1020,7 @@ for iGold = 1:1+flgGold
     delete(gcp('nocreate'));
     EMC_parpool(nCores);
   end
-
+  
   if (previousPCA)
     % Read the matrix of eigenvectors from the prior PCA.
     oldPca = load(previousPCA);
@@ -1028,15 +1028,15 @@ for iGold = 1:1+flgGold
     clear oldPca;
     sDiag = cell(nScaleSpace,1);
     coeffs = cell(nScaleSpace,1);
-
+    
     for iScale = 1:nScaleSpace
       % Sanity checks on the dimensionality
       numEigs = size(U{iScale}, 2);
       if nPixels(iGold,iScale) ~= size(U{iScale}, 1)
         error('Image size %d does not match that of previous PCA %d!', nPixels(iGold,iScale), size(U{iScale},1));
       end
-
-      coeffs{iScale} = U{iScale}' * dataMatrix{iScale}; 
+      
+      coeffs{iScale} = U{iScale}' * dataMatrix{iScale};
     end
   else
     
@@ -1047,54 +1047,54 @@ for iGold = 1:1+flgGold
     coeffs = cell(nScaleSpace,1);
     varianceMap = cell(nScaleSpace,1);
     for iScale = 1:nScaleSpace
-       
-        krylovScalar = 5;
+      
+      krylovScalar = 5;
       % Calculate the decomposition
       [ U{iScale},S{iScale},V{iScale}, convergenceFlag ] = svds(double(dataMatrix{iScale}), ...
-                                                                maxEigs, 'largest', ...
-                                                                'MaxIterations',1000, ... % default 300
-                                                                'SubspaceDimension',max(krylovScalar*maxEigs,30),... % default max(3*maxEigs,15)
-                                                                'Display',true); % Diagnostics default false (will this work in compiled?)
-        U{iScale} = single(U{iScale});
-        S{iScale} = single(S{iScale});
-        V{iScale} = single(V{iScale});
-
-%             [U{iScale},S{iScale},V{iScale}] = svd(dataMatrix{iScale}, 0);
-
+        maxEigs, 'largest', ...
+        'MaxIterations',1000, ... % default 300
+        'SubspaceDimension',max(krylovScalar*maxEigs,30),... % default max(3*maxEigs,15)
+        'Display',true); % Diagnostics default false (will this work in compiled?)
+      U{iScale} = single(U{iScale});
+      S{iScale} = single(S{iScale});
+      V{iScale} = single(V{iScale});
+      
+      %             [U{iScale},S{iScale},V{iScale}] = svd(dataMatrix{iScale}, 0);
+      
       sDiag{iScale} = diag(S{iScale});
       numNonZero = find(( sDiag{iScale} ~= 0 ), 1, 'last');
       % For Method 1, save eigenvectors 1-4 (or user-specified max) as images
       eigsFound = min(maxEigs, numNonZero);
-
+      
       fprintf('Found %d / %d non-zero eigenvalues sum = %4.4f, in set %s.\n All singular values converged is t/f ( %d ) ', ...
-                numNonZero, size(S{iScale}, 1), sum(sDiag{iScale}), halfSet, convergenceFlag);
-
-      coeffs{iScale} = S{iScale} * V{iScale}' 
-
+        numNonZero, size(S{iScale}, 1), sum(sDiag{iScale}), halfSet, convergenceFlag);
+      
+      coeffs{iScale} = S{iScale} * V{iScale}'
+      
       % Can be GB-TB if calculated full
       %varianceMap{iScale} = (U{iScale}*S{iScale}.^2*V{iScale} ./ numel(U{iScale}-1));
       fprintf('Size S, %d %d  Size U %d %d \n', size(S{iScale},1),size(S{iScale},2), size(U{iScale},1),size(U{iScale},2));
-  
+      
       % We want the diagnol of US^2U'/ n-1
       % This will be maxEigs * Nvoxels matrix (U is Nvoxels * maxEigs)
       rightSide = S{iScale}(1:numNonZero,1:numNonZero).^2*U{iScale}';
       varianceMap = zeros(nPixels(iGold,iScale),1);
       for k = 1:nPixels(iGold,iScale)
-%         varianceMap(k) = U{iScale}(k,1)*rightSide(1,k) + ...
-%                          U{iScale}(k,2)*rightSide(2,k) + ...
-%                          U{iScale}(k,3)*rightSide(3,k);
+        %         varianceMap(k) = U{iScale}(k,1)*rightSide(1,k) + ...
+        %                          U{iScale}(k,2)*rightSide(2,k) + ...
+        %                          U{iScale}(k,3)*rightSide(3,k);
         varianceMap(k) = U{iScale}(k,:)*rightSide(:,k);
       end
       varianceMap = varianceMap ./ (numel(varianceMap) - 1);
       
       tmpReshape = zeros(prod(sizeMask),1);
       tmpReshape(masks.('binary').(stHALF).(sprintf('s%d',iScale)) ) = varianceMap(:);
-     
-      fname = sprintf('%s_varianceMap%d-%s-%d.mrc',outputPrefix, eigsFound, halfSet, iScale);     
+      
+      fname = sprintf('%s_varianceMap%d-%s-%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
       SAVE_IMG(MRCImage(single(gather(reshape(tmpReshape, sizeMask)))), fname,pixelSize);
-
-
-        
+      
+      
+      
       eigList = cell(eigsFound,1);
       eigList_SUM = cell(eigsFound,1);
       
@@ -1107,44 +1107,44 @@ for iGold = 1:1+flgGold
         eigList{iEig,1} = gather(eigenImage);
         eigList_SUM{iEig,1} = gather((eigenImage + avgFiltered{iGold, iScale} )./2);
       end
-
-
+      
+      
       [ eigMont ] = BH_montage4d(eigList, 'eigMont');
       [ eigMont_SUM ] = BH_montage4d(eigList_SUM, 'eigMont_SUM');
-        fname = sprintf('%s_eigenImage%d-%s-mont_%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
-        fname_SUM = sprintf('%s_eigenImage%d-SUM-%s-mont_%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
-        SAVE_IMG(MRCImage(single(gather(eigMont))), fname,pixelSize);
-        SAVE_IMG(MRCImage(single(gather(eigMont_SUM))), fname_SUM,pixelSize);
-
-
+      fname = sprintf('%s_eigenImage%d-%s-mont_%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
+      fname_SUM = sprintf('%s_eigenImage%d-SUM-%s-mont_%d.mrc',outputPrefix, eigsFound, halfSet, iScale);
+      SAVE_IMG(MRCImage(single(gather(eigMont))), fname,pixelSize);
+      SAVE_IMG(MRCImage(single(gather(eigMont_SUM))), fname_SUM,pixelSize);
+      
+      
       % If requested, limit the number of principal components and coeffs saved
       if maxEigs < size(S{iScale}, 1)
         fprintf('Saving only the first %d principal components.\n',          ...
           maxEigs);
         if ~isempty(U{iScale}) % U will not exist for pcaMethods 2 or 3
-          U{iScale} = U{iScale}(:, 1:maxEigs); 
+          U{iScale} = U{iScale}(:, 1:maxEigs);
         end
         if ~(previousPCA)
-          S{iScale} = S{iScale}(1:maxEigs, 1:maxEigs); 
-          V{iScale} = V{iScale}(:, 1:maxEigs); 
+          S{iScale} = S{iScale}(1:maxEigs, 1:maxEigs);
+          V{iScale} = V{iScale}(:, 1:maxEigs);
         end
         coeffs{iScale} = coeffs{iScale}(1:maxEigs, :); %
       end
     end
   end
-
-
+  
+  
   % Only U is needed for further analysis, so save only this, unless
   % troubleshooting.
   if (previousPCA)
     for iScale = 1:nScaleSpace
-    
+      
       % If requested, limit the number of principal components and coeffs saved.
       if maxEigs < size(U{iScale}, 2)
         fprintf('Saving only the first %d principal components.\n',          ...
           p.pcaMaxNumComponents);
-        U{iScale} = U{iScale}(:, 1:maxEigs); 
-        coeffs{iScale} = coeffs{iScale}(1:maxEigs, :); 
+        U{iScale} = U{iScale}(:, 1:maxEigs);
+        coeffs{iScale} = coeffs{iScale}(1:maxEigs, :);
       end
       
     end
@@ -1158,17 +1158,17 @@ for iGold = 1:1+flgGold
   end
   
   fprintf('Total execution time on %s set: %f seconds\n', halfSet, etime(clock, startTime));
-
-  close all force; 
+  
+  close all force;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-clear dataMatrix U S V coeffs eigMont eigMontSum
-
-delete(gcp('nocreate'));
-
-% after resetting the device, bring back masks etc.
-
-
+  
+  clear dataMatrix U S V coeffs eigMont eigMontSum
+  
+  delete(gcp('nocreate'));
+  
+  % after resetting the device, bring back masks etc.
+  
+  
 end % end of loop over halfsets
 gpuDevice(1);
 delete(gcp('nocreate'));

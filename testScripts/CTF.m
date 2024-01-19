@@ -13,7 +13,7 @@ classdef CTF < handle
     ctf_img = '';
     ctf_abs = '';
     ctf_sq = '';
-
+    
   end
   
   methods
@@ -22,26 +22,26 @@ classdef CTF < handle
       %   Detailed explanation goes here
       obj.pixelSize = pixelSize;
       obj.useGPU = useGPU;
-      obj.img_nX = SIZE(1); obj.img_nY = SIZE(2); 
-      if numel(SIZE) == 3 
+      obj.img_nX = SIZE(1); obj.img_nY = SIZE(2);
+      if numel(SIZE) == 3
         obj.img_nZ = SIZE(3);
       else
         obj.img_nZ = 1;
       end
       obj.fou_nX = floor(obj.img_nX/2) + 1;
       
-      if strcmp(useGPU,'GPU') 
+      if strcmp(useGPU,'GPU')
         % Maybe add flag for shifted coordinates
-       [ obj.coord_grids{1},obj.coord_grids{3},~,~,~,~ ] = ...
-                                      BH_multi_gridCoordinates( ...
-                                      [obj.img_nX,obj.img_nY,obj.img_nZ],...
-                                      'Cylindrical','GPU', {'none'},1,0,0);
+        [ obj.coord_grids{1},obj.coord_grids{3},~,~,~,~ ] = ...
+          BH_multi_gridCoordinates( ...
+          [obj.img_nX,obj.img_nY,obj.img_nZ],...
+          'Cylindrical','GPU', {'none'},1,0,0);
       elseif strcmp(useGPU,'cpu')
-         % Maybe add flag for shifted coordinates
-       [ obj.coord_grids{1},obj.coord_grids{3},~,~,~,~ ] = ...
-                                      BH_multi_gridCoordinates( ...
-                                      [obj.img_nX,obj.img_nY,obj.img_nZ],...
-                                      'Cylindrical','cpu', {'none'},1,0,0);       
+        % Maybe add flag for shifted coordinates
+        [ obj.coord_grids{1},obj.coord_grids{3},~,~,~,~ ] = ...
+          BH_multi_gridCoordinates( ...
+          [obj.img_nX,obj.img_nY,obj.img_nZ],...
+          'Cylindrical','cpu', {'none'},1,0,0);
       else
         error('useGPU must be GPU or cpu string');
       end
@@ -58,15 +58,15 @@ classdef CTF < handle
       %   Detailed explanation goes here
       if nargin > 6
         obj.ctf_img = BH_ctfCalc(obj.coord_grids,CS,WL,defocusVector,...
-                             [obj.img_nX,obj.img_nY,obj.img_nZ],...
-                             AMP,DC_SCALE,varargin{1});
+          [obj.img_nX,obj.img_nY,obj.img_nZ],...
+          AMP,DC_SCALE,varargin{1});
       else
         obj.ctf_img = BH_ctfCalc(obj.coord_grids,CS,WL,defocusVector,...
-                             [obj.img_nX,obj.img_nY,obj.img_nZ],...
-                             AMP,DC_SCALE);
+          [obj.img_nX,obj.img_nY,obj.img_nZ],...
+          AMP,DC_SCALE);
       end
-        
-          
+      
+      
     end
     
     function ctf_product = multiply(obj,otherImg,varargin)
@@ -88,14 +88,14 @@ classdef CTF < handle
         case 'abs'
           if isempty(obj.ctf_abs)
             obj.ctf_abs = abs(obj.ctf_img);
-          end   
+          end
           ctf_product = obj.ctf_abs .* otherImg;
         case 'sq'
           if isempty(obj.ctf_sq)
             obj.ctf_sq = abs(obj.ctf_img).^2;
-          end        
+          end
           ctf_product = obj.ctf_sq .* otherImg;
-        
+          
           
         otherwise
           error('form must be none, abs, or sq, not %s\n',form)

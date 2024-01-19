@@ -13,8 +13,8 @@ if isempty(local_cache_root)
     error('\The variable EMC_CACHE_ROOT %s\n',EMC_ROOT);
   end
 end
-    
-    
+
+
 [~,emc_rand_name,~] = fileparts( local_cache_root );
 
 
@@ -26,7 +26,7 @@ for iProf = 1:length(current_profiles)
     profile_does_not_exist = false;
   end
 end
-  
+
 % if the profile doesn't exist, create it
 if (profile_does_not_exist)
   emc_parcluster = parcluster(parallel.defaultClusterProfile);

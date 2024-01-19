@@ -46,7 +46,7 @@ function [gX, gY, gZ, vX, vY, vZ] = EMC_coordTransform(SIZE, METHOD, OPTION, var
 %                               default = 1
 %
 %     -> 'offset' (vector):     [x, y, z] or [x, y] offset to apply (should correspond to SIZE).
-%                               Offsets are used to adjust the center of rotation defined by 'origin'. 
+%                               Offsets are used to adjust the center of rotation defined by 'origin'.
 %                               NOTE: this effectively apply a shift on both the vectors and the grids.
 %                               NOTE: if there is no rotation or scaling to apply, this has no effect
 %                                     on the final interpolated image.
@@ -118,7 +118,7 @@ end
 if ~isempty(varargin)
     if length(varargin) ~= 3
         error('EMC:varargin', ...
-              'varargin should contain 3 row vectors, got %s elements', length(varargin))
+            'varargin should contain 3 row vectors, got %s elements', length(varargin))
     elseif ~flg.is3d
         if ~isscalar(varargin{3}) && ~isnan(varargin{3})
             error('EMC:varargin', 'For a 2d case, vZ should be NaN')
@@ -128,10 +128,10 @@ if ~isempty(varargin)
         end
     else
         vX = EMC_setMethod(cast(varargin{1}, OPTION.precision), METHOD);
-       	vY = EMC_setMethod(cast(varargin{2}, OPTION.precision), METHOD);
+        vY = EMC_setMethod(cast(varargin{2}, OPTION.precision), METHOD);
         vZ = EMC_setMethod(cast(varargin{3}, OPTION.precision), METHOD);
     end
-
+    
     if ~isnumeric(vX) || ~isrow(vX) || SIZE(1) ~= length(vX)
         error('EMC:varargin', 'varargin{1} (vX) should be a numeric row vector of %d elements', SIZE(1))
     elseif ~isnumeric(vY) || ~isrow(vY) || SIZE(2) ~= length(vY)
@@ -139,19 +139,19 @@ if ~isempty(varargin)
     elseif flg.is3d && ~isnumeric(vZ) || ~isrow(vZ) || SIZE(3) ~= length(vZ)
         error('EMC:varargin', 'varargin{3} (vZ) should be a numeric row vector of %d elements', SIZE(3))
     end
-
+    
     % Apply offsets and|or normalize if whished. Note: shifts are not applied to vectors.
     if (flg.offset)
-     	vX = vX - OPTION.offset(1);
-      	vY = vY - OPTION.offset(2);
-     	if flg.is3d; vZ = vZ - OPTION.offset(3); end
+        vX = vX - OPTION.offset(1);
+        vY = vY - OPTION.offset(2);
+        if flg.is3d; vZ = vZ - OPTION.offset(3); end
     end
     if (OPTION.normalize)
         vX = vX ./ SIZE(1);
-      	vY = vY ./ SIZE(2);
+        vY = vY ./ SIZE(2);
         if flg.is3d; vZ = vZ ./ SIZE(3); end
     end
-
+    
 else  % varargin is empty
     OPTION = EMC_getOption(OPTION, {'offset', 'origin', 'normalize', 'precision'}, true);
     [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, OPTION, false);
@@ -163,7 +163,7 @@ end
 % Compute the grids; Optionally evaluate only a smaller masked region.
 if flg.is3d
     [X, Y, Z] = ndgrid(vX, vY, vZ);
-    if flg.binary 
+    if flg.binary
         X = X(binaryVol);
         Y = Y(binaryVol);
         Z = Z(binaryVol);
@@ -196,9 +196,9 @@ for iSym = 1:OPTION.sym
     % Only in plane symmetries considered anywhere
     % so inverse|forward shouldn't matter.
     if iSym > 1
-    	R = OPTION.rotm * BH_defineMatrix([iSym.*symInc,0,0],'Bah','inverse');
+        R = OPTION.rotm * BH_defineMatrix([iSym.*symInc,0,0],'Bah','inverse');
     else
-      	R = OPTION.rotm;
+        R = OPTION.rotm;
     end
     
     if flg.transform || iSym > 1
@@ -218,7 +218,7 @@ for iSym = 1:OPTION.sym
         YTrans = Y;
         if flg.is3d; ZTrans = Z; else; ZTrans = nan; end
     end
-
+    
     % Only use as cell if symmetry is requested
     if flg.sym
         gX{iSym+1} = XTrans;  % I [TF] hope this doesn't generate a copy.
@@ -240,7 +240,7 @@ function [SIZE, OPTION, flg, ndim] = checkIN(SIZE, METHOD, OPTION)
 [flg.is3d, SIZE, ndim] = EMC_is3d(SIZE);
 
 if ~(strcmpi(METHOD, 'gpu') || strcmpi(METHOD, 'cpu'))
-    if isstring(METHOD) || ischar(METHOD) 
+    if isstring(METHOD) || ischar(METHOD)
         error('EMC:METHOD', "SYSTEM should be 'gpu' or 'cpu', got %s", METHOD)
     else
         error('EMC:METHOD', "SYSTEM should be 'gpu' or 'cpu', got %s", clas(METHOD))
@@ -255,16 +255,16 @@ flg.binary = false;
 
 % Extract optional parameters
 OPTION = EMC_getOption(OPTION, {'rotm', 'shift', 'mag', 'sym', 'direction', ...
-                                'origin', 'offset', 'binary', 'normalize', 'precision'}, false);
+    'origin', 'offset', 'binary', 'normalize', 'precision'}, false);
 
 % rotm
 if isfield(OPTION, 'rotm')
-    if ~isnumeric(OPTION.rotm) || ~ismatrix(OPTION.rotm) 
+    if ~isnumeric(OPTION.rotm) || ~ismatrix(OPTION.rotm)
         error('EMC:rotm', 'rotm should be a %dx%d numeric matrix, got %s', ...
-              ndim, ndim, class(OPTION.rotm))
+            ndim, ndim, class(OPTION.rotm))
     elseif numel(OPTION.rotm) == ndim^2
         error('EMC:rotm', 'rotm should be a %dx%d numeric matrix, got size:%s', ...
-              ndim, ndim, mat2str(size(OPTION.rotm)))
+            ndim, ndim, mat2str(size(OPTION.rotm)))
     end
     % Most of the time, it will not be an identity matrix, so don't check and do transformation anyway.
     flg.transform = true;
@@ -276,14 +276,14 @@ end
 if isfield(OPTION, 'shift')
     if ~isnumeric(OPTION.shift) || ~isvector(OPTION.shift)
         error('EMC:shift', ...
-              'shift should be a vector of float|int, got %s', class(OPTION.shift))
+            'shift should be a vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
         error('EMC:shift', ...
-              'shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
+            'shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
     elseif numel(OPTION.shift) ~= ndim
         error('EMC:shift', ...
-              'For a %dd SIZE, shift should be a vector of %d float|int, got %s', ...
-              ndim, ndim, mat2str(OPTION.shift, 2))
+            'For a %dd SIZE, shift should be a vector of %d float|int, got %s', ...
+            ndim, ndim, mat2str(OPTION.shift, 2))
     elseif any(OPTION.shift)
         flg.shift = true;
     end
@@ -295,22 +295,22 @@ end
 if isfield(OPTION, 'mag')
     if ~isnumeric(OPTION.mag)
         error('EMC:mag', ...
-              'mag should be a numeric scalar or vector, got %s', class(OPTION.mag))
+            'mag should be a numeric scalar or vector, got %s', class(OPTION.mag))
     elseif isvector(OPTION.mag)
         if length(OPTION.mag) ~= ndim
             error('EMC:mag', ...
-                  'mag should be a vector of %d elements, got %d elements', ndim, length(OPTION.mag))
-      	elseif any(isnan(OPTION.mag)) || any(isinf(OPTION.mag))
+                'mag should be a vector of %d elements, got %d elements', ndim, length(OPTION.mag))
+        elseif any(isnan(OPTION.mag)) || any(isinf(OPTION.mag))
             error('EMC:mag', ...
-                  'mag should not have any nan nor inf, got:%s', mat2str(OPTION.mag))
+                'mag should not have any nan nor inf, got:%s', mat2str(OPTION.mag))
         end
         flg.transform = true;
     elseif isscalar(OPTION.mag) && ~any(isnan(OPTION.mag)) || ~any(isinf(OPTION.mag))
         OPTION.mag = zeros(1, ndim) + OPTION.mag;  % isotropic scaling
         flg.transform = true;
     else
-       	error('EMC:mag', ...
-              'mag should be a numeric scalar or a numeric vector of %d elements', ndim)
+        error('EMC:mag', ...
+            'mag should be a numeric scalar or a numeric vector of %d elements', ndim)
     end
 else
     OPTION.mag = ones(1, ndim);  % default
@@ -320,7 +320,7 @@ end
 if isfield(OPTION, 'sym')
     if ~isnumeric(OPTION.sym) || ~isscalar(OPTION.sym) || OPTION.sym < 1 || rem(OPTION.sym, 1)
         error('EMC:sym', ...
-              'sym should be a positive integer')
+            'sym should be a positive integer')
     elseif OPTION.sym ~= 1
         flg.sym = true;
     end
@@ -344,7 +344,7 @@ end
 % origin
 if isfield(OPTION, 'origin')
     if ~isnumeric(OPTION.origin) || ~isscalar(OPTION.origin) || ...
-       ~(OPTION.origin == 1 || OPTION.origin == -1 || OPTION.origin == 0 || OPTION.origin == 2)
+            ~(OPTION.origin == 1 || OPTION.origin == -1 || OPTION.origin == 0 || OPTION.origin == 2)
         error('EMC:origin', 'origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
     end
 else
@@ -355,14 +355,14 @@ end
 if isfield(OPTION, 'offset')
     if ~isnumeric(OPTION.offset) || ~isvector(OPTION.offset)
         error('EMC:offset', ...
-              'offset should be a vector of float|int, got %s', class(OPTION.offset))
+            'offset should be a vector of float|int, got %s', class(OPTION.offset))
     elseif any(isnan(OPTION.offset)) || any(isinf(OPTION.offset))
         error('EMC:offset', ...
-              'offset should not contain NaNs or Inf, got %s', mat2str(OPTION.offset, 2))
+            'offset should not contain NaNs or Inf, got %s', mat2str(OPTION.offset, 2))
     elseif numel(OPTION.offset) ~= ndim
         error('EMC:offset', ...
-              'For a %dd SIZE, offset should be a vector of %d float|int, got %s', ...
-              ndim, ndim, mat2str(OPTION.offset, 2))
+            'For a %dd SIZE, offset should be a vector of %d float|int, got %s', ...
+            ndim, ndim, mat2str(OPTION.offset, 2))
     end
 else
     OPTION.offset = zeros(1, ndim);  % default

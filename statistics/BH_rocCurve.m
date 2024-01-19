@@ -63,14 +63,14 @@ mip = gpuArray(mip);
 [bx, by] = BH_multi_gridCoordinates(2.*[com_radius,com_radius]+1,'Cartesian','cpu',{'none'},0,1,0);
 
 for iPeak = 1:nPeaks
-
+  
   % First scan the area for a maximum
   dx = gt(iPeak,1)./pixelSize + ox;
   dy = gt(iPeak,2)./pixelSize + oy;
-
+  
   ix = floor(dx);
   iy = floor(dy);
-
+  
   % TODO out of bounds heck
   cSq = mip(ix-thr_radius:ix+thr_radius, iy - thr_radius:iy+thr_radius);
   [m,c] = max(cSq(:));
@@ -78,27 +78,27 @@ for iPeak = 1:nPeaks
   [i,j] = ind2sub(2.*[thr_radius,thr_radius]+1,c);
   i = i - thr_radius - 1;
   j = j - thr_radius - 1;
-
+  
   comSq = gather(mip(ix-com_radius + i:ix+com_radius + i, iy - com_radius + j:iy+com_radius+ j));
-
+  
   com = [sum(bx(:).*comSq(:)),sum(by(:).*comSq(:))]./sum(comSq(:));
   
   m2 = interpn(bx,by,comSq,com(1),com(2),'cubic');
   fprintf('found a max of %3.3f, %3.3f ,for peak %d\n',m2,m2/m,iPeak);
-
+  
   peakList(iPeak) = m2;
-
+  
   mip(ix-com_radius + i:ix+com_radius + i, iy - com_radius + j:iy+com_radius+ j) = 0;
-
+  
 end
 
 eraseNeighbors=0;
 
 for iVal = 1:nVals
-
-
+  
+  
   if (eraseNeighbors)
-   
+    
     kernel = ones([3,3],'single','gpuArray');
     % Remove all values that have more than two neighbors
     m1 = mip >= snr(iVal);
@@ -106,35 +106,35 @@ for iVal = 1:nVals
       m2 = convn((m1),kernel,'same');
       m1 = m1 .*  (m1 < iN);
     end
-
+    
     nSum = sum(m1(:));
     % Now add in the central pixel and take diff
     kernel(5) = 1;
     FP = sum(sum(convn(single(m1),kernel,'same'))) - nSum;
- 
+    
     fprintf('snr %2.2f, m1 %d, m2 %d, FP %d \n', snr(iVal),sum(mip(:) > snr(iVal)), sum(m1(:)), FP);
   else
     FP = sum(mip(:) > snr(iVal));
   end
-    % True peaks are already zeroed)
+  % True peaks are already zeroed)
   TP = sum(peakList >= snr(iVal));
   FN = nPeaks - TP;
   TN = d1*d2 - TP - FN - FP;
-
+  
   MatthewsCCC = (TP * TN - FP * FN) ./ sqrt((TP+FP).*(TP+FN).*(TN+FP).*(TN+FN));
-
-
+  
+  
   RECALL = TP ./ nPeaks;
   PRECISION = TP ./ (TP + FP);
   F1 = 2. * (RECALL*PRECISION)/(RECALL+PRECISION);
-
+  
   roc(iVal,:) = gather( ...
-                [ snr(iVal), ...
-                  RECALL, ...
-                  PRECISION, ...
-                  F1,...
-                  MatthewsCCC]);
-
+    [ snr(iVal), ...
+    RECALL, ...
+    PRECISION, ...
+    F1,...
+    MatthewsCCC]);
+  
 end
 
 fout = fopen(sprintf('%s_roc.txt',mip_name),'w');
@@ -152,21 +152,21 @@ a = a.data;
 snrMax = max(find(a(:,3)>0,1,'last'),find(a(:,4)>0,1,'last')) + 1;
 snrMax = a(snrMax,1);
 
-figure('visible','off'), 
+figure('visible','off'),
 
-  subplot(1,3,[1:2]);
-  plot(roc(:,1),roc(:,2),'r',roc(:,1),roc(:,3),'b', ...
-       snr(cM),roc(cM,5),'c*',...
-       ones(length(0:0.1:1),1).*roc(onefalsePos,1),0:0.1:1,'k--');
-  title({sprintf('1 FP @ %2.2f (%2.2f calc) SNR and %2.2f recall\nmCCC,rec,prec,snr\n [%2.2f %2.2f %2.2f %2.2f]',roc(onefalsePos,[1]),gaussSNR,roc(onefalsePos,[2]),roc(cM,5),snr(cM),roc(cM,[2:3]))});
-  xlabel('SNR'); ylabel('Recall (red) Precision (blue)');
+subplot(1,3,[1:2]);
+plot(roc(:,1),roc(:,2),'r',roc(:,1),roc(:,3),'b', ...
+  snr(cM),roc(cM,5),'c*',...
+  ones(length(0:0.1:1),1).*roc(onefalsePos,1),0:0.1:1,'k--');
+title({sprintf('1 FP @ %2.2f (%2.2f calc) SNR and %2.2f recall\nmCCC,rec,prec,snr\n [%2.2f %2.2f %2.2f %2.2f]',roc(onefalsePos,[1]),gaussSNR,roc(onefalsePos,[2]),roc(cM,5),snr(cM),roc(cM,[2:3]))});
+xlabel('SNR'); ylabel('Recall (red) Precision (blue)');
 
-  subplot(1,3,3);
-  plot(a(:,1),log(a(:,3)),'k--',a(:,1),log(a(:,4)),'b');
-  title({'Survival histogram'})
-  xlabel('SNR'); ylabel('log(counts)');
-  xlim([0,snrMax]); ylim([0.9,inf]);
-  
+subplot(1,3,3);
+plot(a(:,1),log(a(:,3)),'k--',a(:,1),log(a(:,4)),'b');
+title({'Survival histogram'})
+xlabel('SNR'); ylabel('log(counts)');
+xlim([0,snrMax]); ylim([0.9,inf]);
+
 
 saveas(gcf,sprintf('%s_roc.pdf',mip_name),'pdf');
 

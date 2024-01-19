@@ -83,38 +83,38 @@ bandSize = size(BANDPASS);
 % full bandpass
 if isequal(bandSize, imgSize)
     IMAGE = fftn(IMAGE) .* BANDPASS;
-
+    
     if OPTION.standardize
         IMAGE(1) = 0;
         IMAGE = IMAGE ./ (sqrt(sum(abs(IMAGE).^2, 'all')) / numel(IMAGE));
     end
-
+    
     if OPTION.ifft
         IMAGE = ifftn(IMAGE, 'symmetric');
     end
-
-% half bandpass
+    
+    % half bandpass
 elseif isequal([floor(imgSize(1)/2)+1, imgSize(2:end)], bandSize)
     IMAGE = EMC_rfftn(IMAGE) .* BANDPASS;
-
+    
     if OPTION.standardize
         IMAGE(1) = 0;
-
+        
         % Capture every independant chunk (same for 2d or 3d)
         cD = ceil(imgSize(1)/2);  % center donor
         factor = sum(abs(IMAGE(1,:,:)).^2, 'all');  % unique row/plane
         factor = factor + 2*sum(abs(IMAGE(2:cD,:,:)).^2, 'all');  % common chunk
         if ~mod(imgSize(1),2); factor = factor + sum(abs(IMAGE(cD+1,:,:)).^2, 'all'); end  % unique row/plane
-
+        
         IMAGE = IMAGE ./ (sqrt(factor) / prod(imgSize, 'native'));
     end
-
+    
     if OPTION.ifft
         IMAGE = EMC_irfftn(IMAGE, imgSize);
     end
 else
     error('EMC:IMAGE', 'IMAGE (size:%s) and BANDPASS (size:%s) should have the same size', ...
-          mat2str(imgSize), mat2str(size(BANDPASS)))
+        mat2str(imgSize), mat2str(size(BANDPASS)))
 end
 
 end  % EMC_applyBandpass

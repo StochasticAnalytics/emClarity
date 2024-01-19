@@ -31,11 +31,11 @@ else
 end
 
 % If real space, shift origin to center, if fourier leave origin at corner.
- [ X,Y,~,~,~,~ ] = BH_multi_gridCoordinates( hood, 'Cartesian', 'cpu', ...
-                                                  {'none'}, flgFourier, ...
-                                                            1-flgFourier, 0 );
-                                                          
-                                                          
+[ X,Y,~,~,~,~ ] = BH_multi_gridCoordinates( hood, 'Cartesian', 'cpu', ...
+  {'none'}, flgFourier, ...
+  1-flgFourier, 0 );
+
+
 
 
 if (flgFourier)
@@ -43,15 +43,15 @@ if (flgFourier)
   gfunc = @(x,y,s)(exp(-0.5*(x.^2+y.^2).*(s.*2.*pi).^(2)));
   normFactor = @(x,y,r,Ord)((2i.*pi).^Ord);
 else
-  gfunc = @(x,y,s)(exp(-0.5*(x.^2+y.^2)./s.^2));  
+  gfunc = @(x,y,s)(exp(-0.5*(x.^2+y.^2)./s.^2));
   normFactor = @(x,y,s,Ord)((2.*pi).^-1.*(s^2).^(-(Ord+1)));
 end
 
-                                                          
+
 switch ORDER
   
-  case 0 
-
+  case 0
+    
     if ( flgFourier )
       Kx = normFactor(X,Y,1,ORDER).*gfunc(X,Y,StdDev);
     else
@@ -59,7 +59,7 @@ switch ORDER
     end
     
   case 1
- 
+    
     if ( flgFourier )
       Kx = -X.*normFactor(X,Y,X,ORDER).*gfunc(X,Y,StdDev);
       Ky = -Y.*normFactor(X,Y,Y,ORDER).*gfunc(X,Y,StdDev);
@@ -84,7 +84,7 @@ end
 
 % if (flgFourier)
 %   KERNELX = gfunc(X,Y,StdDev); %KERNELX = KERNELX ./ max(KERNELX(:));
-%   %KERNELY = gfunc(Y,StdDev); %KERNELY = KERNELY ./ max(KERNELY(:)); 
+%   %KERNELY = gfunc(Y,StdDev); %KERNELY = KERNELY ./ max(KERNELY(:));
 % else
 %   KERNELX = gfunc(X,Y,StdDev);
 % end

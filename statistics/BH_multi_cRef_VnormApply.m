@@ -1,6 +1,6 @@
 function [  ] = BH_multi_cRef_VnormApply( matFile, CYCLE, outputPrefix, ...
-                                          imgBaseName, ...
-                                          idxVect, bFactor, varargin)
+  imgBaseName, ...
+  idxVect, bFactor, varargin)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -47,7 +47,7 @@ for i = idxVect
   else
     fscArgs = 1;
   end
-
+  
   try
     fscParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('REF%d',fscArgs));
     aliParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('ResampleREF%d',fscArgs));
@@ -65,21 +65,21 @@ for i = idxVect
       mskParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('MaskRaw%d',1));
     end
   end
-
+  
   pixelSize = 0.5/fscParams{4}(end);
   if mFactor
     % Override default mtf filter
     fscParams{3}{3} = mFactor;
   end
   
-
+  
   [w] = BH_multi_cRef_Vnorm(fscParams, aliParams, mskParams, ...
-                            {img1{i},img2{i}},{wgt1{i},wgt2{i}}, ...
-                            1,0, pixelSize,bFactor);
-                          
+    {img1{i},img2{i}},{wgt1{i},wgt2{i}}, ...
+    1,0, pixelSize,bFactor);
+  
   for iBfact = 1:length(bFactor)
     SAVE_IMG(MRCImage(gather(w{iBfact})), ...
-             sprintf('%s-n%0.3u-bf-%d.mrc',outputPrefix,i,bFactor(iBfact)),pixelSize);
+      sprintf('%s-n%0.3u-bf-%d.mrc',outputPrefix,i,bFactor(iBfact)),pixelSize);
   end
 end
 

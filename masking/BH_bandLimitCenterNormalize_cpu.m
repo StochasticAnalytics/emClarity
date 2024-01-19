@@ -1,5 +1,5 @@
 function [ IMG ] = BH_bandLimitCenterNormalize_cpu( IMG, BANDPASS, MASK, ...
-                                                                 PAD, PRECISION )
+  PAD, PRECISION )
 %Bandlimit, mask, center, normalize and img.
 %   Masks ROI in image, then bandlimits while also setting the mean to 0 and the
 %   variance. Returns FT, if image is to be recovered must take ifft.
@@ -14,7 +14,7 @@ function [ IMG ] = BH_bandLimitCenterNormalize_cpu( IMG, BANDPASS, MASK, ...
 %   MASK = binary mask for mean subtraction
 %
 %   PAD  = zero padding
-%   
+%
 %   PRECISION = single, double, singleTaper, doubleTaper
 %
 %   Note: F(0,0,0) = prod(size(img)).*mean(img(:)) st we might set the img
@@ -27,7 +27,7 @@ function [ IMG ] = BH_bandLimitCenterNormalize_cpu( IMG, BANDPASS, MASK, ...
 
 if isnumeric(MASK) || islogical(MASK)
   IMG(MASK) = IMG(MASK) - mean(double(IMG(MASK)));
- % IMG(MASK) = IMG(MASK) ./rms(double(IMG(MASK)));
+  % IMG(MASK) = IMG(MASK) ./rms(double(IMG(MASK)));
 end
 
 
@@ -37,9 +37,9 @@ if isnumeric(BANDPASS)
   IMG = IMG .* BANDPASS;
 end
 
-  % set rms to 1 extra parenthesis intentional to save numel(tmpIMG) divisions
+% set rms to 1 extra parenthesis intentional to save numel(tmpIMG) divisions
 %%%if ~(isnumeric(MASK) || islogical(MASK))
-  IMG = IMG ./ ((sqrt(sum(sum(sum(abs(IMG).^2)))) ./ numel(IMG)));
+IMG = IMG ./ ((sqrt(sum(sum(sum(abs(IMG).^2)))) ./ numel(IMG)));
 %%%end
 clear  BANDPASS MASK PAD PRECISION
 end

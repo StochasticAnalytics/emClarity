@@ -1,6 +1,6 @@
 function [ STACK_OUT ] = BH_unStackMontage4d_halfGrid(  IMAGES , NAME, totalNumber)
 %Unstack a 4d stack of 3d images saved as one 3d volume.
-%   
+%
 %
 %   Input variables:
 %
@@ -45,16 +45,16 @@ if (rem(d1,totalNumber))
   error('The first dimension of the montage is not evenly divisible by the expected number of images.');
 else
   d1 = d1 / totalNumber;
-end  
+end
 
 nIMG = 1;
 for iPos = IMAGES
-   
+  
   STACK_OUT{nIMG} = montage(1+(iPos-1)*d1:d1 +(iPos-1)*d1,:,:);
   nIMG = nIMG + 1;
- 
-end
   
+end
+
 clear montage
 
 end % end of unStackMontage4d function

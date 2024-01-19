@@ -41,7 +41,7 @@ function IMAGE = EMC_convn(IMAGE, KERNEL)
 % let convn|conv2 do the checks for IMAGE.
 if ~isnumeric(IMAGE) || isscalar(IMAGE)
     error('EMC:IMAGE', 'IMAGE should be a 2d or 3d numeric, got %s of size: %s', ...
-          class(IMAGE), mat2str(size(IMAGE)))
+        class(IMAGE), mat2str(size(IMAGE)))
 elseif ~EMC_sharePrecision(IMAGE, KERNEL) || ~EMC_shareMethod(IMAGE, KERNEL)
     error('EMC:IMAGE', 'IMAGE should have same precision and method than KERNEL')
 elseif isrow(KERNEL)

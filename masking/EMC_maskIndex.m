@@ -125,7 +125,7 @@ if isfield(OPTION, 'precision')
             error('EMC:precision', "OPTION.precision should be 'single', 'double', 'int' or 'uint', got %s", OPTION.precision)
         end
     else
-      	error('EMC:precision', "OPTION.precision should be a string|char vector, got %s", class(OPTION.precision))
+        error('EMC:precision', "OPTION.precision should be a string|char vector, got %s", class(OPTION.precision))
     end
 elseif prod(SIZE) <= 2^16 - 1
     OPTION.precision = 'uint16';  % default
@@ -139,10 +139,10 @@ end
 if strcmpi(TYPE, 'nc2nc') || strcmpi(TYPE, 'c2nc')
     cR = floor(SIZE/2) + 1;  % center receiver
     cD = ceil(SIZE/2);       % center donor
-
+    
     SIZE = EMC_setMethod(cast(SIZE, OPTION.precision), METHOD);
     INDEX = reshape(1:prod(SIZE, 'native'), SIZE);  % linear indexes of a grid with desired size
-
+    
     if is3d
         INDEX(cR(1)+1:end, 1,           1)           = INDEX(cD(1):-1:2, 1,              1);
         INDEX(cR(1)+1:end, 2:cR(2),     1)           = INDEX(cD(1):-1:2, end:-1:cD(2)+1, 1);
@@ -158,18 +158,18 @@ if strcmpi(TYPE, 'nc2nc') || strcmpi(TYPE, 'c2nc')
         INDEX(cR(1)+1:end, 2:cR(2))     = INDEX(cD(1):-1:2, end:-1:cD(2)+1);
         INDEX(cR(1)+1:end, cR(2)+1:end) = INDEX(cD(1):-1:2, cD(2):-1:2);
     end
-
+    
 elseif strcmpi(TYPE, 'c2c')
     c = floor(SIZE/2) + 1;  % center
     e = 1 + ~mod(SIZE, 2);  % left edge
     o = ceil(SIZE(1)/2);    % lenght common chunk
-
+    
     SIZE = EMC_setMethod(cast(SIZE, OPTION.precision), METHOD);
     INDEX = reshape(1:prod(SIZE, 'native'), SIZE);  % linear indexes of a grid with desired size
     if e(1) == 2  % X is even
         extra = INDEX(c(1), :, :);  % save the extra line/plane
     end
-
+    
     % Shift half to end of X, then flip the common chuck and then deal with
     % extra line/plane for even dimensions.
     if is3d
@@ -197,8 +197,8 @@ elseif strcmpi(TYPE, 'c2c')
             INDEX(e(1):c(1)-1, 1) = INDEX(end:-1:c(1)+1, 1);
         end
     end
-
-% fftshift and ifftshift
+    
+    % fftshift and ifftshift
 else
     if strcmpi(TYPE, 'fftshift')
         half = ceil(SIZE/2);
@@ -207,14 +207,14 @@ else
     else
         error('EMC:TYPE', "TYPE should be 'fftshift', 'ifftshift', 'nc2nc' or 'c2c'")
     end
-
+    
     SIZE = EMC_setMethod(cast(SIZE, OPTION.precision), METHOD);  % convert after the division
     if OPTION.half; vX = (1:SIZE(1))'; else; vX = [half(1)+1:SIZE(1), 1:half(1)]'; end
-
+    
     % Concatenation appears to be faster than fftshift and circshift.
     if is3d
         INDEX = vX + [half(2):SIZE(2)-1, 0:half(2)-1] * SIZE(1) + ...
-                     reshape([half(3):SIZE(3)-1, 0:half(3)-1],1,1,[]) * (SIZE(1) * SIZE(2));
+            reshape([half(3):SIZE(3)-1, 0:half(3)-1],1,1,[]) * (SIZE(1) * SIZE(2));
     else
         INDEX = vX + [half(2):SIZE(2)-1, 0:half(2)-1] * SIZE(1);
     end

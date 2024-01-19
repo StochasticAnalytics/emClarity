@@ -2,7 +2,7 @@ function [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 %
 % [OUT] = EMC_resize(IMAGE, LIMITS, OPTION)
 % Pad and/or crop an IMAGE.
-% 
+%
 % Inputs:
 %   IMAGE (single|double):          2d/3d IMAGE to pad and/or crop.
 %
@@ -161,19 +161,19 @@ if flg.is3d
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
         pad  = LIMITS .* (LIMITS > 0);
-
+        
         % Taper
         if flg.taper && (any(pad) || OPTION.force_taper)
             IMAGE = applyTaper_real3d(IMAGE, LIMITS, OPTION, pad, crop, val);
         end
-
+        
         % Pad/Crop
         if flg.pad && flg.crop
             OUT(1+pad(1):end-pad(2), ...
                 1+pad(3):end-pad(4), ...
                 1+pad(5):end-pad(6)) = IMAGE(1+crop(1):end-crop(2), ...
-                                                   1+crop(3):end-crop(4), ...
-                                                   1+crop(5):end-crop(6));
+                1+crop(3):end-crop(4), ...
+                1+crop(5):end-crop(6));
         elseif flg.pad
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4), 1+pad(5):end-pad(6)) = IMAGE;
         elseif flg.crop
@@ -187,10 +187,10 @@ else  % 2d
         crop = reshape(LIMITS .* (LIMITS < 0), 2, []);
         l = floor((inSize+1) / 2) + crop(1, :);  % left side
         r = floor((inSize-2) / 2) + crop(2, :);  % right side
-
+        
         % Taper
         if flg.taper; IMAGE = applyTaper_fft2d(IMAGE, LIMITS, OPTION, l, r, val); end
-
+        
         % Pad/Crop
         if flg.pad || flg.crop
             OUT(1:l(x),       1:l(y))       = IMAGE(1:l(x),       1:l(y));
@@ -203,12 +203,12 @@ else  % 2d
     else  % centered IMAGE: 'origin' = 0|1|2
         crop = abs(LIMITS .* (LIMITS < 0));
         pad  = LIMITS .* (LIMITS > 0);
-
+        
         % Taper
         if flg.taper && (any(pad) || OPTION.force_taper)
             IMAGE = applyTaper_real2d(IMAGE, LIMITS, OPTION, pad, crop, val);
         end
-
+        
         % Pad/Crop
         if flg.pad && flg.crop
             OUT(1+pad(1):end-pad(2), 1+pad(3):end-pad(4)) = IMAGE(1+crop(1):end-crop(2), 1+crop(3):end-crop(4));
@@ -357,11 +357,11 @@ if isscalar(LIMITS) && isnan(LIMITS)
     flg.crop = false;
 elseif ~isnumeric(LIMITS)
     error('EMC:LIMITS', 'For a %dd IMAGE, LIMITS should be a row vector of %d integers, got %s', ...
-          ndim, ndim*2, class(LIMITS));
+        ndim, ndim*2, class(LIMITS));
 elseif ~isrow(LIMITS) || any(isnan(LIMITS)) || any(isinf(LIMITS)) || ...
-       any(rem(LIMITS,1)) || numel(LIMITS) ~= ndim * 2
+        any(rem(LIMITS,1)) || numel(LIMITS) ~= ndim * 2
     error('EMC:LIMITS', 'For a %dd IMAGE, LIMITS should be a row vector of %d integers, got %s', ...
-          ndim, ndim*2, mat2str(LIMITS));
+        ndim, ndim*2, mat2str(LIMITS));
 else
     if any(LIMITS > 0); flg.pad = true;  else; flg.pad = false;  end
     if any(LIMITS < 0); flg.crop = true; else; flg.crop = false; end
@@ -392,8 +392,8 @@ end
 [precision, flg.gpu, ~] = EMC_getClass(IMAGE);
 if isfield(OPTION, 'precision')
     if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
-       ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
-      	error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
+            ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
+        error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
     end
 else
     OPTION.precision = precision;
@@ -431,13 +431,13 @@ if isfield(OPTION, 'taper')
         else
             flg.taper = false;
         end
-    % cell | struct
+        % cell | struct
     elseif iscell(OPTION.taper) || isstruct(OPTION.taper)
         OPTION.taper = EMC_getOption(OPTION.taper, {'type', 'numel', 'percent'}, false);
         % type
         if isfield(OPTION.taper, 'type')
             if ~(ischar(OPTION.taper.type) || isstring(OPTION.taper.type)) || ...
-               ~strcmpi(OPTION.taper.type, 'cosine') && ~strcmpi(OPTION.taper.type, 'linear')
+                    ~strcmpi(OPTION.taper.type, 'cosine') && ~strcmpi(OPTION.taper.type, 'linear')
                 error('EMC:taper', "OPTION.taper.type should be 'linear' or 'cosine'")
             end
         else
@@ -448,10 +448,10 @@ if isfield(OPTION, 'taper')
             if isfield(OPTION.taper, 'percent')
                 error('EMC:taper', 'OPTION.taper.numel and OPTION.taper.percent are mutually exclusive')
             end
-        % percent
+            % percent
         elseif isfield(OPTION.taper, 'percent')
             if ~isscalar(OPTION.taper.percent) || ~isnumeric(OPTION.taper.percent) || ...
-               isinf(OPTION.taper.percent) || ~(OPTION.taper.percent >= 0) || OPTION.taper.percent >= 1
+                    isinf(OPTION.taper.percent) || ~(OPTION.taper.percent >= 0) || OPTION.taper.percent >= 1
                 error('EMC:taper', 'OPTION.taper.percent should be a scalar, with: 0 <= scalar < 1')
             else
                 outSize = SIZE + sum(reshape(LIMITS, 2, []));
@@ -464,8 +464,8 @@ if isfield(OPTION, 'taper')
         end
         OPTION.taper = EMC_taper(OPTION.taper.type, OPTION.taper.numel, {});
         flg.taper = true;
-
-    % vector|int|float: own taper
+        
+        % vector|int|float: own taper
     elseif isnumeric(OPTION.taper) && isrow(OPTION.taper)
         if ~flg.gpu && EMC_isOnGpu(OPTION.taper)
             OPTION.taper = gather(OPTION.taper);
@@ -484,7 +484,7 @@ end
 if isfield(OPTION, 'force_taper')
     if ~islogical(OPTION.force_taper) || ~isscalar(OPTION.force_taper)
         error('EMC:force_taper', ...
-              'OPTION.force_taper should be a boolean, got %s', class(OPTION.force_taper))
+            'OPTION.force_taper should be a boolean, got %s', class(OPTION.force_taper))
     end
 else
     OPTION.force_taper = false;  % default
@@ -504,10 +504,10 @@ ndim = ndims(IMAGE);
 % CASE 1: the taper is too large given the input IMAGE.
 if OPTION.origin == -1 && any(numel(OPTION.taper) > floor(inSize/2))
     error('EMC:taper', 'For a size of %s, the maximum taper for a fft IMAGE is %s, got %d', ...
-          mat2str(inSize), mat2str(floor(inSize/2)), numel(OPTION.taper));
+        mat2str(inSize), mat2str(floor(inSize/2)), numel(OPTION.taper));
 elseif any(numel(OPTION.taper) > inSize)
     error('EMC:taper', 'For a size of %s, the maximum taper for an IMAGE is %s, got %d', ...
-          mat2str(inSize), mat2str(inSize), numel(OPTION.taper));
+        mat2str(inSize), mat2str(inSize), numel(OPTION.taper));
 end
 
 extendedSize = reshape(ones(2, ndim) .* inSize, 1, []);
@@ -530,15 +530,15 @@ if OPTION.origin == -1
     halfSize(1, :) = halfSize(1, :) + mod(inSize, 2);  % count extra pixel if odd;
     halfSize = reshape(halfSize, 1, []);
     maxCrop = -1 .* (halfSize - taperToApply);
-
-% CASE 3: For a real space IMAGE, if the size of the IMAGE is smaller than size (cropping + tapter),
-%         applying the taper will raise an index error.
+    
+    % CASE 3: For a real space IMAGE, if the size of the IMAGE is smaller than size (cropping + tapter),
+    %         applying the taper will raise an index error.
 else
     maxCrop = -1 .* (extendedSize - taperToApply);
 end
 
 error('EMC:taper', ['One axis is too small given the cropping and taper required.\n\nGiven the inputs ', ...
-      '(IMAGE size: %s and taper size: %s),\nthe maximum cropping for each edges is %s, but got %s.'], ...
-      mat2str(inSize), mat2str(taperToApply), mat2str(maxCrop), mat2str((LIMITS < 0) .* LIMITS));
+    '(IMAGE size: %s and taper size: %s),\nthe maximum cropping for each edges is %s, but got %s.'], ...
+    mat2str(inSize), mat2str(taperToApply), mat2str(maxCrop), mat2str((LIMITS < 0) .* LIMITS));
 
 end % raiseError

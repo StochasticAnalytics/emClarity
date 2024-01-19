@@ -1,8 +1,8 @@
 function [ ] = BH_runCtfFind(stackName, tltName, ctfParams, tiltAngles)
 %Fit the ctf to a background subtracted PS using ctffind4
 %   CTF params
-%     PixelSize (Ang) 
-%     KeV 
+%     PixelSize (Ang)
+%     KeV
 %     CS (mm)
 %     Amplitude Contrast
 
@@ -23,12 +23,12 @@ end
 
 % % Check to make sure this hasn't alread been done
 % if ~exist(sprintf('fixedStacks/ctf/%s_orig',tltName), 'file')
-  system(sprintf('mv fixedStacks/ctf/%s fixedStacks/ctf/%s_orig',tltName,tltName));
+system(sprintf('mv fixedStacks/ctf/%s fixedStacks/ctf/%s_orig',tltName,tltName));
 % end
 
-  tmpTLT = load(sprintf('fixedStacks/ctf/%s_orig',tltName));
-  meanDefocus = mean(tmpTLT(:,15))*-1.0*10^10;
-  fprintf('Searching around an estimated mean defocus of %3.6f Angstrom\n');
+tmpTLT = load(sprintf('fixedStacks/ctf/%s_orig',tltName));
+meanDefocus = mean(tmpTLT(:,15))*-1.0*10^10;
+fprintf('Searching around an estimated mean defocus of %3.6f Angstrom\n');
 
 % write the run script, this should link to a distributed version with
 % special name, but for testing use the beta.
@@ -38,16 +38,16 @@ fID = fopen(scriptName,'w');
 fprintf(fID,'#!/bin/bash\n\n');
 for iPrj = 1:d3 % I want to fit to lower resolution at higher tilts
   tltIDX = find(tiltAngles(:,1) == iPrj);
-
+  
   % put in a line to limit number of cores, or use the threaded version
   fprintf(fID,'\n%s --amplitude-spectrum-input << eof &',ctfFindPath);
   fprintf(fID,'\nfixedStacks/ctf/forCtfFind/%s_%d.mrc\n',randPrfx,iPrj);
   fprintf(fID,'fixedStacks/ctf/forCtfFind/%s_diagnostic_%d.mrc\n',randPrfx,iPrj);
   fprintf(fID,'%f\n%f\n%f\n%f\n%d\n%f\n%f\n%d\n%d\n%d\n',ctfParams(1:4), ...
-                                                         d1,30,3*ctfParams(1)./cosd(tiltAngles(tltIDX,4)),...
-                                                         0.75*meanDefocus,...
-                                                         1.25*meanDefocus,...
-                                                         25.0);
+    d1,30,3*ctfParams(1)./cosd(tiltAngles(tltIDX,4)),...
+    0.75*meanDefocus,...
+    1.25*meanDefocus,...
+    25.0);
   fprintf(fID,'no\nno\nyes\n500.0\nno\nno\nno\neof\n\n');
 end
 fprintf(fID,'wait\n');
@@ -77,8 +77,8 @@ system(sprintf('rm -f %s',tmpName));
 
 for iPrj = 1:d3
   
-	system(sprintf('tail -n -1 %s%d.txt | awk  ''{print (($2-$3)/2)*10^-10,3.141592/180*$4,-1*(($2+$3)/2)*10^-10 }'' >> %s', baseName,iPrj,tmpName));                               
-                                         
+  system(sprintf('tail -n -1 %s%d.txt | awk  ''{print (($2-$3)/2)*10^-10,3.141592/180*$4,-1*(($2+$3)/2)*10^-10 }'' >> %s', baseName,iPrj,tmpName));
+  
 end
 
 % TODO ground truth to confirm orientation of astigmatism

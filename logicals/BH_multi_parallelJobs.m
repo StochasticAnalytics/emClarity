@@ -1,6 +1,6 @@
 function [nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, ...
-                                                         nGPUs, ...
-                                                         calcSize,flgAvg)
+  nGPUs, ...
+  calcSize,flgAvg)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -18,7 +18,7 @@ if totMem > 7.9e9 && totMem < 10.8e9
 elseif totMem > 10.9e9 && totMem < 12.2e9
   % 1080Ti or Tesla or Titan Xp
   scaleMem = 1.0;
-elseif totMem > 12.8e9 && totMem < 17.2e9 
+elseif totMem > 12.8e9 && totMem < 17.2e9
   % TitanV V/p100 % seems to crash when it shouldn't, figure out later.
   scaleMem = 1.3;
 else
@@ -40,7 +40,7 @@ if ( flgAvg )
     nParProcesses = min(nParProcesses,3*nGPUs);
   else
     % Fourier interp, requires more mem. Unoptimized
-     nParProcesses = min(flgAvg,nParProcesses);
+    nParProcesses = min(flgAvg,nParProcesses);
   end
 end
 

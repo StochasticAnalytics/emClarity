@@ -11,7 +11,7 @@ nTomos = textscan(recFile,'%d',1); nTomos = nTomos{1};
 recCoords = textscan(recFile,'%f');
 fclose(recFile);
 
-%%% Some sanity checks 
+%%% Some sanity checks
 % First line should be the name of the tilt-series the tomo is
 % reconstructed from.
 [~,tiltNameFromTomo,~] = fileparts(reconCoordName);
@@ -23,9 +23,9 @@ end
 
 recGeom = zeros(nTomos,6);
 for iSt = 1:nTomos
-  recGeom(iSt,:) = recCoords{1}(1 + (iSt-1)*6: 6 + (iSt-1)*6);              
+  recGeom(iSt,:) = recCoords{1}(1 + (iSt-1)*6: 6 + (iSt-1)*6);
 end
-           
+
 % Note that the x/z shifts (col 5,6) are shifts given to IMOD, which are the opposite of the location of the origin (relative to the center)
 % To make it more confusing, since the reconstruction is done in a ref frame rotated about X, the Z shift is flipped so it matches the origin in Z
 end

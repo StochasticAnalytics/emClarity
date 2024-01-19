@@ -91,7 +91,7 @@ function MASK = EMC_maskShape(SHAPE, SIZE, RADIUS, METHOD, OPTION)
 %                   are casted to the nearest integers (9Mar2020).
 %
 
-%% 
+%%
 [SIZE, OPTION, flg] = checkIN(SIZE, RADIUS, METHOD, OPTION);
 
 cutoffLow = 0.001;  % everything below this value is set to 0.
@@ -101,7 +101,7 @@ if flg.kernel
         % Compute the size of the kernel in pixel.
         kernelSize = round((min(SIZE) * OPTION.kernel - 1) / 2) * 2 + 1;  % closest odd int
         if kernelSize < 9; kernelSize = 9; end  % at least 9 pixels
-
+        
         % Keep the gaussian at ~0.5 at the middle of the roll off.
         middle = ceil(kernelSize / 2) / 2;
         sigma = sqrt(-1 * middle^2 / (2 * log(0.5)));
@@ -109,12 +109,12 @@ if flg.kernel
     else
         kernelSize = length(OPTION.kernel);
     end
-
+    
     % To make the shape go to zeros at the edges of the mask, the function tape the mask
     % with zeros. This create a minimum size on the mask.
     if any(SIZE < ceil(kernelSize/2) * 2 + 1)
         error('EMC:kernel', 'with a kernel size of %d, the minimum SIZE is %d, got %s', ...
-              kernelSize, ceil(kernelSize/2) * 2 + 1, mat2str(SIZE))
+            kernelSize, ceil(kernelSize/2) * 2 + 1, mat2str(SIZE))
     end
 else
     kernelSize = 0;
@@ -128,9 +128,9 @@ if strcmpi(SHAPE, 'sphere')
     
     % Define the center of the sphere/circle using the specified origin and shifts.
     [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, {'origin', OPTION.origin; ...
-                                                   'shift', OPTION.shift; ...
-                                                   'precision', OPTION.precision});
-
+        'shift', OPTION.shift; ...
+        'precision', OPTION.precision});
+    
     % Compute a radial cartesian grid and apply the equation of the sphere/ellipsoid.
     % The surface of the ellipsoid is at 1. At this point, the binary ellipsoid mask is computed.
     if (flg.is3d)
@@ -142,18 +142,18 @@ if strcmpi(SHAPE, 'sphere')
     % Cast from logical to float.
     MASK = cast(MASK, OPTION.precision);
     
-elseif strcmpi(SHAPE, 'cylinder')    
+elseif strcmpi(SHAPE, 'cylinder')
     % Adjust the radius for the same reason as explain with sphere/ellipsoids.
     RADIUS(1:2) = RADIUS(1:2) + ceil(kernelSize/2);
-
+    
     % To compute a (3d) cylinder, this algorithm first compute a 2d sphere/ellipsoid and then
     % broadcast it along the Z (depth) axis.
     if flg.is3d
         % First compute the 2d ellipsoid with the x and y shifts.
         [vX, vY] = EMC_coordVectors(SIZE(1:2), METHOD, {'origin', OPTION.origin; ...
-                                                        'precision', OPTION.precision;
-                                                        'shift', OPTION.shift(1:2)});
-
+            'precision', OPTION.precision;
+            'shift', OPTION.shift(1:2)});
+        
         % Broadcaste in Z (the ellipsoid is invariant in Z <=> cylinder).
         RADIUS(3) = round(RADIUS(3)) + floor(kernelSize/2);  % adjust Z for blurring.
         if flg.gpu
@@ -162,30 +162,30 @@ elseif strcmpi(SHAPE, 'cylinder')
             vZ = zeros([1, 1, RADIUS(3) .*2 + 1], OPTION.precision);
         end
         MASK = (vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2 + vZ <= 1;  % broadcast
-
+        
         % Cast from logical to float.
         MASK = cast(MASK, OPTION.precision);
-    
+        
         % Resize the cylinder to the desired SIZE in Z, taking into account the z shift.
         OPTION.shift(3) = round(OPTION.shift(3));
         limits = EMC_limits(size(MASK), SIZE, {'origin', OPTION.origin; 'shift', [0, 0, OPTION.shift(3)]});
         MASK = EMC_resize(MASK, limits, {'taper', false});
-
+        
     else  % 2d Cylinder; this block is equivalent to SHAPE='sphere'.
         [vX, vY] = EMC_coordVectors(SIZE, METHOD, {'origin', OPTION.origin; ...
-                                                   'precision', OPTION.precision; ...
-                                                   'shift', OPTION.shift});
+            'precision', OPTION.precision; ...
+            'shift', OPTION.shift});
         MASK = (vX'./RADIUS(1)).^2 + (vY./RADIUS(2)).^2 <= 1;
-
+        
         % Cast from logical to float.
         MASK = cast(MASK, OPTION.precision);
     end
-
+    
 elseif strcmpi(SHAPE, 'rectangle')
     % Adjust the radius for the convolution.
     RADIUS = round(RADIUS) + floor(kernelSize/2);
     OPTION.shift = round(OPTION.shift);
-
+    
     if flg.gpu
         MASK = ones(RADIUS .*2 + 1, OPTION.precision, 'gpuArray');
     else
@@ -193,7 +193,7 @@ elseif strcmpi(SHAPE, 'rectangle')
     end
     limits = EMC_limits(size(MASK), SIZE, {'origin', OPTION.origin; 'shift', OPTION.shift});
     MASK = EMC_resize(MASK, limits, {'taper', false});
-
+    
 else
     if ~(ischar(SHAPE) || isstring(SHAPE))
         error('EMC:SHAPE', "SHAPE should be string or char array, got %s", class(SHAPE))
@@ -205,8 +205,8 @@ end
 %% Restrict the mask to the first symmetry pair.
 if flg.sym
     [~, angles, ~] = EMC_coordGrids('cylindrical', SIZE, METHOD, {'shift', OPTION.shift; ...
-                                                                  'origin', OPTION.origin; ...
-                                                                  'precision', OPTION.precision});
+        'origin', OPTION.origin; ...
+        'precision', OPTION.precision});
     sectorMax = 2*pi / OPTION.sym * 1.025;  % small overlap
     angles = (angles > (2*pi-sectorMax/2) | angles < sectorMax/2);
     MASK = MASK .* angles;
@@ -234,7 +234,7 @@ if SIZE(1) == 1 || SIZE(2) == 1
 end
 
 if ~isnumeric(RADIUS) || ~isvector(RADIUS) || ~all(RADIUS > 1) || ...
-   ~isequal(size(SIZE), size(RADIUS)) || any(isinf(RADIUS))
+        ~isequal(size(SIZE), size(RADIUS)) || any(isinf(RADIUS))
     error('EMC:RADIUS', 'RADIUS should be a numeric 1x%d vector with every element greater than 1', ndim)
 end
 
@@ -254,9 +254,9 @@ if isfield(OPTION, 'shift')
         error('EMC:shift', 'OPTION.shift should be a vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
         error('EMC:shift', 'OPTION.shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
-   	elseif numel(OPTION.shift) ~= ndim
+    elseif numel(OPTION.shift) ~= ndim
         error('EMC:shift', 'For a %dd SIZE, OPTION.shift should be a vector of %d float|int, got %s', ...
-              ndim, ndim, mat2str(OPTION.shift, 2))
+            ndim, ndim, mat2str(OPTION.shift, 2))
     end
 else
     OPTION.shift = zeros(1, ndim);  % default
@@ -265,7 +265,7 @@ end
 % origin
 if isfield(OPTION, 'origin')
     if ~isscalar(OPTION.origin) || ~isnumeric(OPTION.origin) || ...
-       ~(OPTION.origin == 0 || OPTION.origin == 1 || OPTION.origin == 2)
+            ~(OPTION.origin == 0 || OPTION.origin == 1 || OPTION.origin == 2)
         % EMC_resize (used with 'rectangle' and 3d 'cylinders') will raise an error if origin=0
         error('EMC:origin', "OPTION.origin should be 0, 1, or 2, got %.04f", OPTION.origin)
     end
@@ -309,17 +309,17 @@ if isfield(OPTION, 'kernel')
         flg.ownKernel = true;
     else
         error('EMC:kernel', ['OPTION.kernel should be a boolean, a positive float between 0 and 1,', ...
-              'or a row numeric vector, got %s', class(OPTION.taper)])
+            'or a row numeric vector, got %s', class(OPTION.taper)])
     end
 else
-     OPTION.kernel = 0.04;  % default
-     flg.kernel = true;
+    OPTION.kernel = 0.04;  % default
+    flg.kernel = true;
 end
 
 % sym
 if isfield(OPTION, 'sym')
     if isnumeric(OPTION.sym) && isscalar(OPTION.sym) && OPTION.sym > 0 && ...
-       ~isinf(OPTION.sym) && ~rem(OPTION.sym, 1)
+            ~isinf(OPTION.sym) && ~rem(OPTION.sym, 1)
         if OPTION.sym == 1
             flg.sym = false;
         else

@@ -119,9 +119,9 @@ if ~flg.lowpass && ~flg.highpass
 end
 
 [vX, vY, vZ] = EMC_coordVectors(SIZE, METHOD, {'origin', OPTION.origin; ...
-                                               'half', OPTION.half; ...
-                                               'normalize', true; ...
-                                               'precision', OPTION.precision});
+    'half', OPTION.half; ...
+    'normalize', true; ...
+    'precision', OPTION.precision});
 
 % The radial grid is the same for both highpass and lowpass filters.
 if flg.is3d
@@ -136,7 +136,7 @@ gaussian = @(x,m,s) exp(-1.*(x-m).^2 ./ (2.*s.^2));
 %% High pass filter
 if flg.highpass
     highpassCut = PIXEL / HIGHPASS;  % [1/pix]
-
+    
     % Gaussian roll
     if strcmpi(OPTION.highpassRoll, 'extended')  % roll, up to the zero frequency
         sigma = sqrt(-1 * highpassCut^2 / (2 * log(OPTION.highpassThresh)));
@@ -147,7 +147,7 @@ if flg.highpass
     else  % classic gaussian roll
         sigma = OPTION.highpassRoll;
     end
-
+    
     BANDPASS = (radius > highpassCut) + (radius <= highpassCut) .* gaussian(radius, highpassCut, sigma);
 end
 
@@ -169,13 +169,13 @@ if flg.lowpass
     else  % classic gaussian roll
         sigma = OPTION.lowpassRoll;
     end
-
+    
     if flg.highpass
         BANDPASS = (radius < lowpassCut) .* BANDPASS + ...
-                   (radius >= lowpassCut) .* gaussian(radius, lowpassCut, sigma);
+            (radius >= lowpassCut) .* gaussian(radius, lowpassCut, sigma);
     else
         BANDPASS = (radius < lowpassCut) + ...
-                   (radius >= lowpassCut) .* gaussian(radius, lowpassCut, sigma);
+            (radius >= lowpassCut) .* gaussian(radius, lowpassCut, sigma);
     end
 end
 
@@ -190,7 +190,7 @@ if SIZE(1) == 1 || SIZE(2) == 1
 end
 
 if strcmpi(METHOD, 'gpu')
-   	flg.gpu = true;
+    flg.gpu = true;
 elseif strcmpi(METHOD, 'cpu')
     flg.gpu = false;
 else
@@ -203,7 +203,7 @@ if ~isscalar(PIXEL) || ~isnumeric(PIXEL) || isinf(PIXEL) || ~(PIXEL > 0)
 end
 
 OPTION = EMC_getOption(OPTION, {'origin', 'half', 'highpassRoll', 'highpassThresh', ...
-                                'lowpassRoll', 'lowpassThresh', 'precision'}, false);
+    'lowpassRoll', 'lowpassThresh', 'precision'}, false);
 
 % let EMC_coordVectors do the checkIN, just set the default.
 if ~isfield(OPTION, 'origin')
@@ -219,13 +219,13 @@ end
 % HIGHPASS cutoff
 if ~isscalar(HIGHPASS)
     error('EMC:HIGHPASS', 'HIGHPASS should be a scalar, got a %s of size %s', ...
-          class(HIGHPASS), mat2str(size(HIGHPASS)))
+        class(HIGHPASS), mat2str(size(HIGHPASS)))
 elseif isnan(HIGHPASS) || HIGHPASS == 0
     flg.highpass = false;
 elseif isnumeric(HIGHPASS) && ~isinf(HIGHPASS) && HIGHPASS > 0
     if HIGHPASS < PIXEL * 2
         error('EMC:HIGHPASS', ...
-              'HIGHPASS should be greater (lower resolution) or equal to Nyquist (%.3f)', PIXEL * 2)
+            'HIGHPASS should be greater (lower resolution) or equal to Nyquist (%.3f)', PIXEL * 2)
     end
     flg.highpass = true;
 else
@@ -238,7 +238,7 @@ if isscalar(LOWPASS) && isnumeric(LOWPASS) && ~isinf(LOWPASS)
         flg.highpass = false;
     elseif LOWPASS < PIXEL * 2
         error('EMC:LOWPASS', 'LOWPASS should be greater (lower resolution) or equal to Nyquist (%.3f)', ...
-              PIXEL * 2)
+            PIXEL * 2)
     elseif flg.highpass && HIGHPASS < LOWPASS
         error('EMC:LOWPASS', 'LOWPASS should be smaller (high frequency) than HIGHPASS')
     end
@@ -252,10 +252,10 @@ end
 % highpassRoll
 if isfield(OPTION, 'highpassRoll')
     if ~(isscalar(OPTION.highpassRoll) && isnumeric(OPTION.highpassRoll) ...
-         && OPTION.highpassRoll >= 0 && ~isinf(OPTION.highpassRoll)) ...
-       && ...
-       ~((isstring(OPTION.highpassRoll) || ischar(OPTION.highpassRoll)) && ...
-         strcmpi(OPTION.highpassRoll, 'extended'))
+            && OPTION.highpassRoll >= 0 && ~isinf(OPTION.highpassRoll)) ...
+            && ...
+            ~((isstring(OPTION.highpassRoll) || ischar(OPTION.highpassRoll)) && ...
+            strcmpi(OPTION.highpassRoll, 'extended'))
         error('EMC:highpassRoll', "OPTION.highpassRoll should be a positive float|int or 'extended'")
     end
 else
@@ -266,10 +266,10 @@ end
 if isfield(OPTION, 'highpassThresh')
     if ~isscalar(OPTION.highpassThresh) && ~isnumeric(OPTION.highpassThresh)
         error('EMC:highpassThresh', 'OPTION.highpassThresh should be a float|int, got %s of size %s', ...
-              class(OPTION.highpassThresh), mat2str(size(OPTION.highpassThresh)))
+            class(OPTION.highpassThresh), mat2str(size(OPTION.highpassThresh)))
     elseif OPTION.highpassThresh < 0 || OPTION.highpassThresh >= 1 || isnan(OPTION.highpassThresh)
         error('EMC:highpassThresh', 'OPTION.highpassThresh should be between 0 and 1, got %.3f', ...
-              OPTION.highpassThresh)
+            OPTION.highpassThresh)
     end
 else
     OPTION.highpassThresh = 1e-3;  % default
@@ -278,10 +278,10 @@ end
 % lowpassRoll
 if isfield(OPTION, 'lowpassRoll')
     if ~(isscalar(OPTION.lowpassRoll) && isnumeric(OPTION.lowpassRoll) ...
-         && OPTION.lowpassRoll >= 0 && ~isinf(OPTION.lowpassRoll)) ...
-       && ...
-       ~((isstring(OPTION.lowpassRoll) || ischar(OPTION.lowpassRoll)) && ...
-         strcmpi(OPTION.lowpassRoll, 'extended'))
+            && OPTION.lowpassRoll >= 0 && ~isinf(OPTION.lowpassRoll)) ...
+            && ...
+            ~((isstring(OPTION.lowpassRoll) || ischar(OPTION.lowpassRoll)) && ...
+            strcmpi(OPTION.lowpassRoll, 'extended'))
         error('EMC:lowpassRoll', "OPTION.lowpassRoll should be a positive float|int or 'extended'")
     end
 else
@@ -292,10 +292,10 @@ end
 if isfield(OPTION, 'lowpassThresh')
     if ~isscalar(OPTION.lowpassThresh) && ~isnumeric(OPTION.lowpassThresh)
         error('EMC:lowpassThresh', 'OPTION.lowpassThresh should be a float|int, got %s of size %s', ...
-              class(OPTION.lowpassThresh), mat2str(size(OPTION.lowpassThresh)))
+            class(OPTION.lowpassThresh), mat2str(size(OPTION.lowpassThresh)))
     elseif OPTION.lowpassThresh < 0 || OPTION.lowpassThresh >= 1 || isnan(OPTION.lowpassThresh)
         error('EMC:lowpassThresh', 'OPTION.lowpassThresh should be between 0 and 1, got %.3f', ...
-              OPTION.lowpassThresh)
+            OPTION.lowpassThresh)
     end
 else
     OPTION.lowpassThresh = 1e-3;  % default

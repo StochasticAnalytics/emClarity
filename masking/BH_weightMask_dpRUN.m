@@ -13,12 +13,12 @@ if nargin > 4
   if length(varargin{1}) > 1
     tiltStart = varargin{1}(2); %ctfScaleFactor = varargin{1}(2)\
     tiltStop = varargin{1}(3);
-  else 
+  else
     tiltStart = 0;
     tiltStop = 0;
   end
   useGPU = varargin{1}(1);
-else 
+else
   useGPU = -1;
 end
 tiltStart
@@ -48,14 +48,14 @@ if ( tiltStart )
 end
 
 [ctfWeights] = BH_weightMask_dp(subTomoMeta,wgtSize,samplingRate, ...
-                                {tomoList,geom},'double','GPU', ...
-                                ctfScaleFactor);
-                              
+  {tomoList,geom},'double','GPU', ...
+  ctfScaleFactor);
+
 if SYMMETRY > 1
   for iGold = 1:2
     ctfWeights{iGold} = gather(BH_resample3d(ctfWeights{iGold},[0,0,0], ...
-                                            [0,0,0],{'Bah',SYMMETRY,'linear',1}, ...
-                                            'GPU','forward'));
+      [0,0,0],{'Bah',SYMMETRY,'linear',1}, ...
+      'GPU','forward'));
   end
 end
 

@@ -1,6 +1,6 @@
-  function [ ctfDepth ] = BH_ctfCalcError( pixelSize, Cs, Lambda, Defocus, ...
-                                            CTFSIZE, AMPCONT, ...
-                                            resCutOff,thicknessAng,dampeningMax,cycleNumber)
+function [ ctfDepth ] = BH_ctfCalcError( pixelSize, Cs, Lambda, Defocus, ...
+  CTFSIZE, AMPCONT, ...
+  resCutOff,thicknessAng,dampeningMax,cycleNumber)
 %For a given resolution wanted, calculate the point where destructive
 %interference drops the CTF amplitude to some given threshold.
 %   Detailed explanation goes here
@@ -32,7 +32,7 @@ ctf1 = [];
 length([-maxDiff:0.1*maxDiff:maxDiff].*10^-10)
 for jDelDef = [-maxDiff:0.1*maxDiff:maxDiff].*10^-10
   if isempty(ctf1)
-    ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1,1);    
+    ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1,1);
   else
     ctf1 = ctf1 + BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1,1);
   end
@@ -64,7 +64,7 @@ else
     ctf1 = [];
     for jDelDef = [-maxDiff:0.1*maxDiff:maxDiff].*10^-10
       if isempty(ctf1)
-        ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1);    
+        ctf1 = BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1);
       else
         ctf1 = ctf1 + BH_ctfCalc(rad,Cs,Lambda,Defocus+jDelDef,CTFSIZE,AMPCONT,-1);
       end
@@ -86,7 +86,7 @@ if (cycleNumber)
   if ctfDepth < 0
     fprintf('The optimal ctfDepth was not found\n');
     fprintf('Inputs %3.3e pix %3.3e cs %3.3e wl %3.3e def %3.3e resTarget %3.3e tomoDepth\n',...
-             pixelSize*10^-10, Cs, Lambda, Defocus,resCutOff,thicknessAng);
+      pixelSize*10^-10, Cs, Lambda, Defocus,resCutOff,thicknessAng);
     ctfDepth = min(thicknessAng/30 * 10^-9,resCutOff(1) * 10 ^-8)
   elseif ctfDepth < 0.5*10e-9
     fprintf('\n\nCapping ctfDepth to 5 nm from a calc %3.3f nm\n\n',ctfDepth*10^9);

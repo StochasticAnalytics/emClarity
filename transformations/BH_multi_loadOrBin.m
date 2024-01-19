@@ -1,5 +1,5 @@
 function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = ...
-                                        BH_multi_loadOrBin( IMG, SAMPLING,DIMENSION, varargin )
+  BH_multi_loadOrBin( IMG, SAMPLING,DIMENSION, varargin )
 %Check to see if a cached binned image exists, either load or bin and load.
 %   Switched to using imod's newstack and binvol to create binning and
 %   removed inline binning from my workflow.
@@ -49,16 +49,16 @@ if samplingRate > 1
   else
     doCalc = 1;
   end
-    
+  
   
   if (doCalc)
-  !mkdir -p cache
-
-
+    !mkdir -p cache
+    
+    
     switch DIMENSION
       case 3
         system(sprintf('binvol -BinningFactor %d -antialias 6 %s cache/%s_bin%d%s >  /dev/null', ...
-                                  samplingRate,IMG, imgName, samplingRate,imgExt));
+          samplingRate,IMG, imgName, samplingRate,imgExt));
       case 2
         sprintf('%s',IMG)
         try
@@ -70,17 +70,17 @@ if samplingRate > 1
           
         end
         iHeader = getHeader(tiltObj);
-        outputName = (sprintf('cache/%s_bin%d%s',imgName, samplingRate,imgExt));       
+        outputName = (sprintf('cache/%s_bin%d%s',imgName, samplingRate,imgExt));
         iPixelHeader = [iHeader.cellDimensionX/iHeader.nX .* samplingRate , ...
-                        iHeader.cellDimensionY/iHeader.nY .* samplingRate, ...
-                        iHeader.cellDimensionZ/iHeader.nZ .* samplingRate];
-
+          iHeader.cellDimensionY/iHeader.nY .* samplingRate, ...
+          iHeader.cellDimensionZ/iHeader.nZ .* samplingRate];
+        
         iOriginHeader= [iHeader.xOrigin ./ samplingRate, ...
-                        iHeader.yOrigin ./ samplingRate, ...
-                        iHeader.zOrigin ./ samplingRate];  
-           
-        pixelSize = iHeader.cellDimensionX/iHeader.nX; % Assuming X/Y the same and Z might be incorrect.               
-                      
+          iHeader.yOrigin ./ samplingRate, ...
+          iHeader.zOrigin ./ samplingRate];
+        
+        pixelSize = iHeader.cellDimensionX/iHeader.nX; % Assuming X/Y the same and Z might be incorrect.
+        
         [binSize,binShift] = BH_multi_calcBinShift([iHeader.nX,iHeader.nY],1,samplingRate);
         
         % Gridding correction for the interpolation in the binning. Not
@@ -100,28 +100,28 @@ if samplingRate > 1
           iProjection = bhF.invFFT(bhF.fwdFFT(R.*iProjection,0,0,[1e-6,600,samplingRate*pixelSize,pixelSize]),2);
           
           iProjection = BH_resample2d(iProjection,[0,0,0],binShift,'Bah','GPU','forward',1/samplingRate,binSize(1:2),bhF);
-              
           
-%           iProjection = real(ifftn(ifftshift(BH_padZeros3d(fftshift(fftn(iProjection)),'fwd',padVal,'GPU','singleTaper'))));
-%           
-
-
+          
+          %           iProjection = real(ifftn(ifftshift(BH_padZeros3d(fftshift(fftn(iProjection)),'fwd',padVal,'GPU','singleTaper'))));
+          %
+          
+          
           newStack(:,:,iPrj) = gather(iProjection);
         end
         
         SAVE_IMG(newStack,outputName,iPixelHeader,iOriginHeader);
         clear newStack bpFilt iProjection
-%        system(sprintf('newstack -shrink %d -antialias 6 %s cache/%s_bin%d%s > /dev/null', ...
-%                                     samplingRate,IMG, imgName, samplingRate,imgExt));
+        %        system(sprintf('newstack -shrink %d -antialias 6 %s cache/%s_bin%d%s > /dev/null', ...
+        %                                     samplingRate,IMG, imgName, samplingRate,imgExt));
       otherwise
         error('DIMENSION should be 2 or 3\n.')
     end
- 
     
     
-
-  end  
- 
+    
+    
+  end
+  
   
   if (flgLoad)
     failedLoads = 0;
@@ -129,9 +129,9 @@ if samplingRate > 1
       try
         fprintf('pwd is %s\n', pwd);
         fprintf(...
-           'attempting to load cache/%s_bin%d%s\n', imgName, samplingRate,imgExt);
+          'attempting to load cache/%s_bin%d%s\n', imgName, samplingRate,imgExt);
         m = MRCImage(sprintf(...
-                          'cache/%s_bin%d%s', imgName, samplingRate,imgExt));
+          'cache/%s_bin%d%s', imgName, samplingRate,imgExt));
         fprintf('Loaded the MRCImage\n');
         IMG_OUT =getVolume(m);
         fprintf('Loaded the volume\n');
@@ -149,11 +149,11 @@ else
   % syntax is only intended when resampling is required, so ignore the flag here
   % but throw a warning.
   fprintf('\n\nYou requested a sampling of -1 Nonsense!! loading anyway.\n\n');
- 
+  
   IMG_OUT = single(getVolume(MRCImage(IMG)));
 end
 
 
-             
+
 end
 

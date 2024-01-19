@@ -15,14 +15,14 @@ switch numel(originalSize)
     flg2d = false;
 end
 
-  
+
 % pull the halfXform to the gpu incase it is not already there
 halfXform = gpuArray(halfXform);
 
 if (padConv)
   [nX,nY,nZ] = size(halfXform);
   nX = nX + originalSize(1);
-
+  
   oX = originalSize(1)+1;
   isOdd = 1;
   fullXform = zeros([nX,nY,nZ],'single','gpuArray');
@@ -33,14 +33,14 @@ else
   nZ = originalSize(3);
   oX = floor(nX/2)+1;
   isOdd = mod(nX,2);
-
-  fullXform = zeros(originalSize,'single','gpuArray');   
+  
+  fullXform = zeros(originalSize,'single','gpuArray');
 end
 
 hermitianMask = EMC_maskIndex('c2c', originalSize, 'GPU',{});
 fullXform(1:size(halfXform,1), :, :) = halfXform;
 fullXform = fullXform(hermitianMask);
-      
+
 
 % % % % NOTE this is now used for things that are abs()^2 but if used more
 % % % % generally an option to multiply the hermitian conjugate side by -1 will

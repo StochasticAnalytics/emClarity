@@ -1,7 +1,7 @@
 function [ diffMap, normMap ] = BH_diffMap( refMap, ...
-                                            particle, particleCTF, ...
-                                            flgNorm, pixelSize,...
-                                            radialGrid, padVal )
+  particle, particleCTF, ...
+  flgNorm, pixelSize,...
+  radialGrid, padVal )
 %Scale a higher SNR map down do approximate the power of a noisy map
 %   Maps are assumed to be the same size and also be masked in real space. If
 %   the particle ctf is just 1, and flgNorm than this should behave like Niko's
@@ -21,7 +21,7 @@ if isnumeric(radialGrid)
   end
 elseif (flgNorm && ~iscell(radialGrid))
   [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(size(refMap),'Cartesian',...
-                                                    'GPU',{'none'},1,0,1);
+    'GPU',{'none'},1,0,1);
   radialGrid = radialGrid ./ pixelSize;
 end
 
@@ -34,7 +34,7 @@ end
 if isreal(refMap(1))
   refMap = fftn(BH_padZeros3d(refMap,padVal(1,:),padVal(2,:),'GPU','single')).*(particleCTF);
 else
-  refMap = refMap.*(particleCTF); 
+  refMap = refMap.*(particleCTF);
 end
 
 if isreal(particle)
@@ -58,35 +58,35 @@ particle = particle ./ (sqrt(sum(abs(particle).^2,'all'))./n_valid_voxels);
 
 if (flgNorm)
   % Normalize over predefined radial bins
-    scalar_vals = zeros(length(radialGrid),1);
-    for iBin = 1:length(radialGrid)
-        particle_sum = sum(abs(particle(radialGrid{iBin})).^2,'all');
-        if ( particle_sum == 0 )
-          scalar_vals(iBin) = 0;
+  scalar_vals = zeros(length(radialGrid),1);
+  for iBin = 1:length(radialGrid)
+    particle_sum = sum(abs(particle(radialGrid{iBin})).^2,'all');
+    if ( particle_sum == 0 )
+      scalar_vals(iBin) = 0;
+    else
+      ref_sum = sum(abs(refMap(radialGrid{iBin})).^2,'all');
+      if ( ref_sum == 0 )
+        scalar_vals(iBin) = 0;
+      else
+        scalar = sqrt(particle_sum ./ ref_sum);
+        if (isfinite(scalar))
+          scalar_vals(iBin) = scalar;
         else
-          ref_sum = sum(abs(refMap(radialGrid{iBin})).^2,'all');
-          if ( ref_sum == 0 )
-            scalar_vals(iBin) = 0;
-          else
-            scalar = sqrt(particle_sum ./ ref_sum);
-            if (isfinite(scalar))
-              scalar_vals(iBin) = scalar;
-            else
-              scalar_vals(iBin) = 0;
-            end
-          end
-        end  
+          scalar_vals(iBin) = 0;
+        end
+      end
     end
-
-    for iBin = 1:length(radialGrid)
-        refMap(radialGrid{iBin}) = refMap(radialGrid{iBin}) .* scalar_vals(iBin);
-    end
-
+  end
+  
+  for iBin = 1:length(radialGrid)
+    refMap(radialGrid{iBin}) = refMap(radialGrid{iBin}) .* scalar_vals(iBin);
+  end
+  
   diffMap = real(ifftn(refMap - particle));
 else
-%  refMap = refMap ./ sum(abs(refMap(:)).^2); % FIXME 
-%  particle = particle ./ sum(abs(particle(:)).^2);
-
+  %  refMap = refMap ./ sum(abs(refMap(:)).^2); % FIXME
+  %  particle = particle ./ sum(abs(particle(:)).^2);
+  
   normMap = '';
   diffMap = real(ifftn(refMap - particle));
 end
@@ -96,8 +96,8 @@ end
 % % figure, imshow3D(gather(real(ifftn(refMap))));
 % % if isnumeric(normMap); figure, imshow3D(gather(real(ifftn(normMap)))); end
 % % figure, imshow3D(gather(real((diffMap))));
-% % 
-% % 
+% %
+% %
 % % error('sdf')
 
 % [ PEAK_COORD ] =  BH_multi_xcf_Translational( particle, conj(refMap), ...

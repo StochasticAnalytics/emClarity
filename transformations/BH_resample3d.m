@@ -1,11 +1,11 @@
 function [ TRANS_IMAGE, x1, y1, z1 ] = BH_resample3d( IMAGE, ANGLES, SHIFTS, ...
-                                          CONVENTION, METHOD, DIRECTION, ...
-                                          varargin)
+  CONVENTION, METHOD, DIRECTION, ...
+  varargin)
 %Transform an image in 3d.
 %
-%   
+%
 %  Input Variables:
-%   
+%
 %   IMAGE = 3d volume, or a string specifing a volume to read in.
 %
 %   ANGLES = Single Volume: Euler angles defining the desired transformation
@@ -13,7 +13,7 @@ function [ TRANS_IMAGE, x1, y1, z1 ] = BH_resample3d( IMAGE, ANGLES, SHIFTS, ...
 %            symmetrizing.
 %
 %            Multi Volumes: Will return a stack of resampled images if ANGLES is
-%            a cell. In this case, the cell should be 
+%            a cell. In this case, the cell should be
 %            {nImages,2} = {Angles, shifts}
 %
 %            then the SHIFTS variable should be a cell{1,1} with the 2x3 matrix
@@ -38,7 +38,7 @@ function [ TRANS_IMAGE, x1, y1, z1 ] = BH_resample3d( IMAGE, ANGLES, SHIFTS, ...
 %
 %   Output Variables:
 %
-%   TRANS_IMAGE = the transformed image. 
+%   TRANS_IMAGE = the transformed image.
 %       Independent of the input image being passed in or read in from disk, the
 %       output is an image in memory.
 %
@@ -79,8 +79,8 @@ end
 
 
 if ischar(IMAGE)
-    % Read in the image
-    IMAGE = getVolume(MRCImage(IMAGE));
+  % Read in the image
+  IMAGE = getVolume(MRCImage(IMAGE));
 end
 
 flgComplex = 0;
@@ -93,19 +93,19 @@ if ~isreal(IMAGE)
     preCalc = 0;
     flgComplexShift = 1;
     [dU,dV,dW] = BH_multi_gridCoordinates(size(IMAGE),'Cartesian',METHOD, ...
-                                                                {'none'},1,1,0);
+      {'none'},1,1,0);
   elseif any(SHIFTS)
     preCalc = 1;
     flgComplexShift = 1;
   else
     preCalc = 0;
     flgComplexShift = 0;
-  end     
+  end
   
-  % Set the direction of the shift by the sign of the phase change. 
+  % Set the direction of the shift by the sign of the phase change.
   if strcmpi(DIRECTION,'forward')
     phaseDir = -1;
-     
+    
   elseif strcmpi(DIRECTION, 'inv')
     phaseDir = 1;
   else
@@ -120,14 +120,14 @@ if ~isreal(IMAGE)
     if ( flgComplexShift && preCalc)
       % Extra lines rather than re-assigning varargin to dU,dV,dW.
       IMAGE = IMAGE .* exp((phaseDir*2i*pi).*(varargin{2}{1}.*phaseShifts(1) + ...
-                                              varargin{2}{2}.*phaseShifts(2) + ...
-                                              varargin{2}{3}.*phaseShifts(3)));
-
+        varargin{2}{2}.*phaseShifts(2) + ...
+        varargin{2}{3}.*phaseShifts(3)));
+      
     elseif ( flgComplexShift )
       IMAGE = IMAGE .* exp((phaseDir*2i*pi).*(dU.*phaseShifts(1) + ...
-                                              dV.*phaseShifts(2) + ...
-                                              dW.*phaseShifts(3)));
-                                                
+        dV.*phaseShifts(2) + ...
+        dW.*phaseShifts(3)));
+      
     end
   end
 end
@@ -144,7 +144,7 @@ flgSymmetry = 0;
 symmetry = 1;
 mag = 1;
 if isa(CONVENTION, 'cell')
-  interpMethod = CONVENTION{3};  
+  interpMethod = CONVENTION{3};
   symmetry = CONVENTION{2};
   if (symmetry > 1)
     flgSymmetry = true;
@@ -156,26 +156,26 @@ if isa(CONVENTION, 'cell')
     mag = CONVENTION{4};
   end
   
- 
+  
   if length(CONVENTION) == 5
     % a binary mask to limit the region searched
     volBinary = CONVENTION{5};
     flgMask = 1;
-% % %     This is a wasted pre-allocation. Just zero outside interp mask in
-% the output vol.
-% % %     if (useGPU)
-% % %       imOUT = zeros(size(IMAGE),'single','gpuArray');
-% % %     else
-% % %       imOUT = zeros(size(IMAGE),'single');
-% % %     end
-% % %     if (flgComplex)
-% % %       imOUT = complex(imOUT);
-% % %     end
+    % % %     This is a wasted pre-allocation. Just zero outside interp mask in
+    % the output vol.
+    % % %     if (useGPU)
+    % % %       imOUT = zeros(size(IMAGE),'single','gpuArray');
+    % % %     else
+    % % %       imOUT = zeros(size(IMAGE),'single');
+    % % %     end
+    % % %     if (flgComplex)
+    % % %       imOUT = complex(imOUT);
+    % % %     end
   end
   
   CONVENTION = CONVENTION{1};
-
-
+  
+  
 end
 
 
@@ -198,44 +198,44 @@ else
 end
 
 if (inputVectors)
-  if (flgSymmetry)  
-
+  if (flgSymmetry)
+    
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
-                                                    {'single',R(:),SHIFTS',DIRECTION,symmetry,mag,volBinary},...
-                                                    0, 1, 0, varargin{1} );
-
+      {'single',R(:),SHIFTS',DIRECTION,symmetry,mag,volBinary},...
+      0, 1, 0, varargin{1} );
+    
   else
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
-                                                    {'single',R(:),SHIFTS',DIRECTION,1,mag,volBinary},...
-                                                    0, 1, 0, varargin{1});
-  end  
+      {'single',R(:),SHIFTS',DIRECTION,1,mag,volBinary},...
+      0, 1, 0, varargin{1});
+  end
 else
-  if (flgSymmetry)  
-
+  if (flgSymmetry)
+    
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
-                                                    {'single',R(:),SHIFTS',DIRECTION,symmetry,mag,volBinary},...
-                                                    0, 1, 0 );
-
+      {'single',R(:),SHIFTS',DIRECTION,symmetry,mag,volBinary},...
+      0, 1, 0 );
+    
   else
     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(IMAGE), 'Cartesian', METHOD, ...
-                                                    {'single',R(:),SHIFTS',DIRECTION,1,mag,volBinary},...
-                                                    0, 1, 0 );
-  end  
+      {'single',R(:),SHIFTS',DIRECTION,1,mag,volBinary},...
+      0, 1, 0 );
+  end
 end
 
 
 %%%%%%%%%%%% First interpolate the real part. If complex then also the
 %%%%%%%%%%%% imaginary.
 if (flgSymmetry)
-
+  
   if strcmpi(interpMethod, 'spline')
-     fgrid = griddedInterpolant({x1,y1,z1},real(IMAGE), 'spline', 'none');
-     TRANS_IMAGE = fgrid(Xnew{1}, Ynew{1},Znew{1});
-     
-     TRANS_IMAGE(isnan(TRANS_IMAGE)) = 0;
+    fgrid = griddedInterpolant({x1,y1,z1},real(IMAGE), 'spline', 'none');
+    TRANS_IMAGE = fgrid(Xnew{1}, Ynew{1},Znew{1});
+    
+    TRANS_IMAGE(isnan(TRANS_IMAGE)) = 0;
   else
-     TRANS_IMAGE = interpn(x1,y1,z1,real(IMAGE),Xnew{1},Ynew{1},Znew{1},'linear',0);
-
+    TRANS_IMAGE = interpn(x1,y1,z1,real(IMAGE),Xnew{1},Ynew{1},Znew{1},'linear',0);
+    
   end
 else
   
@@ -246,26 +246,26 @@ if (flgSymmetry)
   symInc = 360/symmetry;
   
   for iSym = 2:symmetry
-
-%     Rsym = R * BH_defineMatrix([0,0,iSym*symInc], CONVENTION, DIRECTION);
-%     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(stackIN), ...
-%                                                       'Cartesian', METHOD, ...
-%                                                {Rsym(:);SHIFTS';DIRECTION},...
-%                                                    0, 1, 0 );      
-    if strcmpi(interpMethod, 'spline')       
-       symVol =  fgrid(Xnew{iSym}, Ynew{iSym},Znew{iSym});
-       
-       symVol(isnan(symVol)) = 0;
-       TRANS_IMAGE = TRANS_IMAGE + symVol;
-    else
-         
-       TRANS_IMAGE = TRANS_IMAGE + ...
-                          interpn(x1,y1,z1,real(IMAGE),Xnew{iSym},Ynew{iSym},Znew{iSym},'linear',0);
+    
+    %     Rsym = R * BH_defineMatrix([0,0,iSym*symInc], CONVENTION, DIRECTION);
+    %     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(stackIN), ...
+    %                                                       'Cartesian', METHOD, ...
+    %                                                {Rsym(:);SHIFTS';DIRECTION},...
+    %                                                    0, 1, 0 );
+    if strcmpi(interpMethod, 'spline')
+      symVol =  fgrid(Xnew{iSym}, Ynew{iSym},Znew{iSym});
       
-    end 
+      symVol(isnan(symVol)) = 0;
+      TRANS_IMAGE = TRANS_IMAGE + symVol;
+    else
+      
+      TRANS_IMAGE = TRANS_IMAGE + ...
+        interpn(x1,y1,z1,real(IMAGE),Xnew{iSym},Ynew{iSym},Znew{iSym},'linear',0);
+      
+    end
   end
   
-TRANS_IMAGE = TRANS_IMAGE ./ symmetry; clear firstVol symVol fgrid 
+  TRANS_IMAGE = TRANS_IMAGE ./ symmetry; clear firstVol symVol fgrid
 end
 
 %%%%%%%%%%%% Imaginary
@@ -276,66 +276,66 @@ if ( flgComplex )
     % if symmetry applied, return a cell, with the first being the asymmetric, and
     % second being the symmetrized volume
     if strcmpi(interpMethod, 'spline')
-       fgrid = griddedInterpolant({x1,y1,z1},imag(IMAGE), 'spline', 'none');
-       TRANS_IMAGE_Imag = fgrid(Xnew{1}, Ynew{1},Znew{1});
-       TRANS_IMAGE_Imag(isnan(TRANS_IMAGE_Imag)) = 0;
+      fgrid = griddedInterpolant({x1,y1,z1},imag(IMAGE), 'spline', 'none');
+      TRANS_IMAGE_Imag = fgrid(Xnew{1}, Ynew{1},Znew{1});
+      TRANS_IMAGE_Imag(isnan(TRANS_IMAGE_Imag)) = 0;
     else
-       TRANS_IMAGE_Imag = interpn(x1,y1,z1,imag(IMAGE),Xnew{1},Ynew{1},Znew{1},'linear',0);
-
+      TRANS_IMAGE_Imag = interpn(x1,y1,z1,imag(IMAGE),Xnew{1},Ynew{1},Znew{1},'linear',0);
+      
     end
   else
-
+    
     TRANS_IMAGE_Imag = interpn(x1,y1,z1,imag(IMAGE),Xnew,Ynew,Znew,'linear',0);
   end
-
+  
   if (flgSymmetry)
     symInc = 360/symmetry;
-
+    
     for iSym = 2:symmetry
-
-  %     Rsym = R * BH_defineMatrix([0,0,iSym*symInc], CONVENTION, DIRECTION);
-  %     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(stackIN), ...
-  %                                                       'Cartesian', METHOD, ...
-  %                                                {Rsym(:);SHIFTS';DIRECTION},...
-  %                                                    0, 1, 0 );      
-      if strcmpi(interpMethod, 'spline')       
-         symVol =  fgrid(Xnew{iSym}, Ynew{iSym},Znew{iSym});
-         symVol(isnan(symVol)) = 0;
-         TRANS_IMAGE_Imag = TRANS_IMAGE_Imag + symVol;
+      
+      %     Rsym = R * BH_defineMatrix([0,0,iSym*symInc], CONVENTION, DIRECTION);
+      %     [ Xnew,Ynew,Znew,x1,y1,z1 ] = BH_multi_gridCoordinates( size(stackIN), ...
+      %                                                       'Cartesian', METHOD, ...
+      %                                                {Rsym(:);SHIFTS';DIRECTION},...
+      %                                                    0, 1, 0 );
+      if strcmpi(interpMethod, 'spline')
+        symVol =  fgrid(Xnew{iSym}, Ynew{iSym},Znew{iSym});
+        symVol(isnan(symVol)) = 0;
+        TRANS_IMAGE_Imag = TRANS_IMAGE_Imag + symVol;
       else
-
-         TRANS_IMAGE_Imag = TRANS_IMAGE_Imag + ...
-                            interpn(x1,y1,z1,imag(IMAGE),Xnew{iSym},Ynew{iSym},Znew{iSym},'linear',0);
-      end 
+        
+        TRANS_IMAGE_Imag = TRANS_IMAGE_Imag + ...
+          interpn(x1,y1,z1,imag(IMAGE),Xnew{iSym},Ynew{iSym},Znew{iSym},'linear',0);
+      end
     end
-
-  TRANS_IMAGE_Imag = TRANS_IMAGE_Imag ./ symmetry; clear firstVol symVol fgrid 
+    
+    TRANS_IMAGE_Imag = TRANS_IMAGE_Imag ./ symmetry; clear firstVol symVol fgrid
   end
- 
+  
   %for iSymImg = 1:1+flgSymmetry
-
-    TRANS_IMAGE = complex(TRANS_IMAGE,TRANS_IMAGE_Imag);
-    TRANS_IMAGE_Imag = [];
+  
+  TRANS_IMAGE = complex(TRANS_IMAGE,TRANS_IMAGE_Imag);
+  TRANS_IMAGE_Imag = [];
   %end
- 
+  
   % A forward transform is shifted after rotation.
   if strcmpi(DIRECTION,'forward')
     for iSymImg = 1:1+flgSymmetry
       if ( flgComplexShift && preCalc)
         % Extra lines rather than re-assigning varargin to dU,dV,dW.
         TRANS_IMAGE = TRANS_IMAGE .* ...
-                               exp((phaseDir*2i*pi).*(varargin{2}{1}.*phaseShifts(1) + ...
-                                                varargin{2}{2}.*phaseShifts(2) + ...
-                                                varargin{2}{3}.*phaseShifts(3)));
-
+          exp((phaseDir*2i*pi).*(varargin{2}{1}.*phaseShifts(1) + ...
+          varargin{2}{2}.*phaseShifts(2) + ...
+          varargin{2}{3}.*phaseShifts(3)));
+        
       elseif ( flgComplexShift )
-
-
+        
+        
         TRANS_IMAGE = TRANS_IMAGE .* ...
-                               exp((phaseDir*2i*pi).*(dU.*phaseShifts(1) + ...
-                                                dV.*phaseShifts(2) + ...
-                                                dW.*phaseShifts(3)));
-
+          exp((phaseDir*2i*pi).*(dU.*phaseShifts(1) + ...
+          dV.*phaseShifts(2) + ...
+          dW.*phaseShifts(3)));
+        
       end
     end
   end
@@ -346,9 +346,9 @@ end
 % needed and not in the padded area. In this case, return only a single image
 % and not a cell, and let it be the symmetric one if that is what is requested.
 if (flgMask)
-
-    TRANS_IMAGE(~volBinary) = 0;
-
+  
+  TRANS_IMAGE(~volBinary) = 0;
+  
 end
 dU = []; dV = []; dW = []; varargin = []; IMAGE = [];
 Xnew = []; Ynew = []; Znew = []; volBinary = []; imOUT = [];

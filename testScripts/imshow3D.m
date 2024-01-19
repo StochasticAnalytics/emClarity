@@ -6,17 +6,17 @@ function  imshow3D( Img, disprange )
 % imshow3D ( Image )
 % imshow3D ( Image , [] )
 % imshow3D ( Image , [LOW HIGH] )
-%   
-%    Image:      3D image MxNxK (K slices of MxN images) 
+%
+%    Image:      3D image MxNxK (K slices of MxN images)
 %    [LOW HIGH]: display range that controls the display intensity range of
 %                a grayscale image (default: the widest available range)
 %
 % Use the scroll bar or mouse scroll wheel to switch between slices. To
 % adjust window and level values keep the mouse right button pressed and
 % drag the mouse up and down (for level adjustment) or right and left (for
-% window adjustment). 
-% 
-% "Auto W/L" button adjust the window and level automatically 
+% window adjustment).
+%
+% "Auto W/L" button adjust the window and level automatically
 %
 % While "Fine Tune" check box is checked the window/level adjustment gets
 % 16 times less sensitive to mouse movement, to make it easier to control
@@ -25,15 +25,15 @@ function  imshow3D( Img, disprange )
 % Note: The sensitivity of mouse based window and level adjustment is set
 % based on the user defined display intensity range; the wider the range
 % the more sensitivity to mouse drag.
-% 
-% 
+%
+%
 %   Example
 %   --------
 %       % Display an image (MRI example)
-%       load mri 
-%       Image = squeeze(D); 
-%       figure, 
-%       imshow3D(Image) 
+%       load mri
+%       Image = squeeze(D);
+%       figure,
+%       imshow3D(Image)
 %
 %       % Display the image, adjust the display range
 %       figure,
@@ -45,7 +45,7 @@ function  imshow3D( Img, disprange )
 % - Maysam Shahedi (mshahedi@gmail.com)
 % - Released: 1.0.0   Date: 2013/04/15
 % - Revision: 1.1.0   Date: 2013/04/19
-% 
+%
 
 sno = size(Img,3);  % number of slices
 S = round(sno/2);
@@ -113,7 +113,7 @@ elseif isa(Img,'logical')
     LevV =0.5;
     Win = 1;
     WLAdjCoe = 0.1;
-end    
+end
 
 SFntSz = 9;
 LFntSz = 10;
@@ -155,7 +155,7 @@ if sno > 1
     stxthand = uicontrol('Style', 'text','Position', Stxt_Pos,'String',sprintf('Slice# %d / %d',S, sno), 'BackgroundColor', [0.8 0.8 0.8], 'FontSize', SFntSz);
 else
     stxthand = uicontrol('Style', 'text','Position', Stxt_Pos,'String','2D image', 'BackgroundColor', [0.8 0.8 0.8], 'FontSize', SFntSz);
-end    
+end
 ltxthand = uicontrol('Style', 'text','Position', Ltxt_Pos,'String','Level: ', 'BackgroundColor', [0.8 0.8 0.8], 'FontSize', LFntSz);
 wtxthand = uicontrol('Style', 'text','Position', Wtxt_Pos,'String','Window: ', 'BackgroundColor', [0.8 0.8 0.8], 'FontSize', WFntSz);
 lvalhand = uicontrol('Style', 'edit','Position', Lval_Pos,'String',sprintf('%6.0f',LevV), 'BackgroundColor', [1 1 1], 'FontSize', LVFntSz,'Callback', @WinLevChanged);
@@ -240,13 +240,13 @@ set(gcf,'ResizeFcn', @figureResized)
 % -=< Window and level mouse adjustment >=-
     function WinLevAdj(varargin)
         PosDiff = get(0,'PointerLocation') - InitialCoord;
-
+        
         Win = Win + PosDiff(1) * WLAdjCoe * FineTuneC(get(ChBxhand,'Value')+1);
         LevV = LevV - PosDiff(2) * WLAdjCoe * FineTuneC(get(ChBxhand,'Value')+1);
         if (Win < 1)
             Win = 1;
         end
-
+        
         [Rmin, Rmax] = WL2R(Win,LevV);
         caxis([Rmin, Rmax])
         set(lvalhand, 'String', sprintf('%6.0f',LevV));
@@ -256,13 +256,13 @@ set(gcf,'ResizeFcn', @figureResized)
 
 % -=< Window and level text adjustment >=-
     function WinLevChanged(varargin)
-
+        
         LevV = str2double(get(lvalhand, 'string'));
         Win = str2double(get(wvalhand, 'string'));
         if (Win < 1)
             Win = 1;
         end
-
+        
         [Rmin, Rmax] = WL2R(Win,LevV);
         caxis([Rmin, Rmax])
     end

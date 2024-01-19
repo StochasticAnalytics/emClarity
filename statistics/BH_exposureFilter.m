@@ -1,6 +1,6 @@
 function [ exposureFilter ] = BH_exposureFilter( SIZE, TILT_GEOMETRY, METHOD,...
-                                                 SAMPLING, SHIFT_ORIGIN, ...
-                                                 varargin)
+  SAMPLING, SHIFT_ORIGIN, ...
+  varargin)
 %UNTITLED2 Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -16,17 +16,17 @@ if size(TILT_GEOMETRY,1) == 1
 end
 doFullGrid = true;
 
-  % The A-D are the defaults as published in the optimal exposure paper
-  % optW controls the exponential fall-off when the current exposure
-  % exceeds the optimal exposure. In unblur, this is "inf" as everything
-  % beyond this point is set to zero. A small number still gives a steep
-  % fall off, but with some taper.
-  expA = 0.24499;
-  expB =-1.66490;
-  expC = 2.81410;
-  optD = 2.51284;
-  optW = 0.0;
-  
+% The A-D are the defaults as published in the optimal exposure paper
+% optW controls the exponential fall-off when the current exposure
+% exceeds the optimal exposure. In unblur, this is "inf" as everything
+% beyond this point is set to zero. A small number still gives a steep
+% fall off, but with some taper.
+expA = 0.24499;
+expB =-1.66490;
+expC = 2.81410;
+optD = 2.51284;
+optW = 0.0;
+
 if nargin > 5
   if(length(varargin{1}) > 1)
     expA = varargin{1}(1);
@@ -65,7 +65,7 @@ d2 = SIZE(2);
 d3 = nPrjs;
 % if numel(SIZE) == 2
 %   d2 = SIZE(2);
-% else 
+% else
 %   d2 = d1;
 % end
 
@@ -89,18 +89,18 @@ if strcmp(METHOD,'GPU')
 elseif strcmp(METHOD, 'cpu')
   exposureFilter = zeros([h1,d2,d3], 'single');
 else
-    error('METHOD must be GPU or %s\n','cpu');
+  error('METHOD must be GPU or %s\n','cpu');
 end
 
 
 if (doFullGrid)
   [criticalDose,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
-                                              [d1,d2],'Cartesian',...
-                                              METHOD,{'none'},1,SHIFT_ORIGIN,1);
+    [d1,d2],'Cartesian',...
+    METHOD,{'none'},1,SHIFT_ORIGIN,1);
 else
-    [criticalDose,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
-                                              [d1,d2],'Cartesian',...
-                                              METHOD,{'none'},1,SHIFT_ORIGIN,1,{'halfGrid'});
+  [criticalDose,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
+    [d1,d2],'Cartesian',...
+    METHOD,{'none'},1,SHIFT_ORIGIN,1,{'halfGrid'});
 end
 % Assuming the pixelSize is constant across projections, the only change is
 % the cummulative dose, so precompute everything
@@ -111,46 +111,46 @@ criticalDose =  kvScale.*(expA.* (criticalDose./pixelSize.*10^-10).^expB +expC);
 % Precompute some values
 
 % criticalDose = exp(-0.5.*criticalDose.^-1);
-                  
-                    
-                       
-for iPrj = 1:nPrjs 
 
+
+
+for iPrj = 1:nPrjs
+  
   
   CUMeDOSE = TILT_GEOMETRY(iPrj,11);
-
+  
   % Frequency where the dose exceeds the optimal dose (2.51*critical) are
   % set to zero in the unblur code .. use a gaussian falloff.
   
   
-%%%%% This creates a more agressive dose filter perpendicular to the tilt axis.
-%%%%% With these parameters I saw no change, better or worse which is a little
-%%%%% odd. Maybe check it out in the future.
-% % %   sX = SIZE(1);
-% % %   sY = floor(SIZE(2).*(2-cosd(TILT_GEOMETRY(iPrj,4))));
-% % %   [radialGrid,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
-% % %                                                 [sX,sY],'Cartesian',...
-% % %                                                 METHOD,{'none'},1,1,1);
-% % %   oX = ceil((sX+1)./2);    
-% % %   oY = ceil((sY+1)./2);
-% % %   radialGrid = radialGrid ./ (radialGrid(oX,oY+oX-2).*2);
-% % %   trimVal = BH_multi_padVal([sX,sY],SIZE(1:2));
-% % %   radialGrid = BH_padZeros3d(radialGrid,trimVal(1,:),trimVal(2,:),METHOD,'single');
-% % %   if ~(SHIFT_ORIGIN)
-% % %     radialGrid = ifftshift(radialGrid);
-% % %   end
-% exp((-0.5*CUMeDOSE)./criticalDose).* ...
-
-% 
-%     optimalMask = ( (optimalDose>=CUMeDOSE) + exp(-optW*(CUMeDOSE-optimalDose)).*(optimalDose<CUMeDOSE) );
-%     optimalMask(~isfinite(optimalMask)) = 1;
-%     exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).*optimalMask;
-      exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose);
-                                   
-
-% % %     exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).* ...
-% % %                                                 (optimalDose>CUMeDOSE); 
-   
+  %%%%% This creates a more agressive dose filter perpendicular to the tilt axis.
+  %%%%% With these parameters I saw no change, better or worse which is a little
+  %%%%% odd. Maybe check it out in the future.
+  % % %   sX = SIZE(1);
+  % % %   sY = floor(SIZE(2).*(2-cosd(TILT_GEOMETRY(iPrj,4))));
+  % % %   [radialGrid,~,~,~,~,~] =  BH_multi_gridCoordinates( ...
+  % % %                                                 [sX,sY],'Cartesian',...
+  % % %                                                 METHOD,{'none'},1,1,1);
+  % % %   oX = ceil((sX+1)./2);
+  % % %   oY = ceil((sY+1)./2);
+  % % %   radialGrid = radialGrid ./ (radialGrid(oX,oY+oX-2).*2);
+  % % %   trimVal = BH_multi_padVal([sX,sY],SIZE(1:2));
+  % % %   radialGrid = BH_padZeros3d(radialGrid,trimVal(1,:),trimVal(2,:),METHOD,'single');
+  % % %   if ~(SHIFT_ORIGIN)
+  % % %     radialGrid = ifftshift(radialGrid);
+  % % %   end
+  % exp((-0.5*CUMeDOSE)./criticalDose).* ...
+  
+  %
+  %     optimalMask = ( (optimalDose>=CUMeDOSE) + exp(-optW*(CUMeDOSE-optimalDose)).*(optimalDose<CUMeDOSE) );
+  %     optimalMask(~isfinite(optimalMask)) = 1;
+  %     exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).*optimalMask;
+  exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose);
+  
+  
+  % % %     exposureFilter(:,:,TILT_GEOMETRY(iPrj,1)) = exp((-0.5*CUMeDOSE)./criticalDose).* ...
+  % % %                                                 (optimalDose>CUMeDOSE);
+  
 end
 
 

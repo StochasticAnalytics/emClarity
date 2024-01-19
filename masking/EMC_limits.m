@@ -52,7 +52,7 @@ function [LIMITS] = EMC_limits(CURRENT, DESIRED, OPTION)
 %   - Pad img to the desired size:
 %     img = randn(128,128);
 %     limits = EMC_limits(size(img), [150,155], {});
-%     imgPadded = EMC_resize(img, limits, {}); 
+%     imgPadded = EMC_resize(img, limits, {});
 %
 % See also EMC_resize
 %
@@ -64,20 +64,20 @@ function [LIMITS] = EMC_limits(CURRENT, DESIRED, OPTION)
 %
 
 %% checkIN
-if ~isnumeric(CURRENT) || ~isrow(CURRENT) || any(isinf(CURRENT)) ||  ~all(CURRENT > 0) || any(rem(CURRENT, 1)) 
+if ~isnumeric(CURRENT) || ~isrow(CURRENT) || any(isinf(CURRENT)) ||  ~all(CURRENT > 0) || any(rem(CURRENT, 1))
     error('EMC:LIMITS', 'CURRENT should be a row vector of positive integers')
-elseif ~isnumeric(DESIRED) || ~isrow(DESIRED) || any(isinf(DESIRED)) ||  ~all(DESIRED > 0) || any(rem(DESIRED, 1)) 
+elseif ~isnumeric(DESIRED) || ~isrow(DESIRED) || any(isinf(DESIRED)) ||  ~all(DESIRED > 0) || any(rem(DESIRED, 1))
     error('EMC:LIMITS', 'DESIRED should be a row vector of positive integers')
 elseif ~isequal(size(CURRENT), size(DESIRED))
     error('EMC:LIMITS', 'CURRENT and DESIRED should have the same size, got %s ~= %s', ...
-          mat2str(size(CURRENT)), mat2str(size(DESIRED)))
+        mat2str(size(CURRENT)), mat2str(size(DESIRED)))
 end
 
 OPTION = EMC_getOption(OPTION, {'shift', 'origin'}, false);
 
 if isfield(OPTION, 'origin')
     if ~isscalar(OPTION.origin) || ~isnumeric(OPTION.origin) || ...
-       ~(OPTION.origin == -1 || OPTION.origin == 1 || OPTION.origin == 2)
+            ~(OPTION.origin == -1 || OPTION.origin == 1 || OPTION.origin == 2)
         error('EMC:origin', "OPTION.origin should be 1, 2, or -1")
     end
 else
@@ -91,10 +91,10 @@ if isfield(OPTION, 'shift')
         error('EMC:shift', 'OPTION.shift should only contain integers, got %s', mat2str(OPTION.shift, 2))
     elseif ~isequal(size(OPTION.shift), size(CURRENT))
         error('EMC:shift', 'CURRENT and OPTION.shift should have the same size, got %s - %s', ...
-              mat2str(size(CURRENT)), mat2str(size(OPTION.shift)))
+            mat2str(size(CURRENT)), mat2str(size(OPTION.shift)))
     elseif OPTION.origin == -1 && any(OPTION.shift)
-      	error('EMC:shift', 'OPTION.shifts are not allowed with half=true or origin=-1, got %s', ...
-              mat2str(OPTION.shift, 2))
+        error('EMC:shift', 'OPTION.shifts are not allowed with half=true or origin=-1, got %s', ...
+            mat2str(OPTION.shift, 2))
     end
 else
     OPTION.shift = zeros(1, numel(CURRENT));  % default

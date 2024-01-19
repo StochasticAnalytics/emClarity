@@ -61,8 +61,8 @@ OPTION = EMC_getOption(OPTION, {'start', 'end', 'first', 'method', 'precision'},
 % precision
 if isfield(OPTION, 'precision')
     if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
-       ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
-      	error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
+            ~(strcmpi('single', OPTION.precision) || strcmpi('double', OPTION.precision))
+        error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
     end
 else
     OPTION.precision = 'single';  % default
@@ -71,8 +71,8 @@ end
 % method
 if isfield(OPTION, 'method')
     if ~(ischar(OPTION.method) || isstring(OPTION.method)) || ...
-       ~(strcmpi('gpu', OPTION.method) || strcmpi('cpu', OPTION.method))
-      	error('EMC:method', "OPTION.method should be 'cpu' or 'gpu'")
+            ~(strcmpi('gpu', OPTION.method) || strcmpi('cpu', OPTION.method))
+        error('EMC:method', "OPTION.method should be 'cpu' or 'gpu'")
     end
 else
     OPTION.method = 'cpu';  % default
@@ -82,7 +82,7 @@ end
 if isfield(OPTION, 'start')
     if ~isscalar(OPTION.start) || ~isnumeric(OPTION.start) || isnan(OPTION.start) || isinf(OPTION.start)
         error('EMC:start', 'OPTION.start should be a float|int, got %s, numel=%d', ...
-              class(OPTION.start), numel(OPTION.start))
+            class(OPTION.start), numel(OPTION.start))
     end
 else
     OPTION.start = 1;  % default
@@ -92,7 +92,7 @@ end
 if isfield(OPTION, 'end')
     if ~isscalar(OPTION.end) || ~isnumeric(OPTION.end) || isnan(OPTION.end) || isinf(OPTION.end)
         error('EMC:end', 'OPTION.end should be a float|int, got %s, numel=%d', ...
-              class(OPTION.end), numel(OPTION.end))
+            class(OPTION.end), numel(OPTION.end))
     end
 else
     OPTION.end = 0;  % default
@@ -108,7 +108,7 @@ if isfield(OPTION, 'first')
         end
     else
         error('EMC:first', 'OPTION.first should be a (scalar) bool, got %s, numel=%d', ...
-              class(OPTION.first), numel(OPTION.first))
+            class(OPTION.first), numel(OPTION.first))
     end
 else
     OPTION.first = 0;  % default

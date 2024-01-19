@@ -1,6 +1,6 @@
 function [ MONTAGE, IMG_LOC ] = BH_montage4d(  IMAGES , OUTPUT_PREFIX, varargin)
 %Create a 4d stack of 3d images saved as one 3d volume.
-%   
+%
 %
 %   Input variables:
 %
@@ -22,7 +22,7 @@ function [ MONTAGE, IMG_LOC ] = BH_montage4d(  IMAGES , OUTPUT_PREFIX, varargin)
 %
 %   TODO:
 %     - check on image sizes
-%     - option for padding, for non-square montages, 
+%     - option for padding, for non-square montages,
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -52,27 +52,27 @@ MONTAGE = zeros(dx.*nVolumes,dy,dz,'single');
 % Track image locations. Return and store in the subTomoMeta file.
 imageLocations = cell(nVolumes,1);
 for iIMG = 1:nVolumes
-   
+  
   if isnumeric(IMAGES{iIMG})
     MONTAGE(1 + (iIMG-1)*dx:dx + (iIMG-1)*dx,:,:) = gather(IMAGES{iIMG});
-    IMAGES{iIMG} = []; 
+    IMAGES{iIMG} = [];
   else
     
     MONTAGE(1 + (iIMG-1)*dx:dx + (iIMG-1)*dx,:,:) =  getVolume(MRCImage(IMAGES{iIMG}));
-
+    
   end
-
-
-
-  imageLocations{iIMG} = [1 + (iIMG-1)*dx ;dx + (iIMG-1)*dx; ...
-                          1;dy;1;dz];
-end
   
+  
+  
+  imageLocations{iIMG} = [1 + (iIMG-1)*dx ;dx + (iIMG-1)*dx; ...
+    1;dy;1;dz];
+end
+
 if ischar(IMAGES{1})
   save(MRCImage(MONTAGE), sprintf('%s-mont.mrc', OUTPUT_PREFIX))
   MONTAGE = '';
 end
-  
-IMG_LOC = imageLocations;  
+
+IMG_LOC = imageLocations;
 end % end of montage4d function
 

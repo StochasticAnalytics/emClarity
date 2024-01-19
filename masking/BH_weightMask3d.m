@@ -1,6 +1,6 @@
 function [ WEDGE_MASK, padValue] = BH_weightMask3d(SIZE, ORIENTATION, METHOD, ...
-                                                   particleRadius, flgIncCtf, ...
-                                                   SYMMETRY, samplingRate)
+  particleRadius, flgIncCtf, ...
+  SYMMETRY, samplingRate)
 %Create a missing wedge mask.
 %
 %   Input variables:
@@ -25,11 +25,11 @@ function [ WEDGE_MASK, padValue] = BH_weightMask3d(SIZE, ORIENTATION, METHOD, ..
 %
 %   Goals & Limitations:
 %
-%	As a test case, use an asymmetric wedge -50,70 in order to visualize 
+%	As a test case, use an asymmetric wedge -50,70 in order to visualize
 %	any ambiguities in angles.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%   TODO: 
+%   TODO:
 %		- test gpu option for function and return value. (template search requires
 %		return of gpu)
 %
@@ -41,15 +41,15 @@ binaryWedgeSize = abs(SIZE);
 
 if isvector(ORIENTATION)
   flgCTF = 0;
-    tiltColumn=1;
-  tiltAzimuth=90;  
-
+  tiltColumn=1;
+  tiltAzimuth=90;
+  
 else
-    % Consider amplitude modulation by CTF (NOT CTF envelope though)
+  % Consider amplitude modulation by CTF (NOT CTF envelope though)
   flgCTF = 1;
   tiltColumn=4;
   tiltAzimuth=ORIENTATION(1,6);
-
+  
 end
 
 flgTiltWeight = 1;
@@ -68,7 +68,7 @@ elseif flgCTF && (flgIncCtf == 2)
   flgCTF = 0;
 end
 
-if strcmp(METHOD, 'GPU') 
+if strcmp(METHOD, 'GPU')
   useGPU = true;
 else
   useGPU = false;
@@ -77,9 +77,9 @@ end
 %SIZE = [512,512,512];
 if all(SIZE > 0)
   outputScaling = SIZE(1)/512;
-  SIZE = [512,512,512]  
-%   outputScaling = SIZE(1)/256;
-%   SIZE = [256,256,256]  
+  SIZE = [512,512,512]
+  %   outputScaling = SIZE(1)/256;
+  %   SIZE = [256,256,256]
 else
   %optional override for template matching which may not always be cubic, wich
   %trades a little accuracy in the ctf mask for speed.
@@ -105,7 +105,7 @@ elseif strcmp(METHOD,'binaryWedgeGPU') || strcmp(METHOD,'binaryWedgeCpu')
     error('binary wedge uncertain if cpu or gpu.')
   end
   
-% Move binary wedge to a separate function
+  % Move binary wedge to a separate function
   maxTilt = 90-abs(min(ORIENTATION(:,tiltColumn)));
   minTilt = 90-abs(max(ORIENTATION(:,tiltColumn)));
   tiltAxis= BH_defineMatrix(1.*[90-tiltAzimuth,0,0], 'Bah', 'forwardVector');
@@ -113,12 +113,12 @@ elseif strcmp(METHOD,'binaryWedgeGPU') || strcmp(METHOD,'binaryWedgeCpu')
   theta = atan2d(bX,bZ); clear bX bZ
   
   WEDGE_MASK = single(~( (180-minTilt<=theta | theta<=maxTilt-180) | ...
-                    (-1.*minTilt<=theta & theta<=maxTilt) ));
+    (-1.*minTilt<=theta & theta<=maxTilt) ));
   
   % Set the value at the origin = 0.2
   origMask = ceil((size(WEDGE_MASK)+1)./2);
   WEDGE_MASK(origMask(1)-2:origMask(1)+2,:,origMask(3)-2:origMask(3)+2) = 1;
-
+  
   
   clear theta maxTilt minTilt tiltAxis
   
@@ -130,10 +130,10 @@ elseif strcmp(METHOD,'binaryWedgeGPU') || strcmp(METHOD,'binaryWedgeCpu')
   
   
   WEDGE_MASK = convn(WEDGE_MASK, gaussKernel, 'same');
-%   
-%   WEDGE_MASK = convn(WEDGE_MASK, gaussKernel, 'same');
+  %
+  %   WEDGE_MASK = convn(WEDGE_MASK, gaussKernel, 'same');
   
-%   [ WEDGE_MASK ] = BH_multi_randomizeTaper(WEDGE_MASK);
+  %   [ WEDGE_MASK ] = BH_multi_randomizeTaper(WEDGE_MASK);
   
   rad = fftshift(BH_bandpass3d(size(WEDGE_MASK),0,0,0,METHOD,'nyquist'));
   WEDGE_MASK = WEDGE_MASK .* rad;
@@ -143,7 +143,7 @@ elseif strcmp(METHOD,'binaryWedgeGPU') || strcmp(METHOD,'binaryWedgeCpu')
   return
 else
   filterMask = false;
-
+  
 end
 
 
@@ -170,7 +170,7 @@ padValue = [0,0,0;0,0,0];
 % % %                  zeros(paddedSize(2),1), ...
 % % %                  window(@hamming,2.*zoneOfInfluence+1));
 
-% Use the shape transform to estimate the extent of the projections influence 
+% Use the shape transform to estimate the extent of the projections influence
 % Even though we end up multiplying, because the projection is only a single
 % pixel thick to start with, this is equivalent to convolution, st this is
 % essentially accounting for creating a finite backprojection volume by
@@ -185,9 +185,9 @@ BLOB = abs(fftn(blob)); clear blob
 BLOB = fftshift(BLOB ./ max(BLOB(:)));
 oB = ceil((SIZE+1)./2);
 blobKernel = BLOB(oB(1)-6:oB(1)+6,...
-                  oB(2)-6:oB(2)+6,...
-                  oB(3)-6:oB(3)+6);
-         
+  oB(2)-6:oB(2)+6,...
+  oB(3)-6:oB(3)+6);
+
 BLOB = squeeze(gather(BLOB(oB(1), oB(2), :)))';
 
 zWeight = repmat(BLOB, SIZE(2),1,SIZE(1));
@@ -201,77 +201,77 @@ if (flgRadial)
   
   [ rWeight ] = calc_rWeight( SIZE, 'single', METHOD);
   
-% % % rWeight = ((abs([-1*floor((SIZE(1))/2):0,1:floor((SIZE(1)-1)/2)])'));
-% % % rOrig = ceil((SIZE(1)+1)./2);
-% % % % % % % imod tilt zero freq = 0.2 * first non zero component
-% % % rWeight(rOrig ) = 1;
-% % % 
-% % % 
-% % % % rWeight = rWeight + 1;
-% % % 
-% % % 
-% % % % rWeight = (rWeight ./ max(rWeight)).^0.5;
-% % %  rWeight = rWeight + 1./rWeight.^2;
-% % % % resample2d only handles scaling right now, so pad to z=3
-% % % rWeight = repmat((rWeight), 1, SIZE(2),3);
-% % % 
-% % % rWeight = BH_resample3d( rWeight, [90-tiltAzimuth,0,0], ...
-% % %                          [0,0,0],'Bah','GPU','forwardVector');
-% % % rWeight = rWeight(:,:,2);
-
+  % % % rWeight = ((abs([-1*floor((SIZE(1))/2):0,1:floor((SIZE(1)-1)/2)])'));
+  % % % rOrig = ceil((SIZE(1)+1)./2);
+  % % % % % % % imod tilt zero freq = 0.2 * first non zero component
+  % % % rWeight(rOrig ) = 1;
+  % % %
+  % % %
+  % % % % rWeight = rWeight + 1;
+  % % %
+  % % %
+  % % % % rWeight = (rWeight ./ max(rWeight)).^0.5;
+  % % %  rWeight = rWeight + 1./rWeight.^2;
+  % % % % resample2d only handles scaling right now, so pad to z=3
+  % % % rWeight = repmat((rWeight), 1, SIZE(2),3);
+  % % %
+  % % % rWeight = BH_resample3d( rWeight, [90-tiltAzimuth,0,0], ...
+  % % %                          [0,0,0],'Bah','GPU','forwardVector');
+  % % % rWeight = rWeight(:,:,2);
+  
 else
- rWeight = 1;
+  rWeight = 1;
 end
 
 [mtf,~,~,~,~,~] = BH_multi_gridCoordinates(SIZE(1:2), ...
-                                                   'Cartesian','cpu',...
-                                                   {'none'},1,1,1);
- 
+  'Cartesian','cpu',...
+  {'none'},1,1,1);
+
 if (useGPU)
   [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(SIZE(1:2), ...
-                                                   'Cartesian','GPU',...
-                                                   {'none'},1,0,1);
+    'Cartesian','GPU',...
+    {'none'},1,0,1);
 else
   [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates(SIZE(1:2), ...
-                                                   'Cartesian','cpu',...
-                                                   {'none'},1,0,1);
-                                                                                            
-end                                                 
+    'Cartesian','cpu',...
+    {'none'},1,0,1);
+  
+end
 
 
 
 
- pixelSize = ORIENTATION(1,16).*ORIENTATION(1,14).*samplingRate; % scaled pixel size
- 
- radialGrid = radialGrid./(pixelSize.*10.^10);
-                                                
-%       exposureFilter = ones([SIZE(1:2),size(ORIENTATION,1)],'single');                                      
-if (flgCTF) 
+pixelSize = ORIENTATION(1,16).*ORIENTATION(1,14).*samplingRate; % scaled pixel size
+
+radialGrid = radialGrid./(pixelSize.*10.^10);
+
+%       exposureFilter = ones([SIZE(1:2),size(ORIENTATION,1)],'single');
+if (flgCTF)
   if (flgNoExposure)
     exposureFilter = zeros(1,1,size(ORIENTATION,1)) + 1;
   else
-   [ exposureFilter ] = BH_exposureFilter( SIZE(1:2), ORIENTATION, 'cpu',samplingRate,0 );
+    [ exposureFilter ] = BH_exposureFilter( SIZE(1:2), ORIENTATION, 'cpu',samplingRate,0 );
   end
   
   % Calc the downweighting due to CTF --> here assuming phases were flipped by
   % multiplying by the CTF past the first zero
   iPrj = 1;
   defocus = [ORIENTATION(iPrj,15) - ORIENTATION(iPrj,12), ...
-             ORIENTATION(iPrj,15) + ORIENTATION(iPrj,12), ...
-             ORIENTATION(iPrj,13)];
+    ORIENTATION(iPrj,15) + ORIENTATION(iPrj,12), ...
+    ORIENTATION(iPrj,13)];
   Cs = ORIENTATION(iPrj,17);
   wavelength = ORIENTATION(iPrj,18);
   ampContrast = ORIENTATION(iPrj,19);
-
-  % assuming ampContrast = 0.1, using -0.15 results in a weight with 
+  
+  % assuming ampContrast = 0.1, using -0.15 results in a weight with
   % (0.1^0.15)^2~ 0.5 at zero freqency. Allows some recovery of low freq without
   % creating too severe a blur
-  [Hqz, HqzUnMod] = BH_ctfCalc(pixelSize,Cs,wavelength,defocus,SIZE(1:2),ampContrast,-1,-1); 
-
+  [Hqz, HqzUnMod] = BH_ctfCalc(pixelSize,Cs,wavelength,defocus,SIZE(1:2),ampContrast,-1,-1);
+  
   Hqz = single(abs(Hqz.*HqzUnMod));
   
-%  Hqz = conv2(Hqz,fspecial('gaussian',[5,5],1.0),'same'); 
-%    SAVE_IMG(MRCImage(gather(single(Hqz))), 'tmp.mrc');
+  %  Hqz = conv2(Hqz,fspecial('gaussian',[5,5],1.0),'same');
+  %    SAVE_IMG(MRCImage(gather(single(Hqz))), 'tmp.mrc');
   
 else
   Hqz = zeros(size(radialGrid),'single')+1;
@@ -297,7 +297,7 @@ end
 % centralSection(:,:,ceil((SIZE(3)+1)/2) - zoneOfInfluence: ...
 %                    ceil((SIZE(3)+1)/2) + zoneOfInfluence) = Z;
 
-% % % centralSection = centralSection .* zWeight; 
+% % % centralSection = centralSection .* zWeight;
 % % % clear zWeight
 
 
@@ -309,42 +309,42 @@ end
 
 for iPrj = 1:nPrjs
   
-
+  
   %exposureFilter = exp(-1.*ORIENTATION(iPrj,11).*(fftshift(radialGrid)).^2);
   
-% Applying a re-weighting to the ctfTiles - remove this
-% Optimal exposure filter from Grant,Grigorieff 2015 eLife
-% Assuming either 200 or 300 KV
-% % % WAVELENGTH = ORIENTATION(iPrj,18);
-% % % if WAVELENGTH > 2.1*10^-12
-% % %   kvScale = 0.8;
-% % % else
-% % %   kvScale = 1.0;
-% % % end
-% % % CUMeDOSE = ORIENTATION(iPrj,11);
-% % % exposureFilter = exp(-0.5*CUMeDOSE .* (kvScale.*0.245.*fftshift(radialGrid) .^ -1.665 + 2.81).^-1);
+  % Applying a re-weighting to the ctfTiles - remove this
+  % Optimal exposure filter from Grant,Grigorieff 2015 eLife
+  % Assuming either 200 or 300 KV
+  % % % WAVELENGTH = ORIENTATION(iPrj,18);
+  % % % if WAVELENGTH > 2.1*10^-12
+  % % %   kvScale = 0.8;
+  % % % else
+  % % %   kvScale = 1.0;
+  % % % end
+  % % % CUMeDOSE = ORIENTATION(iPrj,11);
+  % % % exposureFilter = exp(-0.5*CUMeDOSE .* (kvScale.*0.245.*fftshift(radialGrid) .^ -1.665 + 2.81).^-1);
   
-%expF = 1;
-if  (flgCTF)
-  expF = exposureFilter(:,:,ORIENTATION(iPrj,1));
-else
-  expF = 1;
-end
-%expF = (expF./sqrt((sum(sum(sum(abs(expF).^2))))./numel(expF)));
+  %expF = 1;
+  if  (flgCTF)
+    expF = exposureFilter(:,:,ORIENTATION(iPrj,1));
+  else
+    expF = 1;
+  end
+  %expF = (expF./sqrt((sum(sum(sum(abs(expF).^2))))./numel(expF)));
   if (flgRadial)
     centralSection =  repmat(rWeight.* fftshift(expF.* ...
-                             Hqz ),1,1, SIZE(3)) .* ...
-                             zWeight;
-%       centralSection =  repmat(rWeight.*  ...
-%                              Hqz .* mtf,1,1, SIZE(3)) .* ...
-%                              zWeight;
+      Hqz ),1,1, SIZE(3)) .* ...
+      zWeight;
+    %       centralSection =  repmat(rWeight.*  ...
+    %                              Hqz .* mtf,1,1, SIZE(3)) .* ...
+    %                              zWeight;
   else
     centralSection =  repmat(fftshift(exposureFilter(:,:,ORIENTATION(iPrj,1)).*Hqz ),1,1, SIZE(3)) .* ...
-                             zWeight;
-  end   
+      zWeight;
+  end
   
-
-
+  
+  
   symInc = 360/SYMMETRY;
   for iSym = 1:SYMMETRY
     % Since the angles here are used bring the rotated projection back to standard
@@ -353,44 +353,44 @@ end
     if any(size(ORIENTATION) == 1)
       R = BH_defineMatrix([90, ORIENTATION(iPrj), -90], 'Bah', 'inv');
     else
-%       rSample = BH_defineMatrix((ORIENTATION(iPrj,8:10)), 'Bah', 'inv');
-%       rElevation = BH_defineMatrix([90, ORIENTATION(iPrj, 7), -90], 'Bah', 'inv');
-       rTilt = BH_defineMatrix([1.*ORIENTATION(iPrj,6),1.*ORIENTATION(iPrj,4),-1*ORIENTATION(iPrj,6)],'Bah','inv');
+      %       rSample = BH_defineMatrix((ORIENTATION(iPrj,8:10)), 'Bah', 'inv');
+      %       rElevation = BH_defineMatrix([90, ORIENTATION(iPrj, 7), -90], 'Bah', 'inv');
+      rTilt = BH_defineMatrix([1.*ORIENTATION(iPrj,6),1.*ORIENTATION(iPrj,4),-1*ORIENTATION(iPrj,6)],'Bah','inv');
       
       % Switch to imod means that the inPlane rotation has been applied to the
       % projections already
       %%%rInPlane = BH_defineMatrix(1.*[ORIENTATION(iPrj,5),0,0], 'Bah', 'inv');
-%       rInPlane = eye(3);
-
-
-%       R = rElevation*rTilt*rSample*rInPlane;
-    R = rTilt;
+      %       rInPlane = eye(3);
+      
+      
+      %       R = rElevation*rTilt*rSample*rInPlane;
+      R = rTilt;
     end
     
     R = R*BH_defineMatrix([(1-iSym)*symInc,0,0],'Bah','forward');
-  % 
-   if (flgTiltWeight)
-%      tiltDiff = 1-cosd(ORIENTATION(iPrj,tiltColumn)).^1;
-%      tiltGrad = 1-(tiltDiff.*exp(-15.*fftshift(radialGrid).^2));
-%      tiltWeight = repmat(tiltGrad,1,1,size(centralSection,3));
-    iAng = ORIENTATION(iPrj,tiltColumn);
-    tiltWeight = ((exp(-10.*mtf.^(0.5+cosd(iAng).^2.5))+(0.6))./(1.6)).^sind(abs(iAng));
-    tiltWeight = repmat(tiltWeight,1,1,size(centralSection,3));
-        
- %       tiltWeight = cosd(ORIENTATION(iPrj,tiltColumn));
-   else
-     tiltWeight = 1;
-   end
-
-
-  
-   wedgeMask  = wedgeMask + ...
-                BH_resample3d(centralSection.*tiltWeight, R, ...
-                      [0,0,0], 'Bah','GPU','inv');
-
-
-
-% % %                   BH_resample3d(centralSection.*tiltWeight, R, [0,0,0], 'Bah','GPU','inv');
+    %
+    if (flgTiltWeight)
+      %      tiltDiff = 1-cosd(ORIENTATION(iPrj,tiltColumn)).^1;
+      %      tiltGrad = 1-(tiltDiff.*exp(-15.*fftshift(radialGrid).^2));
+      %      tiltWeight = repmat(tiltGrad,1,1,size(centralSection,3));
+      iAng = ORIENTATION(iPrj,tiltColumn);
+      tiltWeight = ((exp(-10.*mtf.^(0.5+cosd(iAng).^2.5))+(0.6))./(1.6)).^sind(abs(iAng));
+      tiltWeight = repmat(tiltWeight,1,1,size(centralSection,3));
+      
+      %       tiltWeight = cosd(ORIENTATION(iPrj,tiltColumn));
+    else
+      tiltWeight = 1;
+    end
+    
+    
+    
+    wedgeMask  = wedgeMask + ...
+      BH_resample3d(centralSection.*tiltWeight, R, ...
+      [0,0,0], 'Bah','GPU','inv');
+    
+    
+    
+    % % %                   BH_resample3d(centralSection.*tiltWeight, R, [0,0,0], 'Bah','GPU','inv');
   end
 end
 
@@ -400,9 +400,9 @@ clear centralSection rWeight zWeight Hqz radialGrid mtf
 if (flgSmooth)
   
   [ gaussKernel ] = gpuArray(BH_multi_gaussian3d(5, 0.75 ));
-
+  
   wedgeMask = convn(wedgeMask, gaussKernel, 'same');
-% % % % %   wedgeMask = convn(wedgeMask, gaussKernel, 'same');
+  % % % % %   wedgeMask = convn(wedgeMask, gaussKernel, 'same');
 end
 
 
@@ -410,22 +410,22 @@ end
 % wedgeMask = wedgeMask(padValue(1)+1 : end - padValue(1), ...
 %                 padValue(2)+1 : end - padValue(2), ...
 %                 padValue(3)+1 : end - padValue(3));
-              
+
 
 % wedgeMask = single(wedgeMask ./ max(wedgeMask(:)));
 % wedgeMask = convn(wedgeMask, gaussKernel, 'same');
-% 
+%
 % wedgeMask = wedgeMask ./ max(wedgeMask(:));
 %  [rad,~,~,~,~,~] = BH_multi_gridCoordinates(SIZE,'Cylindrical', ...
 %                              'GPU',{BH_defineMatrix([0,90,90-tiltAzimuth],'Bah','forwardVector'),[0,0,0]','forward'},1,1,0);
-% % % 
+% % %
 % %rad = (rad < 0.5);
 %  wedgeMask = wedgeMask .* rad;
- 
 
 
-   WEDGE_MASK = BH_reScale3d( gather(single(wedgeMask ./ max(wedgeMask(:)))), ...
-                              '', sprintf('%f',outputScaling), METHOD);
+
+WEDGE_MASK = BH_reScale3d( gather(single(wedgeMask ./ max(wedgeMask(:)))), ...
+  '', sprintf('%f',outputScaling), METHOD);
 
 rad = fftshift(BH_bandpass3d(size(WEDGE_MASK),0,0,0,'GPU','nyquist'));
 WEDGE_MASK = WEDGE_MASK .* rad;
@@ -437,7 +437,7 @@ WEDGE_MASK = WEDGE_MASK./(max(WEDGE_MASK(:)));
 %  BINARY_WEDGE = BINARY_WEDGE .* (rad <0.5) ;
 %  BINARY_WEDGE = convn(single(BINARY_WEDGE), BH_multi_gaussian3d(5, 1.0 ),'same');
 % % %   BINARY_WEDGE = BINARY_WEDGE ./ max(BINARY_WEDGE(:)) .*rad;
-%   clear wedgeMask centralSection radialGrid rad zWeight 
+%   clear wedgeMask centralSection radialGrid rad zWeight
 
 
 clearvars -except WEDGE_MASK padValues
@@ -446,30 +446,30 @@ end
 
 function  [ rWeight ] = calc_rWeight( SIZE, PRECISION, METHOD)
 
-    rWeight = ((abs([-1*floor((SIZE(1))/2):0,1:floor((SIZE(1)-1)/2)])'));
-    if strcmp(METHOD,'GPU')
-        rWeight = gpuArray(rWeight);
-    end
-    rOrig = ceil((SIZE(1)+1)./2);
-    % % % % imod tilt zero freq = 0.2 * first non zero component
-    rWeight(rOrig ) = 0.2;
-    [rCut] = find(rWeight == floor(0.45*SIZE(1)));
-    pixelFallOff = rCut(1) ;
-    taperLow = 0.5+0.5.*cos((((1:pixelFallOff)).*pi)./(length((1:pixelFallOff+1))));
+rWeight = ((abs([-1*floor((SIZE(1))/2):0,1:floor((SIZE(1)-1)/2)])'));
+if strcmp(METHOD,'GPU')
+  rWeight = gpuArray(rWeight);
+end
+rOrig = ceil((SIZE(1)+1)./2);
+% % % % imod tilt zero freq = 0.2 * first non zero component
+rWeight(rOrig ) = 0.2;
+[rCut] = find(rWeight == floor(0.45*SIZE(1)));
+pixelFallOff = rCut(1) ;
+taperLow = 0.5+0.5.*cos((((1:pixelFallOff)).*pi)./(length((1:pixelFallOff+1))));
 
-    pixelFallOff = SIZE(1)-rCut(2)+1 ;
-    taperTop = 0.5+0.5.*cos((((1:pixelFallOff)).*pi)./(length((1:pixelFallOff+1))));
-    rWeight(1:rCut(1)) = rWeight(1:rCut(1)).*flip(taperLow)';
-    rWeight(rCut(2):end) = rWeight(rCut(2):end).*taperTop';
+pixelFallOff = SIZE(1)-rCut(2)+1 ;
+taperTop = 0.5+0.5.*cos((((1:pixelFallOff)).*pi)./(length((1:pixelFallOff+1))));
+rWeight(1:rCut(1)) = rWeight(1:rCut(1)).*flip(taperLow)';
+rWeight(rCut(2):end) = rWeight(rCut(2):end).*taperTop';
 
 
-    %rWeight = rWeight + 1./rWeight.^2;
-    % resample2d only handles scaling right now, so pad to z=3
-    rWeight = repmat((rWeight), 1, SIZE(2),1);
-    if strcmpi(PRECISION,'single')
-      rWeight = single(rWeight);
-    else
-      % This should be the default.
-      rWeight = double(rWeight);
-    end
+%rWeight = rWeight + 1./rWeight.^2;
+% resample2d only handles scaling right now, so pad to z=3
+rWeight = repmat((rWeight), 1, SIZE(2),1);
+if strcmpi(PRECISION,'single')
+  rWeight = single(rWeight);
+else
+  % This should be the default.
+  rWeight = double(rWeight);
+end
 end

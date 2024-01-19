@@ -8,11 +8,11 @@ nB = [0,0,0];
 % nextBest = [64,72,96,108,128,144,160,168,180,192,216,224,256,...
 %             270,288,300,320,336,360,384,400,432,448,480,512];
 nextBest = [64,72,80,84,90,96,108,112,120,126,128,144,160,162, ...
-            168,180,192,216,224,240,256,270,288,320,324,336,...
-            360,378,384,400,416,432,448,480,486,504,512];
+  168,180,192,216,224,240,256,270,288,320,324,336,...
+  360,378,384,400,416,432,448,480,486,504,512];
 % fall off between 1 and 0 in masking function
 APODIZATION = 2.*6;
-        
+
 switch OPERATION
   
   case 'fourier'
@@ -27,23 +27,23 @@ switch OPERATION
     sizeTarget= SIZES(1,:);
     if ( flgDescend )
       for i = 1:3
-          try
-           nB(i) = nextBest(find(nextBest <= sizeTarget(i), 1, 'last'));
-          catch
-            nB(i) = nextBest(1);
-          end
+        try
+          nB(i) = nextBest(find(nextBest <= sizeTarget(i), 1, 'last'));
+        catch
+          nB(i) = nextBest(1);
+        end
       end
     else
       for i = 1:3
         try
-         nB(i) = nextBest(find(nextBest >= sizeTarget(i), 1, 'first'));
+          nB(i) = nextBest(find(nextBest >= sizeTarget(i), 1, 'first'));
         catch
           nB(i) = nextBest(end);
         end
       end
     end
-
-
+    
+    
     if ~all(nB)
       error('next best not found in range 128-512 for [%d,%d,%d]', sizeTarget);
     end
@@ -51,21 +51,21 @@ switch OPERATION
     
   case 'fourier2d'
     % Found by
-% % %     for i = 64:2:3838*2
-% % %       if (sum(factor(i).*(factor(i) >= 5))< 10)
-% % %       f = [f,i];
-% % %       end
-% % %     end
+    % % %     for i = 64:2:3838*2
+    % % %       if (sum(factor(i).*(factor(i) >= 5))< 10)
+    % % %       f = [f,i];
+    % % %       end
+    % % %     end
     nextBest =  [64,72,80,84,90,96,108,112,120,126,128,144,160,162, ...
-                 168,180,192,216,224,240,252,256,270,288,320,324,336,...
-                 360,378,384,432,448,480,486,504,512,540,576,640,648,...
-                 720,756,768,810,864,896,960,972,1008,1024,1080,...
-                 1134,1152,1280,1296,1344,1440,1458,1512,1536,1620,1728,...
-                 1792,1920,1944,2016,2048,2160,2268,2304,2430,2560,...
-                 2592,2688,2880,2916,3024,3072,3240,3402,3456,3584,...
-                 3840,3888,4032,4096,4320,4374,4536,4608,4860,5120,...
-                 5184,5376,5760,5832,6048,6144,6480,6804,6912,7168,7290,...
-                 7488,7560,7840,7920,8192];
+      168,180,192,216,224,240,252,256,270,288,320,324,336,...
+      360,378,384,432,448,480,486,504,512,540,576,640,648,...
+      720,756,768,810,864,896,960,972,1008,1024,1080,...
+      1134,1152,1280,1296,1344,1440,1458,1512,1536,1620,1728,...
+      1792,1920,1944,2016,2048,2160,2268,2304,2430,2560,...
+      2592,2688,2880,2916,3024,3072,3240,3402,3456,3584,...
+      3840,3888,4032,4096,4320,4374,4536,4608,4860,5120,...
+      5184,5376,5760,5832,6048,6144,6480,6804,6912,7168,7290,...
+      7488,7560,7840,7920,8192];
     sizeTarget= SIZES(1,:);
     nB = [0,0];
     for i = 1:2
@@ -75,7 +75,7 @@ switch OPERATION
         nB(i) = 0;
       end
     end
-
+    
     if ~all(nB)
       % For some reason "error" only takes scalar args for print formating.
       fprintf('next best not found in range 64-7290 for [%d,%d,%d]\n',target);
@@ -86,7 +86,7 @@ switch OPERATION
   case 'convolution'
     % This could be optimized automatically to balance increased target size vs
     % number of iterations/post padding.
-
+    
     % the target size, to get the most out of calcs, spend as much time on the
     % gpu as possible. With finer angular searches, the number of references
     % needs more memory, so a smaller size here means more transfers, but this
@@ -95,48 +95,48 @@ switch OPERATION
       nextBest = [128,144,160,168,192,216,224,256];
     elseif all(SIZES(1,:) == 384)
       nextBest = [128,144,160,168,192,216,224,256,...
-                  288,300,320,336,360,384];
+        288,300,320,336,360,384];
     elseif all(SIZES(1,:) == 432)
       nextBest = [128,144,160,168,192,216,224,256,...
-                  288,300,320,336,360,384,400,432];
+        288,300,320,336,360,384,400,432];
     elseif all(SIZES(1,:) == 512)
       nextBest = [128,144,160,168,192,216,224,256,...
-                  288,300,320,336,360,384,400,432,480,512];  
+        288,300,320,336,360,384,400,432,480,512];
     elseif all(SIZES(1,:) > 512)
       nextBest = [128,144,160,168,192,216,224,256,...
-                  288,300,320,336,360,384,400,432,480,512,...
-            540,576,640,648,720,756,768,810,864,896,960,972,1008,1024];
+        288,300,320,336,360,384,400,432,480,512,...
+        540,576,640,648,720,756,768,810,864,896,960,972,1008,1024];
     end
     sizeImage      = SIZES(2,:);
     sizeTemplate   = SIZES(3,:); % the mask or kernel
     sizeParticle   = SIZES(4,:) ;% a subregion of sizeTemplate
-
- 
+    
+    
     borderSizeCalc = floor((sizeTemplate + APODIZATION)./2);
     borderSizeKeep = borderSizeCalc + 2.*sizeParticle;
-
+    
     abs(sum(sizeImage - sizeTemplate))
     sum(0.1.*sizeImage)
     if abs(sum(sizeImage - sizeTemplate)) < sum(0.1.*sizeImage)
       
       OUTPUT = [[0,0,0];[0,0,0] ;sizeImage; ...
-               sizeImage; sizeImage ; [1,1,1]];
+        sizeImage; sizeImage ; [1,1,1]];
       return
     end
     score = zeros(length(nextBest),6);
     
     
-      
+    
     validCalc = repmat(nextBest',1,3) - 2.*repmat(borderSizeCalc,length(nextBest),1);
     validKeep = repmat(nextBest',1,3) - 2.*repmat(borderSizeKeep,length(nextBest),1);
     minIter= floor(repmat(sizeImage,length(nextBest),1)./validKeep);
     postPad= repmat(nextBest',1,3)- ...
-                (repmat(sizeImage+borderSizeKeep,length(nextBest),1) -minIter.*(validKeep+1));
-          
+      (repmat(sizeImage+borderSizeKeep,length(nextBest),1) -minIter.*(validKeep+1));
+    
     % Added this so I can work with test cases where the volume to be
     % searched is the same size as the reference
     
-    score(:,2:4) = repmat(nextBest',1,3) ./ postPad .* (minIter >= 0) 
+    score(:,2:4) = repmat(nextBest',1,3) ./ postPad .* (minIter >= 0)
     
     [~, cX] = max(score(:,2)) ;
     [~, cY] = max(score(:,3)) ;
@@ -150,13 +150,13 @@ switch OPERATION
     validAreaCalc = validCalc([cX,cY,cZ]);
     nIters = minIter([cX,cY,cZ])+1;
     postPAD= postPad([cX,cY,cZ]);
-
+    
     
     OUTPUT = [borderSizeKeep;postPAD ;chunkSize; ...
-              validAreaKeep; validAreaCalc ; nIters];
+      validAreaKeep; validAreaCalc ; nIters];
     
   case 'binning'
-  
+    
     binFactor = SIZES(1,:);
     sizeImage = SIZES(2,:);
     
@@ -185,7 +185,7 @@ switch OPERATION
           end
         end
       end
-
+      
       OUTPUT(i) = nextBest(fftVal);
     end
     
@@ -210,12 +210,12 @@ switch OPERATION
         end
       end
     end
-      
+    
     OUTPUT = [finalVal; padVal];
   otherwise
     error('OPERATION is case-sensitive fourier, convolution or binning, not %s', OPERATION);
 end
-  
+
 
 end
 

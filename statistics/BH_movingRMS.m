@@ -41,9 +41,9 @@ img = padarray(img,padBy,'both','symmetric');
 
 
 img = BH_padZeros3d(fftshift(real(ifftn(fftn(rmsFilter).*fftn(img.^2)))),...
-                    trimVal(1,:),trimVal(2,:),'GPU','single');
+  trimVal(1,:),trimVal(2,:),'GPU','single');
 
-clearvars -except img 
+clearvars -except img
 
 
 

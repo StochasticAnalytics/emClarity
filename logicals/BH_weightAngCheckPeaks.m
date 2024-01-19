@@ -1,7 +1,7 @@
 function [ peakWgt, sortedList ] = BH_weightAngCheckPeaks(positionList, nPeaks, ...
-                                                          score_sigma, iSubTomo, tomoName,...
-                                                          track_stats)
-                                                          
+  score_sigma, iSubTomo, tomoName,...
+  track_stats)
+
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -9,7 +9,7 @@ function [ peakWgt, sortedList ] = BH_weightAngCheckPeaks(positionList, nPeaks, 
 % converege to the same value earlier on and therby save computation. For
 % testing, set a bit more conservatively.
 angleTolerance = 5;
-compressByFactor = 2;  
+compressByFactor = 2;
 
 % Check that the class id is not set to ignore
 includedPeaks = reshape(find(positionList(26:26:26*nPeaks) ~= -9999),[],1);
@@ -46,7 +46,7 @@ else
   % re-determine sorted included positions
   includedPeaks = reshape(find(sortedList(26:26:26*nPeaks) ~= -9999),[],1);
   excludedPeaks = reshape(find(sortedList(26:26:26*nPeaks) == -9999),[],1);
-  peakWgt(includedPeaks) = 1; 
+  peakWgt(includedPeaks) = 1;
   peakWgt(excludedPeaks) = -9999;
   
   nIncluded = numel(includedPeaks);
@@ -55,29 +55,29 @@ end
 % List to loop over to check for unique angles
 combinations = [nIncluded:-1:2,1];
 nCHk = nchoosek(combinations,2);
- 
+
 for iMax = nIncluded:-1:2
   % Rotation matrix for the peak in question
-
+  
   rNxMx = reshape(sortedList(17+26*(iMax-1):25+26*(iMax-1)),3,3);
   for iComb = find(nCHk(:,1) == iMax)
     rComb = reshape(sortedList(17+26*(nCHk(iComb,2)-1):25+26*(nCHk(iComb,2)-1)),3,3);
-%     distVect = (180/pi)*sqrt(sum((rNxMx-rComb).^2,1));
+    %     distVect = (180/pi)*sqrt(sum((rNxMx-rComb).^2,1));
     % From http://www.boris-belousov.net/2016/12/01/quat-dist/#using-rotation-matrices
     R = rNxMx * transpose(rComb);
     angDist = acosd((trace(R)-1)./2);
-
-
+    
+    
     if all(angDist < angleTolerance)
       % this is a duplicate rotation, set its class to -9999 to ignore.
       sortedList(26+26*(iMax-1)) = -9999;
       peakWgt(iMax) = -9999;
       break
     end
-      
+    
   end
 end
-  
+
 % % Sort with peak # in col one descending on the CCC
 % rankedScores = sortrows([includedPeaks, positionList(1 + 26.*(includedPeaks-1))'],-2);
 
@@ -118,7 +118,7 @@ if mod(iSubTomo,25)
     fprintf('%1.3f ', peakWgt(i));
   end
   fprintf(']\n');
-
+  
   
 end
 

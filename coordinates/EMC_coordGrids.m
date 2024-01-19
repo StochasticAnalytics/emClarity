@@ -104,7 +104,7 @@ else % 2d
         gY(gY < 0) = gY(gY < 0) + 2.*pi;  % set from [-pi,pi] to [0,2pi]
         gZ = nan;
     else
-       	error('EMC:SYSTEM', "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial'")
+        error('EMC:SYSTEM', "SYSTEM should be  'cartesian', 'spherical', 'cylindrical' or 'radial'")
     end
 end
 

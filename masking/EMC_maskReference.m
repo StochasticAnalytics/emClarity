@@ -110,20 +110,20 @@ end
 if flg.is3d
     if flg.isOnGpu
         IMAGE = EMC_applyBandpass(...
-                    gpuArray(medfilt3(gather(IMAGE), [3,3,3])) .* minusEdges, ...
-                    EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, optBandpass), ...
-                    {});
+            gpuArray(medfilt3(gather(IMAGE), [3,3,3])) .* minusEdges, ...
+            EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, optBandpass), ...
+            {});
     else
         IMAGE = EMC_applyBandpass(...
-                    medfilt3(IMAGE, [3,3,3]) .* minusEdges, ...
-                    EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, optBandpass), ...
-                    {});
+            medfilt3(IMAGE, [3,3,3]) .* minusEdges, ...
+            EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, optBandpass), ...
+            {});
     end
 else
     IMAGE = EMC_applyBandpass(...
-                medfilt2(IMAGE, [3,3]) .* minusEdges, ...
-                EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, optBandpass), ...
-                {});
+        medfilt2(IMAGE, [3,3]) .* minusEdges, ...
+        EMC_getBandpass(SIZE, PIXEL, nan, OPTION.lowpass, flg.method, optBandpass), ...
+        {});
 end
 
 % Make sure no wrap-around artifacts.
@@ -152,7 +152,7 @@ for threshold = dilationThresholds .* maxThreshold
     for i = 1:ceil(threshold.^2 ./ 3)
         binaryMask = (~binaryMask .* EMC_convn(tofloat(binaryMask), dilationKernel) > 0.00) + binaryMask;
     end
-
+    
     % This part is crucial as it restricts the expansion to the close pixel higher than the current
     % threshold. This is where the 'connectivity' really happens.
     binaryMask = (IMAGE .* binaryMask) > threshold;
@@ -162,7 +162,7 @@ end
 % Save this volume to compute the particle fraction.
 if OPTION.fsc
     particleVolEstimate = sum(binaryMask, 'all');
-
+    
     taperKernel = EMC_gaussianKernel([1,4], 1.75, flg.method, {'precision', flg.precision});
     MASK_CORE = EMC_convn(tofloat(binaryMask), taperKernel);
     MASK_CORE = EMC_convn(sqrt(MASK_CORE),taperKernel);
@@ -182,57 +182,57 @@ end
 % one can arbitrarily decrease the measured SNR. Even though this expansion is almost certainly
 % containing surrounding solvent, estimate the signal reduction in the taper as the mask could
 % cut through densities.
-if OPTION.fsc 
+if OPTION.fsc
     smoothKernel = EMC_gaussianKernel([1, rad], rad/2, flg.method, {'precision', flg.precision});
     fscMask = EMC_convn(tofloat(binaryMask), convn(smoothKernel, smoothKernel));
     fscMask = fscMask ./ max(fscMask(:));
     maskVolume = sum(fscMask>0, 'all');
-
+    
     powerReduction = sum(IMAGE.^2 .* (fscMask>0), 'all') ./ sum(IMAGE.^2 .* fscMask, 'all');
-
+    
     % Scale the particle volume; 'remove' its hydration volume.
     % TODO: so we assume particleVolEstimate contains some solvent then?
     particleVolEstimate = particleVolEstimate ./ OPTION.hydration_scaling;
-
+    
     % Finally, estimate the fraction of the mask taken by the particle, by
     % comparing the particle volume (not-hydrated) to the mask volume (scalled down
     % to take into account the power reduction due to the taper).
     FRACTION = maskVolume ./ (particleVolEstimate .* powerReduction);
-
+    
     if EMC_gp_verbose
         fprintf(['FSC mask: Estimated particule volume : %d voxels\n', ...
-                 '               Estimated mask volume : %d voxels\n', ...
-                 '                     Power reduction : %2.3f\n', ...
-                 '                   Particle fraction : %2.3f\n'], ...
-                 particleVolEstimate, maskVolume, powerReduction, 1/FRACTION);
+            '               Estimated mask volume : %d voxels\n', ...
+            '                     Power reduction : %2.3f\n', ...
+            '                   Particle fraction : %2.3f\n'], ...
+            particleVolEstimate, maskVolume, powerReduction, 1/FRACTION);
     end
-
+    
     % Make sure no wrap-around artifacts.
     MASK = fscMask .* minusEdges;
-
+    
     % To compute the COM, restrict to the region most likely to contain only the protein.
     if OPTION.com; COM = EMC_centerOfMass(MASK .* binaryMask, OPTION.origin); else; COM = nan; end
-
+    
     % Setting varargout.
     varargout = {MASK_CORE, FRACTION, COM};
 elseif OPTION.pca
     
     smoothKernel = EMC_gaussianKernel([1, rad], rad/2, flg.method, {'precision', flg.precision});
     MASK = EMC_convn(tofloat(binaryMask), convn(smoothKernel, smoothKernel));
-    MASK = MASK ./ max(MASK(:));    
+    MASK = MASK ./ max(MASK(:));
     % Make sure no wrap-around artifacts.
     MASK = MASK .* minusEdges;
-
+    
     if OPTION.com; COM = EMC_centerOfMass(MASK, OPTION.origin); else; COM = nan; end
-
+    
     % Setting varargout.
     varargout = {COM};
 else
     % Make sure no wrap-around artifacts.
     MASK = binaryMask .* minusEdges;
-
+    
     if OPTION.com; COM = EMC_centerOfMass(MASK, OPTION.origin); else; COM = nan; end
-
+    
     % Setting varargout.
     varargout = {COM};
 end
@@ -256,13 +256,13 @@ if ~isscalar(PIXEL) || ~isnumeric(PIXEL) || isinf(PIXEL) || ~(PIXEL > 0)
 end
 
 OPTION = EMC_getOption(OPTION, {'origin', 'fsc', 'pca', 'com', 'lowpass', 'threshold', ...
-                                'hydration_scaling', 'precision', 'method'}, false);
+    'hydration_scaling', 'precision', 'method'}, false);
 
 % origin
 if isfield(OPTION, 'origin')
     if ~isscalar(OPTION.origin) || ~isnumeric(OPTION.origin)
         error('EMC:origin', 'OPTION.origin should be an integer, got %s of size: %s', ...
-              class(OPTION.origin), mat2str(size(OPTION.origin)))
+            class(OPTION.origin), mat2str(size(OPTION.origin)))
     elseif OPTION.origin ~= 1 && OPTION.origin ~= 0 && OPTION.origin ~= 2
         error('EMC:origin', 'OPTION.origin should be 0, 1 or 2, got %d', OPTION.origin)
     end
@@ -303,7 +303,7 @@ end
 % lowpass
 if isfield(OPTION, 'lowpass')
     if ~isscalar(OPTION.lowpass) || ~isnumeric(OPTION.lowpass) || ...
-       isinf(OPTION.lowpass) || ~(OPTION.lowpass >= 0)
+            isinf(OPTION.lowpass) || ~(OPTION.lowpass >= 0)
         error('EMC:LOWPASS', 'OPTION.lowpass should be a nonnegative float|int')
     elseif OPTION.lowpass < PIXEL * 2
         OPTION.lowpass = PIXEL * 2;
@@ -316,7 +316,7 @@ end
 if isfield(OPTION, 'threshold')
     if ~isscalar(OPTION.threshold) || ~isnumeric(OPTION.threshold)
         error('EMC:threshold', 'OPTION.threshold should be a numeric scalar, got %s of size: %s', ...
-              class(OPTION.threshold), mat2str(size(OPTION.threshold)))
+            class(OPTION.threshold), mat2str(size(OPTION.threshold)))
     end
 else
     OPTION.threshold = 2.5;  % default
@@ -325,7 +325,7 @@ end
 % hydration_scaling
 if isfield(OPTION, 'hydration_scaling')
     if ~isscalar(OPTION.hydration_scaling) || ~isnumeric(OPTION.hydration_scaling) || ...
-       isinf(OPTION.hydration_scaling) || ~(OPTION.hydration_scaling >= 0)
+            isinf(OPTION.hydration_scaling) || ~(OPTION.hydration_scaling >= 0)
         error('EMC:hydration_scaling', 'OPTION.hydration_scaling should be a nonnegative float|int')
     end
 else

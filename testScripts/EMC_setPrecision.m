@@ -25,7 +25,7 @@ switch PRECISION
         NUM = uint64(NUM);
     otherwise
         error('EMC:precision', ["PRECISION should be 'single', 'double', 'logical', ", ...
-                                "'int16', 'int32', 'int64', 'uint16', 'uint32' or 'uint64'"])
+            "'int16', 'int32', 'int64', 'uint16', 'uint32' or 'uint64'"])
 end
 
 end

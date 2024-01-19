@@ -78,7 +78,7 @@ OPTION = EMC_getOption(OPTION, {'origin', 'shift', 'normalize', 'isotrope', 'hal
 if isfield(OPTION, 'origin')
     if ~isscalar(OPTION.origin) || ~isnumeric(OPTION.origin)
         error('EMC:origin', 'OPTION.origin should be an integer, got %s of size: %s', ...
-              class(OPTION.origin), mat2str(size(OPTION.origin)))
+            class(OPTION.origin), mat2str(size(OPTION.origin)))
     elseif OPTION.origin ~= 1 && OPTION.origin ~= -1 && OPTION.origin ~= 0 && OPTION.origin ~= 2
         error('EMC:origin', 'OPTION.origin should be 0, 1, 2, or -1, got %d', OPTION.origin)
     end
@@ -97,17 +97,17 @@ end
 if isfield(OPTION, 'shift')
     if ~isnumeric(OPTION.shift) || ~isrow(OPTION.shift)
         error('EMC:shift', ...
-              'OPTION.shift should be a row vector of float|int, got %s', class(OPTION.shift))
+            'OPTION.shift should be a row vector of float|int, got %s', class(OPTION.shift))
     elseif any(isnan(OPTION.shift)) || any(isinf(OPTION.shift))
         error('EMC:shift', ...
-              'OPTION.shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
+            'OPTION.shift should not contain NaNs or Inf, got %s', mat2str(OPTION.shift, 2))
     elseif numel(OPTION.shift) ~= ndim
         error('EMC:shift', ...
-              'For a %dd SIZE, OPTION.shift should be a vector of %d float|int, got %s', ...
-              ndim, ndim, mat2str(OPTION.shift, 2))
+            'For a %dd SIZE, OPTION.shift should be a vector of %d float|int, got %s', ...
+            ndim, ndim, mat2str(OPTION.shift, 2))
     elseif (OPTION.half || OPTION.origin == -1) && any(OPTION.shift)
         error('EMC:shift', ...
-              'OPTION.shifts are not allowed with half=true or origin=-1 , got %s', mat2str(OPTION.shift, 2))
+            'OPTION.shifts are not allowed with half=true or origin=-1 , got %s', mat2str(OPTION.shift, 2))
     end
 else
     OPTION.shift = zeros(1, ndim);  % default
@@ -131,7 +131,7 @@ end
 
 if isfield(OPTION, 'precision')
     if ~(ischar(OPTION.precision) || isstring(OPTION.precision)) || ...
-       ~strcmpi(OPTION.precision, 'single') && ~strcmpi(OPTION.precision, 'double')
+            ~strcmpi(OPTION.precision, 'single') && ~strcmpi(OPTION.precision, 'double')
         error('EMC:precision', "OPTION.precision should be 'single' or 'double'")
     end
 else
@@ -188,7 +188,7 @@ if OPTION.origin >= 0
     if isDim(2); vY = (limits(1, 2) - OPTION.shift(2)):(limits(2, 2) - OPTION.shift(2)); else; vY = nan; end
     if is3d;     vZ = (limits(1, 3) - OPTION.shift(3)):(limits(2, 3) - OPTION.shift(3)); else; vZ = nan; end
     
-% reciprocal space
+    % reciprocal space
 else
     if isDim(1)
         if (OPTION.half)

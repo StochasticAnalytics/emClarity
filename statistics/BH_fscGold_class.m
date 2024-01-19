@@ -15,7 +15,7 @@ function [ refWGT ] = BH_fscGold_class( PARAMETER_FILE, CYCLE, STAGEofALIGNMENT,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if (nargin < 3 && nargin > 4)
-  error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT') 
+  error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
 end
 
 
@@ -62,7 +62,7 @@ end
 try
   shape_mask_lowpass = emc.('shape_mask_lowpass');
 catch
-  shape_mask_lowpass = 14; 
+  shape_mask_lowpass = 14;
 end
 
 try
@@ -80,7 +80,7 @@ end
 
 % Estimating the particle volume still occasionaly goes awry. Place a cap and return a cautionary message.
 
-try 
+try
   minimumParticleVolume = emc.('minimumparticleVolume');
 catch
   minimumParticleVolume = 0.1;
@@ -90,7 +90,7 @@ try fscWithChimera = emc.('fscWithChimera');
 catch fscWithChimera = 0;
 end
 
-outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta')); 
+outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta'));
 samplingRate = emc.('Ali_samplingRate');
 
 pixelSize = emc.('PIXEL_SIZE').*10^10.*samplingRate;
@@ -108,22 +108,22 @@ else
   coneList = 0;
   nCones = 0;
   halfAngle = 0;
-  calcCones = 0;  
+  calcCones = 0;
 end
 
 if ( calcCones )
   n=2;
   coneList = cell(nCones,1);
   halfAngle= cell(nCones,1);
-  halfAngle{1} = 1.2*coneInc; % coneInc should be afactor of 90 and 360 so 
-                                 % this should return an integer
+  halfAngle{1} = 1.2*coneInc; % coneInc should be afactor of 90 and 360 so
+  % this should return an integer
   coneList{1} = [0,0,0];
   for j = coneInc:coneInc:90;
     for i = 0:coneInc:360-coneInc
       coneList{n} = [i,j,0];
       halfAngle{n}= halfAngle{1} ;
       n=n+1;
-    end 
+    end
   end
 end
 
@@ -146,7 +146,7 @@ end
 
 
 % The default is fsc-Gold Standard so the two images should need some degree of
-% alignment prior to calculating the fsc. 
+% alignment prior to calculating the fsc.
 flgAlignImages = 1;
 flgJustFSC=0;
 % check to see if images supplied, or to be read in.
@@ -160,32 +160,32 @@ if iscell(STAGEofALIGNMENT)
     error('Size of img1 and img2 are inconsistent.')
   else
     IMG1 = STAGEofALIGNMENT{1};
-    IMG2 = STAGEofALIGNMENT{2}; 
+    IMG2 = STAGEofALIGNMENT{2};
     flgJustFSC=1;
     nReferences=2;
-      refVector{1} =1;
-      refVector{2}= 1;
-      STAGEofALIGNMENT = 'RawAlignment';
-      fieldPrefix = 'REF'
+    refVector{1} =1;
+    refVector{2}= 1;
+    STAGEofALIGNMENT = 'RawAlignment';
+    fieldPrefix = 'REF'
   end
 else
   
   switch STAGEofALIGNMENT
     case 'RawAlignment'
       savePrefix = 'Raw';
-       if (flgClassify) 
-          fieldPrefix = 'Raw';
-       
-         className = 0;
-         classVector = [0;1];
-       else
+      if (flgClassify)
+        fieldPrefix = 'Raw';
+        
+        className = 0;
+        classVector = [0;1];
+      else
         className    = emc.(sprintf('Raw_className'));
         classVector   = emc.(sprintf('Raw_classes_odd'));
-        fieldPrefix = 'REF';      
+        fieldPrefix = 'REF';
       end
       
-
-
+      
+      
       nReferences = length(classVector(1,:))
       
       imageName{1} =  sprintf('class_%d_Locations_%s_ODD_NoWgt', className,fieldPrefix);
@@ -193,18 +193,18 @@ else
       weightName{1} = sprintf('class_%d_Locations_%s_ODD_Wgt', className,fieldPrefix);
       weightName{2} = sprintf('class_%d_Locations_%s_EVE_Wgt', className,fieldPrefix);
       imageName{1}
-
+      
       refVector{1} =1;
       refVector{2}= 1;
       outputPrefix = sprintf('%s_Raw', outputPrefix);
-
+      
     case 'NoAlignment'
       savePrefix = 'Raw';
       if (flgClassify)
         
         fieldPrefix = 'NoA';
       else
-        fieldPrefix = 'REF';                
+        fieldPrefix = 'REF';
       end
       imageName{1} = sprintf('class_0_Locations_%s_ODD_NoWgt', fieldPrefix);
       imageName{2} =  sprintf('class_0_Locations_%s_EVE_NoWgt', fieldPrefix);
@@ -214,7 +214,7 @@ else
       nReferences = 1;
       refVector{1} =1;
       refVector{2}= 1;
-     
+      
       outputPrefix = sprintf('%s_NoA', outputPrefix);
     case 'Cluster'
       error('Fsc calculation for cluster results is not implemented.')
@@ -227,7 +227,7 @@ else
         fieldPrefix = 'NoA'
       end
       imageName{1} = sprintf('class_%d_Locations_%s_ODD_NoWgt', 25,fieldPrefix);
-      imageName{2} = sprintf('class_%d_Locations_%s_EVE_NoWgt', 25,fieldPrefix);  
+      imageName{2} = sprintf('class_%d_Locations_%s_EVE_NoWgt', 25,fieldPrefix);
       outputPrefix = sprintf('%s_Snr', outputPrefix);
       refVector{1} = [1:25];
       refVector{2} = [1:25];
@@ -244,13 +244,13 @@ end
 
 % [ maskType, maskSize, maskRadius, maskCenter ] = ...
 %                                   BH_multi_maskCheck(emc, 'Ali', pixelSize,'FSC')
-                               
+
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-                                  BH_multi_maskCheck(emc, 'Ali', pixelSize)
-                                
+  BH_multi_maskCheck(emc, 'Ali', pixelSize)
+
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
-                                       BH_multi_validArea(  maskSize, maskRadius, scaleCalcSize )
-                                     
+  BH_multi_validArea(  maskSize, maskRadius, scaleCalcSize )
+
 padDIM = max(max(sizeWindow),384);
 padREF = [0,0,0;0,0,0];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -259,38 +259,38 @@ if (flgAlignImages) && ~(flgJustFSC)
   refIMG = cell(2,1);
   refWGT = cell(2,1);
   for iGold = 1:2
-
+    
     if iGold == 1
       halfSet = 'ODD';
     else
       halfSet = 'EVE';
     end
-
+    
     [ refIMG{iGold} ] = BH_unStackMontage4d(1:nReferences, ...
-                                masterTM.(cycleNumber).(imageName{iGold}){1},...
-                                masterTM.(cycleNumber).(imageName{iGold}){2},...
-                                sizeWindow);
-
+      masterTM.(cycleNumber).(imageName{iGold}){1},...
+      masterTM.(cycleNumber).(imageName{iGold}){2},...
+      sizeWindow);
+    
     [ refWGT{iGold} ] = BH_unStackMontage4d(1:nReferences, ...
-                                masterTM.(cycleNumber).(weightName{iGold}){1},...
-                                masterTM.(cycleNumber).(weightName{iGold}){2},...
-                                sizeCalc);
-
+      masterTM.(cycleNumber).(weightName{iGold}){1},...
+      masterTM.(cycleNumber).(weightName{iGold}){2},...
+      sizeCalc);
+    
     padLSQ = BH_multi_padVal(sizeWindow,sizeCalc);
     trimLSQ = BH_multi_padVal(sizeCalc,sizeWindow);
     for iLSQ = 1:nReferences
       padIMG = fftn(BH_padZeros3d(refIMG{iGold}{iLSQ},padLSQ(1,:),padLSQ(2,:),'GPU','single'));
       padWGT = ifftshift(gpuArray(refWGT{iGold}{iLSQ}));
-
+      
       [padWGT, wienerThreshold] = BH_multi_cRef_wgtCritical(padWGT);
-     
-%       padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
+      
+      %       padIMG = real(ifftn(padIMG./(padWGT+wienerThreshold)));
       padIMG = real(ifftn(padIMG./(padWGT+100)));
-
+      
       clear padWGT
       refIMG{iGold}{iLSQ} = BH_padZeros3d(gather(padIMG),trimLSQ(1,:),trimLSQ(2,:),'cpu','single');
-      clear padIMG 
-    end                          
+      clear padIMG
+    end
   end
   clear refWGT
 else
@@ -302,7 +302,7 @@ end
 
 
 % Make a mask, and apply to the average motif && save a masked, binned copy of
-% the average for inspection. 
+% the average for inspection.
 
 % % % % % % % [ tmpMask ] = BH_mask3d(maskType, sizeMask, maskRadius-7, maskCenter);
 
@@ -311,21 +311,21 @@ end
 volMask{1} = gather(BH_multi_randomizeTaper(tmpMask));
 volMask{2} = gather(BH_multi_randomizeTaper(tmpMask)); clear tmpMask
 
-% % % % % % % [ tmpMask] = BH_mask3d(maskType, sizeMask, peakSearch, maskCenter);  
+% % % % % % % [ tmpMask] = BH_mask3d(maskType, sizeMask, peakSearch, maskCenter);
 [ tmpMask ]  = EMC_maskShape(maskType, sizeMask, peakSearch, 'gpu', {'shift', maskCenter});
 
 peakMask{1} = gather(BH_multi_randomizeTaper(tmpMask));
 peakMask{2} = gather(BH_multi_randomizeTaper(tmpMask)); clear tmpMask
 
 bandpassFilt = cell(2,1);
-    bandpassFilt{1} = BH_bandpass3d(sizeCalc,0,0,0,'cpu','nyquist');
-    bandpassFilt{2} = BH_bandpass3d(sizeCalc,0,0,0,'cpu','nyquist');
+bandpassFilt{1} = BH_bandpass3d(sizeCalc,0,0,0,'cpu','nyquist');
+bandpassFilt{2} = BH_bandpass3d(sizeCalc,0,0,0,'cpu','nyquist');
 
 clear radialGrid
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
- % Default on.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Default on.
 % if ( flgEstSolvent )
-   particleVolume = zeros(nReferences,1);
+particleVolume = zeros(nReferences,1);
 % else
 %   particleVolume = ones(nReferences,1);
 % end
@@ -341,86 +341,86 @@ end
 if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
   refRotAvg = cell(nReferences,1);
   for iGold = 1:2
-
+    
     for iRef = 1:nReferences
-     % iHalf = refVector{iGold}(iRef);
+      % iHalf = refVector{iGold}(iRef);
       if iGold == 1
         refRotAvg{iRef} = refIMG{iGold}{iRef};%BH_axialSymmetry(refIMG{iGold}{iRef}, 120,...
-                                                                %0, 'GPU',[0,0,0]);
+        %0, 'GPU',[0,0,0]);
       end
-
-
+      
+      
     end
   end
- 
-
-    bestAnglesTotal = zeros(nReferences,12);
-
+  
+  
+  bestAnglesTotal = zeros(nReferences,12);
+  
   nCount = 1;
   
   for iRef = 1:nReferences
     
-      fprintf('working on %d/ %d references FscGold\n', iRef, nReferences);
-
-
-      [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});  
-      [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
-        
-      if (shape_mask_test)
-        fprintf('\nSaving your masks and exiting!\n');
-        SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
-                                     outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
-        return;
+    fprintf('working on %d/ %d references FscGold\n', iRef, nReferences);
+    
+    
+    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
+    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
+    
+    if (shape_mask_test)
+      fprintf('\nSaving your masks and exiting!\n');
+      SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
+        outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
+      return;
+    end
+    
+    if (flgFscShapeMask)
+      shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
+      shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
+    else
+      shapeMask_1 = 1;
+      shapeMask_2 = 1;
+    end
+    
+    particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
+    pV1 = gather(pV1.*volMask{1});
+    pV2 = gather(pV2.*volMask{2});
+    
+    % Save a copy with headers set (headers only important for chimera)
+    % TODO: check to see if these are used anywhere else, otherwise, they can probably be
+    % written only in the if fscWithChimera block.
+    eveName = sprintf('%s-eveAli.mrc', outputPrefix);
+    oddName = sprintf('%s-oddAli.mrc', outputPrefix);
+    SAVE_IMG(MRCImage(gather(refIMG{2}{iRef}.*pV2)), ...
+      eveName, 1.0, 1);
+    SAVE_IMG(MRCImage(gather(refIMG{1}{iRef}.*pV1)), ...
+      oddName, 1.0,1);
+    
+    if (fscWithChimera)
+      [whereIsChimera, ~] = system('which chimera');
+      if (whereIsChimera)
+        error('fscWithChimera is called, but "chimera" not in system PATH.')
       end
-
-      if (flgFscShapeMask)
-        shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-        shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
-      else
-        shapeMask_1 = 1;
-        shapeMask_2 = 1;
-      end
-
-      particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
-      pV1 = gather(pV1.*volMask{1});
-      pV2 = gather(pV2.*volMask{2});
-
-      % Save a copy with headers set (headers only important for chimera)
-      % TODO: check to see if these are used anywhere else, otherwise, they can probably be
-      % written only in the if fscWithChimera block.
-      eveName = sprintf('%s-eveAli.mrc', outputPrefix);
-      oddName = sprintf('%s-oddAli.mrc', outputPrefix);
-      SAVE_IMG(MRCImage(gather(refIMG{2}{iRef}.*pV2)), ...
-               eveName, 1.0, 1);
-      SAVE_IMG(MRCImage(gather(refIMG{1}{iRef}.*pV1)), ...
-               oddName, 1.0,1);
-
-      if (fscWithChimera)
-        [whereIsChimera, ~] = system('which chimera');
-        if (whereIsChimera)
-          error('fscWithChimera is called, but "chimera" not in system PATH.')
-        end
-        writeOutPyAli()
-        system(sprintf('chimera --nogui --script "FSC/fitInMap.py %s %s %s-fitInMap.txt" ',...
-                       oddName,eveName,outputPrefix));
-                             % Read in the results
-        % 1:9 rotation matrix 10:12 = dXYZ
-        bestAnglesTotal(nCount,:) = load(sprintf('%s-fitInMap.txt',outputPrefix));
-        % The results from fit in map are the transpose of Bah, forward rotmat
-        bestAnglesTotal(nCount,1:9) = bestAnglesTotal(nCount,[1,4,7,2,5,8,3,6,9]);
-        % The results are in Angstrom
-        bestAnglesTotal(nCount,(10:12)) = bestAnglesTotal(nCount,(10:12));
-      else
-        % If we did not align the two halfsets together, we just need to return dummy values
-        % for an identity matrix and zero translation.
-        bestAnglesTotal(nCount,:) = [1,0,0,0,1,0,0,0,1,0,0,0];
-      end
-
-      nCount = nCount+1;
+      writeOutPyAli()
+      system(sprintf('chimera --nogui --script "FSC/fitInMap.py %s %s %s-fitInMap.txt" ',...
+        oddName,eveName,outputPrefix));
+      % Read in the results
+      % 1:9 rotation matrix 10:12 = dXYZ
+      bestAnglesTotal(nCount,:) = load(sprintf('%s-fitInMap.txt',outputPrefix));
+      % The results from fit in map are the transpose of Bah, forward rotmat
+      bestAnglesTotal(nCount,1:9) = bestAnglesTotal(nCount,[1,4,7,2,5,8,3,6,9]);
+      % The results are in Angstrom
+      bestAnglesTotal(nCount,(10:12)) = bestAnglesTotal(nCount,(10:12));
+    else
+      % If we did not align the two halfsets together, we just need to return dummy values
+      % for an identity matrix and zero translation.
+      bestAnglesTotal(nCount,:) = [1,0,0,0,1,0,0,0,1,0,0,0];
+    end
+    
+    nCount = nCount+1;
   end
   
 elseif (flgAlignImages) && ~(flgJustFSC) && (flgEstSNR)
- error('this block in FSC alignment is slated for removal');
+  error('this block in FSC alignment is slated for removal');
 end
 
 
@@ -444,7 +444,7 @@ if ( flgEstSNR )
   
   nRep = 1;
   for iRef = 1:5
-    for iRep = 1:4     
+    for iRep = 1:4
       for iPerm = iRep+1:5
         tmpRef{1}{nRep}   = refIMG{1}{iRep  + 5*(iRef-1)};
         tmpRef{2}{nRep}   = refIMG{2}{iPerm + 5*(iRef-1)};
@@ -458,47 +458,47 @@ if ( flgEstSNR )
         
       end
     end
-  end 
-refSymmetry = [1:100;ones(1,100)];
-refIMG = tmpRef; clear tmpRef
-nReferences = 100;
+  end
+  refSymmetry = [1:100;ones(1,100)];
+  refIMG = tmpRef; clear tmpRef
+  nReferences = 100;
 end
 
 for iRef = 1:nReferences
   
   if (flgAlignImages) && ~(flgJustFSC)
-
-
+    
+    
     img2 = refIMG{2}{iRef};
-
+    
     if (flgEstSNR)
-     img1 = BH_resample3d(gather(refIMG{1}{iRef}), ...
-                                  bestAnglesTotal(1,3:5), ...
-                                  bestAnglesTotal(1,8:10), ...
-                                  {'Bah',1,'spline'}, 'cpu', 'forward');
+      img1 = BH_resample3d(gather(refIMG{1}{iRef}), ...
+        bestAnglesTotal(1,3:5), ...
+        bestAnglesTotal(1,8:10), ...
+        {'Bah',1,'spline'}, 'cpu', 'forward');
     else
-
-       rotMat = bestAnglesTotal(iRef,1:9);
-       dXYZ = bestAnglesTotal(iRef,10:12);
-
-     if abs(3-sum(rotMat([1,5,9]))) < .005
-       % Should I pad this? The shifts are small enough it prob is okay.
-       fprintf('\nRotation xform is very small, just applying phase shifts\n')
-      [ dU, dV, dZ ] = BH_multi_gridCoordinates(size(refIMG{1}{iRef}),'Cartesian','cpu', ...
-                                                      {'none'},1,0,0);
-
+      
+      rotMat = bestAnglesTotal(iRef,1:9);
+      dXYZ = bestAnglesTotal(iRef,10:12);
+      
+      if abs(3-sum(rotMat([1,5,9]))) < .005
+        % Should I pad this? The shifts are small enough it prob is okay.
+        fprintf('\nRotation xform is very small, just applying phase shifts\n')
+        [ dU, dV, dZ ] = BH_multi_gridCoordinates(size(refIMG{1}{iRef}),'Cartesian','cpu', ...
+          {'none'},1,0,0);
+        
         shiftVect = exp((-2i*pi).*(dU.*dXYZ(1) + dV.*dXYZ(2)+ dZ.*dXYZ(3)));
         clear dU dV dZ
         img1 = real(ifftn(fftn(gather(refIMG{1}{iRef})).*shiftVect));
-     else
-       img1 = BH_resample3d(gather(refIMG{1}{iRef}), ...
-                                  rotMat, ...
-                                  dXYZ, ...
-                                  {'Bah',1,'spline'}, 'cpu', 'forward');
-     end
+      else
+        img1 = BH_resample3d(gather(refIMG{1}{iRef}), ...
+          rotMat, ...
+          dXYZ, ...
+          {'Bah',1,'spline'}, 'cpu', 'forward');
+      end
     end
-                         
-                      
+    
+    
     halfSet = 'GLD';
     fprintf('resampling ref %d.\n', iRef);
     img1 = BH_padZeros3d(img1,[0,0,0],[0,0,0],'cpu','singleTaper');
@@ -507,71 +507,71 @@ for iRef = 1:nReferences
     img1=IMG1;
     img2=IMG2;
     
-       
-      [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
-      [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
-      
-      if (shape_mask_test)
-        fprintf('\nSaving your masks and exiting!\n');
-        SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
-                                     outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
-        return;
-      end
-      
-        
-      if (flgFscShapeMask)
-        shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-        shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
-      else
-        shapeMask_1 = 1;
-        shapeMask_2 = 1;
-      end
-      
-      
-      particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
-      pV1 = gather(pV1.*volMask{1});
-      pV2 = gather(pV2.*volMask{2});
-     
- 
-
+    
+    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
+    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
+    
+    if (shape_mask_test)
+      fprintf('\nSaving your masks and exiting!\n');
+      SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
+        outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
+      return;
+    end
+    
+    
+    if (flgFscShapeMask)
+      shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
+      shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
+    else
+      shapeMask_1 = 1;
+      shapeMask_2 = 1;
+    end
+    
+    
+    particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
+    pV1 = gather(pV1.*volMask{1});
+    pV2 = gather(pV2.*volMask{2});
+    
+    
+    
     halfSet = 'OUT';
   else
     halfSet = 'STD';
   end
   
   
-    
-    
-    imgFilt1 = BH_bandLimitCenterNormalize(img1.*volMask{1}.*shapeMask_1,bandpassFilt{iGold}, ...
-                                             (volMask{1} > 0.01),padCalc, 'single');
-    imgFilt1 = real(ifftn(imgFilt1));
-    imgFilt1 = single(gather(imgFilt1(padCalc(1,1)+1 : end - padCalc(2,1), ...
-                                      padCalc(1,2)+1 : end - padCalc(2,2), ...
-                                      padCalc(1,3)+1 : end - padCalc(2,3) )));
-    imgFilt2 = BH_bandLimitCenterNormalize(img2.*volMask{2}.*shapeMask_2,bandpassFilt{iGold}, ...
-                                             (volMask{2} > 0.01),padCalc, 'single');
-    imgFilt2 = real(ifftn(imgFilt2));
-    imgFilt2 = single(gather(imgFilt2(padCalc(1,1)+1 : end - padCalc(2,1), ...
-                                      padCalc(1,2)+1 : end - padCalc(2,2), ...
-                                      padCalc(1,3)+1 : end - padCalc(2,3) )));                      
-      % Should replace these with a call to padZeros3d
-    img1 = img1(padWindow(1,1)+1 : end - padWindow(2,1), ...
-                padWindow(1,2)+1 : end - padWindow(2,2), ...
-                padWindow(1,3)+1 : end - padWindow(2,3) );
-
-    img2 = img2(padWindow(1,1)+1 : end - padWindow(2,1), ...
-                padWindow(1,2)+1 : end - padWindow(2,2), ...
-                padWindow(1,3)+1 : end - padWindow(2,3) );
-
+  
+  
+  imgFilt1 = BH_bandLimitCenterNormalize(img1.*volMask{1}.*shapeMask_1,bandpassFilt{iGold}, ...
+    (volMask{1} > 0.01),padCalc, 'single');
+  imgFilt1 = real(ifftn(imgFilt1));
+  imgFilt1 = single(gather(imgFilt1(padCalc(1,1)+1 : end - padCalc(2,1), ...
+    padCalc(1,2)+1 : end - padCalc(2,2), ...
+    padCalc(1,3)+1 : end - padCalc(2,3) )));
+  imgFilt2 = BH_bandLimitCenterNormalize(img2.*volMask{2}.*shapeMask_2,bandpassFilt{iGold}, ...
+    (volMask{2} > 0.01),padCalc, 'single');
+  imgFilt2 = real(ifftn(imgFilt2));
+  imgFilt2 = single(gather(imgFilt2(padCalc(1,1)+1 : end - padCalc(2,1), ...
+    padCalc(1,2)+1 : end - padCalc(2,2), ...
+    padCalc(1,3)+1 : end - padCalc(2,3) )));
+  % Should replace these with a call to padZeros3d
+  img1 = img1(padWindow(1,1)+1 : end - padWindow(2,1), ...
+    padWindow(1,2)+1 : end - padWindow(2,2), ...
+    padWindow(1,3)+1 : end - padWindow(2,3) );
+  
+  img2 = img2(padWindow(1,1)+1 : end - padWindow(2,1), ...
+    padWindow(1,2)+1 : end - padWindow(2,2), ...
+    padWindow(1,3)+1 : end - padWindow(2,3) );
+  
   % Save a temp copy of the aligned references to visualy inspect the results
   SAVE_IMG(MRCImage(imgFilt1), sprintf('./FSC/fscTmp_%d_ODD.mrc',iRef));
-  SAVE_IMG(MRCImage(imgFilt2), sprintf('./FSC/fscTmp_%d_EVE.mrc',iRef)); 
+  SAVE_IMG(MRCImage(imgFilt2), sprintf('./FSC/fscTmp_%d_EVE.mrc',iRef));
   
   clear imgFilt1 imgFilt2
   
   [ fscPAD ] = BH_multi_padVal(size(img1), padDIM(1));
   [ rad,~,~,~,~,~ ] = BH_multi_gridCoordinates(padDIM.*[1,1,1], 'Cartesian', 'GPU', ...
-                                   {'none'}, 1, 0, 1 );
+    {'none'}, 1, 0, 1 );
   rad = single(rad)./pixelSize;
   
   if (flgFscShapeMask)
@@ -580,9 +580,9 @@ for iRef = 1:nReferences
     % TODO add a flag since the phase randomized is not used in practice
     %!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
-   % Only need to calculate phase randomized masks if the fscShapeMask is
-   % applied during the FSC calculation. If instead it is used to estimate
-   % the particle volume (flgEstSolvent) then no mask is directly applied.
+    % Only need to calculate phase randomized masks if the fscShapeMask is
+    % applied during the FSC calculation. If instead it is used to estimate
+    % the particle volume (flgEstSolvent) then no mask is directly applied.
     fscRandCutoffRes = 3*masterTM.currentResForDefocusError(1);
     lowResShift = pixelSize*2 - 10;
     if lowResShift <= 0
@@ -598,42 +598,42 @@ for iRef = 1:nReferences
     fscTcutoff = (floor((1/(fscRandCutoffRes*.95)-lowResShift)/ shellInc)) * shellInc;
     %Calculate the fsc on phase randomized masked volumes.
     [randGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(padDIM.*[1,1,1], 'Cartesian', ...
-                                                       'cpu', {'none'}, 1, 0, 1 );
+      'cpu', {'none'}, 1, 0, 1 );
     randGrid = single(randGrid./pixelSize);
     randLowRES  = (randGrid <  randCutoff);
     randHighRES = (randGrid >= randCutoff);
-
-
+    
+    
     clear randGrid
     [ fou1 ] = fftn(BH_padZeros3d(img1, fscPAD(1,:), fscPAD(2,:), 'cpu', 'singleTaper'));
-       
-    for iShuffle = 1    
+    
+    for iShuffle = 1
       rng('shuffle')
       fou1 = single(real(ifftn(abs(fou1) .* exp(1i .* (...
-                        randLowRES  .* angle(fou1) + ...
-                        randHighRES .* pi.*(rand(size(fou1),'single')))))));       
+        randLowRES  .* angle(fou1) + ...
+        randHighRES .* pi.*(rand(size(fou1),'single')))))));
     end
-
-   
+    
+    
     
     [ fou2 ] = fftn(BH_padZeros3d(img2 , fscPAD(1,:), fscPAD(2,:), 'cpu', 'singleTaper'));
     for iShuffle = 1
       rng('shuffle')
-      fou2 = single(real(ifftn(abs(fou2) .* exp(1i .* (...                    
-                        randLowRES  .* angle(fou2) + ...
-                        randHighRES .* pi.*(rand(size(fou2),'single'))))))); 
-         
+      fou2 = single(real(ifftn(abs(fou2) .* exp(1i .* (...
+        randLowRES  .* angle(fou2) + ...
+        randHighRES .* pi.*(rand(size(fou2),'single')))))));
+      
     end
- 
-
+    
+    
     
     
     clear randLowRES randHighRES
     fou1 = fftn(fou1.*BH_padZeros3d(pV1, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     fou2 = fftn(fou2.*BH_padZeros3d(pV2 , fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
-
+    
     [shellsRandFreq, shellsRandFSC, ~,~] = ...
-                  calc_shells(fou1, fou2, rad, pixelSize, coneList,'rand');
+      calc_shells(fou1, fou2, rad, pixelSize, coneList,'rand');
     clear fou1 fou2
     
   else
@@ -641,7 +641,7 @@ for iRef = 1:nReferences
     shapeMask_1 = 1.*volMask{1};
     shapeMask_2 = 1.*volMask{2};
   end
-
+  
   img1 = img1 - mean(img1(shapeMask_1>0.01));
   img1 = img1 ./ rms(img1(shapeMask_1>0.01));
   img1 = img1 .* shapeMask_1;
@@ -652,25 +652,25 @@ for iRef = 1:nReferences
   
   SAVE_IMG(MRCImage(single(gather(img1))), sprintf('./FSC/fscTmp_%d_noFilt_ODD.mrc',iRef));
   SAVE_IMG(MRCImage(single(gather(img2))), sprintf('./FSC/fscTmp_%d_noFilt_EVE.mrc',iRef));
-    
+  
   [ img1 ] = BH_padZeros3d(img1 , fscPAD(1,:), fscPAD(2,:), 'GPU', 'singleTaper');
   fou1 = fftn(img1); %clear img1
   [ img2 ] = BH_padZeros3d(img2 , fscPAD(1,:), fscPAD(2,:), 'GPU', 'singleTaper');
   fou2 = fftn(img2); %clear img2
   [shellsFreq, shellsFSC, shellsNUM,shellsPOWER] = ...
-                  calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle);
+    calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle);
   clear fou1 fou2
   if (flgFscShapeMask)
-     fou1 = fftn(img1.*BH_padZeros3d(pV1, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
-     clear pv1
-     fou2 = fftn(img2.*BH_padZeros3d(pV2, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
+    fou1 = fftn(img1.*BH_padZeros3d(pV1, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
+    clear pv1
+    fou2 = fftn(img2.*BH_padZeros3d(pV2, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     [tightFreq, tightFSC,~,~] = ...
-                  calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle); 
-     fitTightFSC = csape(tightFreq(:,1),tightFSC(:,1),'variational');                
-     clear pv2
+      calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle);
+    fitTightFSC = csape(tightFreq(:,1),tightFSC(:,1),'variational');
+    clear pv2
   end
   clear img1 img2
-
+  
   
   for iFSC = 1:size(shellsFSC,2)
     f = 2.* particleVolume(iRef);
@@ -680,60 +680,60 @@ for iRef = 1:nReferences
     fscParticle = f.*fscUnMasked ./ (1 + (f-1).*abs(fscUnMasked));
     shellsFSC(1:firstZero,iFSC) = fscParticle(1:firstZero);
   end
-
-   % Oversampled curve
-  osX = [0:0.001:0.5]'./pixelSize; 
   
-
-
+  % Oversampled curve
+  osX = [0:0.001:0.5]'./pixelSize;
+  
+  
+  
   forceMask = cell(nCones+1,1);
   forceMaskAlign = cell(nCones+1,1);
   fitFSC = cell(nCones+1,1);
   fitNUM = cell(nCones+1,1);
   oneBitCut  = zeros(nCones+1,1);
   halfBitCut = zeros(nCones+1,1);
-
-
- 
-    for iCone = 1:nCones+1
-      fitFSC{iCone} = csape(shellsFreq(:,iCone),shellsFSC(:,iCone),'variational');
-      fitNUM{iCone} = csape(shellsFreq(:,iCone),shellsNUM(:,iCone));
-    end
- 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% test save masking curve
+  
+  
+  
+  for iCone = 1:nCones+1
+    fitFSC{iCone} = csape(shellsFreq(:,iCone),shellsFSC(:,iCone),'variational');
+    fitNUM{iCone} = csape(shellsFreq(:,iCone),shellsNUM(:,iCone));
+  end
+  
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% test save masking curve
   if (flgFscShapeMask)
-
-
+    
+    
     transitionFreq = find(osX > fscTcutoff,1,'first');
     
     fscRand = csape( shellsRandFreq(:,1), shellsRandFSC(:,1), 'variational');
-   
+    
     fscDiff = csape( osX, (fnval(fitTightFSC,osX)-fnval(fscRand,osX))./(1-fnval(fscRand,osX)), 'variational');
     fscTrue = csape( osX, [fnval(fitTightFSC,osX(1:transitionFreq));fnval(fscDiff,osX(transitionFreq+1:end))],'variational');
-
-  SAVE_IMG(MRCImage(single(gather(shapeMask_1))), ...
-                sprintf('%s-%d-shapeMask_%d.mrc', outputPrefix, iRef, 1));
-   
-   SAVE_IMG(MRCImage(single(gather(shapeMask_2))), ...
-                 sprintf('%s-%d-shapeMask_%d.mrc', outputPrefix, iRef, 2));
-   if (minimumParticleVolume < 1)
-     % Only save if used.
-     SAVE_IMG(MRCImage(single(gather(pV1))), ...
-                sprintf('%s-%d-particleVolEst_%d.mrc', outputPrefix, iRef, 1));
-
-     SAVE_IMG(MRCImage(single(gather(pV2))), ...
-                 sprintf('%s-%d-particleVolEst_%d.mrc', outputPrefix, iRef, 2));
-   end
-           
-  end           
- %%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-
-
+    
+    SAVE_IMG(MRCImage(single(gather(shapeMask_1))), ...
+      sprintf('%s-%d-shapeMask_%d.mrc', outputPrefix, iRef, 1));
+    
+    SAVE_IMG(MRCImage(single(gather(shapeMask_2))), ...
+      sprintf('%s-%d-shapeMask_%d.mrc', outputPrefix, iRef, 2));
+    if (minimumParticleVolume < 1)
+      % Only save if used.
+      SAVE_IMG(MRCImage(single(gather(pV1))), ...
+        sprintf('%s-%d-particleVolEst_%d.mrc', outputPrefix, iRef, 1));
+      
+      SAVE_IMG(MRCImage(single(gather(pV2))), ...
+        sprintf('%s-%d-particleVolEst_%d.mrc', outputPrefix, iRef, 2));
+    end
+    
+  end
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
+  
   whiteningFilter = 1;
   % Initial pass at the 1bit and 1/2bit curves, for now set the D/L parameter ast
   % 2/3 as planned for first cycle. Later use (volumeEst)^1/3 as saved from
   % cRef_Vnorm.
-
+  
   DbyL = 2/3;
   % This should be the same for both half sets
   if ~(flgEstSNR)
@@ -751,19 +751,19 @@ for iRef = 1:nReferences
   end
   nCones
   nEffective = fnval(fitNUM{1},osX).*(3/2.*DbyL).^2 ./ (2.*gridSearch.number_of_asymmetric_units);
-
+  
   oneBIT = ( 0.5+2.4142./sqrt(nEffective) ) ./ ...
-           ( 1.5 + 1.4142./sqrt(nEffective) );
-        
-
+    ( 1.5 + 1.4142./sqrt(nEffective) );
+  
+  
   halfBIT= ( 0.207+1.9102./sqrt(nEffective) ) ./ ...
-           ( 1.2071 + 0.9102./sqrt(nEffective) );
-         
-  aliBIT = mean([oneBIT,halfBIT]);          
+    ( 1.2071 + 0.9102./sqrt(nEffective) );
+  
+  aliBIT = mean([oneBIT,halfBIT]);
   % Find the two common cutoff values -- need a better way to determine the second
   % value that handles non-monotonic curves and is still smooth/gentle without
   % falling off too slowly.
-
+  
   
   lowCut1 = find(fnval(fitFSC{1},osX) <= 0.143 & osX > 1/100, 1, 'first');
   try
@@ -776,145 +776,145 @@ for iRef = 1:nReferences
   catch
     halfBitCut(1) = find(osX .* pixelSize > 0.425, 1, 'first');
   end
-
-% Particularly for working at higher binning, this allows using the full
-% frequency range, which is the most information/calc.
-if isempty(lowCut1)
-  lowCut1 = find(osX .* pixelSize > 0.425, 1, 'first');
-end
-
-
-
-% The value 0.005 looked steep but not too steep when I did a first test. This
-% should be chosen with some more consideration.
-forceMask{1} = exp(-0.005.^-2 .* (osX-osX(halfBitCut(1))).^2);
-forceMask{1}(1:halfBitCut(1)) = 1;
-
-% Make a more conservative taper for alignment, forcing the cRef curve to zero
-% starting from ssnr 2
-lowCutAlign = find(fnval(fitFSC{1},osX) <= 1/2 & osX > 1/100, 1, 'first');
-% Particularly for working at higher binning, this allows using the full
-% frequency range, which is the most information/calc.
-if isempty(lowCutAlign)
-  lowCutAlign = find(osX .* pixelSize > 0.425, 1, 'first');
-end
-
-forceMaskAlign{1} = exp(-0.005.^-2 .* (osX-osX(oneBitCut(1))).^2);
-forceMaskAlign{1}(1:oneBitCut(1)) = 1;
-
-lowestRes = 0;
-highestRes = 0;
-
-if (flgCones)
-  lowestRes  = 1./osX(lowCut1);
-  highestRes = 1./osX(lowCut1);
-  for iCone = 1:nCones
- 
-    forceMask{iCone+1} = ones(size(osX));
-    lowCut1 = find(fnval(fitFSC{iCone+1},osX) <= 0.143 & osX > 1/100, 1, 'first');
-    try
-      oneBitCut(iCone+1) = find(fnval(fitFSC{iCone+1},osX)- aliBIT  < 0 & osX > 1/100, 1, 'first');
-    catch
-      oneBitCut(iCone+1) = find(osX .* pixelSize > 0.425, 1, 'first');
+  
+  % Particularly for working at higher binning, this allows using the full
+  % frequency range, which is the most information/calc.
+  if isempty(lowCut1)
+    lowCut1 = find(osX .* pixelSize > 0.425, 1, 'first');
+  end
+  
+  
+  
+  % The value 0.005 looked steep but not too steep when I did a first test. This
+  % should be chosen with some more consideration.
+  forceMask{1} = exp(-0.005.^-2 .* (osX-osX(halfBitCut(1))).^2);
+  forceMask{1}(1:halfBitCut(1)) = 1;
+  
+  % Make a more conservative taper for alignment, forcing the cRef curve to zero
+  % starting from ssnr 2
+  lowCutAlign = find(fnval(fitFSC{1},osX) <= 1/2 & osX > 1/100, 1, 'first');
+  % Particularly for working at higher binning, this allows using the full
+  % frequency range, which is the most information/calc.
+  if isempty(lowCutAlign)
+    lowCutAlign = find(osX .* pixelSize > 0.425, 1, 'first');
+  end
+  
+  forceMaskAlign{1} = exp(-0.005.^-2 .* (osX-osX(oneBitCut(1))).^2);
+  forceMaskAlign{1}(1:oneBitCut(1)) = 1;
+  
+  lowestRes = 0;
+  highestRes = 0;
+  
+  if (flgCones)
+    lowestRes  = 1./osX(lowCut1);
+    highestRes = 1./osX(lowCut1);
+    for iCone = 1:nCones
+      
+      forceMask{iCone+1} = ones(size(osX));
+      lowCut1 = find(fnval(fitFSC{iCone+1},osX) <= 0.143 & osX > 1/100, 1, 'first');
+      try
+        oneBitCut(iCone+1) = find(fnval(fitFSC{iCone+1},osX)- aliBIT  < 0 & osX > 1/100, 1, 'first');
+      catch
+        oneBitCut(iCone+1) = find(osX .* pixelSize > 0.425, 1, 'first');
+      end
+      try
+        halfBitCut(iCone+1)= find(fnval(fitFSC{iCone+1},osX)-halfBIT < 0 & osX > 1/100, 1, 'first');
+      catch
+        halfBitCut(iCone+1) = find(osX .* pixelSize > 0.425, 1, 'first');
+      end
+      
+      % first try to use 0.5, if not default to 0.425 cyc/pix
+      if isempty(lowCut1)
+        lowCut1 = find(fnval(fitFSC{iCone+1},osX) <= 0.5 & osX > 1/100, 1, 'first');
+      end
+      if isempty(lowCut1)
+        lowCut1 = find(osX .* pixelSize > 0.425, 1, 'first');
+      end
+      
+      if lowestRes < 1./osX(lowCut1)
+        lowestRes = 1./osX(lowCut1);
+      elseif highestRes > 1./ osX(lowCut1)
+        highestRes = 1./osX(lowCut1);
+      end
+      
+      forceMask{iCone+1} = exp(-0.005.^-2 .* (osX-osX(lowCut1)).^2);
+      forceMask{iCone+1}(1:lowCut1) = 1;
+      
+      forceMaskAlign{iCone+1} = exp(-0.005.^-2 .* (osX-osX(oneBitCut(iCone+1))).^2);
+      forceMaskAlign{iCone+1}(1:oneBitCut(iCone+1)) = 1;
     end
-    try
-      halfBitCut(iCone+1)= find(fnval(fitFSC{iCone+1},osX)-halfBIT < 0 & osX > 1/100, 1, 'first');
-    catch
-      halfBitCut(iCone+1) = find(osX .* pixelSize > 0.425, 1, 'first');
+  end
+  
+  % Calculate cRef as in Rosenthal & Henderson 2003
+  
+  cRef = cell(nCones+1,1);
+  cRefAli= cell(nCones+1,1);
+  
+  cRefCurve = sqrt( abs(2.*fnval(fitFSC{1},osX)./(1+fnval(fitFSC{1},osX))) ) ...
+    .* forceMask{1} .* whiteningFilter;
+  
+  cRef{1} = fit(osX, cRefCurve./max(cRefCurve(:)),'cubicSpline');
+  
+  cRefCurve = sqrt( abs(2.*fnval(fitFSC{1},osX)./(1+fnval(fitFSC{1},osX))) ) ...
+    .* forceMaskAlign{1} .* whiteningFilter;
+  cRefAli{1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');
+  if (flgCones)
+    for iCone = 1:nCones
+      
+      cRefCurve = sqrt( abs(2.*fnval(fitFSC{iCone+1},osX) ./ ...
+        (1+fnval(fitFSC{iCone+1},osX))) ) .* ...
+        forceMask{iCone+1} .* whiteningFilter;
+      
+      cRef{iCone+1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');
+      
+      cRefCurve = sqrt( abs(2.*fnval(fitFSC{iCone+1},osX) ./ ...
+        (1+fnval(fitFSC{iCone+1},osX))) ) .* ...
+        forceMaskAlign{iCone+1} .* whiteningFilter;
+      
+      cRefAli{iCone+1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');
+      
+    end
+  end
+  
+  
+  % Save the fsc info, for calculating cRef. For some reason, when compiled, fit
+  % function can run, but storing a cFit object in a struct or cell doesn't seem
+  % to work?
+  if ~(flgJustFSC)
+    masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRef)) = ...
+      {shellsFreq,shellsFSC,{cRef,cRefAli,bh_global_MTF},osX,forceMaskAlign,forceMask,nCones,coneList,halfAngle,samplingRate};
+    
+    sprintf('Resample_%s%d',savePrefix,iRef)
+    
+    if (flgEstSNR)
+      masterTM.(cycleNumber).('fitFSC').(sprintf('fit%s%d',savePrefix,1))=...
+        [bestAnglesTotal(1,1:9); ...
+        bestAnglesTotal(1,10:12),0,0,0,0,0,0];
+    else
+      masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRef))=...
+        [bestAnglesTotal(iRef,1:9); ...
+        bestAnglesTotal(iRef,10:12),0,0,0,0,0,0];
     end
     
-    % first try to use 0.5, if not default to 0.425 cyc/pix
-    if isempty(lowCut1)
-      lowCut1 = find(fnval(fitFSC{iCone+1},osX) <= 0.5 & osX > 1/100, 1, 'first');
-    end
-    if isempty(lowCut1)
-      lowCut1 = find(osX .* pixelSize > 0.425, 1, 'first');
-    end
- 
-    if lowestRes < 1./osX(lowCut1)
-      lowestRes = 1./osX(lowCut1);
-    elseif highestRes > 1./ osX(lowCut1)
-      highestRes = 1./osX(lowCut1);
-    end
-        
-    forceMask{iCone+1} = exp(-0.005.^-2 .* (osX-osX(lowCut1)).^2);
-    forceMask{iCone+1}(1:lowCut1) = 1;
-          
-    forceMaskAlign{iCone+1} = exp(-0.005.^-2 .* (osX-osX(oneBitCut(iCone+1))).^2);
-    forceMaskAlign{iCone+1}(1:oneBitCut(iCone+1)) = 1;
-  end
-end
-
-% Calculate cRef as in Rosenthal & Henderson 2003
-
-cRef = cell(nCones+1,1);
-cRefAli= cell(nCones+1,1);
-
-cRefCurve = sqrt( abs(2.*fnval(fitFSC{1},osX)./(1+fnval(fitFSC{1},osX))) ) ...
-              .* forceMask{1} .* whiteningFilter;
-            
-cRef{1} = fit(osX, cRefCurve./max(cRefCurve(:)),'cubicSpline');
-
-cRefCurve = sqrt( abs(2.*fnval(fitFSC{1},osX)./(1+fnval(fitFSC{1},osX))) ) ...
-              .* forceMaskAlign{1} .* whiteningFilter;
-cRefAli{1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');     
-if (flgCones)
-  for iCone = 1:nCones
-
-    cRefCurve = sqrt( abs(2.*fnval(fitFSC{iCone+1},osX) ./ ...
-                    (1+fnval(fitFSC{iCone+1},osX))) ) .* ...
-                    forceMask{iCone+1} .* whiteningFilter;
-                    
-    cRef{iCone+1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');
+    masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRef)) =  ...
+      {maskType, sizeMask, ...
+      maskRadius, maskCenter, ...
+      flgFscShapeMask, shape_mask_lowpass, shape_mask_threshold};
     
-    cRefCurve = sqrt( abs(2.*fnval(fitFSC{iCone+1},osX) ./ ...
-                    (1+fnval(fitFSC{iCone+1},osX))) ) .* ...
-                    forceMaskAlign{iCone+1} .* whiteningFilter;
-                    
-    cRefAli{iCone+1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');
-                                     
+    masterTM.('currentResForDefocusError') = osX(oneBitCut).^-1;
   end
-end
-
-
-% Save the fsc info, for calculating cRef. For some reason, when compiled, fit
-% function can run, but storing a cFit object in a struct or cell doesn't seem
-% to work?
-if ~(flgJustFSC)
-  masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRef)) = ...
-  {shellsFreq,shellsFSC,{cRef,cRefAli,bh_global_MTF},osX,forceMaskAlign,forceMask,nCones,coneList,halfAngle,samplingRate};
-
-  sprintf('Resample_%s%d',savePrefix,iRef)
-
-  if (flgEstSNR)
-    masterTM.(cycleNumber).('fitFSC').(sprintf('fit%s%d',savePrefix,1))=...
-                                                   [bestAnglesTotal(1,1:9); ...
-                                                    bestAnglesTotal(1,10:12),0,0,0,0,0,0];
-  else
-    masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRef))=...
-                                                   [bestAnglesTotal(iRef,1:9); ...
-                                                    bestAnglesTotal(iRef,10:12),0,0,0,0,0,0];
-  end
-
-  masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRef)) =  ...
-                                               {maskType, sizeMask, ...
-                                                maskRadius, maskCenter, ...
-                                                flgFscShapeMask, shape_mask_lowpass, shape_mask_threshold};
-                                              
-  masterTM.('currentResForDefocusError') = osX(oneBitCut).^-1;
-end
-
-
-imgOUT = STAGEofALIGNMENT;
-
-clear fout famp1 famp2 fphase1 fphase2
-
-
-    fmid = osX(find(fnval(fitFSC{1},osX) < 0.5 & osX > 1/100, 1, 'first'))
-    fgold = osX(find(fnval(fitFSC{1},osX) < 0.143 & osX > 1/100, 1, 'first'))
-    
-    fprintf('\n0.5 = 1/%f\n0.143 = 1/%f\n', fmid, fgold)
-
+  
+  
+  imgOUT = STAGEofALIGNMENT;
+  
+  clear fout famp1 famp2 fphase1 fphase2
+  
+  
+  fmid = osX(find(fnval(fitFSC{1},osX) < 0.5 & osX > 1/100, 1, 'first'))
+  fgold = osX(find(fnval(fitFSC{1},osX) < 0.143 & osX > 1/100, 1, 'first'))
+  
+  fprintf('\n0.5 = 1/%f\n0.143 = 1/%f\n', fmid, fgold)
+  
   fscOUT = fopen(sprintf('%s-%d-fsc_%s.txt', outputPrefix, iRef, halfSet),'w');
   
   % This seems wildly unecessary, but adding the new fscFull print section
@@ -926,7 +926,7 @@ clear fout famp1 famp2 fphase1 fphase2
     fscMat(:,iCol+1) = fnval(fitFSC{iCol},osX);
   end
   fscMat = fscMat';
-  nRow = 1; 
+  nRow = 1;
   nTot = 1;
   while nTot < numel(fscMat)
     while nRow <= nCol + 1
@@ -938,40 +938,40 @@ clear fout famp1 famp2 fphase1 fphase2
     fprintf(fscOUT,'\n');
   end
   fclose(fscOUT);
-
-
+  
+  
   if (flgCones)
-      
-     figure('Visible','off'), plot(osX,fnval(fitFSC{1},osX),'kd','MarkerSize',2.5); hold on;
-     plot(osX, oneBIT,'c');     
-     plot(osX, halfBIT,'b'); 
-     plot(osX, 0.*osX,'k');
-     plot(osX,fnval(fitFSC{2},osX),'k--');
-      for iCone = 3:length(fitFSC)
-        plot(osX,fnval(fitFSC{iCone},osX),'k--');
-      end
-
-%     title({'FSC',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)}); 
-    title({'FSC',sprintf('0.5 - %3.2f\n0.143 - %3.2f  (%3.2f-%3.2f)\noneBit %3.2f\n halfBit %3.2f\n',1./fmid,1./fgold,lowestRes,highestRes,osX(oneBitCut(1)).^-1,osX(halfBitCut(1)).^-1)}); 
-
+    
+    figure('Visible','off'), plot(osX,fnval(fitFSC{1},osX),'kd','MarkerSize',2.5); hold on;
+    plot(osX, oneBIT,'c');
+    plot(osX, halfBIT,'b');
+    plot(osX, 0.*osX,'k');
+    plot(osX,fnval(fitFSC{2},osX),'k--');
+    for iCone = 3:length(fitFSC)
+      plot(osX,fnval(fitFSC{iCone},osX),'k--');
+    end
+    
+    %     title({'FSC',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)});
+    title({'FSC',sprintf('0.5 - %3.2f\n0.143 - %3.2f  (%3.2f-%3.2f)\noneBit %3.2f\n halfBit %3.2f\n',1./fmid,1./fgold,lowestRes,highestRes,osX(oneBitCut(1)).^-1,osX(halfBitCut(1)).^-1)});
+    
     xlabel('Spatial Freq'); ylabel('fsc');
     legend('FSC','oneBit','halfBit','Location', ...
-         'northeast','Orientation','vertical');  
-    ylim([-.05 1.025])       
+      'northeast','Orientation','vertical');
+    ylim([-.05 1.025])
   else
     figure('Visible','off'), plot(osX,fnval(fitFSC{1},osX),'k',...
-                                  osX, oneBIT, 'c', ...
-                                  osX, halfBIT, 'b', ...                                 
-                                  osX, 0.*osX,'k');
-    title({'FSC',sprintf('0.5 %3.2f\n0.143 %3.2f\noneBit %3.2f\n halfBit %3.2f\n',1./fmid,1./fgold,osX(oneBitCut(1)).^-1,osX(halfBitCut(1)).^-1)}); 
+      osX, oneBIT, 'c', ...
+      osX, halfBIT, 'b', ...
+      osX, 0.*osX,'k');
+    title({'FSC',sprintf('0.5 %3.2f\n0.143 %3.2f\noneBit %3.2f\n halfBit %3.2f\n',1./fmid,1./fgold,osX(oneBitCut(1)).^-1,osX(halfBitCut(1)).^-1)});
     xlabel('Spatial Freq'); ylabel('fsc');
     legend('FSC','oneBit','halfBit','Location', ...
-               'northeast','Orientation','vertical');
-    ylim([-.05 1.025])             
-   
+      'northeast','Orientation','vertical');
+    ylim([-.05 1.025])
+    
     
   end
-
+  
   file_out = sprintf('%s-%d-fsc_%s', outputPrefix, iRef, halfSet);
   saveas(gcf, file_out,'pdf')
   
@@ -979,56 +979,56 @@ clear fout famp1 famp2 fphase1 fphase2
   % For comparing results from a tight mask and solvent normalized fsc
   % The tight mask calculation is not so reliable (which is by it isn't used in the first place.
   % This is used for the figure S3 in the Nature Methods paper, but not in regular us.
-    figure('Visible','off'), plot(osX,fnval(fitTightFSC,osX),'k-.',...
-                                  osX,fnval(fscTrue,osX),'k',...
-                                  osX,fnval(fitFSC{1},osX),'b',...
-                                  osX, 0.*osX+0.143, 'k--',...
-                                  osX,zeros(length(osX)),'k');
-                               
-    fTightGold = osX(find(fnval(fscTrue,osX) < 0.143 & osX > 1/100, 1, 'first'));  
+  figure('Visible','off'), plot(osX,fnval(fitTightFSC,osX),'k-.',...
+    osX,fnval(fscTrue,osX),'k',...
+    osX,fnval(fitFSC{1},osX),'b',...
+    osX, 0.*osX+0.143, 'k--',...
+    osX,zeros(length(osX)),'k');
+  
+  fTightGold = osX(find(fnval(fscTrue,osX) < 0.143 & osX > 1/100, 1, 'first'));
+  
+  title({'FSC',sprintf('0.143 - %3.2f, %3.2f\n(paritcleVolume,tightMask)',1./fgold,1./fTightGold)});
+  xlabel('Spatial Freq'); ylabel('fsc');
+  ylim([-.05 1.025])
+  file_out = sprintf('%s-%d-fscFull_%s', outputPrefix, iRef, halfSet);
+  % saveas(gcf, file_out,'pdf')
+  
+  % fscRandOUT = fopen(sprintf('%s-%d-fscFull_%s.txt', outputPrefix, iRef, halfSet),'w');
+  % fprintf(fscRandOUT,'%4.4f\t%4.4f\t%4.4f\t%4.4f\n',[osX,fnval(fitTightFSC,osX),fnval(fscTrue,osX),fnval(fitFSC{1},osX)]');
+  % fclose(fscRandOUT);
+  figure('Visible','off'), plot(osX,cRef{1}(osX),'kd','MarkerSize',3); hold on;
+  if (flgCones)
     
-    title({'FSC',sprintf('0.143 - %3.2f, %3.2f\n(paritcleVolume,tightMask)',1./fgold,1./fTightGold)}); 
-    xlabel('Spatial Freq'); ylabel('fsc');
-    ylim([-.05 1.025])  
-    file_out = sprintf('%s-%d-fscFull_%s', outputPrefix, iRef, halfSet);
-   % saveas(gcf, file_out,'pdf')
-    
-   % fscRandOUT = fopen(sprintf('%s-%d-fscFull_%s.txt', outputPrefix, iRef, halfSet),'w');
-   % fprintf(fscRandOUT,'%4.4f\t%4.4f\t%4.4f\t%4.4f\n',[osX,fnval(fitTightFSC,osX),fnval(fscTrue,osX),fnval(fitFSC{1},osX)]');
-   % fclose(fscRandOUT); 
-    figure('Visible','off'), plot(osX,cRef{1}(osX),'kd','MarkerSize',3); hold on;
-    if (flgCones)
-
-      plot(osX,cRef{2}(osX),'k--'); 
-      for iCone = 3:length(cRef)
-        plot(osX,cRef{iCone}(osX),'k--');
-      end
+    plot(osX,cRef{2}(osX),'k--');
+    for iCone = 3:length(cRef)
+      plot(osX,cRef{iCone}(osX),'k--');
     end
-
-    title({'cRef',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)}); 
-    xlabel('Spatial Freq'); ylabel('fsc');
-    legend('cRef','Location', ...
-         'northeastoutside','Orientation','vertical');
-    ylim([-.05 1.025])
-
-      file_out = sprintf('%s-%d-cRef_%s', outputPrefix, iRef, halfSet);
-      saveas(gcf, file_out,'pdf')
-      figure('Visible','off'), plot(osX,cRefAli{1}(osX),'kd','MarkerSize',3); hold on;
-      if (flgCones)
-
-        plot(osX,cRefAli{2}(osX),'k--');
-      for iCone = 3:length(cRefAli)
-          plot(osX,cRefAli{iCone}(osX),'k--');
-      end
-      end
-      title({'cRefAli',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)}); 
-      xlabel('Spatial Freq'); ylabel('fsc');
-      legend('cRefAli','Location', ...
-           'northeastoutside','Orientation','vertical');
-      ylim([-.05 1.025])
-
-    file_out = sprintf('%s-%d-cRefAli_%s', outputPrefix, iRef, halfSet);
-    saveas(gcf, file_out,'pdf')  
+  end
+  
+  title({'cRef',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)});
+  xlabel('Spatial Freq'); ylabel('fsc');
+  legend('cRef','Location', ...
+    'northeastoutside','Orientation','vertical');
+  ylim([-.05 1.025])
+  
+  file_out = sprintf('%s-%d-cRef_%s', outputPrefix, iRef, halfSet);
+  saveas(gcf, file_out,'pdf')
+  figure('Visible','off'), plot(osX,cRefAli{1}(osX),'kd','MarkerSize',3); hold on;
+  if (flgCones)
+    
+    plot(osX,cRefAli{2}(osX),'k--');
+    for iCone = 3:length(cRefAli)
+      plot(osX,cRefAli{iCone}(osX),'k--');
+    end
+  end
+  title({'cRefAli',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)});
+  xlabel('Spatial Freq'); ylabel('fsc');
+  legend('cRefAli','Location', ...
+    'northeastoutside','Orientation','vertical');
+  ylim([-.05 1.025])
+  
+  file_out = sprintf('%s-%d-cRefAli_%s', outputPrefix, iRef, halfSet);
+  saveas(gcf, file_out,'pdf')
   % % try
   %   fitPower = fit(shellsFreq(:,1).^2,log(shellsPOWER(:,1)),'cubicSpline');
   %   LR = 10;
@@ -1047,12 +1047,12 @@ clear fout famp1 famp2 fphase1 fphase2
   %                     log(shellsPOWER(lowRes:midRes,1)),'poly1');
   %     plot1= true;
   %   end
-  %   if (endRes-midRes > 2)   
+  %   if (endRes-midRes > 2)
   %     bFactorFIT2 = fit(shellsFreq(midRes:endRes,1).^2 , ...
-  %                     log(shellsPOWER(midRes:endRes,1)),'poly1'); 
+  %                     log(shellsPOWER(midRes:endRes,1)),'poly1');
   %     plot2 = true;
-  %   end                
-
+  %   end
+  
   %   figure('Visible','off'), plot(osX.^2,fitPower(osX.^2),'k'); hold on;
   %   if (plot1)
   %       plot(osX.^2,bFactorFIT1(osX.^2),'b--');
@@ -1061,7 +1061,7 @@ clear fout famp1 famp2 fphase1 fphase2
   %     bFactorFIT1.('p1') = 0;
   %   end
   %   if (plot2)
-  %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--'); 
+  %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--');
   %   else
   %     bFactorFIT2 = struct()
   %     bFactorFIT2.('p1') = 0;
@@ -1069,31 +1069,31 @@ clear fout famp1 famp2 fphase1 fphase2
   %                            line([(1/LR)^2,(1/LR)^2], ...
   %                                 [min(log(shellsPOWER(:,1))), ...
   %                                  max(log(shellsPOWER(:,1)))], ...
-  %                                 'Color','k','LineStyle','--'); 
+  %                                 'Color','k','LineStyle','--');
   %                            line([(1/MR)^2,(1/MR)^2], ...
   %                                 [min(log(shellsPOWER(:,1))), ...
   %                                  max(log(shellsPOWER(:,1)))], ...
-  %                                 'Color','k','LineStyle','--');                            
+  %                                 'Color','k','LineStyle','--');
   %                            line([HR,HR], ...
   %                                 [min(log(shellsPOWER(:,1))), ...
   %                                  max(log(shellsPOWER(:,1)))], ...
   %                                 'Color','k','LineStyle','--');
   % %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--');
   %             %   outCurve(:,1).^2,outCurve(:,8),'g');
-
+  
   %            title({'Guinier Plot',sprintf('\nbFactor(%2.1f-%2.1f-%2.1f)\n %d,%d', ...
   %                                  LR,MR,sqrt(1./HR),round(bFactorFIT1.p1*-4),...
   %                                  round(bFactorFIT2.p1*-4))}); ...
-  %                                  xlabel('1/Ang^2'),...                               
+  %                                  xlabel('1/Ang^2'),...
   %                                  ylabel('log(F)');
   %                                  ylim([0.95*min(log(shellsPOWER(:,1))),...
   %                                        1.05*max(log(shellsPOWER(:,1)))])
-
+  
   %            legend('uncorrected','corrected','Location','northeast',...
   %                   'Orientation', 'vertical');
   %   file_out = sprintf('%s-%d-guinier_%s', outputPrefix, iRef, halfSet);
   %   savefig(gcf,file_out);
-  %   saveas(gcf, file_out,'pdf') 
+  %   saveas(gcf, file_out,'pdf')
   % catch
   %   fprintf('\nRan into some error in the guinier analysis.\n');
   %   fprintf('\nSince this is not critical, skipping and continue.\n');
@@ -1107,7 +1107,7 @@ end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Make cones - 
+%%% Make cones -
 
 function [ coneMask ] = make_cones( coneAngles, padDIM, halfAngle)
 
@@ -1120,32 +1120,32 @@ coneShift = [0;0;0];
 
 coneOrientation = BH_defineMatrix(coneAngles,'Bah','invVector');
 [ radius,~,height,~,~,~ ] = ...
-                                BH_multi_gridCoordinates( padDIM.*[1,1,1], ...
-                                                          'Cylindrical', ...
-                                                          'GPU', ...
-                                                          {'single',...
-                                                          coneOrientation,...
-                                                          coneShift, ...
-                                                          'invVector',...
-                                                          1,1},...
-                                                          0, 0, 0 );
+  BH_multi_gridCoordinates( padDIM.*[1,1,1], ...
+  'Cylindrical', ...
+  'GPU', ...
+  {'single',...
+  coneOrientation,...
+  coneShift, ...
+  'invVector',...
+  1,1},...
+  0, 0, 0 );
 
 coneMask = (rad2deg(atan2(radius,abs(height))) < halfAngle);
 
-  
-  
 
-clear radius height 
+
+
+clear radius height
 end % end of the make cones function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Calc FSC 
+%%% Calc FSC
 
 function [shellsFreq, shellsFSC, shellsNsamples, shellsPOWER] = ...
-                    calc_shells(fou1, fou2, rad, pixelSize, coneList, halfAngle)
-                       
+  calc_shells(fou1, fou2, rad, pixelSize, coneList, halfAngle)
 
-                       
+
+
 padDIM = size(fou1);
 
 if isempty(fou2)
@@ -1175,7 +1175,7 @@ end
 
 % Keep same binDiv but override to calc only the spherical FSC for the
 % randomized set.
-if ~isa(halfAngle,'cell') 
+if ~isa(halfAngle,'cell')
   if strcmpi(halfAngle, 'rand')
     nIters = 1;
   end
@@ -1196,37 +1196,37 @@ shellsPOWER = zeros(bin, nIters, 'gpuArray');
 
 for iCalc = 1:nIters
   
-  if iCalc ==1 
+  if iCalc ==1
     iConeMask = 1;
   else
-%     iConeMask = principleAxes{iCalc -1}; 
+    %     iConeMask = principleAxes{iCalc -1};
     iConeMask = make_cones( coneList{iCalc-1}, padDIM, halfAngle{iCalc-1});
   end
-     
-  for q = 1:bin
   
-  qdep=0;
+  for q = 1:bin
+    
+    qdep=0;
     iMask = gpuArray((q-1)*inc <= rad & rad < (q+qdep)*inc & iConeMask);
     shellsFreq(q, iCalc) = inc.*(q-1/2);
-   
+    
     a = real(sum((cross(iMask))));
-
+    
     if (flgPowerSpectrum)
       shellsFSC(q, iCalc) = (a ./ sum(iMask(:)));
     else
       b = sum((auto1(iMask).^2));
       c = sum((auto2(iMask).^2));
       shellsFSC(q, iCalc) = a ./ sqrt(b * c);
-      shellsNsamples(q, iCalc) = sum(iMask(:));   
+      shellsNsamples(q, iCalc) = sum(iMask(:));
       % We want the Average Fourier Amplitudes for Guinier analysis, not the average power
       shellsPOWER(q,iCalc) = sum(auto1(iMask)+auto2(iMask))./(2*shellsNsamples(q,iCalc));
     end
-
+    
     
     
   end
   clear iConeMask
-end 
+end
 shellsFreq = gather(shellsFreq);
 shellsFSC = gather(shellsFSC);
 shellsNsamples = gather(shellsNsamples);
@@ -1240,41 +1240,41 @@ function writeOutPyAli()
 fOUT = fopen(sprintf('FSC/fitInMap.py'),'w');
 
 fprintf(fOUT,['\n'...
-'from sys import argv\n\n',...
-'def fit_map_in_map(map1_path, map2_path, xformName,\n',...
-'                   initial_map1_transform = None,\n',...
-'                   map1_threshold = 3.0,\n',...
-'                   ijk_step_size_min = 0.01,\n',...    
-'                   ijk_step_size_max = 1.5,\n',...     
-'                   max_steps = 5000,\n',...
-'                   optimize_translation = True,\n',...
-'                   optimize_rotation = True):\n',...
-'  from VolumeViewer import open_volume_file\n',...
-'  map1 = open_volume_file(map1_path)[0]\n',... 
-'  map2 = open_volume_file(map2_path)[0]\n\n',...
-'  if initial_map1_transform:\n',...
-'    from Matrix import chimera_xform\n',...
-'    xf = chimera_xform(initial_map1_transform)\n',...
-'    map1.surface_model().openState.globalXform(xf)\n\n',...    
-'  use_threshold = (map1_threshold != None)\n\n',...  
-'  from FitMap.fitmap import map_points_and_weights, motion_to_maximum\n',...
-'  points, point_weights = map_points_and_weights(map1, use_threshold)\n\n',...
-'  move_tf, stats = motion_to_maximum(points, point_weights, map2, max_steps,\n',...
-'                                     ijk_step_size_min, ijk_step_size_max,\n',...
-'                                     optimize_translation, optimize_rotation)\n\n',...
-'  import Matrix\n',...
-'  if initial_map1_transform:\n',...
-'    move_tf = Matrix.multiply_matrices(move_tf, initial_map1_transform)\n\n',...
-'  f = open(xformName,''w'')\n',...
-'  for i in range(4):\n',...
-'    for j in range(3):\n',...
-'      f.write(''{:f}''.format(move_tf[j][i]))\n',...
-'      f.write("\\n")\n\n',...
-'  f.close()\n',...
-'  print move_tf\n',...
-'  tfs = Matrix.transformation_description(move_tf)\n',...
-'  print tfs\n\n',...
-'t = fit_map_in_map(argv[1],argv[2],argv[3])\n']);
+  'from sys import argv\n\n',...
+  'def fit_map_in_map(map1_path, map2_path, xformName,\n',...
+  '                   initial_map1_transform = None,\n',...
+  '                   map1_threshold = 3.0,\n',...
+  '                   ijk_step_size_min = 0.01,\n',...
+  '                   ijk_step_size_max = 1.5,\n',...
+  '                   max_steps = 5000,\n',...
+  '                   optimize_translation = True,\n',...
+  '                   optimize_rotation = True):\n',...
+  '  from VolumeViewer import open_volume_file\n',...
+  '  map1 = open_volume_file(map1_path)[0]\n',...
+  '  map2 = open_volume_file(map2_path)[0]\n\n',...
+  '  if initial_map1_transform:\n',...
+  '    from Matrix import chimera_xform\n',...
+  '    xf = chimera_xform(initial_map1_transform)\n',...
+  '    map1.surface_model().openState.globalXform(xf)\n\n',...
+  '  use_threshold = (map1_threshold != None)\n\n',...
+  '  from FitMap.fitmap import map_points_and_weights, motion_to_maximum\n',...
+  '  points, point_weights = map_points_and_weights(map1, use_threshold)\n\n',...
+  '  move_tf, stats = motion_to_maximum(points, point_weights, map2, max_steps,\n',...
+  '                                     ijk_step_size_min, ijk_step_size_max,\n',...
+  '                                     optimize_translation, optimize_rotation)\n\n',...
+  '  import Matrix\n',...
+  '  if initial_map1_transform:\n',...
+  '    move_tf = Matrix.multiply_matrices(move_tf, initial_map1_transform)\n\n',...
+  '  f = open(xformName,''w'')\n',...
+  '  for i in range(4):\n',...
+  '    for j in range(3):\n',...
+  '      f.write(''{:f}''.format(move_tf[j][i]))\n',...
+  '      f.write("\\n")\n\n',...
+  '  f.close()\n',...
+  '  print move_tf\n',...
+  '  tfs = Matrix.transformation_description(move_tf)\n',...
+  '  print tfs\n\n',...
+  't = fit_map_in_map(argv[1],argv[2],argv[3])\n']);
 
 fclose(fOUT);
 

@@ -39,9 +39,9 @@ eulShaped = zeros(1, 3, size(R,3), 'like', R);
 % The parsed sequence will be in all upper-case letters and validated
 switch seq
     case 'ZYX'
-        % Handle Z-Y-X rotation order        
+        % Handle Z-Y-X rotation order
         eulShaped = calculateEulerAngles(R, 'ZYX');
-
+        
     case 'ZYZ'
         % Handle Z-Y-Z rotation order
         eulShaped = calculateEulerAngles(R, 'ZYZ');
@@ -60,7 +60,7 @@ function eul = calculateEulerAngles(R, seq)
 %calculateEulerAngles Calculate Euler angles from rotation matrix
 %   EUL = calculateEulerAngles(R, SEQ) calculates the Euler angles, EUL,
 %   corresponding to the input rotation matrix, R. The Euler angles follow
-%   the axis order specified in SEQ. 
+%   the axis order specified in SEQ.
 
 % Preallocate output
 eul = zeros(1, 3, size(R,3), 'like', R);  %#ok<PREALL>
@@ -97,7 +97,7 @@ k = nextAxis(i-parity+1);
 if repetition
     % Find special cases of rotation matrix values that correspond to Euler
     % angle singularities.
-    sy = sqrt(R(i,j,:).*R(i,j,:) + R(i,k,:).*R(i,k,:));    
+    sy = sqrt(R(i,j,:).*R(i,j,:) + R(i,k,:).*R(i,k,:));
     singular = sy < 10 * eps(class(R));
     
     % Calculate Euler angles
@@ -113,8 +113,8 @@ if repetition
     
 else
     % Find special cases of rotation matrix values that correspond to Euler
-    % angle singularities.  
-    sy = sqrt(R(i,i,:).*R(i,i,:) + R(j,i,:).*R(j,i,:));    
+    % angle singularities.
+    sy = sqrt(R(i,i,:).*R(i,i,:) + R(j,i,:).*R(j,i,:));
     singular = sy < 10 * eps(class(R));
     
     % Calculate Euler angles
@@ -126,7 +126,7 @@ else
     if numSingular > 0
         eul(:,:,singular) = [atan2(-R(j,k,singular), R(j,j,singular)), ...
             atan2(-R(k,i,singular), sy(:,:,singular)), zeros(1,1,numSingular,'like',R)];
-    end    
+    end
 end
 
 if parity

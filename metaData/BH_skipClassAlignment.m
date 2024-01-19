@@ -41,31 +41,31 @@ outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
- 
+  
   if (flgMultiRefAlignment && ~flgClassify)
     subTomoMeta.(cycleNumber).('RawAlign') = ...
-                                subTomoMeta.(cycleNumber).('Avg_geometry');
-
+      subTomoMeta.(cycleNumber).('Avg_geometry');
+    
   elseif (flgMultiRefAlignment && flgClassify)
-     subTomoMeta.(cycleNumber).('RawAlign') = ...
-                                subTomoMeta.(cycleNumber).('ClusterClsGeom');
+    subTomoMeta.(cycleNumber).('RawAlign') = ...
+      subTomoMeta.(cycleNumber).('ClusterClsGeom');
   else
-
-    try 
-     subTomoMeta.(cycleNumber).('RawAlign') = ...
-                                subTomoMeta.(cycleNumber).('ClusterClsGeom');
+    
+    try
+      subTomoMeta.(cycleNumber).('RawAlign') = ...
+        subTomoMeta.(cycleNumber).('ClusterClsGeom');
     catch
-     subTomoMeta.(cycleNumber).('RawAlign') = ...
-                                subTomoMeta.(cycleNumber).('ClusterRefGeom');
+      subTomoMeta.(cycleNumber).('RawAlign') = ...
+        subTomoMeta.(cycleNumber).('ClusterRefGeom');
     end
-
+    
   end
 else
   error(['STAGEofALIGNMENT to skip may be RawAlignment'],...
-        ['the former requires the latter to exist.\n']);
+    ['the former requires the latter to exist.\n']);
 end
 
-save(emc.('subTomoMeta'), 'subTomoMeta');   
+save(emc.('subTomoMeta'), 'subTomoMeta');
 
 
 end

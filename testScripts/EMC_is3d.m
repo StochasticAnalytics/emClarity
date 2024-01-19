@@ -52,7 +52,7 @@ switch ndim
         is3d = false;
     case 1
         error('EMC:SIZE', ['SIZE should have at least 2 elements. To describe vectors, the SIZE should ', ...
-              'be [1, N] for row vectors or [N, 1] for column vector.']);
+            'be [1, N] for row vectors or [N, 1] for column vector.']);
     otherwise
         error('EMC:SIZE', 'SIZE has more element than maximum supported (3), got %d', ndim);
 end

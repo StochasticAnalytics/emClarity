@@ -1,8 +1,8 @@
 function [filtIMG,lVar,lMean,particleMask] = BH_localWiener2d( IMAGE, bandPass,...
-                                                               flgZeroMean,...
-                                                               flgParticle,varargin)
+  flgZeroMean,...
+  flgParticle,varargin)
 %Calculate a locally adaptive wiener filter and smooth image
-%   
+%
 % Use a gaussian disc with 2*stdDev = radius of area for calculating stats.
 % Estimate local noise variance as the average of all local variances
 
@@ -47,10 +47,10 @@ end
 
 if ( useGPU )
   bandPassFilt = BH_bandpass3d([d1,d2,1],10^-6,bandPass(1),bandPass(2), ...
-                                                               'GPU',pixelSize);
+    'GPU',pixelSize);
 else
   bandPassFilt = BH_bandpass3d([d1,d2,1],10^-6,bandPass(1),bandPass(2), ...
-                                                               'cpu',pixelSize);
+    'cpu',pixelSize);
 end
 
 if ( flgMovie )
@@ -69,17 +69,17 @@ end
 
 K = kurtosis(imgSUM(:));
 if abs(K - 3) > 0.75
-
-
+  
+  
   medKernel = min(9,max(3,ceil(sqrt(abs(K-3)))));
   % medfilt wants an odd kernel size
   medKernel = (medKernel + (1-mod(medKernel,2)));
-
+  
   % For some stupid effing reason, medfilt2 returns an error if I pass the
   % medKernel directly, but will take a number of the same class
-%   fprintf(['Found strong outliers, kurtosis = %3.3f,',...
-%            'running median filter size %d\n'],K,medKernel(1));
-
+  %   fprintf(['Found strong outliers, kurtosis = %3.3f,',...
+  %            'running median filter size %d\n'],K,medKernel(1));
+  
   switch medKernel
     case 3
       imgSUM = medfilt2(imgSUM,[3,3]);
@@ -90,8 +90,8 @@ if abs(K - 3) > 0.75
     case 9
       imgSUM = medfilt2(imgSUM,[9,9]);
   end
-
-
+  
+  
 end
 
 
@@ -154,7 +154,7 @@ end
 
 
 if ( flgParticle || flgIterate )
-  [ particleMask ] = calc_particleMask(wienerFilt.*imgSUM, useGPU,totalDose);  
+  [ particleMask ] = calc_particleMask(wienerFilt.*imgSUM, useGPU,totalDose);
 else
   particleMask = '';
 end
@@ -164,33 +164,33 @@ if ( flgIterate )
   lastRatio = lNoiseVar;
   iIter = 1;
   while lastRatio > 1.001 && iIter <= maxIter
-  	if iIter == 1
+    if iIter == 1
       oldBestEst = lNoiseVar;
-    else 
+    else
       oldBestEst = newBestEst;
     end
     newBestEst = mean(lVar(particleMask<0.05));
     fprintf('Current noise variance estimates are %3.3e and now %3.3e\n',...
-            lNoiseVar, newBestEst);
-
+      lNoiseVar, newBestEst);
+    
     if ( flgZeroMean )
       wienerFilt = (max(lVar-newBestEst,0)./(lVar)).^2;
     else
       wienerFilt = lMean + (max(lVar-newBestEst,0))./lVar;
     end
-
-    [ particleMask ] = calc_particleMask(wienerFilt.*imgSUM, useGPU,totalDose);  
-   iIter = iIter + 1;
-   lastRatio = newBestEst/oldBestEst;
+    
+    [ particleMask ] = calc_particleMask(wienerFilt.*imgSUM, useGPU,totalDose);
+    iIter = iIter + 1;
+    lastRatio = newBestEst/oldBestEst;
   end
- 
-
+  
+  
 end
 
 if ( flgMovie )
-
+  
   filtIMG = zeros([d1,d2,d3],'single');
-
+  
   for iPrj = 1:d3
     if iPrj == 1
       iIMG = real(ifftn(fftn(sum(IMAGE(:,:,2:end),3)).*bandPassFilt));
@@ -199,7 +199,7 @@ if ( flgMovie )
     else
       iIMG = real(ifftn(fftn(sum(IMAGE(:,:,1:end-1),3)).*bandPassFilt));
     end
-    % Scale the mean 
+    % Scale the mean
     filtIMG(:,:,iPrj) = gather(wienerFilt.*(iIMG-(lMean.*((d3-1)/d3))));
     filtIMG(:,:,iPrj) = filtIMG(:,:,iPrj) ./ rms(filtIMG(:,:,iPrj));
   end
@@ -208,57 +208,57 @@ else
   filtIMG = filtIMG - mean(filtIMG(:));
   filtIMG = filtIMG ./ rms(filtIMG(:));
 end
-    
-clear IMAGE imgSUM wienerFilt iIMG 
+
+clear IMAGE imgSUM wienerFilt iIMG
 end
 
 function [ particleMask ] = calc_particleMask(filtIMG, useGPU,totalDose)
 
-  % Use the filtered image to make a simplified mask 
-  %%% ADD adaptive cutoff based on number of initial pixels wanted (1% for
-  %%% example)
-    filtIMG = filtIMG ./ rms(filtIMG(:));
+% Use the filtered image to make a simplified mask
+%%% ADD adaptive cutoff based on number of initial pixels wanted (1% for
+%%% example)
+filtIMG = filtIMG ./ rms(filtIMG(:));
 %     intCutoff = 3.0;
 
-    intCutoff = 0.5*sqrt(totalDose);
-    [gx] = BH_multi_gaussian2d(2.*[5,5],2.0,0);
-
-    
-    if ( useGPU )
-      gx = gpuArray(gx);
-    end
-
-    % avoid disconnected densitys by setting high initial cutoff
-    dilatedIMG = convn(filtIMG,gx,'same') > 0.01; %real(ifftn(fftn(filtIMG).*gx));
-    binaryCut = (abs(filtIMG) .* dilatedIMG) > intCutoff;
-    sum(binaryCut(:))./numel(binaryCut);
+intCutoff = 0.5*sqrt(totalDose);
+[gx] = BH_multi_gaussian2d(2.*[5,5],2.0,0);
 
 
-  % relax the cutoff and iteratively dilate the region
-  intCutoff = intCutoff./3 ;
-  growthFactor = 1.2;
-  while growthFactor > 1.05
-    nStart = sum(binaryCut(:));
+if ( useGPU )
+  gx = gpuArray(gx);
+end
 
-    dilatedIMG = convn(binaryCut,gx,'same') > 0.01; %real(ifftn(fftn(binaryCut).*gx));
-    binaryCut  = ( abs(filtIMG) .* dilatedIMG ) > intCutoff;
-    growthFactor = sum(binaryCut(:))/nStart;
-  end
-    
+% avoid disconnected densitys by setting high initial cutoff
+dilatedIMG = convn(filtIMG,gx,'same') > 0.01; %real(ifftn(fftn(filtIMG).*gx));
+binaryCut = (abs(filtIMG) .* dilatedIMG) > intCutoff;
+sum(binaryCut(:))./numel(binaryCut);
 
-  % relax the cutoff and iteratively dilate the region
-  intCutoff = intCutoff./5;
 
-  growthFactor = 1.2;
-  while growthFactor > 1.05
-    nStart = sum(binaryCut(:));
+% relax the cutoff and iteratively dilate the region
+intCutoff = intCutoff./3 ;
+growthFactor = 1.2;
+while growthFactor > 1.05
+  nStart = sum(binaryCut(:));
+  
+  dilatedIMG = convn(binaryCut,gx,'same') > 0.01; %real(ifftn(fftn(binaryCut).*gx));
+  binaryCut  = ( abs(filtIMG) .* dilatedIMG ) > intCutoff;
+  growthFactor = sum(binaryCut(:))/nStart;
+end
 
-    dilatedIMG = convn(binaryCut,gx,'same') > 0.01; %real(ifftn(fftn(binaryCut).*gx));
-    binaryCut  = ( abs(filtIMG) .* dilatedIMG) > intCutoff;
-    growthFactor = sum(binaryCut(:))/nStart;
-  end
+
+% relax the cutoff and iteratively dilate the region
+intCutoff = intCutoff./5;
+
+growthFactor = 1.2;
+while growthFactor > 1.05
+  nStart = sum(binaryCut(:));
+  
+  dilatedIMG = convn(binaryCut,gx,'same') > 0.01; %real(ifftn(fftn(binaryCut).*gx));
+  binaryCut  = ( abs(filtIMG) .* dilatedIMG) > intCutoff;
+  growthFactor = sum(binaryCut(:))/nStart;
+end
 %   particleMask = real(ifftn(fftn(binaryCut).*gx.^2));
-    [gx] = BH_multi_gaussian2d(7.*[1,1],3.0,0);
-    particleMask = convn(convn(binaryCut,gx,'same'),gx,'same');
-    particleMask = particleMask ./ max(particleMask(:));
+[gx] = BH_multi_gaussian2d(7.*[1,1],3.0,0);
+particleMask = convn(convn(binaryCut,gx,'same'),gx,'same');
+particleMask = particleMask ./ max(particleMask(:));
 end

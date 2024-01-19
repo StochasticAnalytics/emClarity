@@ -1,12 +1,12 @@
 function [ Gc1,Gc2,Gc3,g1,g2,g3 ] = BH_multi_gridCoordinates( SIZE, SYSTEM, METHOD, ...
-                                                  TRANSFORMATION, ...
-                                                  flgFreqSpace, ...
-                                                  flgShiftOrigin, flgRad, ...
-                                                  varargin)
+  TRANSFORMATION, ...
+  flgFreqSpace, ...
+  flgShiftOrigin, flgRad, ...
+  varargin)
 %Return grid vectors in R3 for various coordinate systems.
 %   Create grid vectors of dimension SIZE, that are either Cartesian,
 %   Cylindrical, or Spherical. Optionally only return a matrix with radial
-%   values. Grids are centered with the origin at ceil((N+1)/2). 
+%   values. Grids are centered with the origin at ceil((N+1)/2).
 if strcmpi(METHOD,'GPU')
   SIZE = gpuArray(single(SIZE));
 else
@@ -34,19 +34,19 @@ if nargin > 7
       end
     end
   else
-      if strcmpi(varargin{1}{1},'halfGrid')
-        doFullGrid = 0;
-      else
-        error('1st varargin to grid coords is not numeric or (halfGrid bool) not understood');
-      end    
+    if strcmpi(varargin{1}{1},'halfGrid')
+      doFullGrid = 0;
+    else
+      error('1st varargin to grid coords is not numeric or (halfGrid bool) not understood');
+    end
   end
 end
-  
+
 if numel(SIZE) == 3
-  sX = SIZE(1) ; sY = SIZE(2) ; sZ = SIZE(3);  
+  sX = SIZE(1) ; sY = SIZE(2) ; sZ = SIZE(3);
   flg3D = 1;
 elseif numel(SIZE) == 2
-  sX = SIZE(1) ; sY = SIZE(2) ; 
+  sX = SIZE(1) ; sY = SIZE(2) ;
   if strcmpi(METHOD,'GPU'); sZ = gpuArray(single(1)); else sZ = single(1);end
   flg3D = 0;
 else
@@ -61,7 +61,7 @@ if length(flgShiftOrigin) == 4
   % the origin in IMODs case for an even image is -0.5 relative to mine.
   % Switching to force odd size - 20171201
   conventionShift = [0,0,0];
-%   conventionShift = flgShiftOrigin(2:4) .* (1-mod([sX,sY,sZ],2));
+  %   conventionShift = flgShiftOrigin(2:4) .* (1-mod([sX,sY,sZ],2));
   flgShiftOrigin = flgShiftOrigin(1);
 else
   conventionShift = [0,0,0];
@@ -75,7 +75,7 @@ symInc = 0;
 symIDX = 0;
 
 flgMask = 0;
-if iscell(TRANSFORMATION) 
+if iscell(TRANSFORMATION)
   
   switch TRANSFORMATION{1}
     
@@ -96,13 +96,13 @@ if iscell(TRANSFORMATION)
       DIR = 'forwardVector';
       MAG = {TRANSFORMATION{6}};
       
-    case 'single'      
+    case 'single'
       if numel(TRANSFORMATION{2}) == 9
         R = reshape(TRANSFORMATION{2},3,3);
       else
         R = reshape(TRANSFORMATION{2},2,2);
       end
-        
+      
       dXYZ = TRANSFORMATION{3};
       if length(dXYZ) == 2
         dXYZ = [dXYZ;0];
@@ -113,7 +113,7 @@ if iscell(TRANSFORMATION)
         symInc = 360 / flgSymmetry;
         symIDX = 0:flgSymmetry-1;
         Gc1 = cell(flgSymmetry,1);
-        Gc2 = cell(flgSymmetry,1); 
+        Gc2 = cell(flgSymmetry,1);
         Gc3 = cell(flgSymmetry,1);
       else
         symIDX = 1;
@@ -133,8 +133,8 @@ if iscell(TRANSFORMATION)
         end
       end
       
-
-
+      
+      
       
     case 'sequential'
       flgSequential = 1;
@@ -151,77 +151,77 @@ if iscell(TRANSFORMATION)
       
       for iTrans = 1:nTrans
         R_seq{iTrans} = reshape(TRANSFORMATION{iTrans,2},3,3);
-      
+        
         dXYZ_seq{iTrans} = TRANSFORMATION{iTrans,3};
-    
-       
+        
+        
         % Convention is only forward so np need to consider flipping
         MAG_seq{iTrans} = TRANSFORMATION{iTrans,6};
-             
+        
       end
       % For now assuming no symmetry operation on sequential transformations
       flgSymmetry = TRANSFORMATION{1,5};
       DIR = TRANSFORMATION{1,4};
-
+      
       symInc = 360 / flgSymmetry;
       symIDX = 0:flgSymmetry-1;
       Gc1 = {}; Gc2 = {}; Gc3 ={};
       
-     
+      
       
     otherwise
       error(['TRANSFORMATION must be a cell,',...
-            '(none,gridVectors,single,sequential),',...
-            'Rotmat, dXYZ, forward|inv, symmetry\n']);
+        '(none,gridVectors,single,sequential),',...
+        'Rotmat, dXYZ, forward|inv, symmetry\n']);
   end
 end
 
 
 if ( makeVectors )
-   % sX = gpuArray(sX) ; sY = gpuArray(sY) ; sZ = gpuArray(sZ);
-     if flgShiftOrigin == 1
-       if (doFullGrid)
-         x1 = [-1*floor((sX)/2):floor((sX-1)/2)];
-       else
-        x1 = [0:floor((sX)/2)];
-       end      
-       y1 = [-1*floor((sY)/2):floor((sY-1)/2)];
-       if (flg3D); z1 = [-1*floor((sZ)/2):floor((sZ-1)/2)]; end
-
-     elseif flgShiftOrigin == -1
-       if (doFullGrid)
-        x1 = [1:sX];
-       else
-        x1 = 1:ceil((sX+1)/2);
-       end
-       y1 = [1:sY];
-       if (flg3D); z1 = [1:sZ]; end
-       
-     elseif flgShiftOrigin == -2
-       if (doFullGrid)
-        x1 = fftshift([1:sX]);
-       else
-        x1 = fftshift([1:ceil((sX+1)/2);]);
-       end
-       y1 = fftshift([1:sY]);
-       if (flg3D); z1 = fftshift([1:sZ]); end     
+  % sX = gpuArray(sX) ; sY = gpuArray(sY) ; sZ = gpuArray(sZ);
+  if flgShiftOrigin == 1
+    if (doFullGrid)
+      x1 = [-1*floor((sX)/2):floor((sX-1)/2)];
     else
-       if (doFullGrid)
-         x1 = [0:floor(sX/2),-1*floor((sX-1)/2):-1]; 
-       else
-         x1 = [0:floor(sX/2)];
-       end
-       y1 = [0:floor(sY/2),-1*floor((sY-1)/2):-1];  
-       if (flg3D); z1 = [0:floor(sZ/2),-1*floor((sZ-1)/2):-1]; end     
-     end
-     
+      x1 = [0:floor((sX)/2)];
+    end
+    y1 = [-1*floor((sY)/2):floor((sY-1)/2)];
+    if (flg3D); z1 = [-1*floor((sZ)/2):floor((sZ-1)/2)]; end
+    
+  elseif flgShiftOrigin == -1
+    if (doFullGrid)
+      x1 = [1:sX];
+    else
+      x1 = 1:ceil((sX+1)/2);
+    end
+    y1 = [1:sY];
+    if (flg3D); z1 = [1:sZ]; end
+    
+  elseif flgShiftOrigin == -2
+    if (doFullGrid)
+      x1 = fftshift([1:sX]);
+    else
+      x1 = fftshift([1:ceil((sX+1)/2);]);
+    end
+    y1 = fftshift([1:sY]);
+    if (flg3D); z1 = fftshift([1:sZ]); end
+  else
+    if (doFullGrid)
+      x1 = [0:floor(sX/2),-1*floor((sX-1)/2):-1];
+    else
+      x1 = [0:floor(sX/2)];
+    end
+    y1 = [0:floor(sY/2),-1*floor((sY-1)/2):-1];
+    if (flg3D); z1 = [0:floor(sZ/2),-1*floor((sZ-1)/2):-1]; end
+  end
+  
   if strcmpi(METHOD, 'GPU')
     x1 = gpuArray(x1);
     y1 = gpuArray(y1);
     if (flg3D); z1 = gpuArray(z1); end
   end
 end
-  
+
 % Make any needed shifts for convention
 x1 = x1 - conventionShift(1);
 y1 = y1 - conventionShift(2);
@@ -255,7 +255,7 @@ if (flgGridVectors)
   return
 end
 
-% Rescale the vectors prior to making gridVectors 
+% Rescale the vectors prior to making gridVectors
 if (flgSequential)
   x1 = x1.*MAG_seq{1};
   y1 = y1.*MAG_seq{1};
@@ -263,7 +263,7 @@ if (flgSequential)
 else
   x1 = x1.*MAG{1};
   y1 = y1.*MAG{1};
-  z1 = z1.*MAG{1};  
+  z1 = z1.*MAG{1};
 end
 
 % No matter the case, the cartesian grids are needed
@@ -271,7 +271,7 @@ end
 
 
 % Optionally evaluate only a smaller masked region
-if (flgMask) 
+if (flgMask)
   X = X(binaryVol);
   Y = Y(binaryVol);
   Z = Z(binaryVol);
@@ -281,19 +281,19 @@ end
 for iTrans = 1:1+(flgSequential)
   
   if (flgSequential)
-    rAsym = R_seq{iTrans};  
+    rAsym = R_seq{iTrans};
     if (iTrans == 1)
       dXyzAsym = 0;
       % Instead of shifting then shifting back, just note the original shift
     else
-       % adding the R2' because the first term doesn't need to be multiplied by
-       % R2 (in the first action under symmetry loop) but making a change here
-       % which involves extra multiplications is okay, since this function is
-       % used much less than 'single' style resampling.
-       dXyzAsym = ( R_seq{iTrans}'*R_seq{iTrans-1} * ...
-                    dXYZ_seq{iTrans-1}.*MAG_seq{iTrans-1} + ...
-                    R_seq{iTrans-1} * dXYZ_seq{iTrans}.*MAG_seq{iTrans} );
-                  
+      % adding the R2' because the first term doesn't need to be multiplied by
+      % R2 (in the first action under symmetry loop) but making a change here
+      % which involves extra multiplications is okay, since this function is
+      % used much less than 'single' style resampling.
+      dXyzAsym = ( R_seq{iTrans}'*R_seq{iTrans-1} * ...
+        dXYZ_seq{iTrans-1}.*MAG_seq{iTrans-1} + ...
+        R_seq{iTrans-1} * dXYZ_seq{iTrans}.*MAG_seq{iTrans} );
+      
       X = Gc1{1}.*MAG_seq{iTrans};
       Y = Gc2{1}.*MAG_seq{iTrans};
       Z = Gc3{1}.*MAG_seq{iTrans};
@@ -303,18 +303,18 @@ for iTrans = 1:1+(flgSequential)
     % Note that if symmetric, dXYZ changes each loop after this point
     dXyzAsym = dXYZ.*MAG{1};
   end
-
+  
   for iSym = symIDX
-
+    
     % Only in plane symmetries considered anywhere so inv|forward shouldn't
     % matter.
-
+    
     R = rAsym * BH_defineMatrix([iSym.*symInc,0,0],'Bah','inv');
-
+    
     % Any forward transformations of the grids
     if (flgTrans)
       dXYZ = shiftDir .* R*dXyzAsym;
-
+      
       Xnew = X.*R(1) + Y.*R(4) + Z.*R(7) - dXYZ(1);
       Ynew = X.*R(2) + Y.*R(5) + Z.*R(8) - dXYZ(2);
       if (flg3D)
@@ -325,13 +325,13 @@ for iTrans = 1:1+(flgSequential)
     else
       Xnew = X; Ynew = Y ; Znew = Z;
     end
-
+    
     % Only return the radial grid if requested
     if (flgRad)
       G1 = sqrt(Xnew.^2 + Ynew.^2 + Znew.^2);
       G2 = '';
       G3 = '';
-
+      
     else
       switch SYSTEM
         case 'Cartesian'
@@ -343,22 +343,22 @@ for iTrans = 1:1+(flgSequential)
           G2(G2 < 0) = G2(G2 < 0) + 2.*pi;
           % [0,pi]
           G3 = acos(Z./G1);
-
+          
         case 'Cylindrical'
-
+          
           G1 = sqrt(Xnew.^2 + Ynew.^2);
           G2 = atan2(Ynew,Xnew);
           % set from [-pi,pi] --> [0,2pi]
           G2(G2 < 0) = G2(G2 < 0) + 2.*pi;
           G3 = Znew;
-
+          
         otherwise
           error('SYSTEM must be Cartesian, Spherical, Cylindrical')
-       end
+      end
     end
     % Only use as cell if symmetry is requested
     if (flgSymmetry)
-      % 
+      %
       
       Gc1{iSym+1} = G1;
       Gc2{iSym+1} = G2;
@@ -371,7 +371,7 @@ for iTrans = 1:1+(flgSequential)
   end % loop over symmetric transformations
 end % loop over sequential transformations
 
-  
+
 
 clear X Y Z  Xnew Ynew Znew x1 y1 z1
 

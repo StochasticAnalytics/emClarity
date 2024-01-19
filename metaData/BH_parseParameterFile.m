@@ -5,7 +5,7 @@ function [ emc ] = BH_parseParameterFile( PARAMETER_FILE )
 fileID = fopen(PARAMETER_FILE,'r');
 
 p = textscan(fileID, '%s', 'CommentStyle',{'%'},'Delimiter','\n', ...
-                           'TreatAsEmpty',{' '});
+  'TreatAsEmpty',{' '});
 
 nParam = 1;
 p2 = cell(1,1);
@@ -21,17 +21,17 @@ clear p
 emc = struct();
 % Check that all paramters are name: value pairs
 stringValues = {'subTomoMeta'; ...
-                'Ali_mType';'Cls_mType';'Cls_mType';'Raw_mType';'Fsc_mType'; ...
-                'Pca_distMeasure';'Kms_mType';'flgPrecision';'Tmp_xcfScale';...
-                'fastScratchDisk';'Tmp_eraseMaskType';'startingDirection';'Peak_mType';'symmetry'};
+  'Ali_mType';'Cls_mType';'Cls_mType';'Raw_mType';'Fsc_mType'; ...
+  'Pca_distMeasure';'Kms_mType';'flgPrecision';'Tmp_xcfScale';...
+  'fastScratchDisk';'Tmp_eraseMaskType';'startingDirection';'Peak_mType';'symmetry'};
 for i = 1:size(p2,1)
   pNameVal = strsplit(p2{i,1},'=');
   if length(pNameVal) == 1
-      error('Could not split Name=Value pair for\n\t %s',char(pNameVal))
+    error('Could not split Name=Value pair for\n\t %s',char(pNameVal))
   elseif length(pNameVal) > 2
     error('To many colons in\n\t %s',char(pNameVal))
   else
-
+    
     if any(strcmp(stringValues, pNameVal{1}))
       emc.(pNameVal{1}) = pNameVal{2};
     else
@@ -51,7 +51,7 @@ end
 % Used when cutting out subtomos for further processing. Adds extra padding to anticipate shifts etc.
 % This has not been well tested
 
-% When used in average3d, this value is stored in the subTomoMeta. 
+% When used in average3d, this value is stored in the subTomoMeta.
 if ~isfield(emc, 'CUTPADDING')
   emc.('CUTPADDING') = 20;
 end

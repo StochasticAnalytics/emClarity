@@ -1,11 +1,11 @@
 function [ TRANS_IMAGE ] = BH_resample2d( IMAGE, ANGLES, SHIFTS, ...
-                                          CONVENTION, METHOD, DIRECTION, ...
-                                          MAG, SIZEOUT, varargin)
+  CONVENTION, METHOD, DIRECTION, ...
+  MAG, SIZEOUT, varargin)
 %Transform an image in 3d.
 %
-%   
+%
 %   Input Variables:
-%   
+%
 %   IMAGE = 2d volume, or a string specifing a volume to read in.
 %
 %   ANGLES = Euler angles defining the desired transformation
@@ -29,7 +29,7 @@ function [ TRANS_IMAGE ] = BH_resample2d( IMAGE, ANGLES, SHIFTS, ...
 %
 %   Output Variables:
 %
-%   TRANS_IMAGE = the transformed image. 
+%   TRANS_IMAGE = the transformed image.
 %       Independent of the input image being passed in or read in from disk, the
 %       output is an image in memory.
 %
@@ -86,10 +86,10 @@ else
 end
 
 if ischar(IMAGE)
-    % Read in the image
-    stackIN = getVolume(MRCImage(IMAGE),[],[],[]);
+  % Read in the image
+  stackIN = getVolume(MRCImage(IMAGE),[],[],[]);
 else
-    stackIN = IMAGE; clear IMAGE
+  stackIN = IMAGE; clear IMAGE
 end
 
 
@@ -128,8 +128,8 @@ elseif numel(ANGLES) == 6
   % The transformation from IMOD is a rotation matrix scaled by the mag, but the
   % shift values are also already scaled.
   transformation = {'sequential',R,SHIFTS(1,:)',DIRECTION,1,MAG(1) ; ...
-                    'sequential',R2,SHIFTS(2,:)',DIRECTION,1,MAG(2)};
- 
+    'sequential',R2,SHIFTS(2,:)',DIRECTION,1,MAG(2)};
+  
 else
   error('ANGLES must be either three eulers or 9 rot matrix')
 end
@@ -152,7 +152,7 @@ if ~doHalfGrid
     stackIN = BH_padZeros3d(stackIN,padLow,padHigh,'GPU','single');
   else
     stackIN = BH_padZeros3d(stackIN,padLow,padHigh,'cpu','single');
-  end 
+  end
 end
 
 if doHalfGrid
@@ -160,38 +160,38 @@ if doHalfGrid
   % grid indices. The latter makes getting the values along the origin
   % easier.
   [ Xnew,Ynew,~,x1,y1,~ ] = BH_multi_gridCoordinates( varargin{1}.inputSize, ...
-                                                   'Cartesian', ...
-                                                    METHOD,transformation,...
-                                                    0, 1, 0,{'halfgrid'});
-
-
-
+    'Cartesian', ...
+    METHOD,transformation,...
+    0, 1, 0,{'halfgrid'});
+  
+  
+  
 else
   [ Xnew,Ynew,~,x1,y1,~ ] = BH_multi_gridCoordinates( size(stackIN), ...
-                                                   'Cartesian', ...
-                                                    METHOD,transformation,...
-                                                    0, shiftOrigin, 0 );
+    'Cartesian', ...
+    METHOD,transformation,...
+    0, shiftOrigin, 0 );
 end
 
 
-if ~doHalfGrid 
+if ~doHalfGrid
   [ padVal ] = BH_multi_padVal( SIZEOUT, size(stackIN) );
   cutLow = padVal(1,:);
   cutHigh= padVal(2,:);
-
+  
   cutLow = cutLow .* (cutLow > 0);
   cutHigh = cutHigh.* (cutHigh > 0);
   Xnew = Xnew(cutLow(1) + 1:end - cutHigh(1), ...
-              cutLow(2) + 1:end - cutHigh(2));
-
+    cutLow(2) + 1:end - cutHigh(2));
+  
   Ynew = Ynew(cutLow(1) + 1:end - cutHigh(1), ...
-              cutLow(2) + 1:end - cutHigh(2));
+    cutLow(2) + 1:end - cutHigh(2));
 end
 
 if (flgSeq)
   Xnew = Xnew{1};
   Ynew = Ynew{1};
-end 
+end
 
 
 % Interpolate and write out the image.
@@ -202,9 +202,9 @@ if ( useGPU )
     
     Xnew = Xnew ./ hgMAG;
     Ynew = Ynew ./ hgMAG;
- 
+    
     % Values from X < 0 can simply be conj(X > 0)
-    hermitianMates = Xnew < 0;   
+    hermitianMates = Xnew < 0;
     % Values coming from X = 0 will not be correct if simply flipped.
     x_border_mask = Xnew < 1 & Xnew > -1;
     % Create an interpolant that also has +/- 2
@@ -224,41 +224,41 @@ if ( useGPU )
     % mates
     Xnew_border = Xnew(x_border_mask);
     Ynew_border = Ynew(x_border_mask);
-
+    
     % Invert the coordinates, take conjugate after interpolating
     Xnew(hermitianMates) = -1.*Xnew(hermitianMates);
     Ynew(hermitianMates) = -1.*Ynew(hermitianMates);
-      
-  
+    
+    
     TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',0);
     TRANS_IMAGE(hermitianMates) = conj(TRANS_IMAGE(hermitianMates));
     % Now go back and replace the values that came from locations near x =
     % 0.
     TRANS_IMAGE(x_border_mask) = interpn(Xborder,Yborder,values_on_origin,Xnew_border, Ynew_border,'linear',0);
-
+    
     clear values_on_origin Xborder Yborder x_border_mask
     
-
+    
     if (hgMAG ~= 1 || hgSHIFTS(1) || hgSHIFTS(2))
       isCentered=1;
       TRANS_IMAGE = varargin{1}.shiftStretch(TRANS_IMAGE,hgSHIFTS,hgMAG,isCentered);
     end
     
-
+    
     if (returnComplex)
-     TRANS_IMAGE = varargin{1}.invSwap(TRANS_IMAGE);
-                               
+      TRANS_IMAGE = varargin{1}.invSwap(TRANS_IMAGE);
+      
     else
-     TRANS_IMAGE = BH_padZeros3d( varargin{1}.invFFT(varargin{1}.invSwap(TRANS_IMAGE),2),...
-                                trimVal(1,:),trimVal(2,:),'GPU','single');      
+      TRANS_IMAGE = BH_padZeros3d( varargin{1}.invFFT(varargin{1}.invSwap(TRANS_IMAGE),2),...
+        trimVal(1,:),trimVal(2,:),'GPU','single');
     end
     
-
+    
   else
     
-
+    
     TRANS_IMAGE = interpn(x1,y1,stackIN,Xnew,Ynew,'linear',extrapVal);
-
+    
     
   end
 else

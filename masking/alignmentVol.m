@@ -1,14 +1,14 @@
 classdef alignmentVol < handle
     properties (Access = 'private')
-       data;
-       input_size;
-       pad_val;
+        data;
+        input_size;
+        pad_val;
     end
     properties (Access = 'public')
     end
-
+    
     methods
-
+        
         function obj = alignmentVol(data, pad_val)
             pause(3)
             fprintf('alignmentVol constructor\n')
@@ -17,7 +17,7 @@ classdef alignmentVol < handle
             obj.input_size = size(obj.data);
             obj.pad_val = pad_val;
         end
-
+        
         function [] = isAllocated(obj)
             if isempty(obj.data)
                 error('data is not allocated')
@@ -25,22 +25,22 @@ classdef alignmentVol < handle
                 fprintf('data is allocated\n')
             end
         end
-
+        
         function [] = zero_data(obj)
             obj.data = obj.data .* 0;
         end
     end
     
-
-
- end
-
-% function [ IMAGE ] = BH_padZerosSimple3d(IMAGE) 
     
-    %PADLOW, PADTOP, ...
-    %METHOD, PRECISION, varargin )
+    
+end
+
+% function [ IMAGE ] = BH_padZerosSimple3d(IMAGE)
+
+%PADLOW, PADTOP, ...
+%METHOD, PRECISION, varargin )
 %Pad an image volume with zeros.
-%   
+%
 %
 %   Input variables:
 %
@@ -55,7 +55,7 @@ classdef alignmentVol < handle
 %   METHOD = case sensitive 'GPU' otherwise cpu
 %
 %   Output variables:BH_bandpass3d.m
-% 
+%
 %   PADDED_IMG = the padded image.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -76,7 +76,7 @@ classdef alignmentVol < handle
 
 % pause(3)
 % IMAGE = IMAGE .* 0;
-% IMAGE(1:7,1:7,1:7) = 1; 
+% IMAGE(1:7,1:7,1:7) = 1;
 % pause(3)
 % if isnumeric(PADLOW)
 % padLOW = PADLOW ;
@@ -187,7 +187,7 @@ classdef alignmentVol < handle
 % if (doRand)
 % PADDED_IMG = randn(padSize,'double').*extrapVal+extrapMean;
 % else
-% PADDED_IMG = zeros(padSize,'double'); 
+% PADDED_IMG = zeros(padSize,'double');
 % end
 % else
 % error('PRECISION must be single or double, not %s', PRECISION)
@@ -264,7 +264,7 @@ classdef alignmentVol < handle
 % PADDED_IMG(1:sX1,1:sY1,end-sZ2:end) = IMAGE(1:sX1,1:sY1,end-sZ2:end);
 % PADDED_IMG(end-sX2:end,1:sY1,end-sZ2:end) = IMAGE(end-sX2:end,1:sY1,end-sZ2:end);
 % PADDED_IMG(1:sX1,end-sY2:end,end-sZ2:end) = IMAGE(1:sX1,end-sY2:end,end-sZ2:end);
-% PADDED_IMG(end-sX2:end,end-sY2:end,end-sZ2:end) = IMAGE(end-sX2:end,end-sY2:end,end-sZ2:end);    
+% PADDED_IMG(end-sX2:end,end-sY2:end,end-sZ2:end) = IMAGE(end-sX2:end,end-sY2:end,end-sZ2:end);
 % else
 
 % PADDED_IMG(padLOW(1)+1: end - padTOP(1), ...
@@ -274,7 +274,7 @@ classdef alignmentVol < handle
 
 % end
 
-% clear IMAGE 
+% clear IMAGE
 % end of the padZeros3d functions
 
 

@@ -20,9 +20,9 @@ if isnumeric(maskIN)
   end
   maskIN = gpuArray(maskIN);
 elseif numel(pixelSize) > 1
- bandpass = pixelSize;
- pixelSize = pixelSize(3);
- [~,~,~,maskIN] = BH_localWiener2d( imgIN,bandpass,1,1);
+  bandpass = pixelSize;
+  pixelSize = pixelSize(3);
+  [~,~,~,maskIN] = BH_localWiener2d( imgIN,bandpass,1,1);
 else
   maskIN = 0;
 end
@@ -38,11 +38,11 @@ end
 
 
 [radialGrid] = BH_multi_gridCoordinates([d1,d2],'Cartesian',...
-                                                         'GPU',{'none'},1,0,1);
+  'GPU',{'none'},1,0,1);
 
-radialGrid = radialGrid ./ pixelSize;                                                       
-[gKernel] = BH_multi_gaussian2d(-1.*[d1,d2],3,0);                                                       
-nMax = 4;                                                
+radialGrid = radialGrid ./ pixelSize;
+[gKernel] = BH_multi_gaussian2d(-1.*[d1,d2],3,0);
+nMax = 4;
 % Divide bins into roughly equal areas, with min ~ 2 at nyquist
 oX = ceil((d1+1)/2);
 radialMax = oX;
@@ -56,9 +56,9 @@ i = 2;
 n = floor(0.005*oX);
 idxVect = n;
 while n < oX
-% % % % %   idxVect = [idxVect (n+floor((idxVect(i-1).^.40)))];
+  % % % % %   idxVect = [idxVect (n+floor((idxVect(i-1).^.40)))];
   idxVect = [idxVect (n+floor((idxVect(i-1).^.20)))];
-
+  
   n = idxVect(i);
   i = i + 1;
 end
@@ -86,7 +86,7 @@ for iRing = 1:length(idxVect)-1
     nShrink = nShrink + 1;
   end
   radialSampledAt(nRing) = radialVect(idxVect(iRing+1));
-    nRing = nRing +1;
+  nRing = nRing +1;
 end
 
 
@@ -96,20 +96,20 @@ clear avgMask PS
 
 
 %  rFit = fit(gather(double(radialSampledAt)),gather(double(radialAvg)),'spline');
- rFit = csape(gather(double(radialSampledAt)),gather(double(radialAvg)),'clamped');
+rFit = csape(gather(double(radialSampledAt)),gather(double(radialAvg)),'clamped');
 
 %   figure, plot(radialVect,fnval(rFit,radialVect))
-  r = fnval(rFit,radialGrid).^-1;
-  r = r - min(r(:)) + 0.001;
-  rInv = fnval(rFit,radialGrid);
-  rInv = rInv(1,1:length(radialVect));
+r = fnval(rFit,radialGrid).^-1;
+r = r - min(r(:)) + 0.001;
+rInv = fnval(rFit,radialGrid);
+rInv = rInv(1,1:length(radialVect));
 
-  r = r.^0.5;
- 
-  %   r = r ./ max(r(:));
- 
- 
-  
+r = r.^0.5;
+
+%   r = r ./ max(r(:));
+
+
+
 %figure, plot(radialVect,r(1,1:length(radialVect)));
 %figure, plot(radialVect,rInv(1,1:length(radialVect)));
 

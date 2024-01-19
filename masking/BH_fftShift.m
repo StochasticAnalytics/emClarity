@@ -44,7 +44,7 @@ end
 % if (useGPU)
 %   shiftMask = zeros(windowRadius.*shiftVect+1,'single','gpuArray');
 % else
-%   shiftMask = zeros(windowRadius.*shiftVect+1,'single');  
+%   shiftMask = zeros(windowRadius.*shiftVect+1,'single');
 % end
 
 
@@ -56,28 +56,28 @@ if (flg2D)
   % to a "centered" frame.
   if (doHalfGrid)
     [X,Y] = BH_multi_gridCoordinates([imgSize,1],'Cartesian',METHOD,{'none'},0,-1,0,{'halfgrid'});
-
+    
     % TODO fix the -2 option in gridCoordinates to do this
     sY = size(Y,2);
     oY = floor(sY/2) + 1;
     isOddY = mod(sY,2);
     flgIfft = flgIfft * isOddY;
-
+    
     tmpY = Y(:,oY+isOddY-flgIfft:end);
     Y(:,oY+flgIfft:end) = Y(:,1:oY-1+isOddY-flgIfft);
     Y(:,1:oY-1+flgIfft) = tmpY; clear tmpY
-
+    
   else
     [X,Y] = BH_multi_gridCoordinates([imgSize,1],'Cartesian',METHOD,{'none'},0,-2,0);
   end
-
+  
   
 else
   
   if (doHalfGrid)
     imgSize
     [X,Y,Z] = BH_multi_gridCoordinates([imgSize],'Cartesian',METHOD,{'none'},0,-1,0,{'halfgrid'});
- 
+    
     % TODO fix the -2 option in gridCoordinates to do this
     sZ = size(Z,3);
     oZ = floor(sZ/2) +1;
@@ -88,7 +88,7 @@ else
     oY = floor(sY/2) + 1;
     isOddY = mod(sY,2);
     flgIfftY = flgIfft * isOddY;
-
+    
     tmpY2 = Y(:,oY+isOddY-flgIfftY:end,oZ+isOddZ-flgIfftZ:end);
     tmpY1 = Y(:,oY+isOddY-flgIfftY:end,1:oZ-1+isOddZ-flgIfftZ);
     % Put in 2 from 0
@@ -96,10 +96,10 @@ else
     % Put in 1 from 3
     Y(:,oY:end,1:oZ-1) = Y(:,1:oY-1+isOddY,oZ+isOddZ:end);
     % Put in 0 from tmpY2
-    Y(:,1:oY-1+flgIfftY,1:oZ-1+flgIfftZ) = tmpY2; 
+    Y(:,1:oY-1+flgIfftY,1:oZ-1+flgIfftZ) = tmpY2;
     % Put in 3 from 1
     Y(:,1:oY-1+flgIfftY,oZ+flgIfftZ:end) = tmpY1; clear tmpY2 tmpY1
-
+    
     tmpZ2 = Z(:,oY+isOddY-flgIfftY:end,oZ+isOddZ-flgIfftZ:end);
     tmpZ1 = Z(:,oY+isOddY-flgIfftY:end,1:oZ-1+isOddZ-flgIfftZ);
     % Put in 2 from 0
@@ -107,12 +107,12 @@ else
     % Put in 1 from 3
     Z(:,oY:end,1:oZ-1) = Z(:,1:oY-1+isOddY,oZ+isOddZ:end);
     % Put in 0 from tmpY2
-    Z(:,1:oY-1+flgIfftY,1:oZ-1+flgIfftZ) = tmpZ2; 
+    Z(:,1:oY-1+flgIfftY,1:oZ-1+flgIfftZ) = tmpZ2;
     % Put in 3 from 1
     Z(:,1:oY-1+flgIfftY,oZ+flgIfftZ:end) = tmpZ1; clear tmpY2 tmpY1
     
   else
-    [X,Y,Z] = BH_multi_gridCoordinates(imgSize,'Cartesian',METHOD,{'none'},0,-2,0); 
+    [X,Y,Z] = BH_multi_gridCoordinates(imgSize,'Cartesian',METHOD,{'none'},0,-2,0);
   end
   
 end
@@ -121,24 +121,24 @@ end
 % Cut out the grid coordinates.
 if ( gather(windowRadius(1)) )
   % Set the extraval to zero, will it break?
-  if windowRadius(1) < 0 
+  if windowRadius(1) < 0
     % Tread as a diameter
     padVal = BH_multi_padVal(imgSize, abs(windowRadius));
   else
     padVal = BH_multi_padVal(imgSize, windowRadius.*shiftVect+0);
   end
-
- 
-  X = BH_padZeros3d(X,padVal(1,:),padVal(2,:),METHOD,'single'); 
-  Y = BH_padZeros3d(Y,padVal(1,:),padVal(2,:),METHOD,'single'); 
-    
+  
+  
+  X = BH_padZeros3d(X,padVal(1,:),padVal(2,:),METHOD,'single');
+  Y = BH_padZeros3d(Y,padVal(1,:),padVal(2,:),METHOD,'single');
+  
 end
 
 if (flg2D)
   shiftMask = sub2ind(size(X),X,Y);
 else
   if ( windowRadius )
-    Z = BH_padZeros3d(Z,padVal(1,:),padVal(2,:),METHOD,'single'); 
+    Z = BH_padZeros3d(Z,padVal(1,:),padVal(2,:),METHOD,'single');
   end
   shiftMask = sub2ind(size(X),X,Y,Z);
 end

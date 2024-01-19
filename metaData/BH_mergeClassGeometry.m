@@ -15,19 +15,19 @@ end
 
 nTomograms = length(tomoList1);
 
-% Loop through counting particles available. 
+% Loop through counting particles available.
 for iTomo = 1:nTomograms
   % Read in the geometry for each tomogram, update column eight and count the
   % number included.
-   positionList1 = geometry1.(tomoList1{iTomo});
-   positionList2 = geometry2.(tomoList2{iTomo});
-
-   positionList1((positionList2(:,7)==2),:) = positionList2((positionList2(:,7)==2),:);
-   
-   geometry1.(tomoList1{iTomo}) = positionList1;
-   
-   
-   
+  positionList1 = geometry1.(tomoList1{iTomo});
+  positionList2 = geometry2.(tomoList2{iTomo});
+  
+  positionList1((positionList2(:,7)==2),:) = positionList2((positionList2(:,7)==2),:);
+  
+  geometry1.(tomoList1{iTomo}) = positionList1;
+  
+  
+  
 end
 
 GEOM_OUT = geometry1;

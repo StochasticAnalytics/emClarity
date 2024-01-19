@@ -51,22 +51,22 @@ end
 % calculate it based on subTomogram coordinates in 3d is not correct
 THICKNESS = 75;
 if ~isnumeric(STACK)
-
+  
   if samplingRate > 1
     fullStack = sprintf('aliStacks/%s_ali%d.fixed', STACK,mapBackIter+1);
     inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',STACK,mapBackIter+1,samplingRate);
-
+    
     if ~exist(inputStack, 'file')
       BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
     end
-
+    
   else
     inputStack = sprintf('aliStacks/%s_ali%d%s.fixed',STACK,mapBackIter+1,suffix);
   end
-
-
+  
+  
   STACK = single(getVolume(MRCImage(inputStack)));
-
+  
 end
 
 
@@ -84,10 +84,10 @@ if (justHighPass)
   bandNyquist = BH_bandpass3d([d1,d2,1],0,0,1,'GPU','nyquistHigh');
 end
 
-  fractionOfDose = TLT(:,14)/mean(TLT(:,14));
-  fractionOfElastics = exp(-1.*THICKNESS./( cosd(TLT(:,4)).*400 ));
-  fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
-  
+fractionOfDose = TLT(:,14)/mean(TLT(:,14));
+fractionOfElastics = exp(-1.*THICKNESS./( cosd(TLT(:,4)).*400 ));
+fractionOfElastics = fractionOfElastics ./ max(fractionOfElastics(:));
+
 for iPrj = 1:d3
   
   if (justHighPass)
@@ -96,14 +96,14 @@ for iPrj = 1:d3
     iProjection  = real(ifftn(fftn(iProjection).*bandNyquist));
     STACK(:,:,iPrj) = gather(iProjection);
     continue
-  else   
+  else
     if (flgOnDevice)
       iProjection = STACK(:,:,TLT(iPrj,1));
     else
       iProjection = gpuArray(STACK(:,:,TLT(iPrj,1)));
     end
   end
-
+  
   if (useMask)
     iProjection = iProjection - mean2(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0));
     iProjection = iProjection ./ rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
@@ -111,7 +111,7 @@ for iPrj = 1:d3
     maxEval = cosd(TLT(iPrj,4)).*(d1/2) + (THICKNESS*10./(PIXEL_SIZE))./2*abs(sind(TLT(iPrj,4)));
     oX = ceil((d1+1)./2);
     iEvalMask = max(EDGE_PAD,floor(oX-maxEval)):min(d1-EDGE_PAD,ceil(oX+maxEval));
-
+    
     % Remove gradients
     % Center under mask
     iProjection = iProjection - mean2(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD));
@@ -119,17 +119,17 @@ for iPrj = 1:d3
     iProjection = iProjection ./ rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
   end
   
-
+  
   
   iProjection = iProjection .* (fractionOfDose(iPrj)*fractionOfElastics(iPrj));
-
-%   if (useMask)
-%     meanVariance = meanVariance + rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
-%   else
-%     meanVariance = meanVariance + rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
-%   end
-    
-
+  
+  %   if (useMask)
+  %     meanVariance = meanVariance + rms(rms(iProjection(varargin{1}(:,:,TLT(iPrj,1))>0)));
+  %   else
+  %     meanVariance = meanVariance + rms(rms(iProjection(iEvalMask,EDGE_PAD:end-EDGE_PAD)));
+  %   end
+  
+  
   
   if (flgOnDevice)
     STACK(:,:,TLT(iPrj,1)) = iProjection;

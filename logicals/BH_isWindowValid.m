@@ -1,12 +1,12 @@
 function [ INDICES, PADVALUES, SHIFTS ] = ...
-                            BH_isWindowValid( VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, CENTER )
+        BH_isWindowValid( VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, CENTER )
 %Address out of bounds conditions.
-%  
+%
 %
 %   Input Variables:
 %
 %   VOLUMES_SIZE = Size of the volume to extract from.
-% 
+%
 %   WINDOW_SIZE  = Size of the window to be extracted.
 %
 %   CENTER = Coordinates of the center of the window in the tomogram frame.
@@ -17,7 +17,7 @@ function [ INDICES, PADVALUES, SHIFTS ] = ...
 %   INDICES = 2,3 array with [x1, y1, z1 ; x2, y2, z2]
 %
 %   PADVALUES = 2,3 array with pre and post padding values, same order.
-% 
+%
 %   SHIFTS = fractional shifts
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -64,44 +64,44 @@ INDICES = [LOW + padLOW  ; winCenter + winTopCorner - padTOP ];
 PADVALUES = [padLOW ; padTOP];
 SHIFTS =   deltaWinCenter;
 
-     % The window is often much larger than the particle. This is to ensure that all of the
-     % delocalized information is available for full CTF restoration. Ideally, this is
-     % fully represented in every particle, but as long as the particle itself is there,
-     % don't worry if the high resolution information is not. 
+% The window is often much larger than the particle. This is to ensure that all of the
+% delocalized information is available for full CTF restoration. Ideally, this is
+% fully represented in every particle, but as long as the particle itself is there,
+% don't worry if the high resolution information is not.
 
-     % Should keep track of this and figure into the quality weight somehow.
+% Should keep track of this and figure into the quality weight somehow.
 
-     availableArea = WINDOW_SIZE - PADVALUES(1,:) - PADVALUES(2,:);
-     if any(availableArea - minSizeMask < -2) 
+availableArea = WINDOW_SIZE - PADVALUES(1,:) - PADVALUES(2,:);
+if any(availableArea - minSizeMask < -2)
         fprintf(['\nvs %d %d %d\nws %d %d %d\nmr %2.1f %2.1f %2.1f\n',...
                 'minArea %d %d %d\navailArea %d %d %d\nc %2.1f %2.1f %2.1f\n'], ...
-                VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, minSizeMask, availableArea, CENTER); 
+                VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, minSizeMask, availableArea, CENTER);
         INDICES = 'noUse';
-        PADVALUES = [availableArea];  
-     end
-     if any(isnan(PADVALUES(:)))
-      fprintf('center %f %f %f\n',CENTER);
-      fprintf('min %f %f %f\n',minSizeMask);
-      fprintf('winLowCorner %f %f %f\n', winLowCorner);
-      fprintf('top %f %f %f\n',winTopCorner);
-      fprintf('%f %f %f\n',winCenter);
-      fprintf('del %f %f %f\n',deltaWinCenter);
-      fprintf('%f %f %f\n',LOW);
-      fprintf('%f %f %f\n',TOP);
-      error('\n\nFound a NaN in the pad values. But Why ben why?\n\n');
-      INDICES='noUse';
-      PADVALUES = [availableArea];
-     end   
-     % padSUM = sum(PADVALUES(:,1)) .* WINDOW_SIZE(2) .* WINDOW_SIZE(3);
-     % padSUM = padSUM + sum(PADVALUES(:,2)) .* WINDOW_SIZE(1) .* WINDOW_SIZE(3);
-     % padSUM = padSUM + sum(PADVALUES(:,3)) .* WINDOW_SIZE(1) .* WINDOW_SIZE(2);
-     % padSUM = padSUM ./ prod(WINDOW_SIZE);
-      
-      % minimal sampling
-     % if (padSUM) > .30 || any(any((PADVALUES - [WINDOW_SIZE;WINDOW_SIZE]) >0))
-     %   INDICES = 'noUse';
-     %   PADVALUES = padSUM;
-     % end
+        PADVALUES = [availableArea];
+end
+if any(isnan(PADVALUES(:)))
+        fprintf('center %f %f %f\n',CENTER);
+        fprintf('min %f %f %f\n',minSizeMask);
+        fprintf('winLowCorner %f %f %f\n', winLowCorner);
+        fprintf('top %f %f %f\n',winTopCorner);
+        fprintf('%f %f %f\n',winCenter);
+        fprintf('del %f %f %f\n',deltaWinCenter);
+        fprintf('%f %f %f\n',LOW);
+        fprintf('%f %f %f\n',TOP);
+        error('\n\nFound a NaN in the pad values. But Why ben why?\n\n');
+        INDICES='noUse';
+        PADVALUES = [availableArea];
+end
+% padSUM = sum(PADVALUES(:,1)) .* WINDOW_SIZE(2) .* WINDOW_SIZE(3);
+% padSUM = padSUM + sum(PADVALUES(:,2)) .* WINDOW_SIZE(1) .* WINDOW_SIZE(3);
+% padSUM = padSUM + sum(PADVALUES(:,3)) .* WINDOW_SIZE(1) .* WINDOW_SIZE(2);
+% padSUM = padSUM ./ prod(WINDOW_SIZE);
+
+% minimal sampling
+% if (padSUM) > .30 || any(any((PADVALUES - [WINDOW_SIZE;WINDOW_SIZE]) >0))
+%   INDICES = 'noUse';
+%   PADVALUES = padSUM;
+% end
 
 
 

@@ -10,7 +10,7 @@ classdef eulerSearch < handle
     number_of_out_of_plane_angles = 1; % poorly named. Theta of zero is still searched but not "outofplane"
     number_of_angles_at_each_theta = [];
     best_parameters_to_keep = 0;
-    list_of_search_parameters = {};      
+    list_of_search_parameters = {};
     list_of_best_parameters = {};
     symmetry_symbol = 'C1';
     number_of_asymmetric_units = 1;
@@ -36,13 +36,13 @@ classdef eulerSearch < handle
   methods
     
     function [obj] = eulerSearch(wanted_symmetry_symbol, ...
-                                 wanted_theta_max,...
-                                 wanted_theta_step,...
-                                 wanted_psi_max,...
-                                 wanted_psi_step,...
-                                 wanted_resolution_limit,...
-                                 wanted_parameters_to_keep,...
-                                 wanted_random_start_angle)
+        wanted_theta_max,...
+        wanted_theta_step,...
+        wanted_psi_max,...
+        wanted_psi_step,...
+        wanted_resolution_limit,...
+        wanted_parameters_to_keep,...
+        wanted_random_start_angle)
       
       if (wanted_theta_max < 0)
         wanted_theta_max = abs(wanted_theta_max);
@@ -50,7 +50,7 @@ classdef eulerSearch < handle
       end
       
       obj.random_start_angle = wanted_random_start_angle;
-                                
+      
       obj.theta_max = wanted_theta_max;
       obj.theta_step = wanted_theta_step;
       % emClarity takes -angle:step:angle. This max is based on 0:360
@@ -58,24 +58,24 @@ classdef eulerSearch < handle
       obj.psi_max = 2.*wanted_psi_max;
       obj.psi_step = wanted_psi_step;
       obj.symmetry_symbol = wanted_symmetry_symbol;
-
+      
       SetSymmetryLimits(obj);
       CalculateGridSearchPositions(obj);
-
+      
     end
-
     
-  
+    
+    
     function [] = CalculateGridSearchPositions(obj)
-
-
+      
+      
       theta_max_local = obj.theta_max;
       obj.parameter_map.psi = -obj.psi_max./2 : obj.psi_step : obj.psi_max/2;
-      obj.number_of_search_positions = 0; 
-
+      obj.number_of_search_positions = 0;
+      
       theta_search =  [ 0 : obj.theta_step : theta_max_local ];
       if isempty(theta_search)
-          theta_search = 0; 
+        theta_search = 0;
       end
       if (obj.bipolar_search)
         theta_search = [theta_search, flip(180-theta_search)];
@@ -85,7 +85,7 @@ classdef eulerSearch < handle
       obj.number_of_angles_at_each_theta = zeros(obj.number_of_out_of_plane_angles,1);
       obj.parameter_map.phi = cell(obj.number_of_out_of_plane_angles,1);
       
-
+      
       obj.number_of_search_positions = 0;
       % Change this to include inplane angles explicitly.
       
@@ -97,21 +97,21 @@ classdef eulerSearch < handle
         else
           % angular sampling was adapted from Spider subroutine VOEA (Paul Penczek)
           phi_step = 1.*abs(obj.theta_step / sind(theta));
-          if (phi_step > obj.phi_max) 
+          if (phi_step > obj.phi_max)
             phi_step = obj.phi_max;
           else
             phi_step = obj.phi_max / floor(obj.phi_max / phi_step + 0.5);
           end
         end
-    
-        if (obj.random_start_angle == true) 
+        
+        if (obj.random_start_angle == true)
           phi_start_local = phi_step / 2.0 * (rand(1) - 0.5);
         else
           phi_start_local = 0.0;
         end
-	             
-        obj.parameter_map.phi{iT} = [0:phi_step:obj.phi_max - 1] + phi_start_local;        
-
+        
+        obj.parameter_map.phi{iT} = [0:phi_step:obj.phi_max - 1] + phi_start_local;
+        
         obj.number_of_angles_at_each_theta(iT) = length(obj.parameter_map.phi{iT}) .* length(obj.parameter_map.psi);
       end
       
@@ -122,43 +122,43 @@ classdef eulerSearch < handle
       end
       
     end
-
-    function [] = SetSymmetryLimits(obj)
     
+    function [] = SetSymmetryLimits(obj)
+      
       switch obj.symmetry_symbol(1)
-         case 'C'
-           if (length(obj.symmetry_symbol) < 2)
-             error('Cyclic symmetry requires an int specifying CX');
-           end
-
+        case 'C'
+          if (length(obj.symmetry_symbol) < 2)
+            error('Cyclic symmetry requires an int specifying CX');
+          end
+          
           obj.psi_max = min(obj.psi_max,360.0 / EMC_str2double(obj.symmetry_symbol(2:end)));
           obj.theta_max = min(180.0, obj.theta_max);
           obj.phi_max = 360.0; % This will be incompatible with "symmetry_constrained_search" in BH_mutli_gridAngleSEarch (or whatever)
           obj.number_of_asymmetric_units = EMC_str2double(obj.symmetry_symbol(2:end));
         case 'D'
           % FIXME is this right?
-        if ((length(obj.symmetry_symbol) < 2))
-          error('D symmetry requires an int specifying DX');
-        end
+          if ((length(obj.symmetry_symbol) < 2))
+            error('D symmetry requires an int specifying DX');
+          end
           obj.psi_max = min(360.0 / EMC_str2double(obj.symmetry_symbol(2:end)));
           obj.theta_max = min(obj.theta_max,90.0);
           obj.phi_max = 360.0;
           obj.number_of_asymmetric_units = EMC_str2double(obj.symmetry_symbol(2:end)*2);
-
-         case 'O'
-           if ((length(obj.symmetry_symbol) > 1))
-             error('Octahedral symmetry requires no int');
-           end
-           
+          
+        case 'O'
+          if ((length(obj.symmetry_symbol) > 1))
+            error('Octahedral symmetry requires no int');
+          end
+          
           obj.psi_max = min(obj.psi_max,90.0);
-          obj.theta_max = min(obj.theta_max,54.7); 
+          obj.theta_max = min(obj.theta_max,54.7);
           obj.phi_max = 90.0;
           obj.number_of_asymmetric_units = 24;
-           
-         case 'I'
-           % Double check convention: TODO
-           % 2 fold on Z, 5 fold 31.17 deg around X on Y axis, 3 fold 20.91
-           % deg around Y on X. For I2 the X/Y axes are flipped
+          
+        case 'I'
+          % Double check convention: TODO
+          % 2 fold on Z, 5 fold 31.17 deg around X on Y axis, 3 fold 20.91
+          % deg around Y on X. For I2 the X/Y axes are flipped
           if ((length(obj.symmetry_symbol) < 2))
             obj.psi_max = min(obj.psi_max,180.0);
             obj.theta_max = 31.7;
@@ -166,7 +166,7 @@ classdef eulerSearch < handle
           elseif strcmp(obj.symmetry_symbol,'2')
             obj.psi_max = min(obj.psi_max,180.0);
             obj.theta_max = 31.7;
-            obj.phi_max = 180.0;           
+            obj.phi_max = 180.0;
           else
             error('Icosohedral can be I or I2, not (%s)',obj.symmetry_symbol);
           end
@@ -175,8 +175,8 @@ classdef eulerSearch < handle
           error('symmetry symbol (%s) not recognized', obj.symmetry_symbol);
       end
     end
-
-
+    
+    
   end
 end
 
