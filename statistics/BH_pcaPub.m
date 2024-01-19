@@ -182,11 +182,6 @@ end
 outputPrefix   = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 %%%flgGold      = emc.('flgGoldStandard');
 
-try
-  nPeaks = emc.('nPeaks');
-catch
-  nPeaks = 1;
-end
 
 flgNorm = 1;% emc.('flgNormalizeWMDs');
 try
@@ -664,14 +659,14 @@ for iGold = 1:1+flgGold
   end
   
   % Extend the random subset to each peak if needed
-  if (nPeaks > 1)
+  if (emc.nPeaks > 1)
     for iTomo = 1:nTomograms
       selectedList = geometry.(tomoList{iTomo})(:,8) > 0;
-      geometry.(tomoList{iTomo})(selectedList,8+26:26:nPeaks*26) = 1;
+      geometry.(tomoList{iTomo})(selectedList,8+26:26:emc.nPeaks*26) = 1;
       clear selectedList
     end
-    nTOTAL = nTOTAL*nPeaks;
-    nSUBSET = nSUBSET*nPeaks;
+    nTOTAL = nTOTAL*emc.nPeaks;
+    nSUBSET = nSUBSET*emc.nPeaks;
   end
 
   % Initialize array in main memory for pca
@@ -813,7 +808,7 @@ for iGold = 1:1+flgGold
       iPeak=0; % make sure this exists if we are no including the particle
       if (includeParticle) 
         make_sf3d = true;
-        for iPeak = 0:nPeaks-1
+        for iPeak = 0:emc.nPeaks-1
 
         % Get position and rotation info, angles stored as e1,e3,e2 as in AV3
         % and PEET. This also makes inplane shifts easier to see.
@@ -953,7 +948,7 @@ for iGold = 1:1+flgGold
 
         if (keepTomo)
           idxList(1, nExtracted) = particleIDX;
-          peakList(1,nExtracted) = iPeak+1; % This probably is not necessary - it should be 1:nPEaks,1:nPeaks,1:nPeaks...
+          peakList(1,nExtracted) = iPeak+1; 
           nExtracted = nExtracted + 1;
           nTemp = nTemp + 1;
 
@@ -986,7 +981,7 @@ for iGold = 1:1+flgGold
       end % end of ignore if statment
       if ~rem(iSubTomo,100)
         fprintf('\nworking on %d/%d subTomo peak %d/%d from %d/%d Tomo\n', ...
-                                           iSubTomo, nSubTomos,iPeak+1,nPeaks, iTomo,nTomograms);
+                                           iSubTomo, nSubTomos,iPeak+1,emc.nPeaks, iTomo,nTomograms);
 
         fprintf('Total nExtracted = %d\n', nExtracted-1);
         fprintf('Total nIgnored = %d\n', nIgnored);

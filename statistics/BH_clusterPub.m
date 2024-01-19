@@ -62,11 +62,6 @@ else
   flgGold = 1;
 end
 
-try
-  nPeaks = emc.('nPeaks');
-catch
-  nPeaks = 1;
-end
 
 nRows = length(emc.('pcaScaleSpace'));
 featureVector = cell(2,1);
@@ -211,7 +206,7 @@ for iGold = 1:1+flgGold
     oldPca = load(coeffMatrix);
     coeffsUNTRIMMED = oldPca.coeffs
     idxList = oldPca.idxList;
-    if nPeaks > 1
+    if emc.nPeaks > 1
       peakList = oldPca.idxList;
     else
       peakList = [];
@@ -438,9 +433,9 @@ for iGold = 1:1+flgGold
         % for trouble shooting
         try
       
-        if (nPeaks > 1) 
+        if (emc.nPeaks > 1) 
           for thisIDX = 1:length(lIndClass)
-            for iPeak = 0:nPeaks-1
+            for iPeak = 0:emc.nPeaks-1
               positionList(lIndPart(thisIDX), 26 + 26*iPeak) = class(lIndClass(thisIDX)+iPeak);
 %               fprintf('iTomo %d iSubtomo %d iPeak %d Class %d\n',iTomo,lIndPart(thisIDX),iPeak+1,class(lIndClass(thisIDX)+iPeak));
             end

@@ -69,11 +69,6 @@ load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR; 
 reconScaling = 1;
 
-try
-  nPeaks = emc.('nPeaks');
-catch
-  nPeaks = 1;
-end
 
 try 
   track_stats = emc.('track_stats');
@@ -961,9 +956,9 @@ parfor iParProc = parVect
                                                          'GPU', 'inv');   
     inputVectors = {iv1,iv2,iv3};
     iv1 = []; iv2 = []; iv3 = [];    
-    cccStorageBest = cell(nPeaks,1);
-    cccStorageRefine = cell(nPeaks,1);
-    for iPeak = 1:nPeaks
+    cccStorageBest = cell(emc.nPeaks,1);
+    cccStorageRefine = cell(emc.nPeaks,1);
+    for iPeak = 1:emc.nPeaks
       cccStorageBest{iPeak} = zeros(nSubTomos,10); 
       cccStorageRefine{iPeak}= zeros(nSubTomos,10);
     end
@@ -1002,7 +997,7 @@ parfor iParProc = parVect
                                         
 
       
-      for iPeak = 1:nPeaks
+      for iPeak = 1:emc.nPeaks
         
         if (track_stats)
           measure_noise = true;
@@ -1667,31 +1662,19 @@ parfor iParProc = parVect
         try
           if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
             bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
-% % %             % Get the negative slope of the top ten CCC scores.
-% % %             topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear');
-% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
+
 
           else
             bestRotPeak = cccPreRefineSort(1,:);
             bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
-% % %             rowNum = min(size(cccPreRefineSort,1),10*nPeaks);
-% % %             topX = 1- 0.1.*(10-rowNum);
-% % %             % Get the negative slope of the top ten CCC scores.
-% % %             topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear');
-% % %             bestRotPeak(1,7) = topTen(100)-topTen(101);
+
 
           end
         catch
           fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
                 cccStorageRefine{iPeak}(iSubTomo,:)
           cccPreRefineSort(1,:)
-% % %                 rowNum = min(size(cccPreRefineSort,1),10*nPeaks)
-% % %                 topX = 1- 0.1.*(10-rowNum)
-% % %           fprintf('\nNow check the fits, first and second clause\n');
-% % %                 topTen = fit([.1:.1:1]',sortRef(1:10,6),'linear')
-% % %           fprintf('\nSecond\n');
-% % %           topTen = fit([.1:.1:topX]',cccPreRefineSort(1:rowNum,6),'linear')
-% % %           error('Error in sorting the best peak in alignRaw');
+
         end
 
           finalRef  = bestRotPeak(1,1);
@@ -1882,13 +1865,13 @@ parfor iParProc = parVect
     end % loop over subTomos
 
     
-    for iPeak = 1:nPeaks
+    for iPeak = 1:emc.nPeaks
 
       % Get rid of any zero entries left over from pre-initialization
       if iPeak == 1
         nonZeroInits = ( cccStorageBest{iPeak}(:,2) ~= 0 );
         cccStorageBest{1}=cccStorageBest{1}(nonZeroInits,:);
-        sortCCC = zeros(size(cccStorageBest{1},1),10*nPeaks);
+        sortCCC = zeros(size(cccStorageBest{1},1),10*emc.nPeaks);
       else
         cccStorageBest{iPeak}=cccStorageBest{iPeak}(nonZeroInits,:);
       end
@@ -1912,7 +1895,7 @@ parfor iParProc = parVect
   angOut = fopen(sprintf('alignResume/%s/%s.txt',outputPrefix,tomoList{iTomo}),'w');
   
   for iRow = 1:size( bestAngles_tmp.(tomoList{iTomo}),1)
-    for iPeak = 1:nPeaks
+    for iPeak = 1:emc.nPeaks
       fprintf(angOut,'%d %d %6.3f %6.3f %6.3f %6.6f %6.6f %6.3f %6.3f %6.3f ', ...
         bestAngles_tmp.(tomoList{iTomo})(iRow,1+10*(iPeak-1):10+10*(iPeak-1)));
     end
@@ -1946,7 +1929,7 @@ else
 %   save('bestAnglesTemp.mat', 'bestAngles');  
    save('bestAngles.mat', 'bestAngles');
  
-  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, nPeaks, rotConvention, updateWeights, updateClassByBestReferenceScore);
+  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, emc.nPeaks, rotConvention, updateWeights, updateClassByBestReferenceScore);
   masterTM.(cycleNumber).('RawAlign') = rawAlign;
   masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
   masterTM.('updatedWeights') = true;

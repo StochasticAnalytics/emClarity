@@ -1,94 +1,17 @@
 
 function [  ] = BH_average3d(PARAMETER_FILE, CYCLE, STAGEofALIGNMENT)
-%Extract and interpolate a subTomogram from a 3d volume.
-%
-%   Input variables:
-%
-%   CYCLE = 0,1,2 etc.
-%
-%   NEW_CYCLE = 0,1 truth value, use the specified geometry to initialize a new
-%               alignment cycle.
-%
-%   IMAGE = 3d volume, or a string specifing a volume to read in.exit
 
-%
-%   classVector = Extract a subset of class averages.
-%              0 = Ignore classes, and average all
-%
-%              2, # classes = Extract specified classes with unique symmetry.
-%                                                      [1, 2, 5, 6;
-%                                                       3, 1, 6, 1]
-%
-%   CLASS_NAME = class to draw from
-%
-%   MOTIF_SIZE = Size of the window to extract. This must be at least 14 pixels
-%                larger than the key features to allow for a soft apodization
-%                over 7 pixels in each direction.
-%
-%
-%   SAMPLING = Binning factor, assumed to be integer value. Image is first
-%              smoothed by an appropriate low-pass filter to reduce aliasing.
-%
-%   GEOMETRY = A structure with tomogram names as the field names, and geometry
-%              information in a 26 columSn array.
-%              Additionally, a field called 'source_path' has a value with the
-%              absolute path to the location of the tomograms.
-%
-%              The input is a string 'Geometry_templatematching.mat' for
-%              example, and it is expected that the structure is saved as the
-%              variable named geometry.
-%
-%
-%   FSC = Randomly divide the data into halves (not just even/odd) for use in
-%         Fourier shell correlation calculation.
-%
-%   OUTPUT_PREFIX = String to prepend to output volumes.
-%
-%
-%   Output variables:
-%
-%   None = files are written to disk in the current directory.
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   Goals & Limitations:
-%
-%   Cut out a subTomogram and transform to the standard basis (microscope
-%   reference frame) from an existing 3d volume. 
-%
-%   Assumed to run on GPU.
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   TODO
-%     - Error checking for memory limitations     
-%     - In testing verify "implicit" gpu arrays are actually gpu arrays
-%     - Check binning
-%     - Confirm position 7 is where I want to keep FSC value
-%     - Update geometry to record % sampling
-%
-%     - Store binning & Size in class specific. geometry and use as a check for other programs
-%     at runtime.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if (nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
 end
 
-try
-  CUTPADDING = subTomoMeta.('CUTPADDING')
-catch
-  CUTPADDING=20
-end
 
 
 % FIXME: hacking in a test
 test_fuzz=false;
 test_multi_ref_diffmap= true;
 
-% Explicit reference to location of variables in main memory, or on the GPU.
-cpu = struct();
-GPU = struct();
 
 startTime =  clock;
 CYCLE = EMC_str2double(CYCLE);
@@ -109,16 +32,6 @@ load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 reconScaling = 1;
 
 
-try 
-  tmpVal = emc.('whitenPS');
-  if (numel(tmpVal) == 3)
-    wiener_constant = tmpVal(3);
-  else
-    error('flgWhitenPS should be a 3 element vector');
-  end
-catch
-  wiener_constant = 0.0;
-end
 
 try
   fscBfactor = emc.('Fsc_bfactor');
@@ -267,7 +180,7 @@ if isempty(bh_global_ML_angleTolerance)
   bh_global_ML_angleTolerance = 5;
 end
   
-if (nPeaks > 1)
+if (emc.nPeaks > 1)
   fprintf('For ML approach:\nUsing a compression factor %3.3f\nUsing an angulare tolerance of %3.3f degrees\n', ...
           bh_global_ML_compressByFactor, bh_global_ML_angleTolerance);
 end
@@ -746,7 +659,6 @@ if (flgQualityWeight)
     wgtVect = [];
     angVect = [];
     chiVect = [];
-%   positionList(:,1:26:26*nPeaks)  
 
     if (spike_prior)
 
@@ -776,22 +688,22 @@ if (flgQualityWeight)
 %         iCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
 
         tmpTomo = [];   
-        spike_info.(f{iTomo}).('angular_diff') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
-        spike_info.(f{iTomo}).('normal_distance') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
+        spike_info.(f{iTomo}).('angular_diff') = zeros(size(geometry.(f{iTomo}) , 1),emc.nPeaks,'single');
+        spike_info.(f{iTomo}).('normal_distance') = zeros(size(geometry.(f{iTomo}) , 1),emc.nPeaks,'single');
 
-        spike_info.(f{iTomo}).('angular_prob') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
-        spike_info.(f{iTomo}).('angular_weight') = zeros(size(geometry.(f{iTomo}) , 1),nPeaks,'single');
+        spike_info.(f{iTomo}).('angular_prob') = zeros(size(geometry.(f{iTomo}) , 1),emc.nPeaks,'single');
+        spike_info.(f{iTomo}).('angular_weight') = zeros(size(geometry.(f{iTomo}) , 1),emc.nPeaks,'single');
 
         nSubTomos = size(geometry.(f{iTomo}) , 1);
-        particle_coords = zeros(nSubTomos .* nPeaks,8,'single');
+        particle_coords = zeros(nSubTomos .* emc.nPeaks,8,'single');
         nVol = 1;
         for iSubTomo = 1:nSubTomos
-          for iPeak = 1:nPeaks
+          for iPeak = 1:emc.nPeaks
             particle_coords(nVol,1:5) = geometry.(f{iTomo})(iSubTomo,[26,4,11:13]+(iPeak-1)*26);
             nVol = nVol + 1;
           end
         end
-        % Logical size nsubtomos x nPeaks
+        % Logical size nsubtomos x emc.nPeaks
         positions_to_analyze = particle_coords(:,1) ~= -9999;
         display_fit = false;
         radial_shrink_factor = 2;
@@ -806,7 +718,7 @@ if (flgQualityWeight)
         particle_coords(positions_to_analyze,[6:8]) = [ normal_vect];
         nVol = 1;
         for iSubTomo = 1:nSubTomos
-          for iPeak = 1:nPeaks
+          for iPeak = 1:emc.nPeaks
             if (particle_coords(nVol,1) ~= -9999)       
               particleAxis = reshape(geometry.(f{iTomo})(iSubTomo,[17:25]+(iPeak-1)*26),3,3)*[0;0;1];
               angularDiff = dot(particle_coords(nVol,6:8), particleAxis);
@@ -855,14 +767,14 @@ if (flgQualityWeight)
     for iParProc = 1:nParProcesses
       for iTomo = iterList{iParProc}              
         if (track_stats)
-          geometry.(tomoList{iTomo})(:,1:26:26*nPeaks) = geometry.(tomoList{iTomo})(:,1:26:26*nPeaks)./geometry.(tomoList{iTomo})(:,2:26:26*nPeaks);
+          geometry.(tomoList{iTomo})(:,1:26:26*emc.nPeaks) = geometry.(tomoList{iTomo})(:,1:26:26*emc.nPeaks)./geometry.(tomoList{iTomo})(:,2:26:26*emc.nPeaks);
         end
         
         min_weight = 1e-6;
         if (spike_prior)
            for iSubTomo = 1:size(geometry.(tomoList{iTomo}) , 1)
-            peakList = false(nPeaks,1);
-            for iPeak = 1:nPeaks
+            peakList = false(emc.nPeaks,1);
+            for iPeak = 1:emc.nPeaks
               if (geometry.(tomoList{iTomo})(iSubTomo,26*iPeak)~=-9999)
                 iWeight =    ...
                   spike_info.('angular_pdf')(spike_info.(tomoList{iTomo}).('angular_diff')(iSubTomo,iPeak));
@@ -880,7 +792,7 @@ if (flgQualityWeight)
              spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,peakList) = ...
              spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,peakList) ./ ...
              sum(spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,peakList));
-             for iScoreMod = 1:nPeaks
+             for iScoreMod = 1:emc.nPeaks
                if (peakList(iScoreMod))
                 geometry.(tomoList{iTomo})(iSubTomo,2 + 26*(iScoreMod-1)) = ...
                   spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,iScoreMod);
@@ -893,14 +805,14 @@ if (flgQualityWeight)
           
         end
 
-        keepVect = geometry.(tomoList{iTomo})(:,26:26:26*nPeaks)~=-9999 ;
+        keepVect = geometry.(tomoList{iTomo})(:,26:26:26*emc.nPeaks)~=-9999 ;
                  
-        tmpVect = geometry.(tomoList{iTomo})(:,1:26:26*nPeaks); 
+        tmpVect = geometry.(tomoList{iTomo})(:,1:26:26*emc.nPeaks); 
         
 
 
         cccVect = [cccVect ; reshape(tmpVect(keepVect),[],1)];
-        tmpVect = geometry.(tomoList{iTomo})(:,2:26:26*nPeaks);    
+        tmpVect = geometry.(tomoList{iTomo})(:,2:26:26*emc.nPeaks);    
 
         wgtVect = [wgtVect ; reshape(tmpVect(keepVect),[],1)];
       end
@@ -922,7 +834,7 @@ if (flgQualityWeight)
     
     masterTM.(cycleNumber).('score_sigma') = std(cccVect);
     if (spike_prior)
-%       spike_info.('normalization_factor') = 1;%nVolumes ./ (nPeaks * addedWeight);
+%       spike_info.('normalization_factor') = 1;%nVolumes ./ (emc.nPeaks * addedWeight);
 %       fprintf('From %d possible volumes the total weight is %3.3e\n',nVolumes,addedWeight);
     end
     avgCCC = mean(cccVect);
@@ -1056,7 +968,7 @@ parfor iParProc = parVect
 
     % Load in the geometry for the tomogram, and get number of subTomos.
     positionList = geometry_tmp.(tomoList{iTomo});
-    nSubTomos = sum(any(positionList(:,26:26:26*nPeaks) ~= -9999,2));
+    nSubTomos = sum(any(positionList(:,26:26:26*emc.nPeaks) ~= -9999,2));
     
     nSubTomosTotal = nSubTomosTotal + nSubTomos;
 
@@ -1121,12 +1033,12 @@ parfor iParProc = parVect
       
           if ( flgEstSNR )
             % When the class is for estimating SNR
-            includeList = ( any(abs(positionList(:,1:26:26*nPeaks))  >= cccCutOff,2) & ...
+            includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks))  >= cccCutOff,2) & ...
                                 positionList(:,10) ==  iClassIDX & ...
                                 positionList(:,7)  == iGold );
           else
             % When the class is from statistical analysis
-            includeList = ( any(abs(positionList(:,1:26:26*nPeaks)) >= cccCutOff,2)  & ...
+            includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks)) >= cccCutOff,2)  & ...
                                 positionList(:,26) ==  iClassIDX & ...
                                 positionList(:,7)  == iGold );
           end
@@ -1134,8 +1046,8 @@ parfor iParProc = parVect
         else
           % if class is 0, pick all non-ignored particles
 
-          includeList = ( any(abs(positionList(:,1:26:26*nPeaks))  >= cccCutOff,2)  & ...
-                              any(positionList(:,26:26:26*nPeaks) ~= -9999,2)  & ...
+          includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks))  >= cccCutOff,2)  & ...
+                              any(positionList(:,26:26:26*emc.nPeaks) ~= -9999,2)  & ...
                               positionList(:,7)  == iGold );
  
         end
@@ -1153,7 +1065,7 @@ parfor iParProc = parVect
          % symmetry = classVector{iGold}(2, iClassPos);
 
             
-          if ( nPeaks > 1 )
+          if ( emc.nPeaks > 1 )
             % Calculate a relative weighting, normalize max score to one
             % and then raise to compressBy factor to downweight lower
             % scores.
@@ -1161,7 +1073,7 @@ parfor iParProc = parVect
              
             [ peakWgt, sortedList ] = BH_weightAngCheckPeaks( ...
                                                positionList(iSubTomo,:),...
-                                               nPeaks,  ...
+                                               emc.nPeaks,  ...
                                                masterTM.(cycleNumber).('score_sigma') ,...
                                                iSubTomo, tomoList{iTomo},...
                                                track_stats);        
@@ -1177,7 +1089,7 @@ parfor iParProc = parVect
 
         make_sf3d = true;
 
-        for iPeak = 1:nPeaks
+        for iPeak = 1:emc.nPeaks
           
           if peakWgt(iPeak) == -9999
             positionList(iSubTomo, 26*iPeak) = -9999;
@@ -1402,7 +1314,7 @@ parfor iParProc = parVect
            iSubTomo, tomoList{iTomo});
            iParticle(:,:,:) = 0;
            % Flag the particle as ignored
-           positionList(iSubTomo, 26:26:nPeaks*26) = -9999;
+           positionList(iSubTomo, 26:26:emc.nPeaks*26) = -9999;
           else
 
             if (test_fuzz)
@@ -1474,9 +1386,9 @@ parfor iParProc = parVect
            iSubTomo, tomoList{iTomo}, 1-padVAL);
           
            % Flag the particle as ignored
-           positionList(iSubTomo, 26:26:26*nPeaks) = -9999;
+           positionList(iSubTomo, 26:26:26*emc.nPeaks) = -9999;
            nIgnored = nIgnored + 1;
-           peakWgt(1:nPeaks) = -9999;
+           peakWgt(1:emc.nPeaks) = -9999;
         
           end
     %       end

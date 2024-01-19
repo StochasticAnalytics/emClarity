@@ -131,11 +131,7 @@ end
 nPreviousSubTomos = 0;
 
 reconScaling = 1;
-try
-  nPeaks = emc.('nPeaks');
-catch
-  nPeaks = 1;
-end
+
 
 ignore_threshold = false;
 try
@@ -1197,7 +1193,7 @@ sizeTomo = size(mag);
 
 [MAX, coord] = max(mag(:));
 
-peakMat = zeros(peakThreshold,10*nPeaks);
+peakMat = zeros(peakThreshold,10*emc.nPeaks);
 
 n = 1;
 
@@ -1256,7 +1252,7 @@ end
 
     % box for removal and center of mass calc, use a larger box if multiple
     % peaks are being saved.
-    bDist = 1+round(log(nPeaks));
+    bDist = 1+round(log(emc.nPeaks));
     clI  = c(1) - bDist;
     chI  = c(1) + bDist;
     clJ  = c(2) - bDist;
@@ -1299,11 +1295,11 @@ end
     peakMat(n,10) = gather(MAX);
 
     iSNR = 0;
-    if nPeaks > 1
+    if emc.nPeaks > 1
       possible_angles = gather(magBox);
       possible_angles(angBox == topPeak) = 0; 
       nRandom = 2;
-      for iPeak = 2:nPeaks
+      for iPeak = 2:emc.nPeaks
         
         useRandom = false;
         
@@ -1407,8 +1403,8 @@ for i = 1:length(peakMat(:,1))
                     i+nPreviousSubTomos,1,1,1,1,1,0,peakMat(i,1:3), ...
                     peakMat(i,4:6),r,1);
          
-    if nPeaks > 1
-      for iPeak = 2:nPeaks
+    if emc.nPeaks > 1
+      for iPeak = 2:emc.nPeaks
 
         iSym = mod(nSym,symOps.nSymMats)+1;
         r = reshape(BH_defineMatrix(peakMat(i,[4:6]+10*(iPeak-1)), rotConvention , 'inv') * symOps.symmetry_matrices{iSym},1,9);

@@ -41,17 +41,11 @@ if (nargin ~= 2)
   error('args = PARAMETER_FILE, CYCLE')
 end
 
-try
-  nPeaks = emc.('nPeaks');
-catch
-  nPeaks = 1;
-end
+
 % Backup the current geometry
   system(sprintf('cp %s.mat preDupRemoval_%s.mat',emc.('subTomoMeta'),emc.('subTomoMeta')));
   load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   geometry = subTomoMeta.(cycleNumber).RawAlign;
-% % %   mapExt = subTomoMeta.mapExt;
-% % %   mapPath= subTomoMeta.mapPath;
   masterTM = subTomoMeta; clear subTomoMeta
 
 
@@ -130,7 +124,7 @@ for iTomo = 1:nTomograms
       % Logical translating particle ids to postions in geometry file
       posList = ismember(positionList(:,4), idxList);
       % Replace ones in logical with CCC from previous raw Alignment
-      cccList = max(positionList(:,1:26:26*nPeaks),[],2).*posList;
+      cccList = max(positionList(:,1:26:26*emc.nPeaks),[],2).*posList;
       
       [~ , maxCCCcoord] = max(cccList);
       % set highest CCC to zero, so the remaining are all inferior
@@ -138,8 +132,8 @@ for iTomo = 1:nTomograms
       % column 3
       posList(maxCCCcoord) = 0;
       nRemoved = nRemoved + sum(posList);
-      positionList(posList,26:26:26*nPeaks) = -9999;
-      positionList(posList,3:26:26*nPeaks)  = -9999;
+      positionList(posList,26:26:26*emc.nPeaks) = -9999;
+      positionList(posList,3:26:26*emc.nPeaks)  = -9999;
       
     end
     catch

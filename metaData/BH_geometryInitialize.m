@@ -99,11 +99,6 @@ if (splitOnTomos)
 end
 nOrientations=1;%nOrientations = emc.('pseudoMLnumber');
 nCTFgroups = 9;
-try
-  nPeaks = emc.('nPeaks');
-catch
-  nPeaks = 1;
-end
 
 % Resolution lower than this is not gold standard, and will also be mixed
 % in the references to keep orientations from diverging. Should be > 2.25 x
@@ -443,10 +438,8 @@ parfor iGPU = 1:nGPUs
         
         subTomoOrigin = fix(tmpSearchGeom(iSubTomo,11:13)./dupInTheLoop);
         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
-          tmpSearchGeom(iSubTomo,26:26:26*nPeaks) = -9999;
-%         if any(subTomoOrigin < 1 + dupRadius) || any([sx,sy,sz] < subTomoOrigin + dupRadius)
-%           tmpSearchGeom(iSubTomo,26) = -9999;
-%         else
+          tmpSearchGeom(iSubTomo,26:26:26*emc.nPeaks) = -9999;
+
         else
         positionMatrix(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = 1;
         positionIDX(subTomoOrigin(1),subTomoOrigin(2),subTomoOrigin(3)) = ...
@@ -455,9 +448,6 @@ parfor iGPU = 1:nGPUs
         end
 
       end % loop building position matrix
-
-      % Add in the points from the modified list, which will increase the value at
-      % any retained positions to 2.
 
       for iSubTomo = 1:size(modGeom,1)
 
@@ -503,9 +493,8 @@ for iGPU = 1:nGPUs
     mapName = fileInfo{iTomo,2};
     tmpGeom = parResults{iGPU}.(mapName);
     
-    tmpGeom(:,9:26:26*nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
-                        subTomoMeta.('ctfGroupSize').(mapName)(2)),1,nPeaks);
-%     tmpGeom(:,9) = ceil(tmpGeom(:,11)./ subTomoMeta.('ctfGroupSize').(mapName)(2));
+    tmpGeom(:,9:26:26*emc.nPeaks) = repmat(ceil(tmpGeom(:,11)./ ...
+                        subTomoMeta.('ctfGroupSize').(mapName)(2)),1,emc.nPeaks);
 
     % Sort so that CTFs can be left in main mem, and only pulled when needed and only
     % once per round of alignment.
@@ -513,9 +502,7 @@ for iGPU = 1:nGPUs
   
 
     for iSubTomo = 1:size(tmpGeom,1)
-      tmpGeom(iSubTomo, 4:26:26*nPeaks) = nIDX;
-%       tmpGeom(iSubTomo, 4) = nIDX;
-
+      tmpGeom(iSubTomo, 4:26:26*emc.nPeaks) = nIDX;
       
       nIDX = nIDX +1; 
     end
@@ -542,7 +529,7 @@ subTomoMeta.('nSubTomoInitial') = nIDX-1;
 preFscSplit = gather(subTomoMeta);
 
 % Randomly divide the data into half sets.
-[ subTomoMeta ] = BH_fscSplit( preFscSplit, splitOnTomos, nPeaks);
+[ subTomoMeta ] = BH_fscSplit( preFscSplit, splitOnTomos, emc.nPeaks);
 subTomoMeta.('currentCycle') = 0;
 subTomoMeta.('currentTomoCPR') = mapBackIter;
 subTomoMeta.('currentResForDefocusError') = lowResCut;

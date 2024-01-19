@@ -42,9 +42,31 @@ end
 
 % Now check for optional parameters
 
+% Early development parameter, used to store more than one orientation during template matching
+% and use for further refinement.
 if ~isfield(emc, 'nPeaks')
   emc.('nPeaks') = 1;
 end
+
+% Used when cutting out subtomos for further processing. Adds extra padding to anticipate shifts etc.
+% This has not been well tested
+
+% When used in average3d, this value is stored in the subTomoMeta. 
+if ~isfield(emc, 'CUTPADDING')
+  emc.('CUTPADDING') = 20;
+end
+
+if isfield(emc, 'whitenPS')
+  if (numel(emc.whitenPS) == 3)
+    emc.('wiener_constant') = emc.whitenPS(3);
+  else
+    error('whitenPS should be a 3 element vector');
+  end
+else
+  emc.('whitenPS') = [0.0,0.0,0.0];
+  emc.('wiener_constant') = 0.0;
+end
+
 
 end
 
