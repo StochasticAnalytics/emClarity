@@ -1,44 +1,5 @@
 function [ ] = BH_clusterPub(PARAMETER_FILE, CYCLE)
-%Kmeans based classification
-%
-%
-%   Input Variables:
-%
-%   GEOMETRY =
-%
-%   COEFF_MAT = matfile with previous pca decomposition
-%
-%   nCLUSTERS = vector with number of clusters to try.
-%
-%   COEFFS = cell with 1x2 vectors giving ranges of coeffs to try
-%            e.g. {[2,40], [7,40]}
-%
-%   kDIST = distance measure to use. I have observed some improved seperation
-%           for my data using 'cosine' rather than the default.
-%
-%           'sqeuclidean', 'cityblock', 'cosine', 'correlation'
-%
-%   kREP = number of replicates for each
-%
-%   Output Variables:
-%
-%   None - writes out an updated geometry for each combination of nClUSTERS and
-%          COEFFS
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   Goals & limitations:
-%
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%   TODO
-%
-%   Change parpool to 48 prior to testing on archer. Also take a look into the
-%   available GPU accelerated K means. Check the memory used for coeff and
-%   whether or not this is limiting. It should not be.
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 if (nargin ~= 2)
   error('PARAMETER_FILE, CYCLE')
 end
@@ -77,56 +38,8 @@ if (nFeatures(1) ~= nRows)
   error('There should be a set of indices for each pca_scale_spaces, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
 end
 
-clusterVector= emc.('Pca_clusters');
-
-try
-  kDIST        = emc.('Pca_distMeasure');
-catch
-  kDIST = 'sqeuclidean';
-end
-try
-  kREP         = emc.('Pca_nReplicates');
-catch
-  kREP = 256;
-end
-
-try
-  flgRefineKmeans = emc.('Pca_refineKmeans')
-catch
-  flgRefineKmeans = false
-end
-
 nCores       = BH_multi_parallelWorkers(emc.('nCpuCores'));
 
-% try
-%   relativeScale = emc.('Pca_relativeScale')
-% catch
-%   relativeScale= ones(size(clusterVector,1),1);
-% end
-
-try
-  flgFlattenEigs = emc.('Pca_flattenEigs')
-catch
-  flgFlattenEigs=1
-end
-
-
-try
-  coverSteps = emc.('Pca_som_coverSteps');
-catch
-  coverSteps = 100;
-end
-try
-  initNeighbor = emc.('Pca_som_initNeighbor');
-catch
-  initNeighbor = 3;
-end
-try
-  topologyFcn = emc.('Pca_som_topologyFcn');
-catch
-  %  'hextop' (default) | 'randtop' | 'gridtop' | 'tritop'
-  topologyFcn = 'hextop';
-end
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 masterTM = subTomoMeta; clear subTomoMeta
 
@@ -165,10 +78,8 @@ for iGold = 1:1+flgGold
   
   kAlgorithm = 'kMeans';
   % kAlgorithm = 'neuralNetwork'
-  
-  kDist = sprintf('%s', kDIST)
-  
-  switch kDist
+    
+  switch emc.distance_metric
     case 'sqeuclidean'
       kDistMeasure = 'sqeuclidean'
     case 'cityblock'
@@ -184,16 +95,13 @@ for iGold = 1:1+flgGold
       kDistMeasure = 'neural'
       kAlgorithm = 'neuralNetwork'
       fprintf('Input params for neural network are %d %d %s\n', ...
-        coverSteps, initNeighbor, topologyFcn);
+        emc.coverSteps, emc.Pca_som_initNeighbor, emc.topologyFcn);
     otherwise
       kDistMeasure = 'sqeuclidean'
       fprintf(['\nDefaulting to sqeuclidean b/c %s was not recognized'] ...
         , kDist);
   end
   
-  kReplicates =  kREP;
-  
-  %kDistMeasure = 'euclidean'
   
   try
     oldPca = load(coeffMatrix);
@@ -249,7 +157,7 @@ for iGold = 1:1+flgGold
       % % %         coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) ./ ...
       % % %         repmat(rms(coeffMat(1+nAdded:nAdded+nFeatures(iScale),:),2),1,nJ).*iScale;
       
-      if (flgFlattenEigs)
+      if (emc.Pca_flattenEigs)
         coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) = ...
           coeffMat(1+nAdded:nAdded+nFeatures(iScale),:) ./ ...
           repmat(rms(coeffMat(1+nAdded:nAdded+nFeatures(iScale),:),2),1,nJ);
@@ -271,14 +179,14 @@ for iGold = 1:1+flgGold
     
     if strcmpi(kAlgorithm, 'kMeans')
       [class, classCenters, sumd, D] = kmeans(coeffMat', nClusters, ...
-        'replicates', kReplicates, ...
+        'replicates', emc.n_replicates, ...
         'Distance', kDistMeasure, ...
         'MaxIter', 50000, ... % Default was 100
         'Options', statset('UseParallel', 1) );
       
     elseif strcmpi(kAlgorithm, 'kMedoids')
       [class, classCenters, sumd, D] = kmedoids(coeffMat', nClusters, ...
-        'replicates', kReplicates, ...
+        'replicates', emc.n_replicates, ...
         'Distance', kDistMeasure, ...
         'Options', statset('UseParallel', 1, ...
         'MaxIter', 50000) );
@@ -293,7 +201,7 @@ for iGold = 1:1+flgGold
       
     elseif strcmpi(kAlgorithm, 'neuralNetwork')
       
-      net = selforgmap([1 nClusters], coverSteps, initNeighbor, topologyFcn);
+      net = selforgmap([1 nClusters], emc.coverSteps, emc.Pca_som_initNeighbor, emc.topologyFcn);
       [net, tr] = train(net, coeffMat);
       y = net(coeffMat)
       class = vec2ind(y)
@@ -310,7 +218,7 @@ for iGold = 1:1+flgGold
     fprintf('Total kmeans dist = %g\n', totSum1)
     fprintf('Total kmeans std  = %g\n', totStd1)
     
-    if (flgRefineKmeans)
+    if (emc.Pca_refineKmeans)
       % Using the postions found, refine the original estimates
       
       kMin = min(classCenters,[],1);
@@ -346,14 +254,14 @@ for iGold = 1:1+flgGold
       %                                     'Options', statset('UseParallel', 1) );
       if strcmpi(kAlgorithm, 'kMeans')
         [class, classCenters, sumd,D] = kmeans(coeffMat', nClusters, ...
-          'replicates', kReplicates, ...
+          'replicates', emc.n_replicates, ...
           'Distance', kDistMeasure, ...
           'MaxIter', 50000, ... % Default was 100
           'Options', statset('UseParallel', 1) );
         
       elseif strcmpi(kAlgorithm, 'kMedoids')
         [class, classCenters, sumd,D] = kmedoids(coeffMat', nClusters, ...
-          'replicates', kReplicates, ...
+          'replicates', emc.n_replicates, ...
           'Distance', kDistMeasure, ...
           'Options', statset('UseParallel', 1, ...
           'MaxIter', 50000) );

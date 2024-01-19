@@ -94,11 +94,6 @@ angleSearch   = emc.('Tmp_angleSearch');
 
 convTMPNAME = sprintf('convmap_wedgeType_%d_bin%d',wedgeType,samplingRate)
 
-try
-  use_new_grid_search = emc.('use_new_grid_search');
-catch
-  use_new_grid_search = true;
-end
 
 try
   eraseMaskType = emc.('Peak_mType');
@@ -303,26 +298,18 @@ if ( doHelical )
   rotConvention = 'Helical';
 end
 
-
-
-if (use_new_grid_search)
-  
+if (emc.use_new_grid_search)
   gridSearch = eulerSearch(emc.symmetry, angleSearch(1),...
     angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, false);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi;
-  
-  
 else
   
   [  nInPlane, inPlaneSearch, angleStep, nAngles] ...
     = BH_multi_gridSearchAngles(angleSearch)
 end
 
-
-
 highThr=sqrt(2).*erfcinv(ceil(peakThreshold.*0.10).*2./(prod(size(tomogram)).*nAngles(1)))
-
 
 
 [ OUTPUT ] = BH_multi_iterator( [targetSize; ...
@@ -666,7 +653,7 @@ firstLoopOverTomo = true;
 
 % swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
 
-if (use_new_grid_search)
+if (emc.use_new_grid_search)
   theta_search = 1:gridSearch.number_of_out_of_plane_angles;
 else
   theta_search = 1:size(angleStep,1);
@@ -675,7 +662,7 @@ end
 
 for iAngle = theta_search
   
-  if (use_new_grid_search)
+  if (emc.use_new_grid_search)
     theta = gridSearch.parameter_map.theta(iAngle);
     numRefIter = gridSearch.number_of_angles_at_each_theta(iAngle);
   else
@@ -723,7 +710,7 @@ for iAngle = theta_search
     % chunk.
     firstLoopOverChunk = true;
     
-    if (use_new_grid_search)
+    if (emc.use_new_grid_search)
       fprintf('Working on tilt(%d/%d) tomoChunk(%d/%d)\t' ...
         ,iAngle,gridSearch.number_of_out_of_plane_angles, tomoIDX,nTomograms);
     else
@@ -756,7 +743,7 @@ for iAngle = theta_search
     
     
     
-    if (use_new_grid_search)
+    if (emc.use_new_grid_search)
       phi_search = gridSearch.parameter_map.phi{iAngle};
     else
       phi_search = 0:angleStep(iAngle,2);
@@ -765,7 +752,7 @@ for iAngle = theta_search
     for iAzimuth = phi_search
       
       
-      if (use_new_grid_search)
+      if (emc.use_new_grid_search)
         phi = iAzimuth;
       else
         phi = phiStep * iAzimuth;

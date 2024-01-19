@@ -437,11 +437,7 @@ catch
 end
 
 maxCCC = 0;
-try
-  spike_prior = emc.('spike_prior')
-catch
-  spike_prior = false
-end
+
 spike_info = struct();
 spike_info.('std_dev') = nan;
 if (emc.flgQualityWeight)
@@ -452,7 +448,7 @@ if (emc.flgQualityWeight)
   angVect = [];
   chiVect = [];
   
-  if (spike_prior)
+  if (emc.spike_prior)
     
     tiltList_tmp = fieldnames(subTomoMeta.mapBackGeometry);
     tiltList_tmp = tiltList_tmp(~ismember(tiltList_tmp,{'viewGroups','tomoName'}));
@@ -559,7 +555,7 @@ if (emc.flgQualityWeight)
       end
       
       min_weight = 1e-6;
-      if (spike_prior)
+      if (emc.spike_prior)
         for iSubTomo = 1:size(geometry.(tomoList{iTomo}) , 1)
           peakList = false(emc.nPeaks,1);
           for iPeak = 1:emc.nPeaks
@@ -621,7 +617,7 @@ if (emc.flgQualityWeight)
   end
   
   subTomoMeta.(cycleNumber).('score_sigma') = std(cccVect);
-  if (spike_prior)
+  if (emc.spike_prior)
     %       spike_info.('normalization_factor') = 1;%nVolumes ./ (emc.nPeaks * addedWeight);
     %       fprintf('From %d possible volumes the total weight is %3.3e\n',nVolumes,addedWeight);
   end
@@ -849,7 +845,7 @@ parfor iParProc = parVect
             peakWgt = 1;
           end
           
-          % %           if (spike_prior)
+          % %           if (emc.spike_prior)
           % %             peakWgt = peakWgt.*spike_info.(tomoList{iTomo}).('angular_prob')(iSubTomo,1).*spike_info.('normalization_factor');
           % %           end
           

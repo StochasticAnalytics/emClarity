@@ -4,19 +4,21 @@ function  EMC_assert_numeric(input_val, varargin)
     assert_length = false;
     assert_passed = false;
     assert_range = false;
+    
     if ( nargin > 1 )
         assert_length = true;
         wanted_numel = varargin{1};
-        if ~isa(wanted_numel, "integer") 
+        if ~isa(wanted_numel, "numeric") 
             error('EMC_assert_numeric: second argument must be an integer');
         end
-        if (nargin == 3)
+        if (nargin > 2)
             assert_range = true;
             range = varargin{2};
             if ( ~isa(range, 'numeric') || numel(range) ~= 2 )
                 error('EMC_assert_numeric: third argument must be numeric with two elements');
             end
-        else  
+        end
+        if ( nargin > 3 ) 
             error('EMC_assert_numeric: too many input arguments');
         end
     end

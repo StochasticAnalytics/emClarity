@@ -68,11 +68,7 @@ mapBackIter = subTomoMeta.currentTomoCPR;
 reconScaling = 1;
 
 
-try
-  use_new_grid_search = emc.('use_new_grid_search');
-catch
-  use_new_grid_search = true;
-end
+
 
 
 maxGoldStandard = subTomoMeta.('maxGoldStandard');
@@ -80,27 +76,9 @@ maxGoldStandard = subTomoMeta.('maxGoldStandard');
 
 nGPUs = emc.('nGPUs');
 
-try
-  updateClassByBestReferenceScore = emc.('updateClassByBestReferenceScore');
-catch
-  updateClassByBestReferenceScore = false;
-end
-if (~emc.multi_reference_alignment)
-  updateClassByBestReferenceScore = false;
-end
 
-try
-  flgCenterRefCOM = emc.('flgCenterRefCOM');
-catch
-  flgCenterRefCOM = 1;
-end
 
-% FIXME: unused, fix experimental options option
-try
-  flgSymmetrizeSubTomos = emc.('flgSymmetrizeSubTomos');
-catch
-  flgSymmetrizeSubTomos = 0;
-end
+
 flgRaw_shapeMask =  0;%= emc.('experimentalOpts')(3)
 samplingRate = emc.('Ali_samplingRate');
 
@@ -289,7 +267,7 @@ for iGold = 1:2
   
   sizeREF = masterTM.(cycleNumber).(imgNAME){2}{1}(2:2:6)';
   
-  if (flgCenterRefCOM)
+  if (emc.move_reference_by_com)
     % % % % % % %    [ comMask ] = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
     [ comMask ]  = EMC_maskShape(maskType, sizeMask, maskRadius, 'gpu', {'shift', maskCenter});
   end
@@ -299,7 +277,7 @@ for iGold = 1:2
   for iP = 1:numel(refTMP)
     if ~isempty(refTMP{iP})
       tIMG{n} = refTMP{iP}; refTMP{iP} = [];
-      if (flgCenterRefCOM)
+      if (emc.move_reference_by_com)
         
         [~, ~, ~,iCOM] = EMC_maskReference(gpuArray(tIMG{n}).*comMask, emc.pixel_size_angstroms, {'fsc',true; 'com', true});
         fprintf('centering ref %d on COM %3.3f %3.3f %3.3f \n',n,iCOM);
@@ -533,7 +511,7 @@ clear refIMG refWDG refOUT iRef
 
 updateWeights = false;
 gridSearch = '';
-if (use_new_grid_search)
+if (emc.use_new_grid_search)
   gridSearch = eulerSearch(emc.symmetry, angleSearch(1),...
     angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, true);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
@@ -887,7 +865,7 @@ parfor iParProc = parVect
                 particleInterpolator = interpolator(gpuArray(iparticle),[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);
               end
               
-              if (use_new_grid_search)
+              if (emc.use_new_grid_search)
                 theta_search = 1:gridSearch.number_of_out_of_plane_angles;
               else
                 theta_search = 1:size(angleStep,1);
@@ -895,7 +873,7 @@ parfor iParProc = parVect
               
               for iAngle = theta_search
                 
-                if (use_new_grid_search)
+                if (emc.use_new_grid_search)
                   theta = gridSearch.parameter_map.theta(iAngle);
                   if length(gridSearch.parameter_map.phi{iAngle}) > 1
                     phiInc = gridSearch.parameter_map.phi{iAngle}(2)-gridSearch.parameter_map.phi{iAngle}(1);
@@ -924,7 +902,7 @@ parfor iParProc = parVect
                 
                 
                 
-                if (use_new_grid_search)
+                if (emc.use_new_grid_search)
                   % FIXME randomizer passed as bool to eulerSearch
                   phi_search = gridSearch.parameter_map.phi{iAngle};
                 else
@@ -934,7 +912,7 @@ parfor iParProc = parVect
                 
                 for iAzimuth = phi_search
                   
-                  if (use_new_grid_search)
+                  if (emc.use_new_grid_search)
                     phi = rem(iAzimuth + azimuthalRandomizer,360);
                     psiInc = gridSearch.psi_step;
                   else
@@ -1679,7 +1657,7 @@ else
   %   save('bestAnglesTemp.mat', 'bestAngles');
   save('bestAngles.mat', 'bestAngles');
   
-  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, emc.nPeaks, rotConvention, updateWeights, updateClassByBestReferenceScore);
+  [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, emc.nPeaks, rotConvention, updateWeights, emc.update_class_by_ccc);
   masterTM.(cycleNumber).('RawAlign') = rawAlign;
   masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
   masterTM.('updatedWeights') = true;

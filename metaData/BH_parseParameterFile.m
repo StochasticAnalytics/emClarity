@@ -45,13 +45,13 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if isfield(emc, 'nGPUs')
-  EMC_assert_integer(emc.nGPUs, 1, [1, 1000]);
+  EMC_assert_numeric(emc.nGPUs, 1, [1, 1000]);
 else
   error('nGPUs is a required parameter');
 end
 
 if isfield(emc, 'nCpuCores')
-  EMC_assert_integer(emc.nCpuCores, 1, [1, 1000]);
+  EMC_assert_numeric(emc.nCpuCores, 1, [1, 1000]);
 else
   error('nCpuCores is a required parameter');
 end
@@ -103,7 +103,7 @@ end
 % Early development parameter, used to store more than one orientation during template matching
 % and use for further refinement.
 if isfield(emc, 'nPeaks')
-  EMC_assert_integer(emc.nPeaks, 1);
+    EMC_assert_numeric(emc.nPeaks, 1);
 else
   emc.('nPeaks') = 1;
 end
@@ -113,7 +113,7 @@ end
 
 % When used in average3d, this value is stored in the subTomoMeta.
 if isfield(emc, 'CUTPADDING')
-  EMC_assert_integer(emc.CUTPADDING, 1);
+  EMC_assert_numeric(emc.CUTPADDING, 1);
 else
   emc.('CUTPADDING') = 20;
 end
@@ -251,7 +251,7 @@ emc = EMC_assert_deprecated_substitution(emc, false, 'fsc_with_chimera', 'fscWit
 EMC_assert_boolean(emc.fsc_with_chimera);
 
 emc = EMC_assert_deprecated_substitution(emc, 0.1, 'minimum_particle_for_fsc_weighting', 'minimumparticleVolume');
-EMC_assert_numeric(emc.minimum_particle_for_fsc_weighting, 0, [0.01, 1.0]);
+EMC_assert_numeric(emc.minimum_particle_for_fsc_weighting, 1, [0.01, 1.0]);
 
 emc = EMC_assert_deprecated_substitution(emc, 1.0, 'fsc_shape_mask', 'flgFscShapeMask');
 EMC_assert_numeric(emc.fsc_shape_mask, 1, [0.0, 2.0]);
@@ -279,17 +279,81 @@ EMC_assert_numeric(emc.pca_scale_spaces);
 emc.('n_scale_spaces') = numel(emc.pca_scale_spaces);
 
 if isfield(emc, 'Pca_maxEigs')
-  EMC_assert_integer(emc.Pca_maxEigs, 1, [1, 1000]);
+  EMC_assert_numeric(emc.Pca_maxEigs, 1, [1, 1000]);
 else
   emc.Pca_maxEigs = 36;
 end
 
 if isfield(emc, 'Pca_randSubset')
-  EMC_assert_integer(emc.Pca_randSubset, 1);
+  EMC_assert_numeric(emc.Pca_randSubset, 1);
 else
   emc.Pca_randSubset = 0;
 end
 
+clusterVector= emc.('Pca_clusters');
+
+% Allowed values are validated inside BH_clusterPub.m
+if ~isfield(emc, 'Pca_distMeasure');
+  emc.distance_metric = 'sqeuclidean';
+end
+
+if isfield(emc, 'Pca_nReplicates');
+  EMC_assert_numeric(emc.Pca_nReplicates, 1, [100, 1000]);
+  emc.n_replicates = 256;
+end
+
+if isfield(emc, 'Pca_refineKmeans')
+  EMC_assert_boolean(emc.Pca_refineKmeans);
+else
+  emc.Pca_refineKmeans = false;
+end
+
+if isfield(emc, 'Pca_flattenEigs')
+  EMC_assert_boolean(emc.Pca_flattenEigs);
+else
+  emc.Pca_flattenEigs = true;
+end
+
+
+if isfield(emc, 'Pca_som_coverSteps')
+  EMC_assert_numeric(emc.Pca_som_coverSteps, 1, [1, 1000]);
+else
+  emc.Pca_som_coverSteps = 100;
+end
+
+if isfield(emc, 'Pca_som_initNeighbor')
+  EMC_assert_numeric(emc.Pca_som_initNeighbor, 1, [1, 32]);
+else
+  emc.Pca_som_initNeighbor = 3;
+end
+
+if ~isfield(emc, 'Pca_som_topologyFcn')
+  % TODO: assert on allowed values
+  emc.Pca_som_topologyFcn = 'hextop';
+end
+
+if isfield(emc, 'spike_prior')
+  EMC_assert_boolean(emc.spike_prior);
+else
+  emc.spike_prior = false;
+end
+
+
+emc = EMC_assert_deprecated_substitution(emc, false, 'update_class_by_ccc', 'updateClassByBestReferenceScore');
+EMC_assert_boolean(emc.update_class_by_ccc);
+if (~emc.multi_reference_alignment)
+  % update by ccc only makes sense for multi reference alignment
+  emc.update_class_by_ccc = false;
+end
+
+emc = EMC_assert_deprecated_substitution(emc, true, 'move_reference_by_com', 'flgCenterRefCOM');
+EMC_assert_boolean(emc.move_reference_by_com);
+
+if isfield(emc, 'use_new_grid_search')
+  EMC_assert_boolean(emc.use_new_grid_search);
+else
+  emc.use_new_grid_search = true;
+end
 
 
 end
