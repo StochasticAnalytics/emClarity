@@ -926,8 +926,7 @@ end
 end
 
 
-function  [ sectionList ] = calcTomoSections(iCoords, tomoNumber, emc.pixel_size_angstroms,...
-  nSections,tiltName, ctf3Depth)
+function  [ sectionList ] = calcTomoSections(iCoords, tomoNumber, pixel_size_angstroms, nSections,tiltName, ctf3Depth)
 
 nTomos = length(tomoNumber);
 sectionList = cell(nTomos,1);
@@ -938,7 +937,7 @@ end
 
 % With rounding this could end up a bit short except the top and bottom are both
 % half a section larger than minimally needed.
-nSec = floor(ctf3Depth*10^10/emc.pixel_size_angstroms)      ;
+nSec = floor(ctf3Depth*10^10/pixel_size_angstroms)      ;
 nSec = nSec + ~mod(nSec,2);
 halfSec = (nSec-1)/2;
 
@@ -1031,7 +1030,7 @@ end
 
 
 function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
-  avgZ,TLT,emc.pixel_size_angstroms,maskedStack,...
+  avgZ,TLT,pixel_size_angstroms,maskedStack,...
   maxZ,flgDampenAliasedFrequencies,...
   preCombDefocus,samplingRate,...
   applyExposureFilter,surfaceFit,...
@@ -1104,12 +1103,12 @@ else
     'Cylindrical','GPU', ...
     {'none'},1,0,0);
 end
-radialGrid = {radialGrid./emc.pixel_size_si,0,phi};
+radialGrid = {radialGrid./(pixel_size_angstroms*10^-10),0,phi};
 phi = [];
 
-fprintf('%f %f\n',filterProjectionsForTomoCPRBackground,emc.pixel_size_angstroms);
+fprintf('%f %f\n',filterProjectionsForTomoCPRBackground,pixel_size_angstroms);
 if (filterProjectionsForTomoCPRBackground ~= 0)
-  bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',emc.pixel_size_angstroms);
+  bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',pixel_size_angstroms);
 else
   bpFilter = 1;
 end
@@ -1132,10 +1131,10 @@ for iPrj = 1:nPrjs
   
   
   
-  STRIPWIDTH = min(floor((0.5*ctf3dDepth/emc.pixel_size_si)/abs(tand(TLT(iPrj,4)))),512);
+  STRIPWIDTH = min(floor((0.5*ctf3dDepth/(pixel_size_angstroms*10^-10))/abs(tand(TLT(iPrj,4)))),512);
   STRIPWIDTH = STRIPWIDTH + mod(STRIPWIDTH,2);
   % take at least 1200 Ang & include the taper if equal to STRIPWIDTH
-  tileSize   = floor(max(600./emc.pixel_size_angstroms, STRIPWIDTH + 28));
+  tileSize   = floor(max(600./pixel_size_angstroms, STRIPWIDTH + 28));
   tileSize = tileSize + mod(tileSize,2);
   %fprintf('stripwidth tilesize %d %d\n',STRIPWIDTH,tileSize);
   incLow = ceil(tileSize./2);
@@ -1185,7 +1184,7 @@ for iPrj = 1:nPrjs
   % Transform the specimen plane
   tX = round(rA(1).*rX + rA(4).*rY + rA(7).*rZ +oX);
   tY = round(rA(2).*rX + rA(5).*rY + rA(8).*rZ +oY);
-  tZ = emc.pixel_size_si.*(rA(3).*rX + rA(6).*rY + rA(9).*rZ) + full_defocusOffset;
+  tZ = (pixel_size_angstroms*10^-10).*(rA(3).*rX + rA(6).*rY + rA(9).*rZ) + full_defocusOffset;
   
   % Some edge pixels can be out of bounds depending on the orientation of
   % the plan fit. Setting to zero will will ignore them (assuming defocus
@@ -1222,7 +1221,7 @@ for iPrj = 1:nPrjs
       
       modHqz = [];
     else
-      if emc.pixel_size_si < 2.0e-10
+      if (pixel_size_angstroms < 2.0)
         % use double precision - this is not enabled, but needs to be -
         % requires changes to radial grid as well.
         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
@@ -1262,7 +1261,7 @@ for iPrj = 1:nPrjs
   samplingMask(samplingMask == 0) = 1;
   
   if (flgWhitenPS(1))
-    correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',emc.pixel_size_angstroms,1));
+    correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',pixel_size_angstroms,1));
   else
     
     correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask);
@@ -1276,7 +1275,7 @@ end
 
 function [avgZ, maxZ, tomoNumber,surfaceFit] = calcAvgZ(masterTM,iCoords, ...
   tiltName,tomoList,...
-  nTomos, emc.pixel_size_angstroms,...
+  nTomos, pixel_size_angstroms,...
   samplingRate,cycleNumber,...
   sectionList,calcMaxZ)
 
@@ -1308,7 +1307,7 @@ end
 
 maxZ = maxZ + (samplingRate*2);
 
-maxZ = maxZ.*emc.pixel_size_angstroms./10;
+maxZ = maxZ.*pixel_size_angstroms./10;
 fprintf('combining thickness and shift on tilt %s, found a maxZ  %3.3f nm\n',tiltName,maxZ);
 
 if (calcMaxZ)
@@ -1371,7 +1370,7 @@ for iT = 1:nTomos
   zList = zList - tomoOrigin(3) + micOrigin(3);
   totalZ = totalZ + sum(zList);
   fprintf('%s tomo has %d subTomos with mean Z %3.3f nm\n', ...
-    iTomoName, length(zList), mean(zList)*emc.pixel_size_angstroms./10);
+    iTomoName, length(zList), mean(zList)*pixel_size_angstroms./10);
   nSubTomos = nSubTomos + length(zList);
   
   for iSection = 1:nSections
@@ -1401,7 +1400,7 @@ for iT = 1:nTomos
 end % loop over tomos
 
 
-avgZ = totalZ/nSubTomos*emc.pixel_size_angstroms/10*10^-9;
+avgZ = totalZ/nSubTomos*pixel_size_angstroms/10*10^-9;
 
 %       sf(x,y) = p00 + p10*x + p01*y;
 %      surfaceFit = fit([xFull, yFull],zFull,'poly11');

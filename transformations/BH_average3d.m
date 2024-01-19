@@ -120,9 +120,10 @@ savePrefix = '';
 switch STAGEofALIGNMENT
   case 'RawAlignment'
 
-    fieldPrefix = 'Raw';
-    savePrefix = 'REF';
+    fieldPrefix = 'Ref';
+    savePrefix = 'Ref';
     
+    % FIXME: put these into parser, change to deprecated and use Ref
     classVector{1}  = emc.(sprintf('%s_classes_odd','Raw'));
     classVector{2}  = emc.(sprintf('%s_classes_eve','Raw'));
     
@@ -146,8 +147,8 @@ switch STAGEofALIGNMENT
     % Special case for the final cycle.
     % Assuming RawAlignment already run for this cycle and FSC is calculated
     % Goal is to re-extract odd-half, applying the xform found in fscGold
-    fieldPrefix = 'Raw';
-    savePrefix = 'REF';
+    fieldPrefix = 'Ref';
+    savePrefix = 'Ref';
     classVector{1}  = emc.(sprintf('%s_classes_odd',fieldPrefix));
     classVector{2}  = emc.(sprintf('%s_classes_eve',fieldPrefix));
     
@@ -159,20 +160,10 @@ switch STAGEofALIGNMENT
     % "global" or whatever requested class
     iRefPrev = 1;
     
-    
-    try
-      
-      aliParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','REF',iRefPrev));
-      oddRot = reshape(aliParams(1,:),3,3);
-      % refine the translation per particle.
-    catch
-      fprintf('\nReverting from %s to Raw in loading fitFSC\n','REF');
-      
-      aliParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev));
-      
-      oddRot = reshape(aliParams(1,:),3,3);
-      % refine the translation per particle.
-    end
+    aliParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev));
+    oddRot = reshape(aliParams(1,:),3,3);
+    % refine the translation per particle.
+
     clear iRefPrev
     
     
@@ -197,8 +188,8 @@ switch STAGEofALIGNMENT
     
   case 'SnrEstimate'
     
-    fieldPrefix = 'Raw';
-    savePrefix = 'REF';
+    fieldPrefix = 'Ref';
+    savePrefix = 'Ref';
 
     classVector{1}  = [1:25;ones(1,25)];
     classVector{2}  = [1:25;ones(1,25)];
@@ -603,17 +594,17 @@ if (emc.flgQualityWeight)
   end
   
   
-  if (emc.flgCCCcutoff > 1.0)
+  if (emc.ccc_cutoff > 1.0)
     sorted_ccc = sort(cccVect);
-    reqVol = int32(round(cccCutOff))
+    reqVol = int32(round(emc.ccc_cutoff))
     length(sorted_ccc) - reqVol
-    emc.flgCCCcutoff = sorted_ccc(length(sorted_ccc) - reqVol);
-    fprintf('Removing all volumes with score < %2.2f to return the requested %d volumes\n\n',cccCutOff,reqVol);
-  elseif (emc.flgCCCcutoff > 0.0)
+    emc.ccc_cutoff = sorted_ccc(length(sorted_ccc) - reqVol);
+    fprintf('Removing all volumes with score < %2.2f to return the requested %d volumes\n\n',emc.ccc_cutoff,reqVol);
+  elseif (emc.ccc_cutoff > 0.0)
     sorted_ccc = sort(cccVect);
-    reqVol = cccCutoff;
-    emc.flgCCCcutoff = sorted_ccc(floor(length(cccVect).*(1 - reqVol)));
-    fprintf('Removing all volumes with score < %2.2f to return the requested percent %2.2f of possible volumes\n\n',cccCutOff,reqVol);
+    reqVol = emc.ccc_cutoff;
+    emc.ccc_cutoff = sorted_ccc(floor(length(cccVect).*(1 - reqVol)));
+    fprintf('Removing all volumes with score < %2.2f to return the requested percent %2.2f of possible volumes\n\n',emc.ccc_cutoff,reqVol);
   end
   
   subTomoMeta.(cycleNumber).('score_sigma') = std(cccVect);
@@ -798,12 +789,12 @@ parfor iParProc = parVect
           
           if ( flgEstSNR )
             % When the class is for estimating SNR
-            includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks))  >= cccCutOff,2) & ...
+            includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks))  >= emc.ccc_cutoff,2) & ...
               positionList(:,10) ==  iClassIDX & ...
               positionList(:,7)  == iGold );
           else
             % When the class is from statistical analysis
-            includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks)) >= cccCutOff,2)  & ...
+            includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks)) >= emc.ccc_cutoff,2)  & ...
               positionList(:,26) ==  iClassIDX & ...
               positionList(:,7)  == iGold );
           end
@@ -811,7 +802,7 @@ parfor iParProc = parVect
         else
           % if class is 0, pick all non-ignored particles
           
-          includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks))  >= cccCutOff,2)  & ...
+          includeList = ( any(abs(positionList(:,1:26:26*emc.nPeaks))  >= emc.ccc_cutoff,2)  & ...
             any(positionList(:,26:26:26*emc.nPeaks) ~= -9999,2)  & ...
             positionList(:,7)  == iGold );
           
@@ -877,7 +868,7 @@ parfor iParProc = parVect
             TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
             
             if (make_sf3d)
-              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);
+              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, emc.wiener_constant);
               make_sf3d = false;
             end
             
@@ -923,10 +914,9 @@ parfor iParProc = parVect
                 sizeWindow, maskRadius, center);
             end
             
-            
+           
             if ~ischar(indVAL)
-              
-              
+ 
               if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
                 try
                   particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
@@ -1419,16 +1409,16 @@ for iGold = 1:2-flgFinalAvg
     [montOUT, imgLocations] = BH_montage4d(classSum(iGold), '');
     
     imout = sprintf('%s_class%d_%s_%s_NoWgt.mrc',outputPrefix, ...
-      saveClassSum, 'Raw', halfSet);
-    classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'Raw', halfSet);
+      saveClassSum, savePrefix, halfSet);
+    classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,savePrefix, halfSet);
     SAVE_IMG(montOUT, imout,emc.pixel_size_angstroms);
     subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
     
     [montOUT, imgLocations] = BH_montage4d(classWgtSum(iGold), '');
     
     imout = sprintf('%s_class%d_%s_%s_Wgt.mrc',outputPrefix, ...
-      saveClassSum, 'Raw', halfSet);
-    classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'Raw', halfSet);
+      saveClassSum, savePrefix, halfSet);
+    classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum, savePrefix, halfSet);
     SAVE_IMG(montOUT, imout,emc.pixel_size_angstroms);
     subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
     
@@ -1453,7 +1443,7 @@ save(emc.subTomoMeta, 'subTomoMeta');
 
 
 
-fprintf('Total execution time : %f seconds\n', datetime("now")-startTime);
+fprintf('Total execution time : %f seconds\n', seconds(datetime("now")-startTime));
 
 % clean everything up, since this function is called from other functions.
 
@@ -1528,7 +1518,7 @@ if ~( flgEstSNR )
   for iRef = 1:nClassesReWgt
     fprintf('Stage of alignment %s\niRef %d\n',STAGEofALIGNMENT,iRef);
     if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
-      savePrefix = 'Raw'
+      savePrefix = 'Ref'
     else
       savePrefix = fieldPrefix
     end
@@ -1622,7 +1612,7 @@ if ~( flgEstSNR )
   
   
   subTomoMeta = masterTM;
-  subTomoMeta.('CUTPADDING') = CUTPADDING;
+  subTomoMeta.('CUTPADDING') = emc.CUTPADDING;
   if (emc.flgCutOutVolumes && volumesNeedToBeExtracted)
     subTomoMeta.('volumesAreCutOut') = 1;
   end

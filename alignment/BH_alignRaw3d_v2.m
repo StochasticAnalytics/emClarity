@@ -107,7 +107,7 @@ rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
 
-if ( doHelical )
+if ( emc.doHelical )
   rotConvention = 'Helical';
 end
 
@@ -248,10 +248,10 @@ for iGold = 1:2
   end
   
   
-  imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet)
+  imgNAME = sprintf('class_%d_Locations_Ref_%s', refName, halfSet)
   
   
-  weightNAME = sprintf('class_%d_Locations_REF_%s_Wgt', refName, halfSet);
+  weightNAME = sprintf('class_%d_Locations_Ref_%s_Wgt', refName, halfSet);
   imgCounts{iGold} = masterTM.(cycleNumber).(imgNAME){3};
   
   
@@ -369,12 +369,9 @@ for iWccc = 1:length(nReferences(1));
 end
 if (emc.classification || emc.multi_reference_alignment)
   for iRef = 1:nReferences(1)
-    if (emc.classification)
-      fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('REF%d',iRef));
-    else
-      fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('Raw%d',iRef)); % % % %
-    end
-    
+
+    fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('Ref%d',iRef));
+  
     [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
       'GPU', {'none'}, 1, 0, 1 );
     radialGrid = single(radialGrid./emc.pixel_size_angstroms);
@@ -394,7 +391,7 @@ else
   
   
   for iRef = 1
-    fscINFO = masterTM.(cycleNumber).('fitFSC').('Raw1');
+    fscINFO = masterTM.(cycleNumber).('fitFSC').('Ref1');
     [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
       'GPU', {'none'}, 1, 0, 1 );
     radialGrid = single(radialGrid./emc.pixel_size_angstroms);
@@ -592,8 +589,11 @@ system(sprintf('mkdir -p alignResume/%s',outputPrefix));
 
 parVect = 1:nParProcesses;
 fprintf('Starting main loopwith N references %d\n', nReferences(1));
+
+% This may be modified in the parfor loop (tho that prob isn't really necessary)
+
 parfor iParProc = parVect
-  
+  symmetry = emc.symmetry;
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
   
@@ -956,15 +956,7 @@ parfor iParProc = parVect
                           
                           estPeakCoord = bestOfRefs(1,8:10);
                           
-                          
-                          
-                          
-                          
-                          %                   fprintf('Symmetry confirmation %d\n',symmetry);
-                          %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,...
-                          %                                                   estPeakCoord,...
-                          %                                                   {'Bah',symmetry,'linear',1,volBinary_tmp}, ...
-                          %                                                   'GPU', 'inv',inputVectors);
+                         
                           [ iTrimParticle ] = particleInterpolator.interp3d(...
                             RotMat,...
                             estPeakCoord,rotConvention ,...
@@ -974,23 +966,11 @@ parfor iParProc = parVect
                           
                           
                           if (getInitialCCC)
-                            %                      [ iTrimInitial ] =  BH_resample3d(iparticle, ...
-                            %                                                     reshape(angles,3,3),...
-                            %                                                     shiftVAL,...
-                            %                                                     {rotConvention ,symmetry,'linear',1,volBinary_tmp}, ...
-                            %                                                     'GPU', 'inv',inputVectors);
                             [ iTrimInitial ] = particleInterpolator.interp3d(...
                               reshape(angles,3,3),...
                               shiftVAL,rotConvention ,...
                               'inv',symmetry);
                             
-                            
-                            % % %                      powerInitial =  sum(abs(iTrimInitial(volBinary_tmp))).^2;
-                            % % %
-                            
-                            %                       iWedgeInitial = BH_resample3d(iMaxWedgeMask, reshape(angles,3,3), [0,0,0], ...
-                            %                                                {rotConvention ,symmetry,'linear',1,wdgBinary_tmp}, ...
-                            %                                                'GPU', 'inv',inputWgtVectors);
                             [ iWedgeInitial ] = imgWdgInterpolator.interp3d(...
                               reshape(angles,3,3),...
                               [0,0,0],rotConvention ,...
@@ -1269,29 +1249,15 @@ parfor iParProc = parVect
                         
                       case 2
                         
-                        % Assuming if class specific symmetry, then some not just 1
                         if (force_no_symmetry)
                           symmetry = 'C1';
                         end
                         
-                        %                     [ iTrimParticle ] = BH_resample3d(iparticle, RotMat,...
-                        %                                                   rXYZ,...
-                        %                                                   {rotConvention ,symmetry,'linear',1,volBinary_tmp}, ...
-                        %                                                   'GPU', 'inv',inputVectors);
                         [ iTrimParticle ] = particleInterpolator.interp3d(...
                           RotMat,...
                           rXYZ,rotConvention ,...
                           'inv',symmetry);
                         
-                        
-                        %                     iTrimParticle =  iTrimParticle(...
-                        %                                      padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                        %                                      padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                        %                                      padWindow(1,3) + 1:end - padWindow(2,3) );
-                        %
-                        %                        iWedgeMask =  BH_resample3d(iMaxWedgeMask, RotMat, [0,0,0], ...
-                        %                                                        {rotConvention ,symmetry,'linear',1,wdgBinary_tmp},...
-                        %                                                        'GPU', 'inv',inputWgtVectors);
                         
                         [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                           RotMat,...

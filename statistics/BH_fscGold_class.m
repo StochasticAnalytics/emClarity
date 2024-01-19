@@ -42,7 +42,7 @@ prevCycleNumber = sprintf('cycle%0.3u',CYCLE-1);
 outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta'));
 samplingRate = emc.('Ali_samplingRate');
 
-emc.pixel_size_si = emc.pixel_size_angstroms .* samplingRate;
+emc.pixel_size_angstroms = emc.pixel_size_angstroms .* samplingRate;
 
 if ( emc.flgCones )
   coneInc = 30;
@@ -74,7 +74,7 @@ end
 % Note this is taken from the class section, not Fsc
 refName    = emc.('Cls_className');% emc.('Ref_className');
 
-peakSearch   = floor(emc.('particleRadius')./pixelSize);
+peakSearch   = floor(emc.('particleRadius')./emc.pixel_size_angstroms);
 peakCOM      =3;
 
 global bh_global_MTF
@@ -103,22 +103,23 @@ if iscell(STAGEofALIGNMENT)
     refVector{1} =1;
     refVector{2}= 1;
     STAGEofALIGNMENT = 'RawAlignment';
-    fieldPrefix = 'REF'
+    fieldPrefix = 'Ref'
   end
 else
   
   switch STAGEofALIGNMENT
     case 'RawAlignment'
-      savePrefix = 'Raw';
       if (emc.classification)
-        fieldPrefix = 'Raw';
-        
+        % FIXME: This won't be correct for multi-ref alignment if testing out the multi-ref classifications
+        fieldPrefix = 'Cls';
+        savePrefix = 'Cls';
         className = 0;
         classVector = [0;1];
       else
         className    = emc.(sprintf('Raw_className'));
         classVector   = emc.(sprintf('Raw_classes_odd'));
-        fieldPrefix = 'REF';
+        fieldPrefix = 'Ref';
+        savePrefix = 'Ref';
       end
       
       nReferences = length(classVector(1,:))
@@ -132,35 +133,14 @@ else
       refVector{1} =1;
       refVector{2}= 1;
       outputPrefix = sprintf('%s_Raw', outputPrefix);
-      
-    case 'NoAlignment'
-      savePrefix = 'Raw';
-      if (emc.classification)
-        
-        fieldPrefix = 'NoA';
-      else
-        fieldPrefix = 'REF';
-      end
-      imageName{1} = sprintf('class_0_Locations_%s_ODD_NoWgt', fieldPrefix);
-      imageName{2} =  sprintf('class_0_Locations_%s_EVE_NoWgt', fieldPrefix);
-      weightName{1} = sprintf('class_0_Locations_%s_ODD_Wgt', fieldPrefix);
-      weightName{2} = sprintf('class_0_Locations_%s_EVE_Wgt', fieldPrefix);
-      
-      nReferences = 1;
-      refVector{1} =1;
-      refVector{2}= 1;
-      
-      outputPrefix = sprintf('%s_NoA', outputPrefix);
+
     case 'Cluster'
       error('Fsc calculation for cluster results is not implemented.')
     case 'SnrEstimate'
       savePrefix = 'SNR';
       flgEstSNR = 1;
-      if ( CYCLE )
-        fieldPrefix = 'Raw'
-      else
-        fieldPrefix = 'NoA'
-      end
+      fieldPrefix = 'Ref'
+
       imageName{1} = sprintf('class_%d_Locations_%s_ODD_NoWgt', 25,fieldPrefix);
       imageName{2} = sprintf('class_%d_Locations_%s_EVE_NoWgt', 25,fieldPrefix);
       outputPrefix = sprintf('%s_Snr', outputPrefix);
@@ -177,7 +157,7 @@ for iGold = 1:2
 end
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-  BH_multi_maskCheck(emc, 'Ali', pixelSize)
+  BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms)
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
   BH_multi_validArea(  maskSize, maskRadius, emc.scale_calc_size )
@@ -288,13 +268,13 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
     fprintf('working on %d/ %d references FscGold\n', iRef, nReferences);
     
     
-    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
-    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
+    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), emc.pixel_size_angstroms, {'fsc', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
+    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), emc.pixel_size_angstroms, {'fsc', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
     
     if (emc.shape_mask_test)
       fprintf('\nSaving your masks and exiting!\n');
       SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
-        outputPrefix, emc.shape_mask_lowpass,emc.shape_mask_threshold),pixelSize);
+        outputPrefix, emc.shape_mask_lowpass,emc.shape_mask_threshold),emc.pixel_size_angstroms);
       return;
     end
     
@@ -429,13 +409,13 @@ for iRef = 1:nReferences
     img1=IMG1;
     img2=IMG2;
     
-    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
-    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
+    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), emc.pixel_size_angstroms, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
+    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), emc.pixel_size_angstroms, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
     
     if (emc.shape_mask_test)
       fprintf('\nSaving your masks and exiting!\n');
       SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
-        outputPrefix, emc.shape_mask_lowpass,emc.shape_mask_threshold),pixelSize);
+        outputPrefix, emc.shape_mask_lowpass,emc.shape_mask_threshold),emc.pixel_size_angstroms);
       return;
     end
     
@@ -486,7 +466,7 @@ for iRef = 1:nReferences
   [ fscPAD ] = BH_multi_padVal(size(img1), padDIM(1));
   [ rad,~,~,~,~,~ ] = BH_multi_gridCoordinates(padDIM.*[1,1,1], 'Cartesian', 'GPU', ...
     {'none'}, 1, 0, 1 );
-  rad = single(rad)./pixelSize;
+  rad = single(rad)./emc.pixel_size_angstroms;
   
   if (emc.fsc_shape_mask)
     
@@ -498,7 +478,7 @@ for iRef = 1:nReferences
     % applied during the FSC calculation. If instead it is used to estimate
     % the particle volume (flgEstSolvent) then no mask is directly applied.
     fscRandCutoffRes = 3*masterTM.currentResForDefocusError(1);
-    lowResShift = pixelSize*2 - 10;
+    lowResShift = emc.pixel_size_angstroms*2 - 10;
     if lowResShift <= 0
       lowResShift = 0
     else
@@ -507,13 +487,13 @@ for iRef = 1:nReferences
     % Randomize beyond ~ 20A -- calc so that the cutoff is exactly where a FSC
     % shell is bound. the 10 in the divisor is set in the calc_shells function,.
     binDiv = ceil(1.5*padDIM(1)^(1/3));
-    shellInc = 0.5/(floor(padDIM(1)/binDiv)*pixelSize);
+    shellInc = 0.5/(floor(padDIM(1)/binDiv)*emc.pixel_size_angstroms);
     randCutoff = floor((1/(fscRandCutoffRes)-lowResShift)/ shellInc) * shellInc;
     fscTcutoff = (floor((1/(fscRandCutoffRes*.95)-lowResShift)/ shellInc)) * shellInc;
     %Calculate the fsc on phase randomized masked volumes.
     [randGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(padDIM.*[1,1,1], 'Cartesian', ...
       'cpu', {'none'}, 1, 0, 1 );
-    randGrid = single(randGrid./pixelSize);
+    randGrid = single(randGrid./emc.pixel_size_angstroms);
     randLowRES  = (randGrid <  randCutoff);
     randHighRES = (randGrid >= randCutoff);
     
@@ -544,7 +524,7 @@ for iRef = 1:nReferences
     fou2 = fftn(fou2.*BH_padZeros3d(pV2 , fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     
     [shellsRandFreq, shellsRandFSC, ~,~] = ...
-      calc_shells(fou1, fou2, rad, pixelSize, coneList,'rand');
+      calc_shells(fou1, fou2, rad, emc.pixel_size_angstroms, coneList,'rand');
     clear fou1 fou2
     
   else
@@ -569,14 +549,14 @@ for iRef = 1:nReferences
   [ img2 ] = BH_padZeros3d(img2 , fscPAD(1,:), fscPAD(2,:), 'GPU', 'singleTaper');
   fou2 = fftn(img2); %clear img2
   [shellsFreq, shellsFSC, shellsNUM,shellsPOWER] = ...
-    calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle);
+    calc_shells(fou1, fou2, rad, emc.pixel_size_angstroms,coneList, halfAngle);
   clear fou1 fou2
   if (emc.fsc_shape_mask)
     fou1 = fftn(img1.*BH_padZeros3d(pV1, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     clear pv1
     fou2 = fftn(img2.*BH_padZeros3d(pV2, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     [tightFreq, tightFSC,~,~] = ...
-      calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle);
+      calc_shells(fou1, fou2, rad, emc.pixel_size_angstroms,coneList, halfAngle);
     fitTightFSC = csape(tightFreq(:,1),tightFSC(:,1),'variational');
     clear pv2
   end
@@ -593,7 +573,7 @@ for iRef = 1:nReferences
   end
   
   % Oversampled curve
-  osX = [0:0.001:0.5]'./pixelSize;
+  osX = [0:0.001:0.5]'./emc.pixel_size_angstroms;
   
   
   
@@ -680,18 +660,18 @@ for iRef = 1:nReferences
   try
     oneBitCut(1) = find(fnval(fitFSC{1},osX)-aliBIT < 0 & osX > 1/100, 1, 'first');
   catch
-    oneBitCut(1) = find(osX .* pixelSize > 0.425, 1, 'first');
+    oneBitCut(1) = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
   end
   try
     halfBitCut(1)= find(fnval(fitFSC{1},osX)-halfBIT < 0 & osX > 1/100, 1, 'first');
   catch
-    halfBitCut(1) = find(osX .* pixelSize > 0.425, 1, 'first');
+    halfBitCut(1) = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
   end
   
   % Particularly for working at higher binning, this allows using the full
   % frequency range, which is the most information/calc.
   if isempty(lowCut1)
-    lowCut1 = find(osX .* pixelSize > 0.425, 1, 'first');
+    lowCut1 = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
   end
   
   
@@ -707,7 +687,7 @@ for iRef = 1:nReferences
   % Particularly for working at higher binning, this allows using the full
   % frequency range, which is the most information/calc.
   if isempty(lowCutAlign)
-    lowCutAlign = find(osX .* pixelSize > 0.425, 1, 'first');
+    lowCutAlign = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
   end
   
   forceMaskAlign{1} = exp(-0.005.^-2 .* (osX-osX(oneBitCut(1))).^2);
@@ -726,12 +706,12 @@ for iRef = 1:nReferences
       try
         oneBitCut(iCone+1) = find(fnval(fitFSC{iCone+1},osX)- aliBIT  < 0 & osX > 1/100, 1, 'first');
       catch
-        oneBitCut(iCone+1) = find(osX .* pixelSize > 0.425, 1, 'first');
+        oneBitCut(iCone+1) = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
       end
       try
         halfBitCut(iCone+1)= find(fnval(fitFSC{iCone+1},osX)-halfBIT < 0 & osX > 1/100, 1, 'first');
       catch
-        halfBitCut(iCone+1) = find(osX .* pixelSize > 0.425, 1, 'first');
+        halfBitCut(iCone+1) = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
       end
       
       % first try to use 0.5, if not default to 0.425 cyc/pix
@@ -739,7 +719,7 @@ for iRef = 1:nReferences
         lowCut1 = find(fnval(fitFSC{iCone+1},osX) <= 0.5 & osX > 1/100, 1, 'first');
       end
       if isempty(lowCut1)
-        lowCut1 = find(osX .* pixelSize > 0.425, 1, 'first');
+        lowCut1 = find(osX .* emc.pixel_size_angstroms > 0.425, 1, 'first');
       end
       
       if lowestRes < 1./osX(lowCut1)
@@ -980,7 +960,7 @@ end % end of the make cones function
 %%% Calc FSC
 
 function [shellsFreq, shellsFSC, shellsNsamples, shellsPOWER] = ...
-  calc_shells(fou1, fou2, rad, pixelSize, coneList, halfAngle)
+  calc_shells(fou1, fou2, rad, pixel_size_angstroms, coneList, halfAngle)
 
 
 
@@ -1026,7 +1006,7 @@ if ( flgPowerSpectrum )
 else
   bin = floor(size(cross,1)/binDiv);
 end
-inc = 0.5 / (bin*pixelSize);
+inc = 0.5 / (bin*pixel_size_angstroms);
 shellsFreq = zeros(bin, nIters, 'gpuArray');
 shellsFSC = zeros(bin, nIters, 'gpuArray');
 shellsNsamples = zeros(bin, nIters, 'gpuArray');

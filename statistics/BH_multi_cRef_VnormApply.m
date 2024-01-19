@@ -48,23 +48,9 @@ for i = idxVect
     fscArgs = 1;
   end
   
-  try
-    fscParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('REF%d',fscArgs));
-    aliParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('ResampleREF%d',fscArgs));
-    mskParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('MaskREF%d',fscArgs));
-  catch
-    fprintf('\nDid not find REF, looking at Raw assuming this is a class avg\n.');
-    try
-      fscParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('Raw%d',fscArgs));
-      aliParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('ResampleRaw%d',fscArgs));
-      mskParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('MaskRaw%d',fscArgs));
-    catch
-      fprintf('\nJust using fsc info from the Raw and only class 1\n');
-      fscParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('Raw%d',1));
-      aliParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('ResampleRaw%d',1));
-      mskParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('MaskRaw%d',1));
-    end
-  end
+  fscParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('Ref%d',fscArgs));
+  aliParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('ResampleRef%d',fscArgs));
+  mskParams = subTomoMeta.(cycleNumber).fitFSC.(sprintf('MaskRef%d',fscArgs));
   
   pixelSize = 0.5/fscParams{4}(end);
   if mFactor

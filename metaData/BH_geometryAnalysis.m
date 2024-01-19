@@ -87,9 +87,9 @@ end
 
 switch STAGEofALIGNMENT
   case 'TiltAlignment'
-    fieldPrefix = 'Raw'
+    fieldPrefix = 'Ref'
   case 'RawAlignment'
-    fieldPrefix = 'Raw';
+    fieldPrefix = 'Ref';
   case 'Cluster_cls'
     fieldPrefix = 'Cls';
     STAGEofALIGNMENT = 'Cluster';
@@ -156,7 +156,7 @@ outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
         if strcmpi(fieldPrefix, 'Cls')
          geometry = subTomoMeta.(cycleNumber).('ClusterClsGeom');
          clusterGeom = 'ClusterClsGeom';
-        elseif strcmpi(fieldPrefix, 'ref')
+        elseif strcmpi(fieldPrefix, 'Ref')
          geometry = subTomoMeta.(cycleNumber).('ClusterRefGeom');
          clusterGeom = 'ClusterRefGeom';
         end

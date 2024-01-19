@@ -396,27 +396,6 @@ else
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% try
-%   refNameODD = sprintf('%s_%s_class0_REF_ODD.mrc', ...
-%                                              cycleNumber,emc.('subTomoMeta'));
-%   refNameEVE = sprintf('%s_%s_class0_REF_EVE.mrc', ...
-%                                              cycleNumber,emc.('subTomoMeta'));
-%   refODD = getVolume(MRCImage(refNameODD));
-%   refEVE = getVolume(MRCImage(refNameEVE));
-% catch
-%   fprintf('\nDid not find either %s or %s, trying Raw prefix\n',refNameODD,refNameEVE);
-%   try
-%     refNameODD = sprintf('%s_%s_class0_Raw_ODD.mrc', ...
-%                                              cycleNumber,emc.('subTomoMeta'));
-%     refNameEVE = sprintf('%s_%s_class0_Raw_EVE.mrc', ...
-%                                              cycleNumber,emc.('subTomoMeta'));
-%
-%     refODD = getVolume(MRCImage(refNameODD));
-%     refEVE = getVolume(MRCImage(refNameEVE));
-%   catch
-%     error('\nDid not find either %s or %s\n',refNameODD,refNameEVE)
-%   end
-% end
 
 try
   conserveDiskSpace = emc.('conserveDiskSpace');

@@ -277,17 +277,11 @@ if (flgGold)
   oddRot = eye(3);
 else
   iRefPrev = 1;
-  try
-    aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','REF',iRefPrev))
-    oddRot = reshape(aliParams(1,:),3,3)';
-    % refine the translation per particle.
-  catch
-    error('This block sshould not be reached.');
-    fprintf('\nReverting from %s to Raw in loading fitFSC\n','REF');
-    aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev))
-    oddRot = reshape(aliParams(1,:),3,3)';
-    % refine the translation per particle.
-  end
+  
+  aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev))
+  oddRot = reshape(aliParams(1,:),3,3)';
+  % refine the translation per particle.
+
   clear iRefPrev
 end
 
@@ -1092,7 +1086,7 @@ for iGold = 1:1+flgGold
     end
   end
   
-  fprintf('Total execution time on %s set: %f seconds\n', halfSet, datetime("now") - startTime);
+  fprintf('Total execution time on %s set: %f seconds\n', halfSet, seconds(datetime("now") - startTime));
   
   close all force;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

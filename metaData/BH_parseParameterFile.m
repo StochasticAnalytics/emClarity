@@ -198,11 +198,9 @@ end
 % TODO: these should maybe be two different orthogonal parameters
   % if > 1 keep this many subtomos
   % if < 1 keep this fraction
-if isfield(emc,'flgCCCcutoff')
-  EMC_assert_numeric(emc.flgCCCcutoff,1)
-else
-  emc.flgCCCcutoff = 0.0;
-end
+emc = EMC_assert_deprecated_substitution(emc, 0.0, 'ccc_cutoff', 'flgCCCcutoff');
+EMC_assert_numeric(emc.ccc_cutoff,1)
+
 
 % TOOD: DOC
 emc = EMC_assert_deprecated_substitution(emc, false, 'projectVolumes', 'flgProjectVolumes');

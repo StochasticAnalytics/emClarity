@@ -370,7 +370,7 @@ for iGold = 1:1+flgGold
   save(emc.('subTomoMeta'), 'subTomoMeta');
   
   %save(sprintf('%s_pca.mat',OUTPUT_PREFIX), 'nTOTAL','U', 'S', 'V', 'coeffs')
-  fprintf('Total execution time on set %s: %f seconds\n', halfSet, datetime("now") - startTime);
+  fprintf('Total execution time on set %s: %f seconds\n', halfSet, seconds(datetime("now") - startTime));
   delete(gcp('nocreate'));
 end % end of Gold loop
 
