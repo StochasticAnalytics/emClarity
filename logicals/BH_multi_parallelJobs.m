@@ -1,8 +1,5 @@
-function [nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, ...
-  nGPUs, ...
-  calcSize,flgAvg)
-%UNTITLED Summary of this function goes here
-%   Detailed explanation goes here
+function [nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, calcSize, flgAvg)
+
 
 % Rough Scaling of processes by mem available. Assuming all gpus are
 % equivalent, which is often true, but this should be improved. The current

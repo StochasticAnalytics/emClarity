@@ -355,11 +355,6 @@ refVol = cell(2,1);
 
 refName = emc.('Raw_className');
 
-try
-  symmetry = emc.('symmetry');
-catch
-  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
-end
 
 classVector{1}  = emc.('Raw_classes_odd')(1,:);
 classSymmetry{1}= emc.('Raw_classes_odd')(2,:);

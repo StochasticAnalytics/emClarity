@@ -38,58 +38,13 @@ masterTM = subTomoMeta;
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 prevCycleNumber = sprintf('cycle%0.3u',CYCLE-1);
 
-
-flgCones = emc.('flgCones');
-emc.classification = emc.('emc.classification');
-try
-  scaleCalcSize = emc.('scaleCalcSize');
-catch
-  scaleCalcSize = 1.5;
-end
-
-try
-  flgFscShapeMask = emc.('flgFscShapeMask');
-catch
-  flgFscShapeMask = 1;
-end
-
-try
-  shape_mask_lowpass = emc.('shape_mask_lowpass');
-catch
-  shape_mask_lowpass = 14;
-end
-
-try
-  shape_mask_threshold = emc.('shape_mask_threshold');
-catch
-  shape_mask_threshold = 2.4;
-end
-
-try
-  % Apply the mask with the given parameters, save and exit.
-  shape_mask_test = emc.('shape_mask_test');
-catch
-  shape_mask_test = false;
-end
-
 % Estimating the particle volume still occasionaly goes awry. Place a cap and return a cautionary message.
-
-try
-  minimumParticleVolume = emc.('minimumparticleVolume');
-catch
-  minimumParticleVolume = 0.1;
-end
-
-try fscWithChimera = emc.('fscWithChimera');
-catch fscWithChimera = 0;
-end
-
 outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta'));
 samplingRate = emc.('Ali_samplingRate');
 
 emc.pixel_size_si = emc.pixel_size_angstroms .* samplingRate;
 
-if ( flgCones )
+if ( emc.flgCones )
   coneInc = 30;
   nCones = 37;
   calcCones = 1;
@@ -116,9 +71,6 @@ if ( calcCones )
   end
 end
 
-
-
-
 % Note this is taken from the class section, not Fsc
 refName    = emc.('Cls_className');% emc.('Ref_className');
 
@@ -129,10 +81,6 @@ global bh_global_MTF
 if isempty(bh_global_MTF)
   bh_global_MTF = 2;
 end
-
-
-
-
 
 % The default is fsc-Gold Standard so the two images should need some degree of
 % alignment prior to calculating the fsc.
@@ -172,8 +120,6 @@ else
         classVector   = emc.(sprintf('Raw_classes_odd'));
         fieldPrefix = 'REF';
       end
-      
-      
       
       nReferences = length(classVector(1,:))
       
@@ -230,15 +176,11 @@ for iGold = 1:2
   refSym{iGold} = ones(length(refVector{iGold}));
 end
 
-
-% [ maskType, maskSize, maskRadius, maskCenter ] = ...
-%                                   BH_multi_maskCheck(emc, 'Ali', pixelSize,'FSC')
-
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
   BH_multi_maskCheck(emc, 'Ali', pixelSize)
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
-  BH_multi_validArea(  maskSize, maskRadius, scaleCalcSize )
+  BH_multi_validArea(  maskSize, maskRadius, emc.scale_calc_size )
 
 padDIM = max(max(sizeWindow),384);
 padREF = [0,0,0;0,0,0];
@@ -286,7 +228,6 @@ else
 end
 
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -332,16 +273,11 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
   for iGold = 1:2
     
     for iRef = 1:nReferences
-      % iHalf = refVector{iGold}(iRef);
       if iGold == 1
-        refRotAvg{iRef} = refIMG{iGold}{iRef};%BH_axialSymmetry(refIMG{iGold}{iRef}, 120,...
-        %0, 'GPU',[0,0,0]);
+        refRotAvg{iRef} = refIMG{iGold}{iRef};
       end
-      
-      
     end
   end
-  
   
   bestAnglesTotal = zeros(nReferences,12);
   
@@ -352,19 +288,19 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
     fprintf('working on %d/ %d references FscGold\n', iRef, nReferences);
     
     
-    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
-    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
+    [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(refIMG{1}{iRef}), pixelSize, {'fsc', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
+    [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(refIMG{2}{iRef}), pixelSize, {'fsc', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', emc.shape_mask_threshold});
     
-    if (shape_mask_test)
+    if (emc.shape_mask_test)
       fprintf('\nSaving your masks and exiting!\n');
       SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
-        outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
+        outputPrefix, emc.shape_mask_lowpass,emc.shape_mask_threshold),pixelSize);
       return;
     end
     
-    if (flgFscShapeMask)
-      shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-      shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
+    if (emc.fsc_shape_mask)
+      shapeMask_1 = gather((shapeMask_1.*volMask{1}).^emc.fsc_shape_mask);
+      shapeMask_2 = gather((shapeMask_2.*volMask{2}).^emc.fsc_shape_mask);
     else
       shapeMask_1 = 1;
       shapeMask_2 = 1;
@@ -384,10 +320,10 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
     SAVE_IMG(MRCImage(gather(refIMG{1}{iRef}.*pV1)), ...
       oddName, 1.0,1);
     
-    if (fscWithChimera)
+    if (emc.fsc_with_chimera)
       [whereIsChimera, ~] = system('which chimera');
       if (whereIsChimera)
-        error('fscWithChimera is called, but "chimera" not in system PATH.')
+        error('fsc_with_chimera is called, but "chimera" not in system PATH.')
       end
       writeOutPyAli()
       system(sprintf('chimera --nogui --script "FSC/fitInMap.py %s %s %s-fitInMap.txt" ',...
@@ -411,7 +347,6 @@ if (flgAlignImages) && ~(flgJustFSC) && ~(flgEstSNR)
 elseif (flgAlignImages) && ~(flgJustFSC) && (flgEstSNR)
   error('this block in FSC alignment is slated for removal');
 end
-
 
 
 gpuDevice(1);
@@ -457,7 +392,6 @@ for iRef = 1:nReferences
   
   if (flgAlignImages) && ~(flgJustFSC)
     
-    
     img2 = refIMG{2}{iRef};
     
     if (flgEstSNR)
@@ -487,7 +421,6 @@ for iRef = 1:nReferences
       end
     end
     
-    
     halfSet = 'GLD';
     fprintf('resampling ref %d.\n', iRef);
     img1 = BH_padZeros3d(img1,[0,0,0],[0,0,0],'cpu','singleTaper');
@@ -496,40 +429,32 @@ for iRef = 1:nReferences
     img1=IMG1;
     img2=IMG2;
     
-    
     [shapeMask_1, pV1, particleFraction1, ~] = EMC_maskReference(gpuArray(img1), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
     [shapeMask_2, pV2, particleFraction2, ~] = EMC_maskReference(gpuArray(img2), pixelSize, {'fsc', true; 'lowpass', mask_lowpass; 'threshold', mask_threshold});
     
-    if (shape_mask_test)
+    if (emc.shape_mask_test)
       fprintf('\nSaving your masks and exiting!\n');
       SAVE_IMG(shapeMask_1,sprintf('%s-shape_mask_%2.2f_lowpass_%2.2f_threshold.mrc', ...
-        outputPrefix, shape_mask_lowpass,shape_mask_threshold),pixelSize);
+        outputPrefix, emc.shape_mask_lowpass,emc.shape_mask_threshold),pixelSize);
       return;
     end
     
-    
-    if (flgFscShapeMask)
-      shapeMask_1 = gather((shapeMask_1.*volMask{1}).^flgFscShapeMask);
-      shapeMask_2 = gather((shapeMask_2.*volMask{2}).^flgFscShapeMask);
+    if (emc.fsc_shape_mask)
+      shapeMask_1 = gather((shapeMask_1.*volMask{1}).^emc.fsc_shape_mask);
+      shapeMask_2 = gather((shapeMask_2.*volMask{2}).^emc.fsc_shape_mask);
     else
       shapeMask_1 = 1;
       shapeMask_2 = 1;
     end
     
-    
     particleVolume(iRef) = gather(mean([particleFraction1,particleFraction2]));
     pV1 = gather(pV1.*volMask{1});
     pV2 = gather(pV2.*volMask{2});
-    
-    
     
     halfSet = 'OUT';
   else
     halfSet = 'STD';
   end
-  
-  
-  
   
   imgFilt1 = BH_bandLimitCenterNormalize(img1.*volMask{1}.*shapeMask_1,bandpassFilt{iGold}, ...
     (volMask{1} > 0.01),padCalc, 'single');
@@ -563,7 +488,7 @@ for iRef = 1:nReferences
     {'none'}, 1, 0, 1 );
   rad = single(rad)./pixelSize;
   
-  if (flgFscShapeMask)
+  if (emc.fsc_shape_mask)
     
     %!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     % TODO add a flag since the phase randomized is not used in practice
@@ -614,9 +539,6 @@ for iRef = 1:nReferences
       
     end
     
-    
-    
-    
     clear randLowRES randHighRES
     fou1 = fftn(fou1.*BH_padZeros3d(pV1, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     fou2 = fftn(fou2.*BH_padZeros3d(pV2 , fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
@@ -649,7 +571,7 @@ for iRef = 1:nReferences
   [shellsFreq, shellsFSC, shellsNUM,shellsPOWER] = ...
     calc_shells(fou1, fou2, rad, pixelSize,coneList, halfAngle);
   clear fou1 fou2
-  if (flgFscShapeMask)
+  if (emc.fsc_shape_mask)
     fou1 = fftn(img1.*BH_padZeros3d(pV1, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
     clear pv1
     fou2 = fftn(img2.*BH_padZeros3d(pV2, fscPAD(1,:), fscPAD(2,:), 'GPU', 'single'));
@@ -690,7 +612,7 @@ for iRef = 1:nReferences
   end
   
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% test save masking curve
-  if (flgFscShapeMask)
+  if (emc.fsc_shape_mask)
     
     
     transitionFreq = find(osX > fscTcutoff,1,'first');
@@ -705,7 +627,7 @@ for iRef = 1:nReferences
     
     SAVE_IMG(MRCImage(single(gather(shapeMask_2))), ...
       sprintf('%s-%d-shapeMask_%d.mrc', outputPrefix, iRef, 2));
-    if (minimumParticleVolume < 1)
+    if (emc.minimum_particle_for_fsc_weighting < 1)
       % Only save if used.
       SAVE_IMG(MRCImage(single(gather(pV1))), ...
         sprintf('%s-%d-particleVolEst_%d.mrc', outputPrefix, iRef, 1));
@@ -794,7 +716,7 @@ for iRef = 1:nReferences
   lowestRes = 0;
   highestRes = 0;
   
-  if (flgCones)
+  if (emc.flgCones)
     lowestRes  = 1./osX(lowCut1);
     highestRes = 1./osX(lowCut1);
     for iCone = 1:nCones
@@ -847,7 +769,7 @@ for iRef = 1:nReferences
   cRefCurve = sqrt( abs(2.*fnval(fitFSC{1},osX)./(1+fnval(fitFSC{1},osX))) ) ...
     .* forceMaskAlign{1} .* whiteningFilter;
   cRefAli{1} = fit(osX,cRefCurve./max(cRefCurve(:)),'cubicSpline');
-  if (flgCones)
+  if (emc.flgCones)
     for iCone = 1:nCones
       
       cRefCurve = sqrt( abs(2.*fnval(fitFSC{iCone+1},osX) ./ ...
@@ -888,7 +810,7 @@ for iRef = 1:nReferences
     masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRef)) =  ...
       {maskType, sizeMask, ...
       maskRadius, maskCenter, ...
-      flgFscShapeMask, shape_mask_lowpass, shape_mask_threshold};
+      emc.fsc_shape_mask, emc.shape_mask_lowpass, emc.shape_mask_threshold};
     
     masterTM.('currentResForDefocusError') = osX(oneBitCut).^-1;
   end
@@ -929,7 +851,7 @@ for iRef = 1:nReferences
   fclose(fscOUT);
   
   
-  if (flgCones)
+  if (emc.flgCones)
     
     figure('Visible','off'), plot(osX,fnval(fitFSC{1},osX),'kd','MarkerSize',2.5); hold on;
     plot(osX, oneBIT,'c');
@@ -940,7 +862,6 @@ for iRef = 1:nReferences
       plot(osX,fnval(fitFSC{iCone},osX),'k--');
     end
     
-    %     title({'FSC',sprintf('0.5 %3.2f\n0.143 %3.2f',1./fmid,1./fgold)});
     title({'FSC',sprintf('0.5 - %3.2f\n0.143 - %3.2f  (%3.2f-%3.2f)\noneBit %3.2f\n halfBit %3.2f\n',1./fmid,1./fgold,lowestRes,highestRes,osX(oneBitCut(1)).^-1,osX(halfBitCut(1)).^-1)});
     
     xlabel('Spatial Freq'); ylabel('fsc');
@@ -980,13 +901,9 @@ for iRef = 1:nReferences
   xlabel('Spatial Freq'); ylabel('fsc');
   ylim([-.05 1.025])
   file_out = sprintf('%s-%d-fscFull_%s', outputPrefix, iRef, halfSet);
-  % saveas(gcf, file_out,'pdf')
   
-  % fscRandOUT = fopen(sprintf('%s-%d-fscFull_%s.txt', outputPrefix, iRef, halfSet),'w');
-  % fprintf(fscRandOUT,'%4.4f\t%4.4f\t%4.4f\t%4.4f\n',[osX,fnval(fitTightFSC,osX),fnval(fscTrue,osX),fnval(fitFSC{1},osX)]');
-  % fclose(fscRandOUT);
   figure('Visible','off'), plot(osX,cRef{1}(osX),'kd','MarkerSize',3); hold on;
-  if (flgCones)
+  if (emc.flgCones)
     
     plot(osX,cRef{2}(osX),'k--');
     for iCone = 3:length(cRef)
@@ -1003,7 +920,7 @@ for iRef = 1:nReferences
   file_out = sprintf('%s-%d-cRef_%s', outputPrefix, iRef, halfSet);
   saveas(gcf, file_out,'pdf')
   figure('Visible','off'), plot(osX,cRefAli{1}(osX),'kd','MarkerSize',3); hold on;
-  if (flgCones)
+  if (emc.flgCones)
     
     plot(osX,cRefAli{2}(osX),'k--');
     for iCone = 3:length(cRefAli)
@@ -1018,75 +935,7 @@ for iRef = 1:nReferences
   
   file_out = sprintf('%s-%d-cRefAli_%s', outputPrefix, iRef, halfSet);
   saveas(gcf, file_out,'pdf')
-  % % try
-  %   fitPower = fit(shellsFreq(:,1).^2,log(shellsPOWER(:,1)),'cubicSpline');
-  %   LR = 10;
-  %   MR = 7;
-  %   HR = min((1.05*fgold).^2, shellsFreq(end-1,1).^2);
-  %   if isempty(HR)
-  %     HR = lowCut1;
-  %   end
-  %   lowRes = find(shellsFreq(:,1).^2 > (1/LR)^2, 1,'first');
-  %   midRes = find(shellsFreq(:,1).^2 > (1/MR)^2, 1,'first');
-  %   endRes = find(shellsFreq(:,1).^2 > HR, 1,'first');
-  %   plot1 = false;
-  %   plot2 = false;
-  %   if (midRes - lowRes > 2)
-  %     bFactorFIT1 = fit(shellsFreq(lowRes:midRes,1).^2 , ...
-  %                     log(shellsPOWER(lowRes:midRes,1)),'poly1');
-  %     plot1= true;
-  %   end
-  %   if (endRes-midRes > 2)
-  %     bFactorFIT2 = fit(shellsFreq(midRes:endRes,1).^2 , ...
-  %                     log(shellsPOWER(midRes:endRes,1)),'poly1');
-  %     plot2 = true;
-  %   end
-  
-  %   figure('Visible','off'), plot(osX.^2,fitPower(osX.^2),'k'); hold on;
-  %   if (plot1)
-  %       plot(osX.^2,bFactorFIT1(osX.^2),'b--');
-  %   else
-  %     bFactorFIT1 = struct()
-  %     bFactorFIT1.('p1') = 0;
-  %   end
-  %   if (plot2)
-  %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--');
-  %   else
-  %     bFactorFIT2 = struct()
-  %     bFactorFIT2.('p1') = 0;
-  %   end
-  %                            line([(1/LR)^2,(1/LR)^2], ...
-  %                                 [min(log(shellsPOWER(:,1))), ...
-  %                                  max(log(shellsPOWER(:,1)))], ...
-  %                                 'Color','k','LineStyle','--');
-  %                            line([(1/MR)^2,(1/MR)^2], ...
-  %                                 [min(log(shellsPOWER(:,1))), ...
-  %                                  max(log(shellsPOWER(:,1)))], ...
-  %                                 'Color','k','LineStyle','--');
-  %                            line([HR,HR], ...
-  %                                 [min(log(shellsPOWER(:,1))), ...
-  %                                  max(log(shellsPOWER(:,1)))], ...
-  %                                 'Color','k','LineStyle','--');
-  % %                            plot(osX.^2,bFactorFIT2(osX.^2),'b--');
-  %             %   outCurve(:,1).^2,outCurve(:,8),'g');
-  
-  %            title({'Guinier Plot',sprintf('\nbFactor(%2.1f-%2.1f-%2.1f)\n %d,%d', ...
-  %                                  LR,MR,sqrt(1./HR),round(bFactorFIT1.p1*-4),...
-  %                                  round(bFactorFIT2.p1*-4))}); ...
-  %                                  xlabel('1/Ang^2'),...
-  %                                  ylabel('log(F)');
-  %                                  ylim([0.95*min(log(shellsPOWER(:,1))),...
-  %                                        1.05*max(log(shellsPOWER(:,1)))])
-  
-  %            legend('uncorrected','corrected','Location','northeast',...
-  %                   'Orientation', 'vertical');
-  %   file_out = sprintf('%s-%d-guinier_%s', outputPrefix, iRef, halfSet);
-  %   savefig(gcf,file_out);
-  %   saveas(gcf, file_out,'pdf')
-  % catch
-  %   fprintf('\nRan into some error in the guinier analysis.\n');
-  %   fprintf('\nSince this is not critical, skipping and continue.\n');
-  % end
+
 end
 
 subTomoMeta = masterTM;

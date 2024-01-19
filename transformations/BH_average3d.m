@@ -2,14 +2,24 @@
 function [  ] = BH_average3d(PARAMETER_FILE, CYCLE, STAGEofALIGNMENT)
 
 
-if (nargin ~= 3)
-  error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
-end
 
 % FIXME: hacking in a test
 test_fuzz=false;
 test_multi_ref_diffmap= true;
 
+
+if (nargin ~= 3)
+  error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
+end
+
+global bh_global_ML_compressByFactor;
+global bh_global_ML_angleTolerance;
+if isempty(bh_global_ML_compressByFactor)
+  bh_global_ML_compressByFactor = 2.0;
+end
+if isempty(bh_global_ML_angleTolerance)
+  bh_global_ML_angleTolerance = 5;
+end
 
 startTime =  datetime("now");
 CYCLE = EMC_str2double(CYCLE);
@@ -72,38 +82,22 @@ fprintf('track stats is %d\n',emc.track_stats)
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
 % FIXME: get rid of the -1
-if ( emc.classification ); emc.classification = -1 ; end
 
 flgGold=1;
 
 % Optionally specify gpu idxs
-if numel(emc.nGPUs) == 1
+if (numel(emc.nGPUs) == 1)
   gpuList = 1:emc.nGPUs;
 else
   gpuList = emc.nGPUs;
   emc.nGPUs = length(gpuList);
 end
 
-try
-  scaleCalcSize = emc.('scaleCalcSize');
-catch
-  scaleCalcSize = 1.5;
-end
-
-
-global bh_global_ML_compressByFactor;
-global bh_global_ML_angleTolerance;
-if isempty(bh_global_ML_compressByFactor)
-  bh_global_ML_compressByFactor = 2.0;
-end
-if isempty(bh_global_ML_angleTolerance)
-  bh_global_ML_angleTolerance = 5;
-end
-
 if (emc.nPeaks > 1)
   fprintf('For ML approach:\nUsing a compression factor %3.3f\nUsing an angulare tolerance of %3.3f degrees\n', ...
     bh_global_ML_compressByFactor, bh_global_ML_angleTolerance);
 end
+
 % for now only turn on (optionally) in reference generation.
 
 classVector = cell(2,1);
@@ -118,17 +112,16 @@ peakBinary = [];
 peakCOM = [];
 peakSearch = [];
 saveClassSum = -1;
+
+% The prefix of the variable read in from the parameter file.
+parameterPrefix = '';
+% The prefix used in file names and subTomoMeta fields
+savePrefix = '';
 switch STAGEofALIGNMENT
   case 'RawAlignment'
-    
-    
-    if (emc.classification)
-      fieldPrefix = 'Raw'
-      
-    else
-      fieldPrefix = 'REF'
-    end
-    
+
+    fieldPrefix = 'Raw';
+    savePrefix = 'REF';
     
     classVector{1}  = emc.(sprintf('%s_classes_odd','Raw'));
     classVector{2}  = emc.(sprintf('%s_classes_eve','Raw'));
@@ -149,24 +142,17 @@ switch STAGEofALIGNMENT
     end
     
     
-    
   case 'FinalAlignment'
     % Special case for the final cycle.
     % Assuming RawAlignment already run for this cycle and FSC is calculated
     % Goal is to re-extract odd-half, applying the xform found in fscGold
-    fieldPrefix = 'Raw'
-    
+    fieldPrefix = 'Raw';
+    savePrefix = 'REF';
     classVector{1}  = emc.(sprintf('%s_classes_odd',fieldPrefix));
     classVector{2}  = emc.(sprintf('%s_classes_eve',fieldPrefix));
     
     className    = emc.(sprintf('%s_className',fieldPrefix));
     samplingRate = emc.('Ali_samplingRate');
-    if (emc.classification)
-      %samplingRate = emc.('Pca_samplingRate');
-    else
-      %samplingRate = emc.('Raw_samplingRate');
-      fieldPrefix = 'REF'
-    end
     
     flgFinalAvg = 1;
     % Update at some point to handle multiple classes, for now just test on the
@@ -195,6 +181,7 @@ switch STAGEofALIGNMENT
     STAGEofALIGNMENT = 'Cluster';
     ClusterGeomNAME = 'ClusterClsGeom';
     fieldPrefix = 'Cls';
+    savePrefix = 'Cls';
     
     classVector{1}  = emc.(sprintf('%s_classes_odd',fieldPrefix));
     classVector{2}  = emc.(sprintf('%s_classes_eve',fieldPrefix));
@@ -204,17 +191,15 @@ switch STAGEofALIGNMENT
     
     samplingRate = emc.(sprintf('Cls_samplingRate'));
     className    = emc.(sprintf('%s_className',fieldPrefix));
-    if emc.classification < 0
+    if (emc.classification)
       flgGold = 0;
     end
     
   case 'SnrEstimate'
     
-    if CYCLE
-      fieldPrefix = 'Raw';
-    else
-      fieldPrefix = 'NoA';
-    end
+    fieldPrefix = 'Raw';
+    savePrefix = 'REF';
+
     classVector{1}  = [1:25;ones(1,25)];
     classVector{2}  = [1:25;ones(1,25)];
     
@@ -222,46 +207,10 @@ switch STAGEofALIGNMENT
     samplingRate = emc.(sprintf('%s_samplingRate','Ali'));
     
   otherwise
-    error('STAGEofALIGNMENT incorrect')
-end
-
-fprintf('StOAlign = %s, fieldPrefix = %s\n', STAGEofALIGNMENT, fieldPrefix);
-
-
-flgCones     = emc.('flgCones');
-
-
-cutPrecision = 'single'; %emc.('flgPrecision');
-try
-  interpOrder = emc.('interpOrder');
-catch
-  interpOrder = 1;
-end
-
-try
-  flgLimitToOneProcess = emc.('flgLimitToOneProcess');
-catch
-  flgLimitToOneProcess = 0;
-end
-
-if (interpOrder == 4)
-  limitToOne = 1;
-elseif (flgLimitToOneProcess)
-  limitToOne = flgLimitToOneProcess;
-else
-  limitToOne = emc.('nCpuCores');
-  interpOrder = 1;
+    error('STAGEofALIGNMENT incorrect');
 end
 
 
-
-
-
-fprintf('Interporder %d, limitToOneProcess %d\n',interpOrder,limitToOne);
-
-if ~(ismember(interpOrder,[1,4]))
-  error('interpolationOrder must be 1,,4 - linear,sinc');
-end
 outputPrefix = sprintf('%s_%s',cycleNumber, emc.('subTomoMeta'));
 
 emc.pixel_size_angstroms = emc.pixel_size_angstroms .* samplingRate;
@@ -328,22 +277,18 @@ switch STAGEofALIGNMENT
     cN = cell(2,1);
     
     if (flgGold)
-      cN{1} = sprintf('%s_%d_%d_nClass_%d_ODD',outputPrefix,classCoeffs{1}(1,1), ...
-        classCoeffs{1}(1,end), className)
+      cN{1} = sprintf('%s_%d_%d_nClass_%d_ODD',outputPrefix,classCoeffs{1}(1,1), classCoeffs{1}(1,end), className);
       
       geometry{1} = subTomoMeta.(cycleRead).ClusterResults.(cN{1});
-      cN{2} = sprintf('%s_%d_%d_nClass_%d_EVE',outputPrefix,classCoeffs{2}(1,1), ...
-        classCoeffs{2}(1,end), className)
+      cN{2} = sprintf('%s_%d_%d_nClass_%d_EVE',outputPrefix,classCoeffs{2}(1,1), classCoeffs{2}(1,end), className);
       geometry{2} = subTomoMeta.(cycleRead).ClusterResults.(cN{2});
       
       geometry = BH_mergeClassGeometry(geometry{1}, geometry{2});
     else
       if (test_fuzz)
-        cN{1} = sprintf('%s_%d_%d_nClass_%d_STD','cycle002_full_2',classCoeffs{1}(1,1), ...
-          classCoeffs{1}(1,end), className)
+        cN{1} = sprintf('%s_%d_%d_nClass_%d_STD','cycle002_full_2',classCoeffs{1}(1,1), classCoeffs{1}(1,end), className);
       else
-        cN{1} = sprintf('%s_%d_%d_nClass_%d_STD',outputPrefix,classCoeffs{1}(1,1), ...
-          classCoeffs{1}(1,end), className)
+        cN{1} = sprintf('%s_%d_%d_nClass_%d_STD',outputPrefix,classCoeffs{1}(1,1), classCoeffs{1}(1,end), className);
       end
       
       geometry = subTomoMeta.(cycleRead).ClusterResults.(cN{1});
@@ -370,26 +315,21 @@ switch STAGEofALIGNMENT
 end
 
 
-masterTM = subTomoMeta; clear subTomoMeta
 
-try
-  symmetry = emc.('symmetry');
-catch
-  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
-end
+
 
 class_idx='';
 class_weights='';
 if (test_fuzz)
   % FIXME: testing fuzzy classification, this is hardcoded
-  class_idx = masterTM.(cycleRead).ClusterResults.cycle002_full_2_0_64_nClass_36_STD_idxList;
-  class_weights = masterTM.(cycleRead).ClusterResults.cycle002_full_2_0_64_nClass_36_STD_p;
+  class_idx = subTomoMeta.(cycleRead).ClusterResults.cycle002_full_2_0_64_nClass_36_STD_idxList;
+  class_weights = subTomoMeta.(cycleRead).ClusterResults.cycle002_full_2_0_64_nClass_36_STD_p;
 end
 
-if isfield(masterTM,('tomoCPR_run_in_cycle'))
+if isfield(subTomoMeta,('tomoCPR_run_in_cycle'))
   
-  if (emc.eucentric_fit && ~isfield(masterTM.(sprintf('%s',cycleRead)), 'eucentric_shifts'))
-    cycle_to_update = masterTM.('tomoCPR_run_in_cycle')(find(masterTM.('tomoCPR_run_in_cycle')(:,1) == masterTM.currentTomoCPR),2);
+  if (emc.eucentric_fit && ~isfield(subTomoMeta.(sprintf('%s',cycleRead)), 'eucentric_shifts'))
+    cycle_to_update = subTomoMeta.('tomoCPR_run_in_cycle')(find(subTomoMeta.('tomoCPR_run_in_cycle')(:,1) == subTomoMeta.currentTomoCPR),2);
     if (cycle_to_update == cycleRead)
       error('You specified eucentric_fit=1, and you are averaging cycle %d and no shifts are found from cycle %d\n',cycleNumber,cycleRead);
     else
@@ -425,27 +365,14 @@ else
 end
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
-  BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
-padREF = [0,0,0;0,0,0];
+  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size )
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,emc.nGPUs, sizeCalc(1),limitToOne);
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, emc.nGPUs, sizeCalc(1), emc.nCpuCores);
 
-origMaskSize = sizeMask;
-%%%%% Considering removing doNotTrim and making this the default. Temporarily
-%%%%% override here.
-% % % %doNotTrim = true;
-% This should be moved into BH_multi_validAra
-% if (doNotTrim)
-%
 if any( (sizeCalc - sizeWindow) < 0 )
   sizeCalc = BH_multi_iterator( sizeWindow, 'fourier' )
 end
 sizeMask = sizeWindow;
-% sizeCALC = sizeWindow;
-% Find the next largest size for fft
-%[ sizeCalc ] = BH_multi_iterator( sizeCalc, 'fourier' )
-
-
 
 padCalc = BH_multi_padVal(sizeWindow, sizeCalc);
 
@@ -459,13 +386,13 @@ if (flgFinalAvg)
   weightNAME = sprintf('class_%d_Locations_REF_%s_Wgt', className, 'EVE');
   
   [ refIMG ] = BH_unStackMontage4d(1, ...
-    masterTM.(cycleNumber).(imgNAME){1}, ...
-    masterTM.(cycleNumber).(imgNAME){2},...
+    subTomoMeta.(cycleNumber).(imgNAME){1}, ...
+    subTomoMeta.(cycleNumber).(imgNAME){2},...
     sizeWindow);
   
   [ refWDG ] = BH_unStackMontage4d(1, ...
-    masterTM.(cycleNumber).(weightNAME){1},...
-    masterTM.(cycleNumber).(weightNAME){2},...
+    subTomoMeta.(cycleNumber).(weightNAME){1},...
+    subTomoMeta.(cycleNumber).(weightNAME){2},...
     sizeCalc);
   
   % % % % % % %   [ peakMask] = gather(BH_mask3d('sphere', sizeMask, peakSearch, maskCenter));
@@ -527,12 +454,12 @@ if (emc.flgQualityWeight)
   
   if (spike_prior)
     
-    tiltList_tmp = fieldnames(masterTM.mapBackGeometry);
+    tiltList_tmp = fieldnames(subTomoMeta.mapBackGeometry);
     tiltList_tmp = tiltList_tmp(~ismember(tiltList_tmp,{'viewGroups','tomoName'}));
     nST = 1; tiltList = {};
     % First make sure this tilt actualy has tomos. Why is this here/
     for iStack = 1:length(tiltList_tmp)
-      if masterTM.mapBackGeometry.(tiltList_tmp{iStack}).nTomos
+      if subTomoMeta.mapBackGeometry.(tiltList_tmp{iStack}).nTomos
         tiltList{nST} = tiltList_tmp{iStack};
         nST = nST +1;
       end
@@ -544,13 +471,9 @@ if (emc.flgQualityWeight)
     % word?) i.e. make sure no principle axes are way to big, due to
     % points from adjacent virions that were not removed in
     % cleanTemplateSearch.
-    f = fieldnames(masterTM.mapBackGeometry.tomoName);
+    f = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
     
     for iTomo = 1:length(f)
-      
-      %         tiltName = masterTM.mapBackGeometry.tomoName.(f{iTomo}).tiltName;
-      %         tomoNumber = masterTM.mapBackGeometry.tomoName.(f{iTomo}).tomoNumber;
-      %         iCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
       
       tmpTomo = [];
       spike_info.(f{iTomo}).('angular_diff') = zeros(size(geometry.(f{iTomo}) , 1),emc.nPeaks,'single');
@@ -697,7 +620,7 @@ if (emc.flgQualityWeight)
     fprintf('Removing all volumes with score < %2.2f to return the requested percent %2.2f of possible volumes\n\n',cccCutOff,reqVol);
   end
   
-  masterTM.(cycleNumber).('score_sigma') = std(cccVect);
+  subTomoMeta.(cycleNumber).('score_sigma') = std(cccVect);
   if (spike_prior)
     %       spike_info.('normalization_factor') = 1;%nVolumes ./ (emc.nPeaks * addedWeight);
     %       fprintf('From %d possible volumes the total weight is %3.3e\n',nVolumes,addedWeight);
@@ -727,7 +650,7 @@ if (emc.flgQualityWeight)
 else
   maxCCC = [];
   avgCCC = [];
-  masterTM.(cycleNumber).('score_sigma') = 1;
+  subTomoMeta.(cycleNumber).('score_sigma') = 1;
 end
 
 % % Clear all of the GPUs prior to entering the main processing loop
@@ -790,7 +713,7 @@ parfor iParProc = parVect
     if (emc.eucentric_fit)
       try
         geometry_tmp.(tomoList{iTomo})(:,13) = geometry_tmp.(tomoList{iTomo})(:,13) + ...
-          masterTM.(sprintf('%s',cycleRead)).('eucentric_shifts').(tomoList{iTomo}) ;
+          subTomoMeta.(sprintf('%s',cycleRead)).('eucentric_shifts').(tomoList{iTomo}) ;
       catch
         fprintf('WARNING, did not find the eucentric shift for tomo %s\n', tomoList{iTomo});
       end
@@ -799,18 +722,10 @@ parfor iParProc = parVect
     peakMask_tmp = gpuArray(peakMask);
     peakBinary_tmp = gpuArray(peakBinary);
     
-    interpPad = 0; interpTrim = 0 ;
-    if interpOrder == 4
-      interpPad = BH_multi_padVal(sizeWindow,2.*sizeWindow);
-      interpTrim = BH_multi_padVal(2.*sizeWindow,sizeWindow);
-      interpMask_tmpBinary = single(find(interpMask > 0.01));
-      interpMask_tmp = interpMask;
-      interpMaskWdg_tmp = interpMaskWdg;
-    else
-      interpMask_tmpBinary = gpuArray(single(find(interpMask > 0.01 )));
-      interpMask_tmp = gpuArray(interpMask);
-      interpMaskWdg_tmp = (gpuArray(interpMaskWdg));
-    end
+
+    interpMask_tmpBinary = gpuArray(single(find(interpMask > 0.01 )));
+    interpMask_tmp = gpuArray(interpMask);
+    interpMaskWdg_tmp = (gpuArray(interpMaskWdg));
     
     if (eachTomo)
       tomoAvg = zeros(sizeMask, 'single', 'gpuArray');
@@ -825,10 +740,10 @@ parfor iParProc = parVect
     
     
     
-    tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
-    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-    tiltName   = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    coords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    tiltGeometry = subTomoMeta.tiltGeometry.(tomoList{iTomo});
+    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
     [ binShift ] = [0,0,0];%BH_multi_calcBinShift( coords, samplingRate);
     
     % Load in the geometry for the tomogram, and get number of subTomos.
@@ -840,10 +755,10 @@ parfor iParProc = parVect
     volumeData = [];
     %fprintf('loading tomo %d\n',iTomo);
     
-    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-    tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     fprintf('Loading tomo %d from tilt %s \n',tomoNumber,tiltName);
-    reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
     
     if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
       volumeData = [];
@@ -860,7 +775,7 @@ parfor iParProc = parVect
     
     
     
-    iTiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    iTiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     wgtName = sprintf('cache/%s_bin%d.wgt',iTiltName,samplingRate);
     
     
@@ -916,19 +831,16 @@ parfor iParProc = parVect
           iParticle = [];
           iCCCweight = [];
           iWedgeMask = [];
-          % symmetry = classVector{iGold}(2, iClassPos);
-          
           
           if ( emc.nPeaks > 1 )
             % Calculate a relative weighting, normalize max score to one
             % and then raise to compressBy factor to downweight lower
             % scores.
             
-            
             [ peakWgt, sortedList ] = BH_weightAngCheckPeaks( ...
               positionList(iSubTomo,:),...
               emc.nPeaks,  ...
-              masterTM.(cycleNumber).('score_sigma') ,...
+              subTomoMeta.(cycleNumber).('score_sigma') ,...
               iSubTomo, tomoList{iTomo},...
               emc.track_stats);
             % Update any re-ordering or elimination
@@ -966,7 +878,7 @@ parfor iParProc = parVect
             %   angles = reshape(angles,3,3)*oddRot;
             % end
             
-            TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
+            TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
             
             if (make_sf3d)
               [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, wiener_constant);
@@ -1111,27 +1023,11 @@ parfor iParProc = parVect
               
               
               %iParticle is already on GPU if it should be.
-              [~, iParticle] = interpolator(gpuArray(iParticle), angles, iShift, rotConvention , 'inv', symmetry, true);
+              [~, iParticle] = interpolator(gpuArray(iParticle), angles, iShift, rotConvention , 'inv', emc.symmetry, true);
               
-              %           [ iParticle ] = gpuArray( ...
-              %                           BH_resample3d(iParticle, ...
-              %                               angles, iShift, ...
-              %                               {rotConvention ,symmetry,interpM,1,interpMask_tmpBinary}, ...
-              %                               interpU,'inv'));
-              %
-              %           [ iParticle ] = BH_padZeros3d(iParticle, ...
-              %                                     -1.*padWindow(1,:),-1.*padWindow(2,:),...
-              %                                     'GPU','single');
               
-              [~, iWedgeMask] = interpolator(gpuArray(iSF3D), angles, [0,0,0], rotConvention , 'inv', symmetry, true);
-              
-              % For now just leave linear interp, but test with spline
-              %             [ iWedgeMask ] = BH_resample3d(iSF3D, ...
-              %                                            angles, [0,0,0], ...
-              %                                            {rotConvention ,symmetry,'linear', ...
-              %                                            1,interpMaskWdg_tmp}, ...
-              %                                            'GPU','inv');
-              
+              [~, iWedgeMask] = interpolator(gpuArray(iSF3D), angles, [0,0,0], rotConvention , 'inv', emc.symmetry, true);
+                            
               
               iParticle = iParticle -  mean(iParticle(interpMask_tmpBinary));
               iParticle = iParticle ./  rms(iParticle(interpMask_tmpBinary));
@@ -1339,8 +1235,8 @@ fprintf('\n%d / %d subTomos extracted\n',sum(nExtracted(:)), nSubTomosTotal)
 
 
 
-masterTM.(cycleNumber).('nSubTomoAveraged') = gather(sum(nExtracted(:)));
-masterTM.(cycleNumber).(sprintf('newIgnored_Avg%s',fieldPrefix)) = ...
+subTomoMeta.(cycleNumber).('nSubTomoAveraged') = gather(sum(nExtracted(:)));
+subTomoMeta.(cycleNumber).(sprintf('newIgnored_Avg%s',fieldPrefix)) = ...
   gather(nIgnored);
 
 
@@ -1442,7 +1338,7 @@ end
 % class to [most likely] match the corresponding odd class.
 classListOut = 0;
 % % % if (flgGold) && strcmpi(STAGEofALIGNMENT, 'Cluster')
-if  strcmpi(STAGEofALIGNMENT, 'Cluster') && (emc.classification ~= -1)
+if  strcmpi(STAGEofALIGNMENT, 'Cluster') && ~(emc.classification)
   % % %   [classListOut, geometry] = reorder_classes(filteredClass(:,1),filteredClass(:,2),maxClasses, geometry);
   
   % % %   filteredClass(:,2) = filteredClass(classListOut(:,2), 2);
@@ -1457,7 +1353,7 @@ if  strcmpi(STAGEofALIGNMENT, 'Cluster') && (emc.classification ~= -1)
   fprintf(classMatches,'%d\t%d\t%2.6f\n', classListOut');
   fclose(classMatches);
   
-  masterTM.(cycleNumber).(sprintf('class_%d_%s_EveOddIdx',className,fieldPrefix)) = classListOut;
+  subTomoMeta.(cycleNumber).(sprintf('class_%d_%s_EveOddIdx',className,fieldPrefix)) = classListOut;
   
   
 end
@@ -1465,15 +1361,15 @@ end
 % Second option allows re-use of class designations to generate
 % multi-reference alignment.
 if strcmpi(STAGEofALIGNMENT, 'Cluster')
-  masterTM.(cycleNumber).(ClusterGeomNAME) = geometry;
+  subTomoMeta.(cycleNumber).(ClusterGeomNAME) = geometry;
 elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && emc.multi_reference_alignment
   if (emc.classification)
-    masterTM.(cycleNumber).('ClusterClsGeom') = geometry;
+    subTomoMeta.(cycleNumber).('ClusterClsGeom') = geometry;
   else
-    masterTM.(cycleNumber).('ClusterRefGeom') = geometry;
+    subTomoMeta.(cycleNumber).('ClusterRefGeom') = geometry;
   end
 else
-  masterTM.(cycleNumber).('Avg_geometry') = geometry;
+  subTomoMeta.(cycleNumber).('Avg_geometry') = geometry;
 end
 % Should this save differently depending on the stage of alignment?? I
 % think so but leave alone for nw.
@@ -1499,7 +1395,7 @@ for iGold = 1:2-flgFinalAvg
     className, fieldPrefix, halfSet);
   classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', className,fieldPrefix, halfSet);
   
-  masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
+  subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
   
   if (flgFinalAvg)
     system(sprintf('mv %s preHalfSetAli_%s',imout,imout));
@@ -1513,7 +1409,7 @@ for iGold = 1:2-flgFinalAvg
   classOut = sprintf('class_%d_Locations_%s_%s_Wgt', className,fieldPrefix, halfSet);
   
   % For the weight, instead of imgCounts save the padValues
-  masterTM.(cycleNumber).(classOut) = {imout,imgLocations,fscPAD};
+  subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,fscPAD};
   
   if (flgFinalAvg)
     system(sprintf('mv %s preHalfSetAli_%s',imout,imout));
@@ -1530,7 +1426,7 @@ for iGold = 1:2-flgFinalAvg
       saveClassSum, 'Raw', halfSet);
     classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'Raw', halfSet);
     SAVE_IMG(montOUT, imout,emc.pixel_size_angstroms);
-    masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
+    subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
     
     [montOUT, imgLocations] = BH_montage4d(classWgtSum(iGold), '');
     
@@ -1538,32 +1434,30 @@ for iGold = 1:2-flgFinalAvg
       saveClassSum, 'Raw', halfSet);
     classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'Raw', halfSet);
     SAVE_IMG(montOUT, imout,emc.pixel_size_angstroms);
-    masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
+    subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
     
   end
 end
 
 
 
-masterTM = gather(masterTM);
+subTomoMeta = gather(subTomoMeta);
 classVector = gather(classVector);
 nExtracted = gather(nExtracted);
 
 
 
-subTomoMeta = gather(masterTM);
-subTomoMeta.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT) = symmetry;
+subTomoMeta.(cycleNumber).('SymmetryApplied').(STAGEofALIGNMENT) = emc.symmetry;
 subTomoMeta.(cycleNumber).('ClassVector').(STAGEofALIGNMENT) = classVector;
 cycleNumber = gather(cycleNumber);
 subTomoMeta.('currentCycle') = gather(CYCLE);
 
 
-save(emc.('subTomoMeta'), 'subTomoMeta');
+save(emc.subTomoMeta, 'subTomoMeta');
 
 
 
-fprintf('Total execution time : %f seconds\n', etime(clock, startTime));
-
+fprintf('Total execution time : %f seconds\n', datetime("now")-startTime);
 
 % clean everything up, since this function is called from other functions.
 
@@ -1629,10 +1523,10 @@ if ~( flgEstSNR )
   
   % This is slow ass when using cones and class averages and wouldn't be too
   % hard to put into parallel. Do that once the next manuscript is finished.
-  if (~emc.multi_reference_alignment && ~emc.classification )
-    nClassesReWgt = 1;
-  else
+  if (emc.multi_reference_alignment || emc.classification )
     nClassesReWgt = maxClasses;
+  else
+    nClassesReWgt = 1;
   end
   
   for iRef = 1:nClassesReWgt
@@ -1651,7 +1545,8 @@ if ~( flgEstSNR )
       iRefPrev = iRef;
     end
     
-    if (flgGold) || (emc.classification < 0)
+    % FIXME: logic?
+    if (flgGold || emc.classification)
       flgCombine = 0;
       flgRefCutOff = 1;
     else
@@ -1659,38 +1554,16 @@ if ~( flgEstSNR )
       flgRefCutOff = 0;
     end
     
+    fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRefPrev));
+    aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
+    mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
     
-    
-    
-    
-    % When switching from no Classification to classification, there will be no
-    % previous savePrefix ref, it will be Raw. Another reason to get rid of the
-    % (artificial) distinction. For now, use a try catch .
-    
-    try
-      fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRefPrev));
-      aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
-      mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
-    catch
-      fprintf('\nReverting from %s to Raw in loading fitFSC\n',savePrefix);
-      fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d','Raw',iRefPrev));
-      aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Raw',iRefPrev));
-      mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d','Raw',iRefPrev));
-    end
-    
-    %     if (flgGold) && strcmpi(STAGEofALIGNMENT, 'Cluster')
-    %       iOdd = cccFinal(iRef,2);
-    %       iEve = cccFinal(iRef,3);
-    %     else
     iOdd = iRef;
     iEve = iRef;
-    %     end
     
     if (flgFinalAvg)
       % negative to combine but NOT apply the xform to the odd set
       flgCombine = -1;
-      flgRefCutoff = 0;
-      
     end
     
     % Only send the lowest Bfactor if not flgFinalAvg
@@ -1707,7 +1580,7 @@ if ~( flgEstSNR )
     
     if ~(flgFinalAvg)
       refIMG{1}{iOdd} = refTMP{1,1};
-      if (flgGold) || (emc.classification < 0)
+      if (flgGold || emc.classification)
         refIMG{2}{iEve} = refTMP{1,2};
       end
       clear refTMP
@@ -1717,7 +1590,7 @@ if ~( flgEstSNR )
   
   
   for iGold = 1:2-flgFinalAvg
-    if( flgGold ) || (emc.classification < 0)
+    if( flgGold || emc.classification )
       if iGold == 1
         halfSet = 'ODD';
       else

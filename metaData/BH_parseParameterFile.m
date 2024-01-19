@@ -45,10 +45,23 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if isfield(emc, 'nGPUs')
-  EMC_assert_integer(emc.nGPUs, 1);
+  EMC_assert_integer(emc.nGPUs, 1, [1, 1000]);
 else
   error('nGPUs is a required parameter');
 end
+
+if isfield(emc, 'nCpuCores')
+  EMC_assert_integer(emc.nCpuCores, 1, [1, 1000]);
+else
+  error('nCpuCores is a required parameter');
+end
+
+symmetry_has_been_checked = false;
+if ~isfield(emc, 'symmetry')
+  %TODO asserts on allowed values for symmetry paraemeter
+  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
+end
+symmetry_has_been_checked = true;
 
 if isfield(emc, 'PIXEL_SIZE')
   EMC_assert_numeric(emc.PIXEL_SIZE, 1, [0, 100e-10]);
@@ -120,6 +133,13 @@ if isfield(emc, 'Fsc_bfactor')
 else
   emc.('Fsc_bfactor') = 40.0;
 end
+
+if isfield(emc, 'flgCones')
+  EMC_assert_boolean(emc.flgCones)
+else
+  emc.('Fsc_bfactor') = false;
+end
+
 
 % Used to downweight higher frequencies based on relative CCC scores.
 % Based on one of Niko's papers, but catching some edge cases for tomo.
@@ -196,6 +216,81 @@ EMC_assert_boolean(emc.classification);
 
 emc = EMC_assert_deprecated_substitution(emc, false, 'multi_reference_alignment', 'flgMultiRefAlignment');
 EMC_assert_boolean(emc.multi_reference_alignment);
+
+% Zero padding of the volumes before alignment/other FFT ops
+emc = EMC_assert_deprecated_substitution(emc, 1.5, 'scale_calc_size', 'scaleCalcSize');
+EMC_assert_numeric(emc.scale_calc_size, 1, [1.0, 2.0]);
+
+emc = EMC_assert_deprecated_substitution(emc, false, 'limit_to_one_core', 'flgLimitToOneProcess');
+EMC_assert_boolean(emc.limit_to_one_core);
+
+if (emc.limit_to_one_core)
+  emc.nCpuCores = 1;
+end
+
+if isfield(emc, 'force_no_symmetry')
+  EMC_assert_boolean(emc.force_no_symmetry)
+  if (~symmetry_has_been_checked)
+    error('force_no_symmetry must be after symmetry check');
+  end
+  % Warning must be after symmetry check
+  if (force_no_symmetry)
+    emc.symmetry='C1';
+  end
+else
+  force_no_symmetry = false;
+end
+
+if isfield(emc, 'Pca_constrain_symmetry')
+  EMC_assert_boolean(emc.Pca_constrain_symmetry)
+else
+  emc.Pca_constrain_symmetry = false;
+end
+
+emc = EMC_assert_deprecated_substitution(emc, false, 'fsc_with_chimera', 'fscWithChimera');
+EMC_assert_boolean(emc.fsc_with_chimera);
+
+emc = EMC_assert_deprecated_substitution(emc, 0.1, 'minimum_particle_for_fsc_weighting', 'minimumparticleVolume');
+EMC_assert_numeric(emc.minimum_particle_for_fsc_weighting, 0, [0.01, 1.0]);
+
+emc = EMC_assert_deprecated_substitution(emc, 1.0, 'fsc_shape_mask', 'flgFscShapeMask');
+EMC_assert_numeric(emc.fsc_shape_mask, 1, [0.0, 2.0]);
+
+if isfield(emc, 'shape_mask_lowpass')
+  EMC_assert_numeric(emc.shape_mask_lowpass, 1, [10, 100]);
+else
+  emc.shape_mask_lowpass = 14;
+end
+
+if isfield(emc, 'shape_mask_threshold')
+  EMC_assert_numeric(emc.shape_mask_threshold, 1, [0.1, 10.0]);
+else
+  emc.shape_mask_threshold = 2.4;
+end
+
+if isfield(emc, 'shape_mask_test')
+  EMC_assert_boolean(emc.shape_mask_test);
+else
+  emc.shape_mask_test = false;
+end
+
+emc = EMC_assert_deprecated_substitution(emc, 22.0, 'pca_scale_spaces', 'pcaScaleSpace');
+EMC_assert_numeric(emc.pca_scale_spaces);
+emc.('n_scale_spaces') = numel(emc.pca_scale_spaces);
+
+if isfield(emc, 'Pca_maxEigs')
+  EMC_assert_integer(emc.Pca_maxEigs, 1, [1, 1000]);
+else
+  emc.Pca_maxEigs = 36;
+end
+
+if isfield(emc, 'Pca_randSubset')
+  EMC_assert_integer(emc.Pca_randSubset, 1);
+else
+  emc.Pca_randSubset = 0;
+end
+
+
 
 end
 

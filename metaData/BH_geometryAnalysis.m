@@ -50,7 +50,7 @@ else
   end
 end
   
-startTime =  clock;
+startTime =  datetime("now");
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 

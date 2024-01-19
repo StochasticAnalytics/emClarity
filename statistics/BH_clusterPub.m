@@ -43,7 +43,7 @@ if (nargin ~= 2)
   error('PARAMETER_FILE, CYCLE')
 end
 
-startTime =  clock;
+startTime =  datetime("now");
 CYCLE = EMC_str2double(CYCLE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
@@ -62,7 +62,7 @@ else
 end
 
 
-nRows = length(emc.('pcaScaleSpace'));
+nRows = emc.n_scale_spaces;
 featureVector = cell(2,1);
 if flgGold
   featureVector{1,1} = emc.('Pca_coeffs_odd');
@@ -74,7 +74,7 @@ end
 
 nFeatures = size(featureVector{1,1});
 if (nFeatures(1) ~= nRows)
-  error('There should be a set of indices for each pcaScaleSpace, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
+  error('There should be a set of indices for each pca_scale_spaces, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
 end
 
 clusterVector= emc.('Pca_clusters');
@@ -462,8 +462,9 @@ for iGold = 1:1+flgGold
   save(emc.('subTomoMeta'), 'subTomoMeta');
   
   %save(sprintf('%s_pca.mat',OUTPUT_PREFIX), 'nTOTAL','U', 'S', 'V', 'coeffs')
-  fprintf('Total execution time on set %s: %f seconds\n', halfSet,etime(clock, startTime));
+  fprintf('Total execution time on set %s: %f seconds\n', halfSet, datetime("now") - startTime);
   delete(gcp('nocreate'));
 end % end of Gold loop
+
 end % end of cluster function
 

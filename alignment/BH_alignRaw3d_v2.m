@@ -41,7 +41,7 @@ end
 cpuVar = struct();
 GPUVar = struct();
 
-startTime =  clock;
+startTime =  datetime("now");
 CYCLE = EMC_str2double(CYCLE);
 cycle_numerator = '';
 cycle_denominator ='';
@@ -61,8 +61,6 @@ elseif CYCLE < 0
   
 end
 
-
-
 emc = BH_parseParameterFile(PARAMETER_FILE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
@@ -70,36 +68,12 @@ mapBackIter = subTomoMeta.currentTomoCPR;
 reconScaling = 1;
 
 
-% TODO decide on a "reasonable" padding based on expected shifts.
-try
-  CUTPADDING = subTomoMeta.('CUTPADDING')
-catch
-  CUTPADDING=20
-end
-
-
-
-try
-  symmetry_op = emc.('symmetry');
-catch
-  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
-end
-
 try
   use_new_grid_search = emc.('use_new_grid_search');
 catch
   use_new_grid_search = true;
 end
 
-try
-  force_no_symmetry = emc.('force_no_symmetry');
-catch
-  force_no_symmetry = false;
-end
-if (force_no_symmetry)
-  symmetry_op='C1'
-  fprintf('\nWarning, overriding symmetry in the alignment. THis is just for benchmarking\n');
-end
 
 maxGoldStandard = subTomoMeta.('maxGoldStandard');
 
@@ -159,13 +133,6 @@ if ( doHelical )
   rotConvention = 'Helical';
 end
 
-
-try
-  scaleCalcSize = emc.('scaleCalcSize');
-catch
-  scaleCalcSize = 1.5;
-end
-% % % % if (emc.classification || emc.multi_reference_alignment)
 if (emc.classification)
   refName      = emc.('Ref_className');
 else
@@ -252,28 +219,12 @@ tiltList = masterTM.tiltGeometry;
   BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms)
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
-  BH_multi_validArea( maskSize, maskRadius, scaleCalcSize  )
+  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size  )
 
 
-try
-  flgLimitToOneProcess = emc.('flgLimitToOneProcess');
-catch
-  flgLimitToOneProcess = 0;
-end
 
-if (flgLimitToOneProcess)
-  limitToOne = flgLimitToOneProcess;
-else
-  limitToOne = emc.('nCpuCores');
-end
-
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, sizeCalc(1), emc.nCpuCores);
 if ( flgReverseOrder )
-  % fprintf('nCpuCores is %d\n', limitToOne);
-  % [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);
-  % for iParProc = 1:nParProcesses
-  %   iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
-  % end
   % Flip the order for reverse processing on a second machine. This will also disable saving of
   % of the metadata so there aren't conflicts.
   for iParProc = 1:nParProcesses
@@ -281,25 +232,7 @@ if ( flgReverseOrder )
   end
   
 elseif ( flgStartThird )
-  % fprintf('nCpuCores is %d\n', limitToOne);
-  % [ nParProcesses, iterList_full] = BH_multi_parallelJobs(nTomograms,nGPUs*cycle_denominator, sizeCalc(1),limitToOne*cycle_denominator);
-  
-  % for iParProc = 1:nParProcesses
-  %   iterList_full{iParProc} = sortedTomoIDX(iterList_full{iParProc})';
-  % end
-  
-  % % Need to scale this back down
-  % nParProcesses = limitToOne;
-  
-  % Shift to start at one third through to process on a third machine. This will also disable saving of
-  % of the metadata so there aren't conflicts.
-  % iterList = {};
-  % for iParProc = 1:nParProcesses
-  %   idx = cycle_numerator + (iParProc-1)*cycle_denominator;
-  %   if (idx <= length(iterList_full))
-  %     iterList{iParProc} = iterList_full{idx};
-  %   end
-  % end
+
   for iParProc = 1:nParProcesses
     % Note the use of floor is more like ceiling here (rounds away from
     % zero)
@@ -311,14 +244,7 @@ elseif ( flgStartThird )
   
   
 else
-  % error('not supported run config');
-  % fprintf('nCpuCores is %d\n', limitToOne);
-  % [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);
-  % for iParProc = 1:nParProcesses
-  %   iterList{iParProc} = sortedTomoIDX(iterList{iParProc})'
-  % end
-  
-  
+
 end
 
 if any(peakSearch > maskRadius)
@@ -608,7 +534,7 @@ clear refIMG refWDG refOUT iRef
 updateWeights = false;
 gridSearch = '';
 if (use_new_grid_search)
-  gridSearch = eulerSearch(symmetry_op, angleSearch(1),...
+  gridSearch = eulerSearch(emc.symmetry, angleSearch(1),...
     angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, true);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi
@@ -689,7 +615,6 @@ system(sprintf('mkdir -p alignResume/%s',outputPrefix));
 parVect = 1:nParProcesses;
 fprintf('Starting main loopwith N references %d\n', nReferences(1));
 parfor iParProc = parVect
-  symmetry = symmetry_op; % Why TF would this be necessary?
   
   bestAngles_tmp = struct();
   geometry_tmp = geometry;

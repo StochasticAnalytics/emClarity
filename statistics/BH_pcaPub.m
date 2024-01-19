@@ -10,7 +10,7 @@ function [  ] = BH_pcaPub(PARAMETER_FILE, CYCLE, PREVIOUS_PCA)
 %   samplingRate = Binning factor, assumed to be integer value. Image is first
 %              smoothed by an appropriate low-pass filter to reduce aliasing.
 %
-%   randomSubset = -1, count all non-ignored particles (class -9999).
+%   emc.Pca_randSubset = -1, count all non-ignored particles (class -9999).
 %
 %                float, randomly select this many paparticleBandpassrticles for the
 %                decomposition, denote by updating the flag in column 8 to be 1
@@ -18,7 +18,7 @@ function [  ] = BH_pcaPub(PARAMETER_FILE, CYCLE, PREVIOUS_PCA)
 %
 %                string - indicates a mat file with prior decomposition.
 %
-%   maxEigs = Maximum number of principle components to save, general 50
+%   emc.Pca_maxEigs = Maximum number of principle components to save, general 50
 %                   has been plenty. This is a big memory saver.
 %
 %   bandpass =  [HIGH_THRESH, HIGH_CUT, LOW_CUT, PIXEL_SIZE]
@@ -92,7 +92,7 @@ end
 test_multi_ref_diffmap = true;
 test_scale_space_bug_fix = false;
 
-startTime =  clock;
+startTime =  datetime("now");
 
 CYCLE = EMC_str2double(CYCLE);
 PREVIOUS_PCA = EMC_str2double(PREVIOUS_PCA);
@@ -145,12 +145,10 @@ reconScaling = 1;
 %%% Put this in the param file later - the input values should be in angstrom
 %%% and are the relevant scale spaces for classification.
 
-pcaScaleSpace  = emc.('pcaScaleSpace');
-nScaleSpace = numel(pcaScaleSpace);
+
 samplingRate   = emc.('Cls_samplingRate');
 refSamplingRate= emc.('Ali_samplingRate');
-randomSubset   = emc.('Pca_randSubset');
-maxEigs        = emc.('Pca_maxEigs');
+
 pixelSize = emc.pixel_size_angstroms .* samplingRate;
 refPixelSize = emc.pixel_size_angstroms .* refSamplingRate;
 
@@ -163,11 +161,7 @@ nCores  = BH_multi_parallelWorkers(emc.('nCpuCores'));
 pInfo = parcluster();
 
 nTempParticles = emc.('PcaGpuPull');
-try
-  scaleCalcSize = emc.('scaleCalcSize');
-catch
-  scaleCalcSize = 1.5;
-end
+
 
 outputPrefix   = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 %%%flgGold      = emc.('flgGoldStandard');
@@ -183,17 +177,9 @@ end
 % The defaults used in fscGold are modified here to make a more permissive
 % mask since we are concerned with densities that are likely damped during
 % averaging due to low occupancy.
-try
-  shape_mask_lowpass = emc.('shape_mask_lowpass');
-catch
-  shape_mask_lowpass = 14 + 10;
-end
+emc.shape_mask_lowpass = emc.shape_mask_lowpass + 10;
+emc.shape_mask_threshold = emc.shape_mask_threshold - 0.4;
 
-try
-  shape_mask_threshold = emc.('shape_mask_threshold');
-catch
-  shape_mask_threshold = 2.4 - 0.4;
-end
 
 try
   tmpVal = emc.('whitenPS');
@@ -206,28 +192,13 @@ catch
   wiener_constant = 0.0;
 end
 
-try
-  % Apply the mask with the given parameters, save and exit.
-  shape_mask_test = emc.('shape_mask_test');
-catch
-  shape_mask_test = false;
-end
-
-try
-  test_updated_bandpass = emc.('test_updated_bandpass');
-catch
-  test_updated_bandpass = false;
-end
 
 
 % Removed flgGold everywhere else, but keep ability to classify full data set at
 % the end (after all alignment is finished.)
-%%% For general release, I've disabled class average alignment and
-%%% multi-reference alignment, so set the default to OFF. If either of
-%%% these features are re-introduced, this will need to be reverted.
-if ( emc.classification ); emc.classification = -1 ; end
 
-if emc.classification < 0
+
+if (emc.classification)
   flgGold = 0;
 else
   flgGold = 1;
@@ -286,11 +257,11 @@ maskSize=preMaskSize;
 cpuVols = struct;
 
 [ preSizeWindow, preSizeCalc, preSizeMask, prePadWindow, prePadCalc ] = ...
-  BH_multi_validArea(preMaskSize,preMaskRadius, scaleCalcSize )
+  BH_multi_validArea(preMaskSize,preMaskRadius, emc.scale_calc_size )
 
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
-  BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
+  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size )
 
 
 if (test_multi_ref_diffmap)
@@ -347,9 +318,9 @@ nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})];
 averageMotif = cell(2,1);
 
 if (test_multi_ref_diffmap)
-  fprintf('nScaleSpace = %d\n',nScaleSpace);
+  fprintf('emc.n_scale_spaces = %d\n',emc.n_scale_spaces);
   fprintf('nReferences = %d\n',nReferences);
-  nScaleSpace = nReferences(1);
+  emc.n_scale_spaces = nReferences(1);
   pause(3);
 else
   nReferences = [1,1];
@@ -446,7 +417,7 @@ if (flgVarianceMap)
     % In most cases, this is the number of "features" specified in the
     % parameter file, but in some data not even this may non-zero singluar
     % values are found, so the number could be different (lower)
-    for iScale = 1:nScaleSpace
+    for iScale = 1:emc.n_scale_spaces
       eigsFound = size(coeffs{iScale},1);
       fname = sprintf('%s_varianceMap%d-%s-%d.mrc', ...
         outputPrefix, eigsFound, halfSet, iScale);
@@ -458,26 +429,14 @@ if (flgVarianceMap)
   end
 end
 
-try
-  symmetry = emc.('symmetry');
-  fprintf('\n\tWarning: As of emClarity 1.7.0.12 the symmetry parameter is applied to the volume and mask in PCA!\n')
-catch
-  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
-end
-
-try
-  constrain_symmetry = emc.('Pca_constrain_symmetry');
-catch
-  constrain_symmetry = false;
-end
 
 if (PREVIOUS_PCA)
   volumeMask = gpuArray(getVolume(MRCImage( ...
     sprintf('%s_pcaVolMask.mrc',outputPrefix))));
 else
   
-  if (constrain_symmetry)
-    gridSearch = eulerSearch(symmetry,180,5,360,5,0.0,1,true);
+  if (emc.Pca_constrain_symmetry)
+    gridSearch = eulerSearch(emc.symmetry,180,5,360,5,0.0,1,true);
     [ volumeMask ]    = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter, ...
       '3d', gridSearch.number_of_asymmetric_units);
   else
@@ -493,7 +452,7 @@ else
     % include when sets are left 100% separate.
     %       volumeMask = volumeMask .* BH_mask3d(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, '','');
     volumeMask = volumeMask .* EMC_maskReference(averageMotif{1}+averageMotif{1+flgGold}, pixelSize, ...
-      {'pca', true; 'lowpass', shape_mask_lowpass; 'threshold', shape_mask_threshold});
+      {'pca', true; 'lowpass', emc.shape_mask_lowpass; 'threshold', shape_mask_threshold});
     
   end
   
@@ -509,8 +468,8 @@ else
 end
 
 volMask = struct();
-nPixels = zeros(2,nScaleSpace);
-for iScale = 1:nScaleSpace
+nPixels = zeros(2,emc.n_scale_spaces);
+for iScale = 1:emc.n_scale_spaces
   for iGold = 1:1+flgGold
     stHALF = sprintf('h%d',iGold);
     stSCALE = sprintf('s%d',iScale);
@@ -539,9 +498,9 @@ clear volumeMask
 
 % radius, convert Ang to pix , denom = equiv stdv from normal to include, e.g.
 % for 95% use 1/sig = 1/2
-%stdDev = 1/2 .* (pcaScaleSpace ./ pixelSize - 1)  .* 3.0./log(pcaScaleSpace)
-threeSigma = 1/3 .* (pcaScaleSpace ./ pixelSize)
-for iScale = 1:nScaleSpace
+%stdDev = 1/2 .* (emc.pca_scale_spaces ./ pixelSize - 1)  .* 3.0./log(emc.pca_scale_spaces)
+threeSigma = 1/3 .* (emc.pca_scale_spaces ./ pixelSize)
+for iScale = 1:emc.n_scale_spaces
   
   kernelSize = ceil(threeSigma(iScale)) + 3;
   kernelSize = kernelSize + (1-mod(kernelSize,2));
@@ -551,11 +510,11 @@ for iScale = 1:nScaleSpace
   
 end
 
-avgMotif_FT = cell(1+flgGold,nScaleSpace);
-avgFiltered = cell(1+flgGold,nScaleSpace);
+avgMotif_FT = cell(1+flgGold,emc.n_scale_spaces);
+avgFiltered = cell(1+flgGold,emc.n_scale_spaces);
 % Here always read in both, combine if flgGold = 0
 for iGold = 1:1+flgGold
-  for iScale = 1:nScaleSpace
+  for iScale = 1:emc.n_scale_spaces
     
     if (test_multi_ref_diffmap)
       tmp_avg = averageMotif{iGold}{iScale};
@@ -600,7 +559,7 @@ clear montOUT
 
 
 
-% If randomSubset is string with a previous matfile use this, without any
+% If emc.Pca_randSubset is string with a previous matfile use this, without any
 % decomposition.
 
 for iGold = 1:1+flgGold
@@ -623,15 +582,15 @@ for iGold = 1:1+flgGold
   
   if (PREVIOUS_PCA)
     previousPCA = sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet);
-    randomSubset = -1;
-    [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', -1 , randSet);
+    emc.Pca_randSubset = -1;
+    [ geometry, nTOTAL, nSUBSET ] = BH_emc.Pca_randSubset( geometry,'pca', -1 , randSet);
   else
-    if (randomSubset)
+    if (emc.Pca_randSubset)
       previousPCA = false;
-      [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', randomSubset, randSet );
+      [ geometry, nTOTAL, nSUBSET ] = BH_emc.Pca_randSubset( geometry,'pca', emc.Pca_randSubset, randSet );
     else
       previousPCA = false;
-      [ geometry, nTOTAL, nSUBSET ] = BH_randomSubset( geometry,'pca', -1 , randSet);
+      [ geometry, nTOTAL, nSUBSET ] = BH_emc.Pca_randSubset( geometry,'pca', -1 , randSet);
     end
   end
   
@@ -650,7 +609,7 @@ for iGold = 1:1+flgGold
   clear dataMatrix tempDataMatrix
   dataMatrix = cell(3,1);
   tempDataMatrix = cell(3,1);
-  for iScale = 1:nScaleSpace
+  for iScale = 1:emc.n_scale_spaces
     dataMatrix{iScale} = zeros(nPixels(iGold,iScale), nSUBSET, 'single');
     tempDataMatrix{iScale} = zeros(nPixels(iGold,iScale), nTempParticles, 'single', 'gpuArray');
   end
@@ -659,7 +618,7 @@ for iGold = 1:1+flgGold
   % the device is reset at the end of each loop.)
   gpuMasks = struct();
   
-  for iScale = 1:nScaleSpace
+  for iScale = 1:emc.n_scale_spaces
     stSCALE = sprintf('s%d',iScale);
     
     gpuMasks.('volMask').(stSCALE) = ...
@@ -675,7 +634,7 @@ for iGold = 1:1+flgGold
   end
   
   % % %   for iGold_inner = 1:1+flgGold
-  % % %     for iScale = 1:nScaleSpace
+  % % %     for iScale = 1:emc.n_scale_spaces
   % % %       avgMotif_FT{iGold_inner, iScale} = ...
   % % %                gpuArray(cpuVols.('avgMotif_FT').(sprintf('g%d_%d',iGold_inner,iScale)));
   % % %     end
@@ -851,9 +810,9 @@ for iGold = 1:1+flgGold
               % being used many times, over the angle loop. It may be more efficient to do this outside the for subtomo loop here, but
               % to start, just do it the same way.
               use_only_once = true;
-              [ ~, iParticle ] = interpolator(gpuArray(iParticle),angles, shiftVAL, 'Bah', 'inv', symmetry, use_only_once);
+              [ ~, iParticle ] = interpolator(gpuArray(iParticle),angles, shiftVAL, 'Bah', 'inv', emc.symmetry, use_only_once);
               
-              [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', symmetry, use_only_once);
+              [ ~, iWedge ] = interpolator(gpuArray(wedgeMask),angles,[0,0,0], 'Bah', 'inv', emc.symmetry, use_only_once);
               
             else
               % Transform the particle, and then trim to motif size
@@ -874,7 +833,7 @@ for iGold = 1:1+flgGold
             
             
             
-            for iScale = 1:nScaleSpace
+            for iScale = 1:emc.n_scale_spaces
               
               iPrt = EMC_convn(iTrimParticle , gpuMasks.('scaleMask').(sprintf('s%d',iScale)));
               
@@ -915,7 +874,7 @@ for iGold = 1:1+flgGold
               
               % pull data of the gpu every 1000 particls (adjust this to max mem)
               if nTemp == nTempParticles - 1
-                for iScale = 1:nScaleSpace
+                for iScale = 1:emc.n_scale_spaces
                   dataMatrix{iScale}(:,1+nTempPrev:nTemp+nTempPrev-1) = ...
                     gather(tempDataMatrix{iScale}(:,1:nTemp-1));
                 end
@@ -954,7 +913,7 @@ for iGold = 1:1+flgGold
   end % end of the loop over Tomograms,
   
   % % %   volBinaryMask = reshape(gather(volBinaryMask),sizeMask);
-  for iScale = 1:nScaleSpace
+  for iScale = 1:emc.n_scale_spaces
     masks.('binary').(stHALF).(sprintf('s%d',iScale)) = ...
       reshape(masks.('binary').(stHALF).(sprintf('s%d',iScale)),sizeMask);
   end
@@ -965,7 +924,7 @@ for iGold = 1:1+flgGold
   subTomoMeta = masterTM;
   save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   
-  for iScale = 1:nScaleSpace
+  for iScale = 1:emc.n_scale_spaces
     dataMatrix{iScale}(:,1+nTempPrev:nTemp-1+nTempPrev) = ...
       gather(tempDataMatrix{iScale}(:,1:nTemp-1));
   end
@@ -978,7 +937,7 @@ for iGold = 1:1+flgGold
   idxList = idxList(cleanIDX);
   peakList = peakList(cleanIDX);
   
-  for iScale = 1:nScaleSpace
+  for iScale = 1:emc.n_scale_spaces
     dataMatrix{iScale} = dataMatrix{iScale}(:,1:size(idxList,2));
     % Center the rows
     for row = 1:size(dataMatrix{iScale},1)
@@ -1002,10 +961,10 @@ for iGold = 1:1+flgGold
     oldPca = load(previousPCA);
     U = oldPca.U;
     clear oldPca;
-    sDiag = cell(nScaleSpace,1);
-    coeffs = cell(nScaleSpace,1);
+    sDiag = cell(emc.n_scale_spaces,1);
+    coeffs = cell(emc.n_scale_spaces,1);
     
-    for iScale = 1:nScaleSpace
+    for iScale = 1:emc.n_scale_spaces
       % Sanity checks on the dimensionality
       numEigs = size(U{iScale}, 2);
       if nPixels(iGold,iScale) ~= size(U{iScale}, 1)
@@ -1016,20 +975,20 @@ for iGold = 1:1+flgGold
     end
   else
     
-    U = cell(nScaleSpace,1);
-    V = cell(nScaleSpace,1);
-    S = cell(nScaleSpace,1);
-    sDiag = cell(nScaleSpace,1);
-    coeffs = cell(nScaleSpace,1);
-    varianceMap = cell(nScaleSpace,1);
-    for iScale = 1:nScaleSpace
+    U = cell(emc.n_scale_spaces,1);
+    V = cell(emc.n_scale_spaces,1);
+    S = cell(emc.n_scale_spaces,1);
+    sDiag = cell(emc.n_scale_spaces,1);
+    coeffs = cell(emc.n_scale_spaces,1);
+    varianceMap = cell(emc.n_scale_spaces,1);
+    for iScale = 1:emc.n_scale_spaces
       
       krylovScalar = 5;
       % Calculate the decomposition
       [ U{iScale},S{iScale},V{iScale}, convergenceFlag ] = svds(double(dataMatrix{iScale}), ...
-        maxEigs, 'largest', ...
+        emc.Pca_maxEigs, 'largest', ...
         'MaxIterations',1000, ... % default 300
-        'SubspaceDimension',max(krylovScalar*maxEigs,30),... % default max(3*maxEigs,15)
+        'SubspaceDimension',max(krylovScalar*emc.Pca_maxEigs,30),... % default max(3*emc.Pca_maxEigs,15)
         'Display',true); % Diagnostics default false (will this work in compiled?)
       U{iScale} = single(U{iScale});
       S{iScale} = single(S{iScale});
@@ -1040,7 +999,7 @@ for iGold = 1:1+flgGold
       sDiag{iScale} = diag(S{iScale});
       numNonZero = find(( sDiag{iScale} ~= 0 ), 1, 'last');
       % For Method 1, save eigenvectors 1-4 (or user-specified max) as images
-      eigsFound = min(maxEigs, numNonZero);
+      eigsFound = min(emc.Pca_maxEigs, numNonZero);
       
       fprintf('Found %d / %d non-zero eigenvalues sum = %4.4f, in set %s.\n All singular values converged is t/f ( %d ) ', ...
         numNonZero, size(S{iScale}, 1), sum(sDiag{iScale}), halfSet, convergenceFlag);
@@ -1052,7 +1011,7 @@ for iGold = 1:1+flgGold
       fprintf('Size S, %d %d  Size U %d %d \n', size(S{iScale},1),size(S{iScale},2), size(U{iScale},1),size(U{iScale},2));
       
       % We want the diagnol of US^2U'/ n-1
-      % This will be maxEigs * Nvoxels matrix (U is Nvoxels * maxEigs)
+      % This will be emc.Pca_maxEigs * Nvoxels matrix (U is Nvoxels * emc.Pca_maxEigs)
       rightSide = S{iScale}(1:numNonZero,1:numNonZero).^2*U{iScale}';
       varianceMap = zeros(nPixels(iGold,iScale),1);
       for k = 1:nPixels(iGold,iScale)
@@ -1094,17 +1053,17 @@ for iGold = 1:1+flgGold
       
       
       % If requested, limit the number of principal components and coeffs saved
-      if maxEigs < size(S{iScale}, 1)
+      if emc.Pca_maxEigs < size(S{iScale}, 1)
         fprintf('Saving only the first %d principal components.\n',          ...
-          maxEigs);
+          emc.Pca_maxEigs);
         if ~isempty(U{iScale}) % U will not exist for pcaMethods 2 or 3
-          U{iScale} = U{iScale}(:, 1:maxEigs);
+          U{iScale} = U{iScale}(:, 1:emc.Pca_maxEigs);
         end
         if ~(previousPCA)
-          S{iScale} = S{iScale}(1:maxEigs, 1:maxEigs);
-          V{iScale} = V{iScale}(:, 1:maxEigs);
+          S{iScale} = S{iScale}(1:emc.Pca_maxEigs, 1:emc.Pca_maxEigs);
+          V{iScale} = V{iScale}(:, 1:emc.Pca_maxEigs);
         end
-        coeffs{iScale} = coeffs{iScale}(1:maxEigs, :); %
+        coeffs{iScale} = coeffs{iScale}(1:emc.Pca_maxEigs, :); %
       end
     end
   end
@@ -1113,27 +1072,27 @@ for iGold = 1:1+flgGold
   % Only U is needed for further analysis, so save only this, unless
   % troubleshooting.
   if (previousPCA)
-    for iScale = 1:nScaleSpace
+    for iScale = 1:emc.n_scale_spaces
       
       % If requested, limit the number of principal components and coeffs saved.
-      if maxEigs < size(U{iScale}, 2)
+      if emc.Pca_maxEigs < size(U{iScale}, 2)
         fprintf('Saving only the first %d principal components.\n',          ...
           p.pcaMaxNumComponents);
-        U{iScale} = U{iScale}(:, 1:maxEigs);
-        coeffs{iScale} = coeffs{iScale}(1:maxEigs, :);
+        U{iScale} = U{iScale}(:, 1:emc.Pca_maxEigs);
+        coeffs{iScale} = coeffs{iScale}(1:emc.Pca_maxEigs, :);
       end
       
     end
     save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList', 'sDiag');
   else
-    if (randomSubset)
+    if (emc.Pca_randSubset)
       save(sprintf('%s_%s_pcaPart.mat',outputPrefix,halfSet),'U', 'idxList','peakList');
     else
       save(sprintf('%s_%s_pcaFull.mat',outputPrefix,halfSet), 'nTOTAL', 'coeffs','idxList','peakList', 'sDiag');
     end
   end
   
-  fprintf('Total execution time on %s set: %f seconds\n', halfSet, etime(clock, startTime));
+  fprintf('Total execution time on %s set: %f seconds\n', halfSet, datetime("now") - startTime);
   
   close all force;
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

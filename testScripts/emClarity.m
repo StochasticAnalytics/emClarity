@@ -940,15 +940,14 @@ fprintf('\n\n\tExperimental Options: use at your own RISK\n');
 fprintf('(\t\tOr better yet, check with ben!\t\t)\n');
 fprintf('\nIf you do use/change any of these, please mention in your methods and EMDB entry!\n');
 fprintf('\n\n----------------------------------\n\n');
-fprintf('\nscaleCalcSize\toversampling of vol for xcorr. Def:\t1.5\n');
+fprintf('\nscale_calc_size\toversampling of vol for xcorr. Def:\t1.5\n');
 fprintf('\npaddedSize\tpadded size of tiles in ctf estimateion\n');
 
 fprintf('\nflgFscShapeMask\t default 1\n');
 fprintf('\nflgPcaShapeMask\t default 1\n');
 
 fprintf('\nflgQualityWeight\t Downweight high-freq of low scoring sub-tomos. Def:\t4\n');
-fprintf('\ninterpOrder\t Linear interpolation (1) Spline/Fourier (4 - not working, do not use)\n');
-fprintf('\nflgLimitToOneProcess\t For OOM issues in averaging. Boolean Def:\t0\n');
+fprintf('\nlimit_to_one_core\t For OOM issues in averaging. Boolean Def:\t0\n');
 fprintf('\nflgCenterRefCOM\tShift reference to center of mass. Boolean Def:\t1\n');
 fprintf('\nconserveDiskSpace\n');
 fprintf('\nPca_distMeasure\tMeasure for difference. euclidean, cityblock, correlation, cosine Def:\t sqeuclidean\n');

@@ -33,7 +33,7 @@ gpuDevice(useGPU);
 % SYMMETRY = EMC_str2double(SYMMETRY);
 SYMMETRY=1;
 
-startTime = clock ;
+startTime = datetime("now") ;
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
@@ -98,12 +98,6 @@ try
   use_new_grid_search = emc.('use_new_grid_search');
 catch
   use_new_grid_search = true;
-end
-
-try
-  symmetry = emc.('symmetry');
-catch
-  error('You must now specify a symmetry=X parameter, where symmetry E (C1,C2..CX,O,I)');
 end
 
 try
@@ -313,7 +307,7 @@ end
 
 if (use_new_grid_search)
   
-  gridSearch = eulerSearch(symmetry, angleSearch(1),...
+  gridSearch = eulerSearch(emc.symmetry, angleSearch(1),...
     angleSearch(2),angleSearch(3),angleSearch(4), 0, 0, false);
   nAngles = sum(gridSearch.number_of_angles_at_each_theta);
   inPlaneSearch = gridSearch.parameter_map.psi;
@@ -1183,7 +1177,7 @@ n = 1;
 fprintf('rmDim %f szK %f\n',  rmDim,szK);
 removalMask = BH_mask3d(eraseMaskType,[2,2,2].*rmDim+1,eraseMaskRadius,[0,0,0]);
 rmInt = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],rotConvention ,'forward','C1');
-symOps = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],rotConvention ,'forward',symmetry);
+symOps = interpolator(gpuArray(removalMask),[0,0,0],[0,0,0],rotConvention ,'forward',emc.symmetry);
 
 maskCutOff = 0.98;
 nIncluded = gather(sum(sum(sum(removalMask > maskCutOff))));
@@ -1424,7 +1418,7 @@ fclose(fileID);
 
 
 
-fprintf('Total execution time : %f seconds\n', etime(clock, startTime));
+fprintf('Total execution time : %f seconds\n', datetime("now") - startTime);
 
 
 
