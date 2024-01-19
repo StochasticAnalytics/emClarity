@@ -45,7 +45,6 @@ else
   end
 end
 
-pixelSize = emc.('PIXEL_SIZE');
 !mkdir -p ctfStacks
 
 try
@@ -111,7 +110,7 @@ parfor iGPU = 1:nGPUs
       initImg = randn(fastFTSize,'single','gpuArray');
       f   = FFT(initImg);
       
-      ctf = CTF(fastFTSize,pixelSize*10^10,'GPU');
+      ctf = CTF(fastFTSize,emc.pixel_size_angstroms,'GPU');
       maxZ = 500;
       maxEval = cosd(TLT(iPrj,4)).*(d1/2) + maxZ./2*abs(sind(TLT(iPrj,4)));
       oX = ceil((d1+1)./2);
@@ -121,7 +120,7 @@ parfor iGPU = 1:nGPUs
       STRIPWIDTH = 512;
       STRIPWIDTH = STRIPWIDTH + mod(STRIPWIDTH,2);
       % take at least 1200 Ang & include the taper if equal to STRIPWIDTH
-      tileSize   = floor(max(600./pixelSize, STRIPWIDTH + 28));
+      tileSize   = floor(max(600./emc.pixel_size_si, STRIPWIDTH + 28));
       tileSize = tileSize + mod(tileSize,2);
       %fprintf('stripwidth tilesize %d %d\n',STRIPWIDTH,tileSize);
       incLow = ceil(tileSize./2);
@@ -151,16 +150,14 @@ parfor iGPU = 1:nGPUs
         % The eval mask condition can be replaced once the per tomo condition
         % is trusted.
         if any(ismember(i:endIDX,iEvalMask))
-          
-          
-          DF = D0 +(i + stripDefocusOffset - oX)*pixelSize*-1.*tand(TLT(iPrj,4));
-          
+        
+          DF = D0 + ( i + stripDefocusOffset - oX)*emc.pixel_size_si*-1.*tand(TLT(iPrj,4) );
           
           if ~( isempty(DF) )
             
             iDefocus = [DF - ddF, DF + ddF, dPhi];
             
-            if pixelSize < 2.0e-10
+            if emc.pixel_size_si < 2.0e-10
               % use double precision - this is not enabled, but needs to be -
               % requires changes to radial grid as well.
               ctf.new_img(iDefocus,CS,WL,AMPCONT,-1,-1);

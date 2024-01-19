@@ -87,7 +87,7 @@ end
 outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta'));
 samplingRate = emc.('Ali_samplingRate');
 
-pixelSize = emc.('PIXEL_SIZE').*10^10.*samplingRate;
+emc.pixel_size_si = emc.pixel_size_angstroms .* samplingRate;
 
 if ( flgCones )
   coneInc = 30;

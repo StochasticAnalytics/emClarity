@@ -130,12 +130,12 @@ end
 flgRaw_shapeMask =  0;%= emc.('experimentalOpts')(3)
 samplingRate = emc.('Ali_samplingRate');
 
-pixelSize      = emc.('PIXEL_SIZE').*10^10.*samplingRate;
+emc.pixel_size_angstroms = emc.pixel_size_angstroms.*samplingRate;
 
 
 flgPrecision = 'single'; %emc.('flgPrecision');
 angleSearch  = emc.('Raw_angleSearch');
-peakSearch   = (emc.('particleRadius')./pixelSize);
+peakSearch   = (emc.('particleRadius')./emc.pixel_size_angstroms);
 peakCOM      = [1,1,1].*3;
 className    = emc.('Raw_className');
 
@@ -146,7 +146,7 @@ catch
 end
 try
   eraseMaskType = emc.('Peak_mType');
-  eraseMaskRadius = emc.('Peak_mRadius')./pixelSize;
+  eraseMaskRadius = emc.('Peak_mRadius')./emc.pixel_size_angstroms;
   fprintf('Further restricting peak search to radius %f %f %f\n',...
     eraseMaskRadius);
   eraseMask = 1;
@@ -253,7 +253,7 @@ tiltList = masterTM.tiltGeometry;
 
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-  BH_multi_maskCheck(emc, 'Ali', pixelSize)
+  BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms)
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
   BH_multi_validArea( maskSize, maskRadius, scaleCalcSize  )
@@ -383,11 +383,8 @@ for iGold = 1:2
     if ~isempty(refTMP{iP})
       tIMG{n} = refTMP{iP}; refTMP{iP} = [];
       if (flgCenterRefCOM)
-        % Not sure if this is always the best approach, but it may be
-        % useful in some cases.
-        % % % % % % %         [~,iCOM] = BH_mask3d(gpuArray(tIMG{n}).*comMask,pixelSize,'','',1);
         
-        [~, ~, ~,iCOM] = EMC_maskReference(gpuArray(tIMG{n}).*comMask, pixelSize, {'fsc',true; 'com', true});
+        [~, ~, ~,iCOM] = EMC_maskReference(gpuArray(tIMG{n}).*comMask, emc.pixel_size_angstroms, {'fsc',true; 'com', true});
         fprintf('centering ref %d on COM %3.3f %3.3f %3.3f \n',n,iCOM);
         
         tIMG{n} = BH_resample3d(tIMG{n},[0,0,0],gather(iCOM), ...
@@ -423,7 +420,7 @@ for iGold = 1:2
   
 end
 
-[ refIMG ] = BH_multi_combineLowResInfo( refIMG, imgCounts, pixelSize, maxGoldStandard );
+[ refIMG ] = BH_multi_combineLowResInfo( refIMG, imgCounts, emc.pixel_size_angstroms, maxGoldStandard );
 
 
 
@@ -459,7 +456,7 @@ end
 if ( flgRaw_shapeMask )
   
   [ volMask ] = gather(sqrt(volMask .* ...
-    EMC_maskReference(refIMG{1}{iRef}+refIMG{2}{iRef}, pixelSize, {'fsc', true})));
+    EMC_maskReference(refIMG{1}{iRef}+refIMG{2}{iRef}, emc.pixel_size_angstroms, {'fsc', true})));
   
 else
   % % % % % % %     [ volMask ] = gather(BH_mask3d(maskType, sizeWindow, maskRadius, maskCenter));
@@ -485,7 +482,7 @@ if (emc.classification || emc.multi_reference_alignment)
     
     [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
       'GPU', {'none'}, 1, 0, 1 );
-    radialGrid = single(radialGrid./pixelSize);
+    radialGrid = single(radialGrid./emc.pixel_size_angstroms);
     % returns a cpu array
     if (flgWeightCCC)
       [ bandpassFilt{iRef}, ~,wCCC] =  BH_multi_cRef( fscINFO, radialGrid, emc.Fsc_bfactor(1), 1, 1);
@@ -505,7 +502,7 @@ else
     fscINFO = masterTM.(cycleNumber).('fitFSC').('Raw1');
     [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
       'GPU', {'none'}, 1, 0, 1 );
-    radialGrid = single(radialGrid./pixelSize);
+    radialGrid = single(radialGrid./emc.pixel_size_angstroms);
     % returns a cpu array
     if (flgWeightCCC)
       [ bandpassFilt{iRef},~,wCCC{iRef} ] =  BH_multi_cRef( fscINFO, radialGrid, emc.Fsc_bfactor(1), 1, 1 );
@@ -1634,7 +1631,7 @@ parfor iParProc = parVect
               end
               
               % Print out in Angstrom
-              printShifts = printShifts .* pixelSize;
+              printShifts = printShifts .* emc.pixel_size_angstroms;
               
               
               deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);

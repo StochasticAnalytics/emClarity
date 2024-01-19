@@ -309,10 +309,10 @@ else
   nGPUs = length(gpuList);
 end
 
-pixelSize = emc.('PIXEL_SIZE').*10^10 .* samplingRate;
+emc.pixel_size_angstroms = emc.pixel_size_angstroms .* samplingRate;
 
 
-eraseRadius = ceil(1.5.*(emc.('beadDiameter')./emc.('PIXEL_SIZE').*0.5) / samplingRate);
+eraseRadius = ceil(1.5.*(emc.('beadDiameter')./emc.pixel_size_si.*0.5) / samplingRate);
 
 nTomosPerTilt = 0;
 recGeom = 0;
@@ -549,13 +549,13 @@ parfor iGPU = 1:nGPUs%
         tomoNumber = 1;
       else
         [ ~, maxZ, tomoNumber, ~ ] = calcAvgZ('dummy',iCoords,tiltList{iTilt}, ...
-          iTomoList,nTomos, pixelSize, ...
+          iTomoList,nTomos, emc.pixel_size_angstroms, ...
           samplingRate, cycleNumber,...
           0,1);
       end
     else
       [ ~, maxZ, tomoNumber, ~ ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
-        iTomoList,nTomos, pixelSize, ...
+        iTomoList,nTomos, emc.pixel_size_angstroms, ...
         samplingRate, cycleNumber,...
         0,1);
     end
@@ -588,7 +588,7 @@ parfor iGPU = 1:nGPUs%
     % For each tomo create a list of slices that are to be reconstructed
     % for every section section.
     
-    [ sectionList ] = calcTomoSections(iCoords, tomoNumber,pixelSize, ...
+    [ sectionList ] = calcTomoSections(iCoords, tomoNumber,emc.pixel_size_angstroms, ...
       nSections,tiltList{iTilt}, ctf3dDepth);
     
     
@@ -599,7 +599,7 @@ parfor iGPU = 1:nGPUs%
     else
       
       [ avgZ, maxZ, tomoNumber, surfaceFit ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
-        iTomoList,nTomos, pixelSize, ...
+        iTomoList,nTomos, emc.pixel_size_angstroms, ...
         samplingRate, cycleNumber,...
         sectionList,0);
       
@@ -672,8 +672,8 @@ parfor iGPU = 1:nGPUs%
         
         
         [ correctedStack ] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
-          avgZ,TLT,pixelSize,maskedStack,...
-          maxZ*10/pixelSize,flgDampenAliasedFrequencies,...
+          avgZ,TLT,emc.pixel_size_angstroms,maskedStack,...
+          maxZ*10/emc.pixel_size_angstroms,flgDampenAliasedFrequencies,...
           preCombDefocus,samplingRate,...
           applyExposureFilter,surfaceFit,...
           useSurfaceFit,invertDose,...
@@ -691,7 +691,7 @@ parfor iGPU = 1:nGPUs%
       
       outputStack = sprintf('%s/%s_ali%d_%d.fixed', ...
         tmpCache,tiltList{iTilt},mapBackIter+1,iSection)
-      SAVE_IMG(correctedStack,outputStack,pixelSize);
+      SAVE_IMG(correctedStack,outputStack,emc.pixel_size_angstroms);
       correctedStack = [];
       
       % Loop over tomos reconstructing section and appending a file to
@@ -926,7 +926,7 @@ end
 end
 
 
-function  [ sectionList ] = calcTomoSections(iCoords, tomoNumber, pixelSize,...
+function  [ sectionList ] = calcTomoSections(iCoords, tomoNumber, emc.pixel_size_angstroms,...
   nSections,tiltName, ctf3Depth)
 
 nTomos = length(tomoNumber);
@@ -938,7 +938,7 @@ end
 
 % With rounding this could end up a bit short except the top and bottom are both
 % half a section larger than minimally needed.
-nSec = floor(ctf3Depth*10^10/pixelSize)      ;
+nSec = floor(ctf3Depth*10^10/emc.pixel_size_angstroms)      ;
 nSec = nSec + ~mod(nSec,2);
 halfSec = (nSec-1)/2;
 
@@ -1031,7 +1031,7 @@ end
 
 
 function [correctedStack] = ctfMultiply_tilt(nSections,iSection,ctf3dDepth, ...
-  avgZ,TLT,pixelSize,maskedStack,...
+  avgZ,TLT,emc.pixel_size_angstroms,maskedStack,...
   maxZ,flgDampenAliasedFrequencies,...
   preCombDefocus,samplingRate,...
   applyExposureFilter,surfaceFit,...
@@ -1057,9 +1057,6 @@ end
 
 [d1,d2,nPrjs] = size(maskedStack);
 
-
-
-PIXEL_SIZE = pixelSize*10^-10;
 % This is just going to be written out to disk so keep in main memory.
 correctedStack = zeros(d1,d2,nPrjs,'single');
 
@@ -1107,12 +1104,12 @@ else
     'Cylindrical','GPU', ...
     {'none'},1,0,0);
 end
-radialGrid = {radialGrid./PIXEL_SIZE,0,phi};
+radialGrid = {radialGrid./emc.pixel_size_si,0,phi};
 phi = [];
 
-fprintf('%f %f\n',filterProjectionsForTomoCPRBackground,pixelSize);
+fprintf('%f %f\n',filterProjectionsForTomoCPRBackground,emc.pixel_size_angstroms);
 if (filterProjectionsForTomoCPRBackground ~= 0)
-  bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',pixelSize);
+  bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',emc.pixel_size_angstroms);
 else
   bpFilter = 1;
 end
@@ -1135,10 +1132,10 @@ for iPrj = 1:nPrjs
   
   
   
-  STRIPWIDTH = min(floor((0.5*ctf3dDepth/PIXEL_SIZE)/abs(tand(TLT(iPrj,4)))),512);
+  STRIPWIDTH = min(floor((0.5*ctf3dDepth/emc.pixel_size_si)/abs(tand(TLT(iPrj,4)))),512);
   STRIPWIDTH = STRIPWIDTH + mod(STRIPWIDTH,2);
   % take at least 1200 Ang & include the taper if equal to STRIPWIDTH
-  tileSize   = floor(max(600./pixelSize, STRIPWIDTH + 28));
+  tileSize   = floor(max(600./emc.pixel_size_angstroms, STRIPWIDTH + 28));
   tileSize = tileSize + mod(tileSize,2);
   %fprintf('stripwidth tilesize %d %d\n',STRIPWIDTH,tileSize);
   incLow = ceil(tileSize./2);
@@ -1188,7 +1185,7 @@ for iPrj = 1:nPrjs
   % Transform the specimen plane
   tX = round(rA(1).*rX + rA(4).*rY + rA(7).*rZ +oX);
   tY = round(rA(2).*rX + rA(5).*rY + rA(8).*rZ +oY);
-  tZ = PIXEL_SIZE.*(rA(3).*rX + rA(6).*rY + rA(9).*rZ) + full_defocusOffset;
+  tZ = emc.pixel_size_si.*(rA(3).*rX + rA(6).*rY + rA(9).*rZ) + full_defocusOffset;
   
   % Some edge pixels can be out of bounds depending on the orientation of
   % the plan fit. Setting to zero will will ignore them (assuming defocus
@@ -1225,7 +1222,7 @@ for iPrj = 1:nPrjs
       
       modHqz = [];
     else
-      if PIXEL_SIZE < 2.0e-10
+      if emc.pixel_size_si < 2.0e-10
         % use double precision - this is not enabled, but needs to be -
         % requires changes to radial grid as well.
         Hqz = BH_ctfCalc(radialGrid,Cs,WAVELENGTH,defVect,fastFTSize,AMPCONT,-1,-1);
@@ -1265,7 +1262,7 @@ for iPrj = 1:nPrjs
   samplingMask(samplingMask == 0) = 1;
   
   if (flgWhitenPS(1))
-    correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',pixelSize,1));
+    correctedStack(:,:,TLT(iPrj,1)) =gather(BH_whitenNoiseSpectrum(correctedPrj./samplingMask,'',emc.pixel_size_angstroms,1));
   else
     
     correctedStack(:,:,TLT(iPrj,1)) = gather(correctedPrj./samplingMask);
@@ -1279,7 +1276,7 @@ end
 
 function [avgZ, maxZ, tomoNumber,surfaceFit] = calcAvgZ(masterTM,iCoords, ...
   tiltName,tomoList,...
-  nTomos, pixelSize,...
+  nTomos, emc.pixel_size_angstroms,...
   samplingRate,cycleNumber,...
   sectionList,calcMaxZ)
 
@@ -1311,7 +1308,7 @@ end
 
 maxZ = maxZ + (samplingRate*2);
 
-maxZ = maxZ.*pixelSize./10;
+maxZ = maxZ.*emc.pixel_size_angstroms./10;
 fprintf('combining thickness and shift on tilt %s, found a maxZ  %3.3f nm\n',tiltName,maxZ);
 
 if (calcMaxZ)
@@ -1374,7 +1371,7 @@ for iT = 1:nTomos
   zList = zList - tomoOrigin(3) + micOrigin(3);
   totalZ = totalZ + sum(zList);
   fprintf('%s tomo has %d subTomos with mean Z %3.3f nm\n', ...
-    iTomoName, length(zList), mean(zList)*pixelSize./10);
+    iTomoName, length(zList), mean(zList)*emc.pixel_size_angstroms./10);
   nSubTomos = nSubTomos + length(zList);
   
   for iSection = 1:nSections
@@ -1404,7 +1401,7 @@ for iT = 1:nTomos
 end % loop over tomos
 
 
-avgZ = totalZ/nSubTomos*pixelSize/10*10^-9;
+avgZ = totalZ/nSubTomos*emc.pixel_size_angstroms/10*10^-9;
 
 %       sf(x,y) = p00 + p10*x + p01*y;
 %      surfaceFit = fit([xFull, yFull],zFull,'poly11');

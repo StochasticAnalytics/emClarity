@@ -151,8 +151,8 @@ samplingRate   = emc.('Cls_samplingRate');
 refSamplingRate= emc.('Ali_samplingRate');
 randomSubset   = emc.('Pca_randSubset');
 maxEigs        = emc.('Pca_maxEigs');
-pixelSize = emc.('PIXEL_SIZE').*10^10.*samplingRate;
-refPixelSize = emc.('PIXEL_SIZE').*10^10.*refSamplingRate;
+pixelSize = emc.pixel_size_angstroms .* samplingRate;
+refPixelSize = emc.pixel_size_angstroms .* refSamplingRate;
 
 % FIMXE: Probably remove this incomplete idea
 if (refSamplingRate ~= samplingRate)

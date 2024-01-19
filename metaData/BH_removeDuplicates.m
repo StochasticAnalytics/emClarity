@@ -23,9 +23,9 @@ CYCLE = EMC_str2double(CYCLE);
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
-dupSampling = ceil(10e-10 / emc.('PIXEL_SIZE'));
+dupSampling = ceil(10e-10 / emc.pixel_size_si);
 
-pixelSize = emc.('PIXEL_SIZE').*dupSampling.*10^10;
+pixelSize = emc.pixel_size_angstroms.*dupSampling;
 
 latticeRadius = emc.('particleRadius');
 

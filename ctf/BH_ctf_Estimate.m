@@ -91,34 +91,13 @@ catch
 end
 
 
-
-PIXEL_SIZE = emc.('PIXEL_SIZE');
-Cs = emc.('Cs');
-VOLTAGE = emc.('VOLTAGE');
-AMPCONT = emc.('AMPCONT');
-
-
 scalePixelsBy = 1;
 
 useGPU = 1;
 METHOD = 'GPU';
 
-% Sanity check
-if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
-  error('pixel size should be [0,20e-10]');
-elseif (Cs > 10e-3 || Cs < 0)
-  fprintf('\nWARNING Cs should be[10e-3,0]\n');
-elseif(VOLTAGE > 1000e3 || VOLTAGE < 20e3)
-  error ('VOLTAGE should be [20e3,1000e3]');
-elseif (AMPCONT < 0.025 || AMPCONT > 0.25)
-  fprintf('\nWARNING: AMPCONT probably should be [0.025,0.25]\n');
-end
-WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
 
-
-if Cs == 0
-  Cs = 1e-6;
-end
+WAVELENGTH = 10^-12*1226.39/sqrt(emc.VOLTAGE + 0.97845*10^-6*emc.VOLTAGE^2) ;
 
 CUM_e_DOSE = emc.('CUM_e_DOSE');
 % test astigmatism vals
@@ -136,14 +115,14 @@ fineAngStep = deg2rad(0.5);
 
 eraseSigma = 3;
 
-eraseRadius = ceil(1.2.*(emc.('beadDiameter')./PIXEL_SIZE.*0.5));
+eraseRadius = ceil(1.2.*(emc.('beadDiameter')./emc.pixel_size_si.*0.5));
 flgImodErase = 0
 
 
 
 % Assuming that the first CTF zero is always less than this value
-FIXED_FIRSTZERO =  PIXEL_SIZE / (70*10^-10) ;
-highCutoff = PIXEL_SIZE/emc.('defCutOff');
+FIXED_FIRSTZERO =  emc.pixel_size_si / (70*10^-10) ;
+highCutoff = emc.pixel_size_si/emc.('defCutOff');
 % I still use the def for underfocus < 0 as this places the origin at the
 % focal plan in the microscope rather than on the specimen. Which makes
 % more sense to me.
@@ -178,15 +157,15 @@ catch
 end
 
 % Starting at +/- 100nm
-deltaZTolerance = deltaZTolerance / PIXEL_SIZE;
+deltaZTolerance = deltaZTolerance / emc.pixel_size_si;
 % Use to check for proper gradient.
-zShift = zShift / PIXEL_SIZE;
+zShift = zShift / emc.pixel_size_si;
 
 % Tile size & overlap
 try
   tileSize = emc.('ctfTileSize');
 catch
-  tileSize = floor(680e-10 / PIXEL_SIZE);
+  tileSize = floor(680e-10 / emc.pixel_size_si);
 end
 tileOverlap = 2;
 
@@ -290,8 +269,8 @@ flgReOrderMapBack = 0;
 TLT(:,2:3) = repmat([0.00,0.00],size(TLT,1),1);
 TLT(:,5:10) = repmat([0,90.0,1.0,0.0,0.0,1.0],size(TLT,1),1);
 % Defocus will go at 15 - 12 and 13 currently unused.
-TLT(:,16:18) = repmat([PIXEL_SIZE,Cs,WAVELENGTH],size(TLT,1),1);
-TLT(:,19) = TLT(:,19) + AMPCONT;
+TLT(:,16:18) = repmat([emc.pixel_size_si,emc.Cs,WAVELENGTH],size(TLT,1),1);
+TLT(:,19) = TLT(:,19) + emc.AMPCONT;
 
 oddSize = [d1,d2,d3] - (1-mod([d1,d2,d3],2));
 TLT(:,20:22) = repmat(oddSize,size(TLT,1),1);
@@ -492,7 +471,7 @@ if ( flgEraseBeads )
   STACK = BH_eraseBeads(STACK,eraseRadius, fileName, scalePixelsBy,0,sortrows(TLT,1));
 end
 
-[ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,PIXEL_SIZE*10^10,samplingMaskStack);
+[ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,emc.pixel_size_si*10^10,samplingMaskStack);
 
 
 SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
@@ -503,10 +482,10 @@ if ~(flgSkip)
   
   gpuDevice(gpuIDX)
   [d1,d2,d3] = size(STACK);
-  if (PIXEL_SIZE*10^10 < 0)
+  if (emc.pixel_size_si*10^10 < 0)
     
     flgCrop = 1;
-    [croppedIMG,pixelOUT] = cropIMG(STACK(:,:,1),PIXEL_SIZE*10^10);
+    [croppedIMG,pixelOUT] = cropIMG(STACK(:,:,1),emc.pixel_size_si*10^10);
     [d1C,d2C] = size(croppedIMG); clear croppedIMG
     tltForExp = TLT;
     tltForExp(:,16) = pixelOUT*10^-10;
@@ -519,7 +498,7 @@ if ~(flgSkip)
   else
     
     flgCrop = 0;
-    pixelOUT = PIXEL_SIZE*10^10;
+    pixelOUT = emc.pixel_size_si*10^10;
     d1C = d1;
     d2C = d2;
     tltForExp = TLT;
@@ -622,7 +601,7 @@ if ~(flgSkip)
     % % % %    tmpTile = zeros([paddedSize.*[1,1],3],'single','gpuArray');
     
     if flgCrop
-      [iProjection,~] = cropIMG(gpuArray(STACK(:,:,TLT(k,1))),PIXEL_SIZE*10^10);
+      [iProjection,~] = cropIMG(gpuArray(STACK(:,:,TLT(k,1))),emc.pixel_size_si*10^10);
     else
       iProjection = (gpuArray(STACK(:,:,TLT(k,1))));
     end
@@ -748,7 +727,7 @@ if ~(flgSkip)
       TLT = TLT(idx,:);
       % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
       % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
-      % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
+      % scaleFactor, defocus, emc.pixel_size_si, CS, Wavelength, Amplitude contrast
       fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
       fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
         '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
@@ -775,10 +754,10 @@ if ~(flgSkip)
       
       % TODO add a global switch for the damping
       
-      if (PIXEL_SIZE < 1*10^-10)
-        [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0,-1);
+      if (emc.pixel_size_si < 1*10^-10)
+        [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH,DF,paddedSize,-emc.AMPCONT,-1.0,-1);
       else
-        [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+        [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH,DF,paddedSize,-emc.AMPCONT,-1.0);
       end
       
       try
@@ -810,10 +789,10 @@ if ~(flgSkip)
     end
     DF = maxDef*10^-6;
     
-    if (PIXEL_SIZE < 1*10^-10)
-      [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0,-1);
+    if (emc.pixel_size_si < 1*10^-10)
+      [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH,DF,paddedSize,-emc.AMPCONT,-1.0,-1);
     else
-      [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH,DF,paddedSize,-AMPCONT,-1.0);
+      [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH,DF,paddedSize,-emc.AMPCONT,-1.0);
     end
     
     [ bg, bandpass, rV ] = prepare_spectrum( Hqz, highCutoff, freqVector, radialAvg, 0);
@@ -885,13 +864,13 @@ if ~(flgSkip)
           df1 =  maxDef*10^-6 - iDelDF*astigStep;
           df2 =  maxDef*10^-6 + iDelDF*astigStep;
           
-          if (PIXEL_SIZE < 1*10^-10)
+          if (emc.pixel_size_si < 1*10^-10)
             
-            [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-              [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0,-1);
+            [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH, ...
+              [df1,df2,iAng],size(radialForCTF{1}),-emc.AMPCONT,-1.0,-1);
           else
-            [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
-              [df1,df2,iAng],size(radialForCTF{1}),-AMPCONT,-1.0);
+            [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH, ...
+              [df1,df2,iAng],size(radialForCTF{1}),-emc.AMPCONT,-1.0);
           end
           
           
@@ -929,15 +908,15 @@ if ~(flgSkip)
             % values |df1| < |df2| which is against convention.
             if abs(df1) >= abs(df2)
               
-              if (PIXEL_SIZE < 1*10^-10)
+              if (emc.pixel_size_si < 1*10^-10)
                 
-                [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH, ...
                   [df1,df2,iAng+mAng], ...
-                  size(radialForCTF{1}), -AMPCONT,-1.0,-1);
+                  size(radialForCTF{1}), -emc.AMPCONT,-1.0,-1);
               else
-                [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
+                [ Hqz ] = BH_ctfCalc(radialForCTF,emc.Cs,WAVELENGTH, ...
                   [df1,df2,iAng+mAng], ...
-                  size(radialForCTF{1}), -AMPCONT,-1.0);
+                  size(radialForCTF{1}), -emc.AMPCONT,-1.0);
               end
               
               
@@ -971,7 +950,7 @@ if ~(flgSkip)
       radialForCTF = {fftshift(radialForCTF{1}),1,fftshift(radialForCTF{3})};
       currentDefocusEst = maxDef;
       currentDefocusWin = (defWIN*.25);
-      measuredVsExpected(1,:) = [maxDef + zShift*PIXEL_SIZE*10^6, maxDef, maxDef - zShift*PIXEL_SIZE*10^6];
+      measuredVsExpected(1,:) = [maxDef + zShift*emc.pixel_size_si*10^6, maxDef, maxDef - zShift*emc.pixel_size_si*10^6];
       measuredVsExpected(2,2) = maxDef;
       % Add the determined defocus, and write out with mic paramters as well.
       TLT(:,15) = repmat(maxDef*10^-6,size(TLT,1),1);
@@ -990,7 +969,7 @@ if ~(flgSkip)
       TLT = TLT(idx,:);
       % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
       % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
-      % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
+      % scaleFactor, defocus, emc.pixel_size_si, CS, Wavelength, Amplitude contrast
       fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
       fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
         '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
@@ -1027,7 +1006,7 @@ else
   TLT = TLT(idx,:);
   % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
   % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
-  % scaleFactor, defocus, pixelSize, CS, Wavelength, Amplitude contrast
+  % scaleFactor, defocus, emc.pixel_size_si, CS, Wavelength, Amplitude contrast
   fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
   fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
     '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
@@ -1230,7 +1209,7 @@ else
 end
 end
 
-function [ diagnosticIMG ] = make_diagnosticIMG( Hqz, pixelSize, bandpass, bg, IMG)
+function [ diagnosticIMG ] = make_diagnosticIMG( Hqz, emc.pixel_size_si, bandpass, bg, IMG)
 
 
 iImg = 1;
@@ -1240,7 +1219,7 @@ paddedSize = size(Hqz,1);
   BH_multi_gridCoordinates(size(Hqz),'Cartesian',...
   'GPU',{'none'},1,0,1);
 
-radialGrid = radialGrid ./ pixelSize;
+radialGrid = radialGrid ./ emc.pixel_size_si;
 lowCut = radialGrid(1, find(bandpass , 1,'first'));
 highCut= radialGrid(1, find(bandpass , 1,'last'));
 

@@ -151,19 +151,16 @@ parfor iGPU = 1:nGPUs
     
     eraseStack = sprintf('rm cache/%s_*.fixed',STACK_PRFX);
     eraseRec   = sprintf('rm cache/%s_*.rec',STACK_PRFX);
-    % Converte bead diameter to pixels and add a little to be safe.
-    PIXEL_SIZE = emc.('PIXEL_SIZE');
-    
     
     eraseSigma = 3;%emc.('beadSigma');
     
-    eraseRadius = ceil(1.2.*(emc.('beadDiameter')./PIXEL_SIZE.*0.5));
+    eraseRadius = ceil(1.2.*(emc.('beadDiameter')./emc.pixel_size_si.*0.5));
     flgImodErase = 0
     
     % FIXME, this should be stored from previous mask calc and accessed there.
     % For now just take based on tomogram (which will be larger than the true specimen thickness)
     %THICKNESS = recGeomForThickness.(sprintf('%s_1',STACK_PRFX));
-    %THICKNESS = min(10,abs(THICKNESS(1,3)-THICKNESS(2,3)).*PIXEL_SIZE.*10^9);
+    %THICKNESS = min(10,abs(THICKNESS(1,3)-THICKNESS(2,3)).*emc.pixel_size_si.*10^9);
     THICKNESS = 100;
     % Assuming all extreme pixels have already been removed from the stack.
     %PRJ_STACK = {sprintf('%s_local04_18.mrc',mjIDX)};%,sprintf('%s_local14_18.mrc',mjIDX),sprintf('%s_local24_18.mrc',mjIDX),sprintf('%s_local34_18.mrc',mjIDX)};
@@ -468,7 +465,7 @@ parfor iGPU = 1:nGPUs
       TLT(:,4) = mbTLT;
       if (defShifts)
         TLT(:,15) = TLT(:,15) + defShifts;
-        TLT(:,16) = PIXEL_SIZE;
+        TLT(:,16) = emc.pixel_size_si;
       end
       
       
@@ -497,7 +494,7 @@ parfor iGPU = 1:nGPUs
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
         THICKNESS, STACK_PRFX);
       
-      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,emc.pixel_size_angstroms,gpuArray(samplingMaskStack));
       SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
       SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName));
       
@@ -514,7 +511,7 @@ parfor iGPU = 1:nGPUs
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
         THICKNESS, STACK_PRFX);
       
-      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,PIXEL_SIZE*10^10,gpuArray(samplingMaskStack));
+      [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,emc.pixel_size_angstroms,gpuArray(samplingMaskStack));
       SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
       SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
       

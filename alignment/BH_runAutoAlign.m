@@ -10,7 +10,6 @@ if nargin > 6
   skip_tilts = EMC_str2double(varargin{1});
 end
 
-pixelSize = emc.('PIXEL_SIZE').*10^10;
 imgRotation = EMC_str2double(imgRotation);
 
 try
@@ -72,9 +71,9 @@ end
 
 % FIXME this should probably be specified in Ang
 try
-  FIRST_ITER_SHIFT_LIMIT_PIXELS  =  ceil(emc.('autoAli_max_shift_in_angstroms')./pixelSize);
+  FIRST_ITER_SHIFT_LIMIT_PIXELS  =  ceil(emc.('autoAli_max_shift_in_angstroms')./emc.pixel_size_angstroms);
 catch
-  FIRST_ITER_SHIFT_LIMIT_PIXELS = ceil(40 ./ pixelSize);
+  FIRST_ITER_SHIFT_LIMIT_PIXELS = ceil(40 ./ emc.pixel_size_angstroms);
 end
 
 try
@@ -143,11 +142,11 @@ clear f
 cd('../');
 
 
-binHigh=ceil(MIN_SAMPLING_RATE ./ pixelSize);
+binHigh=ceil(MIN_SAMPLING_RATE ./ emc.pixel_size_angstroms);
 if MAX_SAMPLING_RATE > 4
   binLow = MAX_SAMPLING_RATE;
 else
-  binLow = ceil(MAX_SAMPLING_RATE ./ pixelSize);
+  binLow = ceil(MAX_SAMPLING_RATE ./ emc.pixel_size_angstroms);
 end
 binInc = -1*ceil((binHigh- binLow)./3);
 
@@ -222,10 +221,10 @@ rotMat = [cosd(imgRotation),-1*sind(imgRotation),sind(imgRotation),cosd(imgRotat
 
 fprintf('Preprocessing tilt-series\n');
 
-%gradientAliasFilter = BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize);
+%gradientAliasFilter = BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',emc.pixel_size_angstroms);
 gradientAliasFilter = {BH_bandpass3d(1.*[nX,nY,1],0,0,0,'GPU','nyquistHigh'),...
-  BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',pixelSize)};
-if pixelSize < 2
+  BH_bandpass3d([nX,nY,1],1e-6,LOW_RES_CUTOFF,RESOLUTION_CUTOFF,'GPU',emc.pixel_size_angstroms)};
+if emc.pixel_size_angstroms < 2
   medianFilter = 5;
 else
   medianFilter = 3;
@@ -240,7 +239,7 @@ for iPrj = 1:nZ
   inputStack(:,:,iPrj) = gather(tmpPrj);
 end
 
-SAVE_IMG(inputStack,fixedName,pixelSize);
+SAVE_IMG(inputStack,fixedName,emc.pixel_size_angstroms);
 fprintf('finished preprocessing tilt-series\n');
 
 clear tmpPrj inputStack
@@ -260,7 +259,7 @@ fprintf('Running %s\n',runPath);
 system(sprintf('%s %s %f %f %d %d %d %d %d %d %s %d %d %d %f %f %f %d %d %d > ./emC_autoAliLog_%s.txt',...
   runPath, ...
   baseName, ...
-  pixelSize, ...
+  emc.pixel_size_angstroms, ...
   imgRotation, ...
   binHigh, ...
   binLow, ...
@@ -310,7 +309,7 @@ if (REFINE_ON_BEADS)
   % Stopping for now at a bin5, this should be dynamic along with a handful
   % of other options.
   min_sampling_rate = 5;
-  [ to_few_beads ] = BH_refine_on_beads(baseName,nX,nY,3000,pixelSize,1.05.*100, min_sampling_rate);
+  [ to_few_beads ] = BH_refine_on_beads(baseName,nX,nY,3000,emc.pixel_size_angstroms,1.05.*100, min_sampling_rate);
   
   if (to_few_beads)
     fprintf('\nWARNING: to few beads found. Using iterative patch tracking results\n');
@@ -336,7 +335,7 @@ if (to_few_beads || ~REFINE_ON_BEADS)
   cd fixedStacks
   system(sprintf('%s %s %d %d %d %d', findBeadsPath, baseName,...
     nX,nY,3000,...
-    ceil(1.05*100/pixelSize)));
+    ceil(1.05*100/emc.pixel_size_angstroms)));
   cd ..
 end
 

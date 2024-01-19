@@ -40,7 +40,52 @@ for i = 1:size(p2,1)
   end
 end
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Asserts on required parameters
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+if isfield(emc, 'nGPUs')
+  EMC_assert_integer(emc.nGPUs, 1);
+else
+  error('nGPUs is a required parameter');
+end
+
+if isfield(emc, 'PIXEL_SIZE')
+  EMC_assert_numeric(emc.PIXEL_SIZE, 1, [0, 100e-10]);
+  emc.pixel_size_si = emc.PIXEL_SIZE;
+  emc.pixel_size_angstroms = emc.PIXEL_SIZE.*10^10;
+else
+  error('PIXEL_SIZE is a required parameter');
+end
+
+if isfield(emc, 'Cs')
+  EMC_assert_numeric(emc.Cs, 1, [0, 10e-3]);
+else
+  error('Cs is a required parameter');
+end
+
+if isfield(emc, 'VOLTAGE')
+  EMC_assert_numeric(emc.VOLTAGE, 1, [20e3, 1000e3]);
+else
+  error('VOLTAGE is a required parameter');
+end
+
+if isfield(emc, 'AMPCONT')
+  EMC_assert_numeric(emc.AMPCONT, 1, [0.0, 1.0]);
+  if emc.Cs == 0
+    emc.Cs = 1e-10;
+  end
+  
+else
+  error('AMPCONT is a required parameter');
+end
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Now check for optional parameters
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Early development parameter, used to store more than one orientation during template matching
 % and use for further refinement.

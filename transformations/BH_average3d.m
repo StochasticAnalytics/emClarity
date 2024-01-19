@@ -50,13 +50,10 @@ if (emc.flgCutOutVolumes)
   end
 end
 
-
-
 rotConvention = 'Bah';
 if ( emc.doHelical )
   rotConvention = 'Helical';
 end
-
 
 % The weights are only re-estimated for an out of plane search. Until this
 % happens, they are not valid.
@@ -78,18 +75,16 @@ fprintf('track stats is %d\n',emc.track_stats)
 if ( emc.classification ); emc.classification = -1 ; end
 
 flgGold=1;
-pixelSize = emc.('PIXEL_SIZE').*10^10;
+emc.pixel_size_angstroms = emc.('PIXEL_SIZE').*10^10;
 
 
-nGPUs = emc.('nGPUs');
 % Optionally specify gpu idxs
-if numel(nGPUs) == 1
-  gpuList = 1:nGPUs;
+if numel(emc.nGPUs) == 1
+  gpuList = 1:emc.nGPUs;
 else
-  gpuList = nGPUs;
-  nGPUs = length(gpuList);
+  gpuList = emc.nGPUs;
+  emc.nGPUs = length(gpuList);
 end
-
 
 
 try
@@ -283,8 +278,8 @@ if ~(ismember(interpOrder,[1,4]))
 end
 outputPrefix = sprintf('%s_%s',cycleNumber, emc.('subTomoMeta'));
 
-pixelSize = pixelSize .* samplingRate;
-peakSearch   = floor(0.85.*emc.('particleRadius')./pixelSize)
+emc.pixel_size_angstroms = emc.pixel_size_angstroms .* samplingRate;
+peakSearch   = floor(0.85.*emc.('particleRadius')./emc.pixel_size_angstroms);
 peakCOM      = [1,1,1].*3;
 
 
@@ -426,7 +421,7 @@ nTomograms = length(tomoList);
 if (emc.classification)
   
   [ ~, maskSize, maskRadius, maskCenter ] = ...
-    BH_multi_maskCheck(emc, 'Ali', pixelSize);
+    BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms);
   % These are used when 'Cluster' is called, to take the masking parameters
   % from focused PCA/Classification, to produce a montage with reduced
   % Z-dimension & low pass filtering to be used in decision making but not
@@ -435,11 +430,11 @@ if (emc.classification)
   
   
   [~, ~, ~, pcaMaskCenter ] = ...
-    BH_multi_maskCheck(emc, 'Cls', pixelSize);
+    BH_multi_maskCheck(emc, 'Cls', emc.pixel_size_angstroms);
 else
   
   [ ~, maskSize, maskRadius, maskCenter ] = ...
-    BH_multi_maskCheck(emc, 'Ali', pixelSize);
+    BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms);
   
 end
 
@@ -447,7 +442,7 @@ end
   BH_multi_validArea( maskSize, maskRadius, scaleCalcSize )
 padREF = [0,0,0;0,0,0];
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,nGPUs, sizeCalc(1),limitToOne);
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms,emc.nGPUs, sizeCalc(1),limitToOne);
 
 origMaskSize = sizeMask;
 %%%%% Considering removing doNotTrim and making this the default. Temporarily
@@ -593,7 +588,7 @@ if (emc.flgQualityWeight)
       radial_shrink_factor = 2;
       
       
-      [ normal_vect, chi2 ] = BH_fit_ellipsoidal_prior(pixelSize .* particle_coords(positions_to_analyze,3:5), ...
+      [ normal_vect, chi2 ] = BH_fit_ellipsoidal_prior(emc.pixel_size_angstroms .* particle_coords(positions_to_analyze,3:5), ...
         emc.('particleRadius')(3), ...
         radial_shrink_factor, ...
         display_fit);
@@ -750,7 +745,7 @@ else
 end
 
 % % Clear all of the GPUs prior to entering the main processing loop
-for iGPU = 1:nGPUs
+for iGPU = 1:emc.nGPUs
   gpuDevice(iGPU);
 end
 
@@ -759,7 +754,7 @@ parfor iParProc = parVect
   % for iParProc = parVect
   
   % Get the gpuIDX assigned to this process
-  gpuIDXList = mod(parVect+nGPUs,nGPUs)+1;
+  gpuIDXList = mod(parVect+emc.nGPUs,emc.nGPUs)+1;
   iGPUidx = gpuIDXList(iParProc);
   gpuDevice(iGPUidx);
   fprintf('parProc %d/%d assigned to GPU %d\n',iParProc,nParProcesses,iGPUidx);
@@ -788,7 +783,7 @@ parfor iParProc = parVect
     [cccWeight,~,~,~,~,~] = BH_multi_gridCoordinates(sizeCalc, ...
       'Cartesian','GPU',...
       {'none'},1,0,1);
-    cccWeight = (cccWeight ./ pixelSize).^2;
+    cccWeight = (cccWeight ./ emc.pixel_size_angstroms).^2;
     
     
     
@@ -1087,11 +1082,11 @@ parfor iParProc = parVect
                 particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
                 positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
                 if (emc.projectVolumes)
-                  SAVE_IMG(sum(iParticle,3),particleOUT_name,pixelSize);
+                  SAVE_IMG(sum(iParticle,3),particleOUT_name,emc.pixel_size_angstroms);
                 else
                   particleOUT = BH_padZeros3d(gather(iParticle), CUTPADDING.*[1,1,1], ...
                     CUTPADDING.*[1,1,1], 'cpu', 'single');
-                  SAVE_IMG(particleOUT,particleOUT_name,pixelSize);
+                  SAVE_IMG(particleOUT,particleOUT_name,emc.pixel_size_angstroms);
                 end
                 
                 
@@ -1383,7 +1378,7 @@ classStorage = cell(maxClasses,2);
 if (doNotTrim) && (emc.classification)
   filteredClass= cell(maxClasses,2);
   % low-pass to see class averages more clearly.
-  % %   [ bandpassFilt ] = BH_bandpass3d( sizeMask, 0.2, 300, 30, 'GPU',pixelSize);
+  % %   [ bandpassFilt ] = BH_bandpass3d( sizeMask, 0.2, 300, 30, 'GPU',emc.pixel_size_angstroms);
 end
 
 for iClass = 1:maxClasses
@@ -1394,7 +1389,7 @@ end
 if (eachTomo)
   system('mkdir -p initialTomoAvgs');
   % sizeWeight mask is sizeMask or 128^3 whichever is larger
-  %   bandpassFiltTomo = BH_bandpass3d( sizeCalc, lpTomo(1), lpTomo(2), lpTomo(3), 'GPU',pixelSize);
+  %   bandpassFiltTomo = BH_bandpass3d( sizeCalc, lpTomo(1), lpTomo(2), lpTomo(3), 'GPU',emc.pixel_size_angstroms);
   
   for iParProc = 1:nParProcesses
     nTomos = 1;
@@ -1404,7 +1399,7 @@ if (eachTomo)
       classTmp = avgTomoResults{iParProc}{nTomos};
       avgTomoResults{iParProc}{nTomos} = [];
       
-      SAVE_IMG(classTmp,tomoName,pixelSize);
+      SAVE_IMG(classTmp,tomoName,emc.pixel_size_angstroms);
       clear classTmp
       nTomos = nTomos + 1;
     end
@@ -1538,7 +1533,7 @@ for iGold = 1:2-flgFinalAvg
   if (flgFinalAvg)
     system(sprintf('mv %s preHalfSetAli_%s',imout,imout));
   end
-  SAVE_IMG(montOUT, imout, pixelSize);
+  SAVE_IMG(montOUT, imout, emc.pixel_size_angstroms);
   %%%%%%%%
   [montOUT, imgLocations] = BH_montage4d(avgWedge(:,iGold), '');
   
@@ -1553,15 +1548,7 @@ for iGold = 1:2-flgFinalAvg
     system(sprintf('mv %s preHalfSetAli_%s',imout,imout));
   end
   SAVE_IMG(montOUT, imout);
-  %%%%%%%%
-  % % %       if (doNotTrim) && (emc.classification)
-  % % %         [montOUT, ~] = BH_montage4d(filteredClass(:,iGold), '');
-  % % %         imout = sprintf('%s_filtered%d_%s_%s.mrc',outputPrefix, ...
-  % % %                                          className, fieldPrefix, halfSet);
-  % % %         SAVE_IMG(MRCImage(gather(montOUT)), imout,pixelSize);
-  % % %
-  % % %       end
-  
+
   if (saveClassSum > -1)
     imgCounts = gather([classVector{iGold}(1,:) ; nExtracted(:,iGold)']);
     
@@ -1571,7 +1558,7 @@ for iGold = 1:2-flgFinalAvg
     imout = sprintf('%s_class%d_%s_%s_NoWgt.mrc',outputPrefix, ...
       saveClassSum, 'Raw', halfSet);
     classOut = sprintf('class_%d_Locations_%s_%s_NoWgt', saveClassSum,'Raw', halfSet);
-    SAVE_IMG(montOUT, imout,pixelSize);
+    SAVE_IMG(montOUT, imout,emc.pixel_size_angstroms);
     masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
     
     [montOUT, imgLocations] = BH_montage4d(classWgtSum(iGold), '');
@@ -1579,7 +1566,7 @@ for iGold = 1:2-flgFinalAvg
     imout = sprintf('%s_class%d_%s_%s_Wgt.mrc',outputPrefix, ...
       saveClassSum, 'Raw', halfSet);
     classOut = sprintf('class_%d_Locations_%s_%s_Wgt', saveClassSum,'Raw', halfSet);
-    SAVE_IMG(montOUT, imout,pixelSize);
+    SAVE_IMG(montOUT, imout,emc.pixel_size_angstroms);
     masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
     
   end
@@ -1610,7 +1597,7 @@ fprintf('Total execution time : %f seconds\n', etime(clock, startTime));
 % clean everything up, since this function is called from other functions.
 
 delete(gcp('nocreate'));
-for iGPU = 1:nGPUs
+for iGPU = 1:emc.nGPUs
   gpuDevice(gpuList(iGPU));
 end
 
@@ -1623,13 +1610,13 @@ end
 
 
 try
-  EMC_parpool(nGPUs)
+  EMC_parpool(emc.nGPUs)
 catch
   delete(gcp('nocreate'));
-  EMC_parpool(nGPUs)
+  EMC_parpool(emc.nGPUs)
 end
 
-for iGPU = 1:nGPUs
+for iGPU = 1:emc.nGPUs
   gpuDevice(gpuList(iGPU));
 end
 
@@ -1745,7 +1732,7 @@ if ~( flgEstSNR )
     refTMP = gather(BH_multi_cRef_Vnorm(fscParams, aliParams, mskParams,...
       {refIMG{1}{iOdd},refIMG{2}{iEve}}, ...
       {refWGT{1}{iOdd},refWGT{2}{iEve}}, ...
-      flgCombine,flgRefCutOff, pixelSize, bFactorSend));
+      flgCombine,flgRefCutOff, emc.pixel_size_angstroms, bFactorSend));
     
     if ~(flgFinalAvg)
       refIMG{1}{iOdd} = refTMP{1,1};
@@ -1768,10 +1755,9 @@ if ~( flgEstSNR )
     else
       halfSet = 'STD';
     end
-    iRef
     imgIN = sprintf('class_%d_Locations_%s_%s_NoWgt', ...
       className, fieldPrefix, halfSet);
-    imgCounts = masterTM.(cycleNumber).(imgIN){3};
+      imgCounts = masterTM.(cycleNumber).(imgIN){3};
     % Save the unweighted, weighted imgs, weightes, optionally filtered.
     
     if (flgFinalAvg)
@@ -1779,7 +1765,7 @@ if ~( flgEstSNR )
         imout = sprintf('%s_class%d_%s_bFact-%d.mrc',outputPrefix, ...
           className, 'final',emc.Fsc_bfactor(iBfactor));
         
-        SAVE_IMG(refTMP{iBfactor}, imout, pixelSize);
+        SAVE_IMG(refTMP{iBfactor}, imout, emc.pixel_size_angstroms);
       end
     else
       
@@ -1789,7 +1775,7 @@ if ~( flgEstSNR )
       classOut = sprintf('class_%d_Locations_%s_%s', className,fieldPrefix, halfSet);
       
       masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
-      SAVE_IMG(montOUT, imout, pixelSize);
+      SAVE_IMG(montOUT, imout, emc.pixel_size_angstroms);
     end
     %%%%%%%
   end

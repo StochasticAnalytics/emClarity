@@ -137,9 +137,9 @@ try
   peakThreshold = over_ride;
 end
 
-pixelSizeFULL = emc.('PIXEL_SIZE').*10^10;
+pixelSizeFULL = emc.pixel_size_angstroms;
 
-pixelSize = pixelSizeFULL.*samplingRate;
+pixelSize =  emc.pixel_size_angstroms .* samplingRate;
 
 % For testing
 print_warning=false;

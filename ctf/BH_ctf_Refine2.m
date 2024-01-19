@@ -50,36 +50,19 @@ if isempty(pathName)
   pathName = '.';
 end
 
-PIXEL_SIZE = emc.('PIXEL_SIZE');
-
 
 Cs = emc.('Cs');
 VOLTAGE = emc.('VOLTAGE');
 AMPCONT = emc.('AMPCONT');
 
-ctfParams = [PIXEL_SIZE*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT];
+ctfParams = [emc.pixel_size_si*10^10,VOLTAGE./1000,Cs.*1000,AMPCONT];
 
 
-% Sanity check
-if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
-  error('pixel size should be [0,20e-10]');
-elseif (Cs > 5*10^-3 || Cs < 0)
-  error('Cs should be[1e-3,10e-3]');
-elseif(VOLTAGE > 1000e3 || VOLTAGE < 20e3)
-  error ('VOLTAGE should be [20e3,1000e3]');
-elseif (AMPCONT < 0.025 || AMPCONT > 0.25)
-  error('AMPCONT should be [0.025,0.25]');
-else
-  WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
-end
+WAVELENGTH = 10^-12*1226.39/sqrt(VOLTAGE + 0.97845*10^-6*VOLTAGE^2) ;
 
-if (Cs == 0)
-  fprintf('You set Cs to zero, over-riding to 5 micron\n');
-  Cs = 5e-6;
-end
 
 % Assuming that the first CTF zero is always less than this value
-FIXED_FIRSTZERO =  PIXEL_SIZE / 40*10^-10 ;
+FIXED_FIRSTZERO =  emc.pixel_size_si / 40*10^-10 ;
 
 % Size to padTile to should be even, large, and preferably a power of 2
 try
@@ -90,7 +73,7 @@ end
 
 % Tile size & overlap
 tileOverlap = 4;
-tileSize = floor(680e-10 / PIXEL_SIZE);
+tileSize = floor(680e-10 / emc.pixel_size_si);
 tileSize = tileSize + mod(tileSize,2);
 fprintf('Using a tile size of %d',tileSize);
 overlap = floor(tileSize ./ tileOverlap);
@@ -152,7 +135,7 @@ for iStack = 1%stacksFound
     BH_multi_gridCoordinates([paddedSize,paddedSize,1],'Cylindrical','GPU',{'none'},1,1,0);
   
   
-  radialForCTF = {radialForCTF./PIXEL_SIZE,1,phi}  ;
+  radialForCTF = {radialForCTF./emc.pixel_size_si,1,phi}  ;
   
   clear phi
   

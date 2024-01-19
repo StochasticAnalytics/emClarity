@@ -501,8 +501,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   % The model is scaled to full sampling prior to passing to tiltalign,
   % make sure the header in the synthetic stack is set appropriately.
-  fullPixelSize = emc.('PIXEL_SIZE').*10^10;
-  pixelSize = fullPixelSize.*samplingRate;
+  fullPixelSize = emc.pixel_size_angstroms;
+  pixelSize = fullPixelSize .* samplingRate;
   
   try
     eraseMaskType = emc.('Peak_mType');

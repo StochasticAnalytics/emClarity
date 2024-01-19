@@ -172,13 +172,10 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % The model is scaled to full sampling prior to passing to tiltalign,
   % make sure the header in the synthetic stack is set appropriately.
-  fullPixelSize = emc.('PIXEL_SIZE').*10^10;
-  
+  fullPixelSize = emc.pixel_size_angstroms;
   pixelSize = fullPixelSize.*samplingRate;
   
-  
   PARTICLE_RADIUS = floor(max(emc.('particleRadius')./pixelSize));
-  
   
   [~,tiltBaseName,~] = fileparts(tiltList{1});
   mbOUT = {[tmpCache],[mapBackIter+1],[tiltBaseName]};
@@ -646,7 +643,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       sigma = 10.0;
       score = 10.0; % TODO test with scaled CCC score?
       scoreChange = 0.0;
-      pixelSize = emc.('PIXEL_SIZE') * 10^10;
+      pixelSize = emc.pixel_size_angstroms;
       micVoltage = emc.('VOLTAGE') * 10^-3;
       micCS = emc.('Cs') * 10^3;
       ampContrast = emc.('AMPCONT') * 10^0;
@@ -745,7 +742,7 @@ fprintf(recScript,[ ...
   'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
   '%2.2d\n', ...Max. threads to use for calculation [36]           :
   ], getenv('EMC_RECONSTRUCT3D'),baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
-  symmetry,emc.('PIXEL_SIZE')*10^10, ...
+  symmetry,emc.pixel_size_angstroms, ...
   emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
 
 fprintf(recScript, '\neof\n');
@@ -814,7 +811,7 @@ fprintf(refineScript,[ ...
   'no\n',...Threshold input reconstruction [No]                :
   '%2.2d\n', ...Max. threads to use for calculation [36]           :
   ],  getenv('EMC_REFINE3D'),baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
-  symmetry,emc.('PIXEL_SIZE')*10^10, ...
+  symmetry,emc.pixel_size_angstroms, ...
   emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), ...
   resForFitting,resForFitting,maxThreads);
 
@@ -867,7 +864,7 @@ fprintf(recScript,[ ...
   'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
   '%2.2d\n', ...Max. threads to use for calculation [36]           :
   ], getenv('EMC_RECONSTRUCT3D'), baseFile, baseFile, baseFile, baseFile, baseFile, baseFile, ...
-  symmetry,emc.('PIXEL_SIZE')*10^10, ...
+  symmetry,emc.pixel_size_angstroms, ...
   emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
 
 fprintf(recScript, '\neof\n');
