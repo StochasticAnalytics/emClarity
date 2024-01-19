@@ -51,12 +51,11 @@ emc = BH_parseParameterFile(PARAMETER_FILE);
 
 test_multi_ref_diffmap=true;
 
-flgClassify = emc.('flgClassify');
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
-if ( flgClassify ); flgClassify = -1 ; end
-if flgClassify < 0
+if ( emc.classification ); emc.classification = -1 ; end
+if emc.classification < 0
   flgGold = 0;
 else
   flgGold = 1;
@@ -132,14 +131,8 @@ load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 masterTM = subTomoMeta; clear subTomoMeta
 
 
-try
-  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
-catch
-  flgMultiRefAlignment = 0;
-end
-
-geom_name=''
-if (flgMultiRefAlignment )
+geom_name='';
+if (emc.multi_reference_alignment )
   geom_name='ClusterClsGeom';
 else
   geom_name='Avg_geometry';

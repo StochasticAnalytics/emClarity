@@ -26,9 +26,7 @@ emc = BH_parseParameterFile(PARAMETER_FILE);
 dupSampling = ceil(10e-10 / emc.('PIXEL_SIZE'));
 
 pixelSize = emc.('PIXEL_SIZE').*dupSampling.*10^10;
-if emc.('SuperResolution')
-  pixelSize = pixelSize * 2;
-end
+
 latticeRadius = emc.('particleRadius');
 
 dupRadius = max(1,floor(0.2*min(latticeRadius)/pixelSize));

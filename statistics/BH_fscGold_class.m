@@ -40,13 +40,7 @@ prevCycleNumber = sprintf('cycle%0.3u',CYCLE-1);
 
 
 flgCones = emc.('flgCones');
-flgClassify= emc.('flgClassify')
-try
-  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
-catch
-  flgMultiRefAlignment = 0;
-end
-
+emc.classification = emc.('emc.classification');
 try
   scaleCalcSize = emc.('scaleCalcSize');
 catch
@@ -94,11 +88,6 @@ outputPrefix = sprintf('./FSC/%s_%s', cycleNumber, emc.('subTomoMeta'));
 samplingRate = emc.('Ali_samplingRate');
 
 pixelSize = emc.('PIXEL_SIZE').*10^10.*samplingRate;
-if emc.('SuperResolution')
-  pixelSize = pixelSize * 2;
-end
-
-
 
 if ( flgCones )
   coneInc = 30;
@@ -173,7 +162,7 @@ else
   switch STAGEofALIGNMENT
     case 'RawAlignment'
       savePrefix = 'Raw';
-      if (flgClassify)
+      if (emc.classification)
         fieldPrefix = 'Raw';
         
         className = 0;
@@ -200,7 +189,7 @@ else
       
     case 'NoAlignment'
       savePrefix = 'Raw';
-      if (flgClassify)
+      if (emc.classification)
         
         fieldPrefix = 'NoA';
       else

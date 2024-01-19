@@ -96,33 +96,12 @@ PIXEL_SIZE = emc.('PIXEL_SIZE');
 Cs = emc.('Cs');
 VOLTAGE = emc.('VOLTAGE');
 AMPCONT = emc.('AMPCONT');
-SuperResolution = emc.('SuperResolution');
 
-if (SuperResolution)
-  if SuperResolution == 1
-    % Standard scenario crop to physical nyquist
-    scalePixelsBy = 2;
-  elseif SuperResolution > 10^10*PIXEL_SIZE
-    % Crop to the given pixels size
-    error('Scaling to arbitrary pixel size is not working\n');
-    % Need to factor in the trunctation to integer pixel size.
-    %     scalePixelsBy = SuperResolution/(10^10*PIXEL_SIZE);
-  else
-    error('SuperResolution must be 0 (off) 1 (crop to physical Nyquist) or a pixel Size larger than current\n');
-  end
-  PIXEL_SIZE = scalePixelsBy.* PIXEL_SIZE;
-else
-  scalePixelsBy = 1;
-end
 
-% if 10^10*PIXEL_SIZE < 1.2
-%   fprintf('PixelSize is less than 1.2 Ang so we have to use the cpu\n');
-%   useGPU = 0;
-%   METHOD = 'cpu';
-% else
+scalePixelsBy = 1;
+
 useGPU = 1;
 METHOD = 'GPU';
-% end
 
 % Sanity check
 if (PIXEL_SIZE > 20e-10 || PIXEL_SIZE < 0)
@@ -385,12 +364,7 @@ else
   end
 end
 
-if (SuperResolution)
-  % Forcing output to odd size.
-  sizeCropped = floor([d1,d2,d3]./2)-(1-mod(floor([d1,d2,d3]./2),2));
-else
-  sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
-end
+sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
 sizeCropped(3) = d3;
 
 STACK = zeros(sizeCropped,'single');
@@ -471,15 +445,9 @@ for i = 1:d3
   
   iProjection = iProjection - mean(iProjection(:));
   
-  
-  if ( SuperResolution )
-    iProjection = BH_padZeros3d(iProjection(1+osX:end,1+osY:end), ...
-      padVal(1,:),padVal(2,:),shiftMETHOD,'singleTaper');
-  else
-    iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
-      shiftMETHOD,'singleTaper');
-  end
-  
+
+  iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
+    shiftMETHOD,'singleTaper');
   
   if (i == 1 && bh_global_do_2d_fourier_interp)
     bhF = fourierTransformer(iProjection,'OddSizeOversampled');

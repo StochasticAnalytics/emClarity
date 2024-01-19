@@ -117,5 +117,40 @@ else
  emc.doHelical = false;
 end
 
+if isfield(emc,'eucentric_fit')
+  EMC_assert_boolean(emc.eucentric_fit)
+else
+  emc.eucentric_fit = false;
+end
+
+if isfield(emc,'eucentric_minTilt')
+  EMC_assert_numeric(emc.eucentric_maxTilt)
+else
+  emc.eucentric_maxTilt = 50.0;
+end
+
+
+% TODO: these should maybe be two different orthogonal parameters
+  % if > 1 keep this many subtomos
+  % if < 1 keep this fraction
+if isfield(emc,'flgCCCcutoff')
+  EMC_assert_numeric(emc.flgCCCcutoff,1)
+else
+  emc.flgCCCcutoff = 0.0;
+end
+
+% TOOD: DOC
+emc = EMC_assert_deprecated_substitution(emc, false, 'projectVolumes', 'flgProjectVolumes');
+EMC_assert_boolean(emc.projectVolumes);
+
+% Whether the cycle is expected to be used for classification or alignment.
+% Eventually, the distinction should not matter.
+emc = EMC_assert_deprecated_substitution(emc, false, 'classification', 'flgClassify');
+EMC_assert_boolean(emc.classification);
+
+
+emc = EMC_assert_deprecated_substitution(emc, false, 'multi_reference_alignment', 'flgMultiRefAlignment');
+EMC_assert_boolean(emc.multi_reference_alignment);
+
 end
 

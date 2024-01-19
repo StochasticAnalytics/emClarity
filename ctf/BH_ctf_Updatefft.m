@@ -8,16 +8,7 @@ emc = BH_parseParameterFile(PARAMETER_FILE);
 flgSkipUpdate = 0;
 % To avoid accidently masking any failures in subsequent update, clean out
 % all stacks and reconstructions from the local cache.
-try
-  eucentric_minTilt = emc.('eucentric_minTilt');
-catch
-  eucentric_minTilt = 15;
-end
-try
-  flgShiftEucentric =  emc.('eucentric_fit');
-catch
-  flgShiftEucentric = 0;
-end
+
 try
   % Should be negative, but to test.
   defShiftSign = emc.('testFlipSign');
@@ -56,7 +47,7 @@ else
 end
 
 eucShiftsResults = 0;
-if flgShiftEucentric
+if emc.eucentric_fit
   eucShiftsResults = cell(size(ITER_LIST));
 end
 % BH_geometryAnalysis(sprintf('%s',PARAMETER_FILE),sprintf('%d',subTomoMeta.currentCycle),'TiltAlignment','UpdateTilts',sprintf('[%d,0,0]',subTomoMeta.currentCycle),'STD')
@@ -162,19 +153,7 @@ parfor iGPU = 1:nGPUs
     eraseRec   = sprintf('rm cache/%s_*.rec',STACK_PRFX);
     % Converte bead diameter to pixels and add a little to be safe.
     PIXEL_SIZE = emc.('PIXEL_SIZE');
-    SuperResolution = emc.('SuperResolution');
     
-    % Don't apply any fourier cropping of super-res data if only updating,
-    % as it would already be done.
-    if strcmpi(applyFullorUpdate,'update')
-      SuperResolution = 0;
-    end
-    
-    if (SuperResolution)
-      % Transform the raw images at full sampling then crop the fft to physical
-      % nyquist
-      PIXEL_SIZE = 2.* PIXEL_SIZE;
-    end
     
     eraseSigma = 3;%emc.('beadSigma');
     
@@ -228,23 +207,19 @@ parfor iGPU = 1:nGPUs
     % created in IMod alignment.
     
     iHeader = getHeader(iMrcObj);
-    iPixelHeader = [iHeader.cellDimensionX/iHeader.nX .* (1+abs(SuperResolution)), ...
-      iHeader.cellDimensionY/iHeader.nY .* (1+abs(SuperResolution)), ...
+    iPixelHeader = [iHeader.cellDimensionX/iHeader.nX, ...
+      iHeader.cellDimensionY/iHeader.nY, ...
       iHeader.cellDimensionZ/iHeader.nZ];
     
     iOriginHeader= [iHeader.xOrigin , ...
       iHeader.yOrigin , ...
-      iHeader.zOrigin ] ./ (1+abs(SuperResolution));
+      iHeader.zOrigin ];
     
     d1 = iHeader.nX; d2 = iHeader.nY; d3 = size(INPUT_CELL{iStack,1},1);%iHeader.nZ;
     
     osX = 1-mod(d1,2); osY = 1-mod(d2,2);
-    
-    if (SuperResolution)
-      gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,-0.235,'GPU','nyquistHigh');
-    else
-      gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh');
-    end
+
+    gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh');
     
     TLT = INPUT_CELL{iStack,1};
     pathName = INPUT_CELL{iStack,3}
@@ -281,8 +256,8 @@ parfor iGPU = 1:nGPUs
     end
     
     
-    if ( flgShiftEucentric && mapBackIter )
-      toFit = abs(mbTLT) > eucentric_minTilt;
+    if ( emc.eucentric_fit && mapBackIter )
+      toFit = abs(mbTLT) > emc.eucentric_maxTilt;
       
       % For now take the mean, but it would probably be better to fit a line,
       % use the Y intercept, and use the deviation from 0 of the slope as a
@@ -330,12 +305,7 @@ parfor iGPU = 1:nGPUs
       continue;
     end
     
-    if (SuperResolution)
-      % Forcing output to odd size.
-      sizeCropped = floor([d1,d2,d3]./2)-(1-mod(floor([d1,d2,d3]./2),2));
-    else
-      sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
-    end
+    sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
     sizeCropped(3) = d3;
     
     STACK = zeros(sizeCropped,'single');
@@ -343,14 +313,7 @@ parfor iGPU = 1:nGPUs
     
     for i = 1:d3
       
-      if (SuperResolution)
-        % The transform shifts need to be scaled by 2 since the stored values
-        % are relative to full sampling, while the tomoCPR are relative to
-        % physical pixel size.
-        updateScale = 2;
-      else
-        updateScale = 1;
-      end
+      updateScale = 1;
       
       if (mapBackIter)
         
@@ -383,54 +346,22 @@ parfor iGPU = 1:nGPUs
       
       
       % Pad the projection prior to xforming in Fourier space.
-      if (SuperResolution)
-        
-        iProjection = single(getVolume(iMrcObj,[],[],tlt_tmp{i}(23),'keep'));
-        iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
-        
-        % Information beyond the physical nyquist should be removed to limit
-        % aliasing of noise prior tto interpolation.
-        iProjection = BH_padZeros3d(iProjection,[0,0],[0,0],'GPU','singleTaper',mean(iProjection(:)));
-        trimVal = BH_multi_padVal(1.*size(iProjection),sizeCropped(1:2));
-        
-        largeOutliersMean= mean(iProjection(:));
-        largeOutliersSTD = std(iProjection(:));
-        largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
-          iProjection > largeOutliersMean + 6*largeOutliersSTD);
-        iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single','gpuArray');
-        
-        iProjection = real(ifftn(ifftshift(...
-          BH_padZeros3d(fftshift(...
-          fftn(iProjection)), ...
-          trimVal(1,:),trimVal(2,:),...
-          'GPU','single'))));
-        
-        
-        iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),[0,0,0],[0,0],'Bah','GPU','forward',1/2,sizeCropped(1:2));
-        sizeODD = size(iProjection)-[osX,osY];
-      else
-        sizeODD = [d1,d2]-[osX,osY];
-        
-        
-        
-        % If it is even sized, shift up one pixel so that the origin is in the middle
-        % of the odd output here we can just read it in this way, unlike super res.
-        
-        iProjection = ...
-          single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep'));
-        
-        iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
-        
-        largeOutliersMean= mean(iProjection(:));
-        
-        largeOutliersSTD = std(iProjection(:));
-        largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
-          iProjection > largeOutliersMean + 6*largeOutliersSTD);
-        iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
-        
-        
-        
-      end
+      sizeODD = [d1,d2]-[osX,osY];
+      
+      % If it is even sized, shift up one pixel so that the origin is in the middle
+      % of the odd output here we can just read it in this way, unlike super res.
+      
+      iProjection = ...
+        single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep'));
+      
+      iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
+      
+      largeOutliersMean= mean(iProjection(:));
+      
+      largeOutliersSTD = std(iProjection(:));
+      largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
+        iProjection > largeOutliersMean + 6*largeOutliersSTD);
+      iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
       
       % Because the rotation/scaling and translation are done separately,
       % we must use a square transform; otherwise, a rotation angle dependent
@@ -445,13 +376,8 @@ parfor iGPU = 1:nGPUs
       iProjection = iProjection ./ std(iProjection(:));
       
       
-      if ( SuperResolution )
-        iProjection = BH_padZeros3d(iProjection(1+osX:end,1+osY:end), ...
-          padVal(1,:),padVal(2,:),'GPU','singleTaper');
-      else
-        iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
-          'GPU','singleTaper');
-      end
+      iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
+        'GPU','singleTaper');
       
       if (i == 1 && bh_global_do_2d_fourier_interp)
         bhF = fourierTransformer(iProjection,'OddSizeOversampled');
@@ -606,7 +532,7 @@ end % end of par for loop
 
 
 %
-if (flgShiftEucentric && mapBackIter)
+if (emc.eucentric_fit && mapBackIter)
   % Update the sub tomo z coords with an estimate of the shift
   cycle_to_update = subTomoMeta.('tomoCPR_run_in_cycle')(find(subTomoMeta.('tomoCPR_run_in_cycle')(:,1) == subTomoMeta.currentTomoCPR),2);
   for iGPU = 1:nGPUs

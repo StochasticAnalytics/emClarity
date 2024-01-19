@@ -159,11 +159,6 @@ if (refSamplingRate ~= samplingRate)
   error('refSamplingRate ~= samplingRate')
 end
 
-% FIXME: SuperResolution should be deprecated
-if emc.('SuperResolution')
-  pixelSize = pixelSize * 2;
-  refPixelSize = refPixelSize * 2;
-end
 nCores  = BH_multi_parallelWorkers(emc.('nCpuCores'));
 pInfo = parcluster();
 
@@ -224,16 +219,15 @@ catch
   test_updated_bandpass = false;
 end
 
-flgClassify = emc.('flgClassify');
 
 % Removed flgGold everywhere else, but keep ability to classify full data set at
 % the end (after all alignment is finished.)
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
-if ( flgClassify ); flgClassify = -1 ; end
+if ( emc.classification ); emc.classification = -1 ; end
 
-if flgClassify < 0
+if emc.classification < 0
   flgGold = 0;
 else
   flgGold = 1;
@@ -243,19 +237,14 @@ end
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
 
-try
-  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
-catch
-  flgMultiRefAlignment = 0;
-end
 
-if (test_multi_ref_diffmap && ~flgMultiRefAlignment)
+if (test_multi_ref_diffmap && ~emc.multi_reference_alignment)
   test_multi_ref_diffmap = false;
-  fprintf("WARNING: test_multi_ref_diffmap is incompatible with ~flgMultiRefAlignment, disabling\n");
+  fprintf("WARNING: test_multi_ref_diffmap is incompatible with ~emc.multi_reference_alignment, disabling\n");
 end
 
 geom_name=''
-if (flgMultiRefAlignment )
+if (emc.multi_reference_alignment )
   geom_name='ClusterClsGeom';
   
 else
@@ -310,7 +299,7 @@ else
   refName = 0;
 end
 
-% If flgClassify is negative combine the data for clustering, but don't set
+% If emc.classification is negative combine the data for clustering, but don't set
 % any of the alignment changes to be persistant so that extracted class
 % averages are still independent half-sets.
 if (flgGold)

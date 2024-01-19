@@ -311,13 +311,6 @@ end
 
 pixelSize = emc.('PIXEL_SIZE').*10^10 .* samplingRate;
 
-% if (recWithoutMat)
-%   reconstructionParameters(1) = ')(i) =(1) ./ pixelSize;
-% end
-
-if emc.('SuperResolution')
-  pixelSize = pixelSize * 2;
-end
 
 eraseRadius = ceil(1.5.*(emc.('beadDiameter')./emc.('PIXEL_SIZE').*0.5) / samplingRate);
 

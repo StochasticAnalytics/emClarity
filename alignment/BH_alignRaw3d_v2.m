@@ -104,22 +104,14 @@ end
 maxGoldStandard = subTomoMeta.('maxGoldStandard');
 
 
-nGPUs = emc.('nGPUs')
-
-
-flgClassify= emc.('flgClassify');
-try
-  flgMultiRefAlignment=emc.('flgMultiRefAlignment');
-catch
-  flgMultiRefAlignment = 0;
-end
+nGPUs = emc.('nGPUs');
 
 try
   updateClassByBestReferenceScore = emc.('updateClassByBestReferenceScore');
 catch
   updateClassByBestReferenceScore = false;
 end
-if (~flgMultiRefAlignment)
+if (~emc.multi_reference_alignment)
   updateClassByBestReferenceScore = false;
 end
 
@@ -139,9 +131,7 @@ flgRaw_shapeMask =  0;%= emc.('experimentalOpts')(3)
 samplingRate = emc.('Ali_samplingRate');
 
 pixelSize      = emc.('PIXEL_SIZE').*10^10.*samplingRate;
-if emc.('SuperResolution')
-  pixelSize = pixelSize * 2;
-end
+
 
 flgPrecision = 'single'; %emc.('flgPrecision');
 angleSearch  = emc.('Raw_angleSearch');
@@ -168,13 +158,9 @@ end
 rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
-try
-  doHelical = emc.('doHelical');
-catch
-  doHelical = 0;
-end
+
 if ( doHelical )
-  rotConvention = 'Helical'
+  rotConvention = 'Helical';
 end
 
 
@@ -183,8 +169,8 @@ try
 catch
   scaleCalcSize = 1.5;
 end
-% % % % if (flgClassify || flgMultiRefAlignment)
-if (flgClassify)
+% % % % if (emc.classification || emc.multi_reference_alignment)
+if (emc.classification)
   refName      = emc.('Ref_className');
 else
   refName = emc.('Raw_className');
@@ -200,12 +186,12 @@ classVector{1}  = emc.('Raw_classes_odd')(1,:);
 classVector{2}  = emc.('Raw_classes_eve')(1,:);
 
 
-% % % % if (flgClassify || flgMultiRefAlignment)
-if (flgClassify)
+% % % % if (emc.classification || emc.multi_reference_alignment)
+if (emc.classification)
   geometry = subTomoMeta.(cycleNumber).ClassAlignment;
   refVectorFull{1}= [emc.('Ref_references_odd');1]
   refVectorFull{2}= [emc.('Ref_references_eve');1]
-elseif (flgMultiRefAlignment)
+elseif (emc.multi_reference_alignment)
   geometry = subTomoMeta.(cycleNumber).ClusterRefGeom;
   refVectorFull{1}= [emc.('Raw_classes_odd');classVector{1} ]
   refVectorFull{2}= [emc.('Raw_classes_eve');classVector{2} ]
@@ -489,9 +475,9 @@ wCCC  = cell(nReferences(1),1);
 for iWccc = 1:length(nReferences(1));
   wCCC{iWccc} = 0;
 end
-if (flgClassify || flgMultiRefAlignment)
+if (emc.classification || emc.multi_reference_alignment)
   for iRef = 1:nReferences(1)
-    if (flgClassify)
+    if (emc.classification)
       fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('REF%d',iRef));
     else
       fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('Raw%d',iRef)); % % % %
@@ -748,7 +734,7 @@ parfor iParProc = parVect
       bandpassFilt_tmp = cell(nReferences(1),1);
       bandpassFiltREF_tmp = cell(nReferences(1),1);
       for iRef = 1:nReferences(1)
-        if flgMultiRefAlignment <= 2
+        if emc.multi_reference_alignment <= 2
           bandpassFilt_tmp{iRef} = gpuArray(bandpassFilt{iRef});
           bandpassFiltREF_tmp{iRef} = gpuArray(bandpassFiltREF{iRef});
         else
@@ -795,7 +781,7 @@ parfor iParProc = parVect
       
       for iGold = 1:2
         for iRef = 1:nReferences(iGold)
-          if flgMultiRefAlignment <= 2
+          if emc.multi_reference_alignment <= 2
             ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
             ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
             ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
@@ -1147,7 +1133,7 @@ parfor iParProc = parVect
                       end
                       
                       
-                      switch flgMultiRefAlignment
+                      switch emc.multi_reference_alignment
                         case 0
                           refToAlign = 1;
                         case 1
@@ -1155,7 +1141,7 @@ parfor iParProc = parVect
                         case 2
                           refToAlign = classIDX;
                         otherwise
-                          error('flgMultiRefAlignment is not 0,1,2')
+                          error('emc.multi_reference_alignment is not 0,1,2')
                       end
                       
                       for iRef = refToAlign

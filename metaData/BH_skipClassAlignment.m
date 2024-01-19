@@ -29,12 +29,6 @@ cycleNumber = sprintf('cycle%0.3u', EMC_str2double(CYCLE));
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
-flgClassify = emc.('flgClassify');
-try
-  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
-catch
-  flgMultiRefAlignment = 0;
-end
 
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
@@ -42,11 +36,11 @@ outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   
-  if (flgMultiRefAlignment && ~flgClassify)
+  if (emc.multi_reference_alignment && ~emc.classification)
     subTomoMeta.(cycleNumber).('RawAlign') = ...
       subTomoMeta.(cycleNumber).('Avg_geometry');
     
-  elseif (flgMultiRefAlignment && flgClassify)
+  elseif (emc.multi_reference_alignment && emc.classification)
     subTomoMeta.(cycleNumber).('RawAlign') = ...
       subTomoMeta.(cycleNumber).('ClusterClsGeom');
   else

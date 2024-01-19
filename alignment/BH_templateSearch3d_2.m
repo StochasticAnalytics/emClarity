@@ -138,9 +138,6 @@ try
 end
 
 pixelSizeFULL = emc.('PIXEL_SIZE').*10^10;
-if emc.('SuperResolution')
-  pixelSizeFULL = pixelSizeFULL * 2;
-end
 
 pixelSize = pixelSizeFULL.*samplingRate;
 
@@ -307,16 +304,12 @@ gpuDevice(useGPU);
 rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
-try
-  doHelical = emc.('doHelical');
-catch
-  doHelical = 0;
-end
+
 if ( doHelical )
-  rotConvention = 'Helical'
+  rotConvention = 'Helical';
 end
 
-rotConvention
+
 
 if (use_new_grid_search)
   

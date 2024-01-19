@@ -6,16 +6,13 @@ if (nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
 end
 
-
-
 % FIXME: hacking in a test
 test_fuzz=false;
 test_multi_ref_diffmap= true;
 
 
-startTime =  clock;
+startTime =  datetime("now");
 CYCLE = EMC_str2double(CYCLE);
-
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   % Ensure we don't have any duplicates: TODO: add an override flag
@@ -25,11 +22,10 @@ if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   end
 end
 
-cycleNumber = sprintf('cycle%0.3u', CYCLE)
+cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
-reconScaling = 1;
 
 
 mapBackIter = subTomoMeta.currentTomoCPR;
@@ -39,16 +35,7 @@ if (CYCLE == 0)
   emc.flgQualityWeight = 0;
 end
 
-
-
-
-try
-  projectVolumes = emc.('flgProjectVolumes');
-catch
-  projectVolumes = false;
-end
-
-if (projectVolumes && ~emc.flgCutOutVolumes)
+if (emc.projectVolumes && ~emc.flgCutOutVolumes)
   emc.flgCutOutVolumes = true;
 end
 
@@ -64,20 +51,11 @@ if (emc.flgCutOutVolumes)
 end
 
 
-% Note this will be set to false unless we are averging after an update
-try
-  flgShiftEucentric =  emc.('eucentric_fit');
-catch
-  flgShiftEucentric = 0;
-end
 
 rotConvention = 'Bah';
-
-if ( doHelical )
+if ( emc.doHelical )
   rotConvention = 'Helical';
 end
-
-rotConvention
 
 
 % The weights are only re-estimated for an out of plane search. Until this
@@ -93,21 +71,16 @@ if (emc.track_stats)
 end
 fprintf('track stats is %d\n',emc.track_stats)
 
-flgClassify= emc.('flgClassify');
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
 %%% these features are re-introduced, this will need to be reverted.
-if ( flgClassify ); flgClassify = -1 ; end
-try
-  flgMultiRefAlignment = emc.('flgMultiRefAlignment');
-catch
-  flgMultiRefAlignment = 0;
-end
+% FIXME: get rid of the -1
+if ( emc.classification ); emc.classification = -1 ; end
+
 flgGold=1;
 pixelSize = emc.('PIXEL_SIZE').*10^10;
-if emc.('SuperResolution')
-  pixelSize = pixelSize * 2;
-end
+
+
 nGPUs = emc.('nGPUs');
 % Optionally specify gpu idxs
 if numel(nGPUs) == 1
@@ -163,7 +136,7 @@ switch STAGEofALIGNMENT
   case 'RawAlignment'
     
     
-    if (flgClassify)
+    if (emc.classification)
       fieldPrefix = 'Raw'
       
     else
@@ -177,10 +150,10 @@ switch STAGEofALIGNMENT
     className    = emc.(sprintf('%s_className','Raw'));
     samplingRate = emc.('Ali_samplingRate');
     
-    if (flgMultiRefAlignment && (test_multi_ref_diffmap || ~flgClassify))
+    if (emc.multi_reference_alignment && (test_multi_ref_diffmap || ~emc.classification))
       className    = emc.(sprintf('Raw_className'))
       saveClassSum = emc.(sprintf('Raw_className'))
-    elseif (flgMultiRefAlignment && flgClassify)
+    elseif (emc.multi_reference_alignment && emc.classification)
       fprintf('\n\nMutliRef and Classify enabled.\n');
       fprintf('Only creating the global class average for PCA\n\n.');
       className = 0;
@@ -202,7 +175,7 @@ switch STAGEofALIGNMENT
     
     className    = emc.(sprintf('%s_className',fieldPrefix));
     samplingRate = emc.('Ali_samplingRate');
-    if (flgClassify)
+    if (emc.classification)
       %samplingRate = emc.('Pca_samplingRate');
     else
       %samplingRate = emc.('Raw_samplingRate');
@@ -245,7 +218,7 @@ switch STAGEofALIGNMENT
     
     samplingRate = emc.(sprintf('Cls_samplingRate'));
     className    = emc.(sprintf('%s_className',fieldPrefix));
-    if flgClassify < 0
+    if emc.classification < 0
       flgGold = 0;
     end
     
@@ -271,13 +244,7 @@ fprintf('StOAlign = %s, fieldPrefix = %s\n', STAGEofALIGNMENT, fieldPrefix);
 
 flgCones     = emc.('flgCones');
 
-try
-  % if > 1 keep this many subtomos
-  % if < 1 keep this fraction
-  cccCutOff    = emc.('flgCCCcutoff');
-catch
-  cccCutOff = 0.0;
-end
+
 cutPrecision = 'single'; %emc.('flgPrecision');
 try
   interpOrder = emc.('interpOrder');
@@ -343,14 +310,14 @@ end
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   if ( CYCLE )
-    cycleRead = sprintf('cycle%0.3u', CYCLE - 1)
+    cycleRead = sprintf('cycle%0.3u', CYCLE - 1);
   else
-    flgShiftEucentric = false; % No possible updates on cycle 0
-    cycleRead = sprintf('cycle%0.3u', CYCLE)
+    emc.eucentric_fit = false; % No possible updates on cycle 0
+    cycleRead = sprintf('cycle%0.3u', CYCLE);
   end
 else
-  flgShiftEucentric = false; % No possible updates for other stages of alignments
-  cycleRead = sprintf('cycle%0.3u', CYCLE )
+  emc.eucentric_fit = false; % No possible updates for other stages of alignments
+  cycleRead = sprintf('cycle%0.3u', CYCLE );
 end
 
 % leave averages at size appropriate for interpolation when extracting to use
@@ -366,13 +333,13 @@ switch STAGEofALIGNMENT
       geometry = subTomoMeta.(cycleRead).geometry;
       eachTomo = false;%true;
     end
-    if ~(flgClassify)
+    if ~(emc.classification)
       doNotTrim = true;
     end
     
   case 'FinalAlignment'
     geometry = subTomoMeta.(cycleRead).Avg_geometry;
-    if ~(flgClassify)
+    if ~(emc.classification)
       doNotTrim = true;
     end
     
@@ -440,23 +407,23 @@ end
 
 if isfield(masterTM,('tomoCPR_run_in_cycle'))
   
-  if (flgShiftEucentric && ~isfield(masterTM.(sprintf('%s',cycleRead)), 'eucentric_shifts'))
+  if (emc.eucentric_fit && ~isfield(masterTM.(sprintf('%s',cycleRead)), 'eucentric_shifts'))
     cycle_to_update = masterTM.('tomoCPR_run_in_cycle')(find(masterTM.('tomoCPR_run_in_cycle')(:,1) == masterTM.currentTomoCPR),2);
     if (cycle_to_update == cycleRead)
       error('You specified eucentric_fit=1, and you are averaging cycle %d and no shifts are found from cycle %d\n',cycleNumber,cycleRead);
     else
-      flgShiftEucentric = false;
+      emc.eucentric_fit = false;
     end
   end
 else
-  flgShiftEucentric = false;
+  emc.eucentric_fit = false;
 end
 % Get the number of tomograms to process.
 tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);
 
 
-if (flgClassify)
+if (emc.classification)
   
   [ ~, maskSize, maskRadius, maskCenter ] = ...
     BH_multi_maskCheck(emc, 'Ali', pixelSize);
@@ -736,16 +703,16 @@ if (emc.flgQualityWeight)
   end
   
   
-  if (cccCutOff > 1.0)
+  if (emc.flgCCCcutoff > 1.0)
     sorted_ccc = sort(cccVect);
     reqVol = int32(round(cccCutOff))
     length(sorted_ccc) - reqVol
-    cccCutOff = sorted_ccc(length(sorted_ccc) - reqVol);
+    emc.flgCCCcutoff = sorted_ccc(length(sorted_ccc) - reqVol);
     fprintf('Removing all volumes with score < %2.2f to return the requested %d volumes\n\n',cccCutOff,reqVol);
-  elseif (cccCutOff > 0.0)
+  elseif (emc.flgCCCcutoff > 0.0)
     sorted_ccc = sort(cccVect);
     reqVol = cccCutoff;
-    cccCutOff = sorted_ccc(floor(length(cccVect).*(1 - reqVol)));
+    emc.flgCCCcutoff = sorted_ccc(floor(length(cccVect).*(1 - reqVol)));
     fprintf('Removing all volumes with score < %2.2f to return the requested percent %2.2f of possible volumes\n\n',cccCutOff,reqVol);
   end
   
@@ -839,7 +806,7 @@ parfor iParProc = parVect
   nTomos = 1;
   for iTomo = iterList{iParProc}
     
-    if (flgShiftEucentric)
+    if (emc.eucentric_fit)
       try
         geometry_tmp.(tomoList{iTomo})(:,13) = geometry_tmp.(tomoList{iTomo})(:,13) + ...
           masterTM.(sprintf('%s',cycleRead)).('eucentric_shifts').(tomoList{iTomo}) ;
@@ -900,8 +867,10 @@ parfor iParProc = parVect
     if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
       volumeData = [];
     else
-      
-      [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+
+      reconScaling = 1;
+      [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( ...
+        tomoList{iTomo}, ...
         reconCoords, mapBackIter, ...
         samplingRate,iGPUidx,reconScaling,loadTomo);
       
@@ -1117,7 +1086,7 @@ parfor iParProc = parVect
                 
                 particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
                 positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
-                if (projectVolumes)
+                if (emc.projectVolumes)
                   SAVE_IMG(sum(iParticle,3),particleOUT_name,pixelSize);
                 else
                   particleOUT = BH_padZeros3d(gather(iParticle), CUTPADDING.*[1,1,1], ...
@@ -1411,44 +1380,19 @@ masterTM.(cycleNumber).(sprintf('newIgnored_Avg%s',fieldPrefix)) = ...
 
 % get the total class average by combining eve/odd
 classStorage = cell(maxClasses,2);
-if (doNotTrim) && (flgClassify)
+if (doNotTrim) && (emc.classification)
   filteredClass= cell(maxClasses,2);
   % low-pass to see class averages more clearly.
   % %   [ bandpassFilt ] = BH_bandpass3d( sizeMask, 0.2, 300, 30, 'GPU',pixelSize);
 end
 
-
-
-% % % if (doNotTrim) && (flgClassify)
-% % %   % reduce z dimension to area focused on in classification
-% % %   % taken from PCA mask values.
-% % %   zCenter = (sizeMask(3)+1)./2 + pcaMaskCenter(3);
-% % %   zLow = floor(zCenter - pcaMaskRadius(3));
-% % %   zTop = zLow + 2.* pcaMaskRadius(3);
-% % %   if zLow < 1
-% % %     fprintf('setting Z-low from %d to 1\n', zLow);
-% % %     zLow = 1;
-% % %   end
-% % %   if zTop > sizeMask(3) %%%size(filteredClass{iClassPos,iGold},3)
-% % %     fprintf('setting Z-top from %d to sizeFiltAvg,3\n', zTop);
-% % %     zTop = sizeMask(3); %%%size(filteredClass{iClassPos,iGold},3);
-% % %   end
-% % %   zLow = zLow;
-% % %   zTop = zTop ; % note not 2nd indx, just adding a shift
-% % %   sizeFilteredClass = [sizeMask(1),sizeMask(2),( zTop - zLow +1)]
-% % % end
-
 for iClass = 1:maxClasses
   classStorage{iClass,1} = zeros(sizeMask, 'single');
   classStorage{iClass,2} = zeros(sizeMask, 'single');
-  % % %   if (doNotTrim) && (flgClassify)
-  % % %     filteredClass{iClass,1} = zeros(sizeFilteredClass, 'single');
-  % % %     filteredClass{iClass,2} = zeros(sizeFilteredClass, 'single');
-  % % %   end
 end
 
 if (eachTomo)
-  [o,c] = system('mkdir -p initialTomoAvgs');
+  system('mkdir -p initialTomoAvgs');
   % sizeWeight mask is sizeMask or 128^3 whichever is larger
   %   bandpassFiltTomo = BH_bandpass3d( sizeCalc, lpTomo(1), lpTomo(2), lpTomo(3), 'GPU',pixelSize);
   
@@ -1478,13 +1422,9 @@ end
 
 for iClassPos = 1:maxClasses
   
-  
-  
-  if (doNotTrim) && (flgClassify)
+  if (doNotTrim) && (emc.classification)
     % % % % % % %       m = BH_mask3d('sphere',sizeMask,floor(sizeMask./2-6),pcaMaskCenter);
     [ m ]  = EMC_maskShape('sphere', sizeMask,floor(sizeMask./2-6), 'gpu', {'shift', pcaMaskCenter});
-    
-    
   else
     m = 1;
   end
@@ -1495,47 +1435,22 @@ for iClassPos = 1:maxClasses
     
     avgVolume{iClassPos,iGold} = avgVolume{iClassPos,iGold} ./ ...
       sum(nExtracted(iClassPos,iGold));
-    
-    
   end
   
   fprintf('flgGold = %d\n',flgGold);
   for iGold = 1:2-flgFinalAvg
-    
-    % % %       if( flgGold )
     if iGold == 1
       halfSet = 'ODD';
     else
       halfSet = 'EVE';
-    end
-    % % %       else
-    % % %         halfSet = 'STD';
-    % % %       end
-    
+    end   
     
     classStorage{iClassPos,iGold} = gather(avgVolume{iClassPos,iGold} );
     
-    
-    
-    if isnan( mean(classStorage{iClassPos,iGold}(:)) )
+    if ~isfinite( mean(classStorage{iClassPos,iGold}(:)) )
       clear classAVG
       fprintf('zeroing out classavg because of NaN values detected.\n')
     else
-      % % %         if (doNotTrim) && (flgClassify)
-      % % %           % lowpass according to Kms bandpass
-      % % %           bandpassFilt = BH_bandpass3d( sizeMask, 0.1,300,30, 'GPU',pixelSize);
-      % % %
-      % % %           tmpFilt = BH_bandLimitCenterNormalize( ...
-      % % %                                              classStorage{iClassPos,iGold}.* ...
-      % % %                                              m, bandpassFilt, (m>0.95), ...
-      % % %                                              [0,0,0;0,0,0],'single');
-      % % %           tmpFilt = m.*real(ifftn(tmpFilt));
-      % % %           tmpFilt = tmpFilt(:,:,zLow:zTop  );
-      % % %           tmpFilt = tmpFilt - mean(tmpFilt(:));
-      % % %           tmpFilt = tmpFilt ./ rms(tmpFilt(:));
-      % % %
-      % % %           filteredClass{iClassPos,iGold} = gather(tmpFilt);
-      % % %         end
       
       % Normalize the regular averages
       classStorage{iClassPos,iGold} = classStorage{iClassPos,iGold} - ...
@@ -1552,21 +1467,16 @@ for iClassPos = 1:maxClasses
       end
     end
     
-    
-    
-    
   end
   
 end
-
-
 
 
 % Using the filtered class average, calc real space CCC to reorder the even
 % class to [most likely] match the corresponding odd class.
 classListOut = 0;
 % % % if (flgGold) && strcmpi(STAGEofALIGNMENT, 'Cluster')
-if  strcmpi(STAGEofALIGNMENT, 'Cluster') && (flgClassify ~= -1)
+if  strcmpi(STAGEofALIGNMENT, 'Cluster') && (emc.classification ~= -1)
   % % %   [classListOut, geometry] = reorder_classes(filteredClass(:,1),filteredClass(:,2),maxClasses, geometry);
   
   % % %   filteredClass(:,2) = filteredClass(classListOut(:,2), 2);
@@ -1590,8 +1500,8 @@ end
 % multi-reference alignment.
 if strcmpi(STAGEofALIGNMENT, 'Cluster')
   masterTM.(cycleNumber).(ClusterGeomNAME) = geometry;
-elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && flgMultiRefAlignment
-  if (flgClassify)
+elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment') && emc.multi_reference_alignment
+  if (emc.classification)
     masterTM.(cycleNumber).('ClusterClsGeom') = geometry;
   else
     masterTM.(cycleNumber).('ClusterRefGeom') = geometry;
@@ -1644,7 +1554,7 @@ for iGold = 1:2-flgFinalAvg
   end
   SAVE_IMG(montOUT, imout);
   %%%%%%%%
-  % % %       if (doNotTrim) && (flgClassify)
+  % % %       if (doNotTrim) && (emc.classification)
   % % %         [montOUT, ~] = BH_montage4d(filteredClass(:,iGold), '');
   % % %         imout = sprintf('%s_filtered%d_%s_%s.mrc',outputPrefix, ...
   % % %                                          className, fieldPrefix, halfSet);
@@ -1761,7 +1671,7 @@ if ~( flgEstSNR )
   
   % This is slow ass when using cones and class averages and wouldn't be too
   % hard to put into parallel. Do that once the next manuscript is finished.
-  if (~flgMultiRefAlignment && ~flgClassify )
+  if (~emc.multi_reference_alignment && ~emc.classification )
     nClassesReWgt = 1;
   else
     nClassesReWgt = maxClasses;
@@ -1783,7 +1693,7 @@ if ~( flgEstSNR )
       iRefPrev = iRef;
     end
     
-    if (flgGold) || (flgClassify < 0)
+    if (flgGold) || (emc.classification < 0)
       flgCombine = 0;
       flgRefCutOff = 1;
     else
@@ -1839,7 +1749,7 @@ if ~( flgEstSNR )
     
     if ~(flgFinalAvg)
       refIMG{1}{iOdd} = refTMP{1,1};
-      if (flgGold) || (flgClassify < 0)
+      if (flgGold) || (emc.classification < 0)
         refIMG{2}{iEve} = refTMP{1,2};
       end
       clear refTMP
@@ -1849,7 +1759,7 @@ if ~( flgEstSNR )
   
   
   for iGold = 1:2-flgFinalAvg
-    if( flgGold ) || (flgClassify < 0)
+    if( flgGold ) || (emc.classification < 0)
       if iGold == 1
         halfSet = 'ODD';
       else

@@ -502,9 +502,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   % The model is scaled to full sampling prior to passing to tiltalign,
   % make sure the header in the synthetic stack is set appropriately.
   fullPixelSize = emc.('PIXEL_SIZE').*10^10;
-  if emc.('SuperResolution')
-    fullPixelSize = fullPixelSize * 2;
-  end
   pixelSize = fullPixelSize.*samplingRate;
   
   try
