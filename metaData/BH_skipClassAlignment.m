@@ -38,79 +38,34 @@ end
 
 load(sprintf('%s.mat', pBH.('subTomoMeta')), 'subTomoMeta');
 outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
-%className    = pBH.('Cls_className');
-%refName = pBH.('Ref_className');
 
-if strcmpi(STAGEofALIGNMENT, 'ClassAlignment')
+
+if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
  
   if (flgMultiRefAlignment && ~flgClassify)
-    subTomoMeta.(cycleNumber).('ClassAlignment') = ...
+    subTomoMeta.(cycleNumber).('RawAlign') = ...
                                 subTomoMeta.(cycleNumber).('Avg_geometry');
 
-	
-
   elseif (flgMultiRefAlignment && flgClassify)
-     subTomoMeta.(cycleNumber).('ClassAlignment') = ...
+     subTomoMeta.(cycleNumber).('RawAlign') = ...
                                 subTomoMeta.(cycleNumber).('ClusterClsGeom');
-
   else
 
     try 
-     subTomoMeta.(cycleNumber).('ClassAlignment') = ...
+     subTomoMeta.(cycleNumber).('RawAlign') = ...
                                 subTomoMeta.(cycleNumber).('ClusterClsGeom');
     catch
-     subTomoMeta.(cycleNumber).('ClassAlignment') = ...
+     subTomoMeta.(cycleNumber).('RawAlign') = ...
                                 subTomoMeta.(cycleNumber).('ClusterRefGeom');
     end
 
- %   if (flgGold)
- %     features1     = pBH.('Pca_coeffs_odd');
- %     features2     = pBH.('Pca_coeffs_eve');
- %     GEOM1 = sprintf('%s_%d_%d_nClass_%d_ODD',outputPrefix,features1(1,1), ...
- %                                             features1(1,end), className);
- %     GEOM2 = sprintf('%s_%d_%d_nClass_%d_EVE',outputPrefix,features2(1,1), ...
- %                                             features2(1,end), className);  
- %                                           
- %     % if class averages weren't extracted, just references, check and use these
- %    % instead. build in tool "isfield" doesn't work for dynamic names, so use
- %     % eval, which will work if the field exists, otherwise throw an error.
- %     
- %    try
- %    %checkClassAvg = isfield(subTomoMeta, sprintf( '(%s).(%s).(%s)', cycleNumber, 'ClusterResults',GEOM1));
- %     eval(sprintf( 'subTomoMeta.(''%s'').(''%s'').(''%s'')', cycleNumber, 'ClusterResults',GEOM1));
- %    catch
- % 
- %    GEOM1 = sprintf('%s_%d_%d_nClass_%d_ODD',outputPrefix,features1(1,1), ...
- %                                             features1(1,end), refName);
- %     GEOM2 = sprintf('%s_%d_%d_nClass_%d_EVE',outputPrefix,features2(1,1), ...
- %                                            features2(1,end), refName); %%
-%
-%     end
-%    
-%  
-%  
-%    [ GEOM_OUT ] = BH_mergeClassGeometry( subTomoMeta.(cycleNumber).('ClusterResults').(GEOM1), ...
-%                                          subTomoMeta.(cycleNumber).('ClusterResults').(GEOM2));%
-%
-%    else
-%      features1     = pBH.('Pca_coeffs_odd');
-%      GEOM1 = sprintf('%s_%d_%d_nClass_%d_STD',outputPrefix,features1(1,1), ...
-%                                              features1(1,end), className)
-%      GEOM_OUT = subTomoMeta.(cycleNumber).('ClusterResults').(GEOM1);
-%   end
-% 
-%    subTomoMeta.(cycleNumber).('ClassAlignment') = GEOM_OUT;
   end
-elseif strcmpi(STAGEofALIGNMENT, 'RawAlignment')
-  subTomoMeta.(cycleNumber).('RawAlign') = ...
-                                subTomoMeta.(cycleNumber).('ClassAlignment');
 else
-  error(['STAGEofALIGNMENT to skip may be RawAlignment or ClassAlignment,'],...
+  error(['STAGEofALIGNMENT to skip may be RawAlignment'],...
         ['the former requires the latter to exist.\n']);
 end
 
 save(pBH.('subTomoMeta'), 'subTomoMeta');   
-
 
 
 end

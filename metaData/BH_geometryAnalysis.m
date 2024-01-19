@@ -90,10 +90,6 @@ switch STAGEofALIGNMENT
     fieldPrefix = 'Raw'
   case 'RawAlignment'
     fieldPrefix = 'Raw';
-  case 'ClassAlignment'
-    fieldPrefix = 'Cls';
-  case 'NoAlignment'
-    fieldPrefix = 'NoA';
   case 'Cluster_cls'
     fieldPrefix = 'Cls';
     STAGEofALIGNMENT = 'Cluster';
@@ -120,26 +116,6 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
     case 'TiltAlignment'
      geometry = subTomoMeta.tiltGeometry;
      subTomoMeta.(cycleNumber).(sprintf('Pre_%s_tiltGeometry', OPERATION)) = geometry;
-    case 'ClassAlignment'
-      if (undoOP)
-        subTomoMeta.(cycleNumber).ClassAlignment = ...
-        subTomoMeta.(cycleNumber).(sprintf('Pre_%s_ClassAlignment', OPERATION));
-        save(pBH.('subTomoMeta'), 'subTomoMeta');
-        error('No Error, just exiting.\n')
-      else
-        geometry = subTomoMeta.(cycleNumber).ClassAlignment;
-        subTomoMeta.(cycleNumber).(sprintf('Pre_%s_ClassAlignment', OPERATION)) = geometry;
-      end
-    case 'NoAlignment'
-      if (undoOP)
-        subTomoMeta.(cycleNumber).geometry = ...
-        subTomoMeta.(cycleNumber).(sprintf('Pre_%s_geometry', OPERATION));
-        save(pBH.('subTomoMeta'), 'subTomoMeta');
-        error('No Error, just exiting.\n')
-      else
-        geometry = subTomoMeta.(cycleNumber).geometry;
-        subTomoMeta.(cycleNumber).(sprintf('Pre_%s_geometry', OPERATION)) = geometry;
-      end
     case 'RawAlignment'
       if (undoOP)
         subTomoMeta.(cycleNumber).RawAlign = ...
@@ -180,7 +156,7 @@ outputPrefix = sprintf('%s_%s', cycleNumber, pBH.('subTomoMeta'));
         error('No Error, just exiting.\n')
       else     
 
-        if strcmpi(fieldPrefix, 'cls')
+        if strcmpi(fieldPrefix, 'Cls')
          geometry = subTomoMeta.(cycleNumber).('ClusterClsGeom');
          clusterGeom = 'ClusterClsGeom';
         elseif strcmpi(fieldPrefix, 'ref')
@@ -557,15 +533,10 @@ switch STAGEofALIGNMENT
   
   case 'TiltAlignment'
     masterTM.tiltGeometry = geometry;
-  case 'ClassAlignment'
-    masterTM.(cycleNumber).ClassAlignment = geometry;   
-  case 'NoAlignment'
-    masterTM.(cycleNumber).geometry = geometry;
+  
   case 'RawAlignment'
     masterTM.(cycleNumber).RawAlign = geometry;
   case 'Cluster'
-   % cN = sprintf('%s_%d_%d_nClass_%d_%s',outputPrefix,classCoeffs{halfNUM(1)}(1,1), ...
-                 %                 classCoeffs{halfNUM(1)}(1,end), className, halfSet)
 
     masterTM.(cycleNumber).(clusterGeom) = geometry;
 

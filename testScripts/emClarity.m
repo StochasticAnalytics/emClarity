@@ -283,7 +283,6 @@ switch varargin{1}
       fprintf(['\nUsage: emClarity skip param.m iter\n']);
     else
       emC_testParse(varargin{2})    
-      BH_skipClassAlignment(varargin{2},varargin{3},'ClassAlignment','1');
       BH_skipClassAlignment(varargin{2},varargin{3},'RawAlignment','1');
     end
   case 'rescale'

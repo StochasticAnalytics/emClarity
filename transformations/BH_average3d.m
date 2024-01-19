@@ -319,17 +319,7 @@ switch STAGEofALIGNMENT
        classVector{2} = [0;1];
      end
        
-    
-    
-  case 'ClassAlignment'
-    fieldPrefix = 'Cls';
-
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    classVector{2}  = pBH.(sprintf('%s_classes_eve',fieldPrefix));
-
-    samplingRate = pBH.(sprintf('Cls_samplingRate'));
-    classVector{1}  = pBH.(sprintf('%s_classes_odd',fieldPrefix));
-    className    = pBH.(sprintf('%s_className',fieldPrefix));
+  
     
   case 'FinalAlignment'
     % Special case for the final cycle.
@@ -533,8 +523,6 @@ end
   eachTomo  = false;
   flgEstSNR = 0;
   switch STAGEofALIGNMENT
-    case 'ClassAlignment'
-      geometry = subTomoMeta.(cycleRead).ClassAlignment;
     case 'RawAlignment' 
       if ( CYCLE )
         geometry = subTomoMeta.(cycleRead).RawAlign;

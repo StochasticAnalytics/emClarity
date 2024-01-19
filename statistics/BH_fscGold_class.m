@@ -188,7 +188,6 @@ else
 
       nReferences = length(classVector(1,:))
       
-% % % % 
       imageName{1} =  sprintf('class_%d_Locations_%s_ODD_NoWgt', className,fieldPrefix);
       imageName{2} =  sprintf('class_%d_Locations_%s_EVE_NoWgt', className,fieldPrefix);
       weightName{1} = sprintf('class_%d_Locations_%s_ODD_Wgt', className,fieldPrefix);
@@ -197,12 +196,8 @@ else
 
       refVector{1} =1;
       refVector{2}= 1;
-% % % %       nReferences = 1;
       outputPrefix = sprintf('%s_Raw', outputPrefix);
 
-     
-    case 'ClassAlignment'
-      error('Fsc calculation for class averages is not implemented.')
     case 'NoAlignment'
       savePrefix = 'Raw';
       if (flgClassify)
