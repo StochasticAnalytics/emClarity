@@ -75,6 +75,11 @@ samplingRate = 1; % Always working at full binning. emc.('Ali_samplingRate');
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 resForFitting = 1.3*mean(subTomoMeta.currentResForDefocusError);
 
+% % Add error check onrange for reasonable values.
+% ctfRange = emc.('tomoCprDefocusRange')*10^10;
+% ctfInc = emc.('tomoCprDefocusStep')*10^10;
+
+% calcCTF = emc.('tomoCprDefocusRefine');
 
 nGPUs = emc.('nGPUs');
 pInfo = parcluster();

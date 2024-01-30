@@ -61,7 +61,7 @@ for iTomo = 1:nTomograms
     if ~isempty(newAlignment)
       
  for iPeak = 1:nPeaks   
-    includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999)
+    includeList = find(positionList(:,26 + 26*(iPeak-1)) ~= -9999);
    
     for iParticle = includeList'
      % assuming all classes are sequential, only discarded between cycles.

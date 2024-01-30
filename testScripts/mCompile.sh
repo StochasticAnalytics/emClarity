@@ -43,9 +43,9 @@ outName="$(basename ${mFile} .m)${post}"
 # For naming. If you are compiling your own version, use something descriptive in teh
 # bugs line. e.g. buggs=5testingFeature
 major=1
-minor=7
+minor=8
 bugs=0
-nightly=15
+nightly=0
 
 binaryOutName="${major}_${minor}_${bugs}_${nightly}"
 scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"

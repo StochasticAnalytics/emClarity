@@ -288,7 +288,9 @@ else
   emc.Pca_randSubset = 0;
 end
 
-clusterVector= emc.('Pca_clusters');
+if ~isfield(emc, 'Pca_clusters');
+  error('Pca_clusters is a required parameter');
+end
 
 % Allowed values are validated inside BH_clusterPub.m
 if ~isfield(emc, 'Pca_distMeasure');
@@ -297,6 +299,7 @@ end
 
 if isfield(emc, 'Pca_nReplicates');
   EMC_assert_numeric(emc.Pca_nReplicates, 1, [100, 1000]);
+else
   emc.n_replicates = 256;
 end
 
@@ -352,6 +355,175 @@ if isfield(emc, 'use_new_grid_search')
 else
   emc.use_new_grid_search = true;
 end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%% tomoCPR params, mostly experimental
+
+emc = EMC_assert_deprecated_substitution(emc, false, 'save_mapback_classes', 'flgColorMap');
+EMC_assert_boolean(emc.save_mapback_classes);
+
+
+% These seemed to be necessary at some point to translate between IMOD and emClarity 
+% coordinate systems, but the should probably be looked at again. TODO:
+if isfield(emc, 'flgPreShift')
+  EMC_assert_numeric(emc.flgPreShift, 3);
+else
+  emc.flgPreShift = [-0.5,-0.5,0.5];
+end
+
+
+% These seemed to be necessary at some point to translate between IMOD and emClarity 
+% coordinate systems, but the should probably be looked at again. TODO:
+if isfield(emc, 'flgPostShift')
+  EMC_assert_numeric(emc.flgPostShift, 2);
+else
+  emc.flgPostShift = [-0.5,-0.5];
+end
+
+if isfield(emc, 'prjVectorShift')
+  EMC_assert_numeric(emc.prjVectorShift, 3);
+else
+  emc.prjVectorShift = [0.5,0.5,1.0]';
+end
+
+if isfield(emc,'pixelShift')
+  EMC_assert_numeric(emc.pixelShift, 1);
+else
+  emc.pixelShift = -1;
+end
+
+if isfield(emc, 'pixelMultiplier')
+  EMC_assert_numeric(emc.pixelMultiplier, 1);
+else
+  emc.pixelMultiplier = 1;
+end
+
+if isfield(emc, 'tomoCPR_random_subset')
+  EMC_assert_numeric(emc.tomoCPR_random_subset, 1);
+else
+  emc.tomoCPR_random_subset = -1;
+end
+
+% I think this has been removed
+if isfield(emc, 'probabilityPeakiness')
+  EMC_assert_numeric(emc.probabilityPeakiness, 1);
+else
+  emc.probabilityPeakiness = 0;
+end
+
+if isfield(emc, 'whitenProjections')
+  EMC_assert_numeric(emc.whitenProjections, 1);
+else
+  emc.whitenProjections = 0;
+end
+
+if isfield(emc, 'rot_option_global')
+  EMC_assert_numeric(emc.rot_option_global, 1);
+else
+  emc.rot_option_global = 1;
+end
+
+
+if isfield(emc, 'rot_option_local')
+  EMC_assert_numeric(emc.rot_option_local, 1);
+else
+  emc.rot_option_local = 1;
+end
+
+if isfield(emc, 'rot_default_grouping_global')
+  EMC_assert_numeric(emc.rot_default_grouping_global, 1);
+else
+  emc.rot_default_grouping_global = 3;
+end
+
+if isfield(emc, 'rot_default_grouping_local')
+  EMC_assert_numeric(emc.rot_default_grouping_local, 1);
+else
+  emc.rot_default_grouping_local = 3;
+end
+
+if isfield(emc, 'mag_option_global')
+  EMC_assert_numeric(emc.mag_option_global, 1);
+else
+  emc.mag_option_global = 1;
+end
+
+if isfield(emc, 'mag_option_local')
+  EMC_assert_numeric(emc.mag_option_local, 1);
+else
+  emc.mag_option_local = 1;
+end
+
+if isfield(emc, 'mag_default_grouping_global')
+  EMC_assert_numeric(emc.mag_default_grouping_global, 1);
+else
+  emc.mag_default_grouping_global = 5;
+end
+
+if isfield(emc, 'mag_default_grouping_local')
+  EMC_assert_numeric(emc.mag_default_grouping_local, 1);
+else
+  emc.mag_default_grouping_local = 5;
+end
+
+if isfield(emc, 'tilt_option_global')
+  EMC_assert_numeric(emc.tilt_option_global, 1);
+else
+  emc.tilt_option_global = 5;
+end
+
+if isfield(emc, 'tilt_option_local')
+  EMC_assert_numeric(emc.tilt_option_local, 1);
+else
+  emc.tilt_option_local = 5;
+end
+
+if isfield(emc, 'tilt_default_grouping_global')
+  EMC_assert_numeric(emc.tilt_default_grouping_global, 1);
+else
+  emc.tilt_default_grouping_global = 5;
+end
+
+if isfield(emc, 'tilt_default_grouping_local')
+  EMC_assert_numeric(emc.tilt_default_grouping_local, 1);
+else
+  emc.tilt_default_grouping_local = 5;
+end
+
+
+if isfield(emc, 'peak_mask_fraction')
+  EMC_assert_numeric(emc.flgPeakMask,1);
+else
+  emc.peak_mask_fraction = 0.4;
+end
+
+if isfield(emc, 'min_overlap')
+  EMC_assert_numeric(emc.min_overlap,1);
+else
+  emc.min_overlap = 0.5;
+end
+
+
+if isfield(emc, 'k_factor_scaling')
+  EMC_assert_numeric(emc.k_factor_scaling,1);
+else
+  emc.k_factor_scaling = nan;
+end
+
+if isfield(emc, 'shift_z_to_to_centroid')
+  EMC_assert_boolean(emc.shift_z_to_to_centroid);
+else
+  emc.shift_z_to_to_centroid = true;
+end
+
+emc = EMC_assert_deprecated_substitution(emc, 500e-9, 'tomo_cpr_defocus_range', 'tomoCprDefocusRange');
+EMC_assert_numeric(emc.tomo_cpr_defocus_range, 1, [0.0, 10000e-9]);
+
+emc = EMC_assert_deprecated_substitution(emc, 100e-9, 'tomo_cpr_defocus_step', 'tomoCprDefocusStep');
+EMC_assert_numeric(emc.tomo_cpr_defocus_step, 1, [1.0e-9, 10000e-9]);
+
+emc = EMC_assert_deprecated_substitution(emc, false, 'tomo_cpr_defocus_refine', 'calcCTF');
+EMC_assert_boolean(emc.tomo_cpr_defocus_refine);
 
 
 end

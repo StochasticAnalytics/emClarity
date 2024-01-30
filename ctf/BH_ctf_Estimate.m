@@ -1207,9 +1207,10 @@ else
     std2(bgSubPS(bandpass)) );
   
 end
+
 end
 
-function [ diagnosticIMG ] = make_diagnosticIMG( Hqz, emc.pixel_size_si, bandpass, bg, IMG)
+function [ diagnosticIMG ] = make_diagnosticIMG( Hqz, pixel_size_si, bandpass, bg, IMG)
 
 
 iImg = 1;
@@ -1219,7 +1220,7 @@ paddedSize = size(Hqz,1);
   BH_multi_gridCoordinates(size(Hqz),'Cartesian',...
   'GPU',{'none'},1,0,1);
 
-radialGrid = radialGrid ./ emc.pixel_size_si;
+radialGrid = radialGrid ./ pixel_size_si;
 lowCut = radialGrid(1, find(bandpass , 1,'first'));
 highCut= radialGrid(1, find(bandpass , 1,'last'));
 

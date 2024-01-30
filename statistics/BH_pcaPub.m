@@ -90,7 +90,6 @@ end
 % to instead be used for multiple distinct classes. If the results are promising, then expand so each ref may also be
 % looked at over its own scale space.
 test_multi_ref_diffmap = false;
-test_scale_space_bug_fix = false;
 
 startTime =  datetime("now");
 
@@ -504,14 +503,18 @@ clear volumeMask
 % radius, convert Ang to pix , denom = equiv stdv from normal to include, e.g.
 % for 95% use 1/sig = 1/2
 %stdDev = 1/2 .* (emc.pca_scale_spaces ./ pixelSize - 1)  .* 3.0./log(emc.pca_scale_spaces)
-threeSigma = 1/3 .* (emc.pca_scale_spaces ./ pixelSize)
+threeSigma = 1/3 .* (emc.pca_scale_spaces ./ pixelSize);
 for iScale = 1:emc.n_scale_spaces
   
-  kernelSize = ceil(threeSigma(iScale)) + 3;
+  kernelSize = ceil(threeSigma(iScale).*3) + 3;
   kernelSize = kernelSize + (1-mod(kernelSize,2));
-  masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
+  % masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
+  masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,1,1].*kernelSize, 2*threeSigma(iScale), 'gpu', {});
+
+ 
+  % SAVE_IMG( masks.('scaleMask').(sprintf('s%d',iScale)), ...
+  %   sprintf('%s_scaleMask_s%d.mrc',outputPrefix,iScale),pixelSize);
   
-  masks.('scaleMask').(sprintf('s%d',iScale))
   
 end
 
@@ -540,14 +543,7 @@ for iGold = 1:1+flgGold
       BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize), ...
       masks.('binaryApply').(sprintf('h%d',iGold)).(sprintf('s%d',iScale)),...
       [0,0,0;0,0,0],'single');
-    % This reproduces the orginal behavior, which wrote over averageMotif. This is a bug, but who knows, it may be beneficial, so lets for now make it optional.
-    if (test_scale_space_bug_fix)
-      if (test_multi_ref_diffmap)
-        averageMotif{iGold}{iScale} = tmp_avg;
-      else
-        averageMotif{iGold} = tmp_avg;
-      end
-    end
+
     avgFiltered{iGold, iScale} = real(ifftn(avgMotif_FT{iGold, iScale}));
     
     avgFiltered{iGold, iScale} = avgFiltered{iGold, iScale} - mean(avgFiltered{iGold, iScale}(masks.('binary').(sprintf('h%d',iGold)).(sprintf('s%d',iScale))));
@@ -559,9 +555,8 @@ end
 
 
 montOUT = BH_montage4d(avgFiltered(1,:),'');
-SAVE_IMG(MRCImage(montOUT), sprintf('test_filt.mrc'),pixelSize);
+SAVE_IMG(MRCImage(montOUT), sprintf('%s_filt.mrc', outputPrefix),pixelSize);
 clear montOUT
-
 
 
 % If emc.Pca_randSubset is string with a previous matfile use this, without any

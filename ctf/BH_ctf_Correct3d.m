@@ -71,13 +71,15 @@ filterProjectionsForTomoCPRBackground=0;
 loadSubTomoMeta = true;
 flgWhitenPS = [0,0,0.0];
 if nargin > 2
-  if ~isempty(EMC_str2double(varargin{1}))
+  if isempty(EMC_str2double(varargin{1}))
+    error('Extra argument to ctf 3d should be a vector [THICKNESS, BINNING] tiltN, or a string templateSearch');
+  else
     reconstructionParameters = EMC_str2double(varargin{1});
     recWithoutMat = true;
     if length(varargin) > 2
       % Full recon for tomoCPR
-      bh_global_turn_on_phase_plate = 0;
-      filterProjectionsForTomoCPRBackground = 28;
+      bh_global_turn_on_phase_plate = varargin{3};
+      filterProjectionsForTomoCPRBackground = varargin{4};
     else
       loadSubTomoMeta = false;
       % Default to on for subregion picking

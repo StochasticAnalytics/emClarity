@@ -173,8 +173,8 @@ for iGold = 1:1+flgGold
   end
   % Set here so other algs have access
   sumd = 0;
-  for iCluster = 1:length(clusterVector)
-    nClusters = clusterVector(iCluster);
+  for iCluster = 1:length(emc.Pca_clusters)
+    nClusters = emc.Pca_clusters(iCluster);
     
     
     if strcmpi(kAlgorithm, 'kMeans')

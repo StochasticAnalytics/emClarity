@@ -12,6 +12,8 @@ function [  ] = BH_alignRaw3d_v2(PARAMETER_FILE, CYCLE, varargin)
 %   TODO
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+force_no_symmetry = false;
+
 global bh_global_print_shifts_in_particle_basis;
 if isempty(bh_global_print_shifts_in_particle_basis)
   bh_global_print_shifts_in_particle_basis = true;
@@ -1277,16 +1279,6 @@ parfor iParProc = parVect
                     
                     if alignLoop == 1
                       
-                      % use transpose of RotMat
-                      %                     try
-                      %                     iRotRef = BH_resample3d(ref_FT2_tmp{half_set}{rRef}, RotMat', ...
-                      %                                             rXYZ, {rotConvention ,1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                      %                     catch
-                      %                     cccPreRefineSort(1,1)
-                      %                     end
-                      %                     iRotWdg = BH_resample3d(ref_WGT_rot{half_set}{rRef}, RotMat', ...
-                      %                                 [0,0,0], {rotConvention ,1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);
-                      %
                       
                       [ iRotRef ] = refInterpolator.interp3d(...
                         RotMat',...
@@ -1358,19 +1350,14 @@ parfor iParProc = parVect
               try
                 if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
                   bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
-                  
-                  
                 else
                   bestRotPeak = cccPreRefineSort(1,:);
                   bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
-                  
-                  
                 end
               catch
                 fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
                 cccStorageRefine{iPeak}(iSubTomo,:)
                 cccPreRefineSort(1,:)
-                
               end
               
               finalRef  = bestRotPeak(1,1);
@@ -1397,17 +1384,10 @@ parfor iParProc = parVect
               %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
               %%% the last writing, but now switching to zeros
               try
-                %               iRotRef = BH_resample3d(ref_FT2_tmp{half_set}{finalRef}, RotMat', ...
-                %                                       finalrXYZest, {rotConvention ,1,'linear',1,volBinary_tmp}, 'GPU', 'forward',inputVectors);
-                %               iRotWdg = BH_resample3d(ref_WGT_rot{half_set}{finalRef}, RotMat', ...
-                %                                       [0,0,0], {rotConvention ,1,'linear',1,wdgBinary_tmp}, 'GPU', 'forward',inputWgtVectors);
-                
                 [ iRotRef ] = refInterpolator.interp3d(...
                   RotMat',...
                   finalrXYZest,rotConvention ,...
                   'forward','C1');
-                
-                
                 [ iRotWdg ] = refWdgInterpolator.interp3d(...
                   RotMat',...
                   [0,0,0],rotConvention ,...
@@ -1426,13 +1406,6 @@ parfor iParProc = parVect
               end
               
               
-              
-              %                     iRotRef = ...
-              %                               iRotRef(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-              %                                       padWindow(1,2) + 1:end - padWindow(2,2) , ...
-              %                                       padWindow(1,3) + 1:end - padWindow(2,3) );
-              
-              
               iRotRef = BH_bandLimitCenterNormalize(...
                 iRotRef,...
                 bandpassFiltREF_tmp{finalRef} ,'',...
@@ -1447,13 +1420,6 @@ parfor iParProc = parVect
                 rotPart_FT.*ifftshift(iRotWdg), ...
                 conj(iRotRef).*iMaxWedgeIfft,...
                 iRotMask, peakCOM);
-              
-              
-              
-              
-              % % %           end
-              
-              
               
               
               % Subtract shiftVAL since this is due to windowing, not the actual

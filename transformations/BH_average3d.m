@@ -1455,8 +1455,6 @@ end
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   BH_fscGold_class(PARAMETER_FILE, num2str(CYCLE), STAGEofALIGNMENT);
-else
-  error('This block should not be reached');
 end
 
 
@@ -1540,10 +1538,16 @@ if ~( flgEstSNR )
       flgRefCutOff = 0;
     end
     
-    fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRefPrev));
-    aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
-    mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
-    
+    try
+      fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRefPrev));
+      aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
+      mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
+    catch
+      fprintf('\nReverting from %s to REf in loading fitFSC\n',savePrefix);
+      fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d','Ref',iRefPrev));
+      aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev));
+      mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d','Ref',iRefPrev));
+    end
     iOdd = iRef;
     iEve = iRef;
     

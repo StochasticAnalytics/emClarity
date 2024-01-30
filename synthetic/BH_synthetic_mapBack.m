@@ -20,44 +20,6 @@ COLOR_MAP= '0';
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
-try
-  flgColorMap = emc.('flgColorMap');
-catch
-  flgColorMap = 0;
-end
-
-try
-  preShift = emc.('preShift');
-catch
-  preShift = [-0.5,-0.5,0.5];
-end
-
-try
-  postShift = emc.('postShift');
-catch
-  postShift = [-0.5,-0.5];
-end
-
-try
-  prjVectorShift = emc.('prjVectorShift')';
-catch
-  prjVectorShift = [0.5,0.5,1.0]';
-end
-
-try
-  pixelShift = emc.('pixelShift');
-catch
-  pixelShift = -1;
-end
-
-try
-  pixelMultiplier = emc.('pixelMultiplier');
-catch
-  pixelMultiplier = 1;
-end
-
-
-
 CYCLE = EMC_str2double(CYCLE);
 cycle_numerator = '';
 cycle_denominator ='';
@@ -92,11 +54,7 @@ samplingRate = emc.('Ali_samplingRate');
 MOL_MASS = emc.('particleMass');
 molMass = MOL_MASS.*(25/samplingRate);
 
-try
-  tomoCPR_random_subset = emc.('tomoCPR_randomSubset')
-catch
-  tomoCPR_random_subset = -1
-end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%% Parameters I am currently experimenting with as of Jan 2018
 
@@ -112,26 +70,15 @@ catch
   rmsScale = sqrt(MOL_MASS);
 end
 
-try
-  probabilityPeakiness = emc.('probPeakiness');
-catch
-  probabilityPeakiness = 0;
-end
 
 try
-  useAverageDefocus = emc.('useAverageDefocus');
+  nFiducialsPerPatch = emc.('n_fiducials_per_patch');
 catch
-  % While it seems like using the per fiducial defocus max for the
-  % refinement makes sense, have the default be the average of the
-  % projection
-  useAverageDefocus = 0;
+  % TODO how smooth should the solutions really be - should multiple
+  % results be run and compared?
+  nFiducialsPerPatch = ceil(100./sqrt(molMass));
 end
 
-try
-  whitenProjections = emc.('whitenProjections');
-catch
-  whitenProjections = 0;
-end
 
 % Used to calc defocus values using tilt instead of manually. Convention
 % diff.
@@ -140,98 +87,7 @@ flgInvertTiltAngles = 0;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Playing around with the model
 n_surfaces=2;
-try
-  rot_option_global = emc.('rot_option_global');
-catch
-  rot_option_global = 1;
-end
-try
-  rot_option_local = emc.('rot_option_local');
-catch
-  rot_option_local = 1;
-end
-try
-  rot_default_grouping_global = emc.('rot_default_grouping_global');
-catch
-  rot_default_grouping_global = 3;
-end
-try
-  rot_default_grouping_local = emc.('rot_default_grouping_local');
-catch
-  rot_default_grouping_local = 3;
-end
-try
-  mag_option_global = emc.('mag_option_global');
-catch
-  mag_option_global = 1;
-end
-try
-  mag_option_local = emc.('mag_option_local');
-catch
-  mag_option_local = 1;
-end
-try
-  mag_default_grouping_global = emc.('mag_default_grouping_global');
-catch
-  mag_default_grouping_global = 5;
-end
-try
-  mag_default_grouping_local = emc.('mag_default_grouping_local');
-catch
-  mag_default_grouping_local = 5;
-end
-try
-  tilt_option_global = emc.('tilt_option_global');
-catch
-  tilt_option_global = 5;
-end
-try
-  tilt_option_local = emc.('tilt_option_local');
-catch
-  tilt_option_local = 5;
-end
-try
-  tilt_default_grouping_global = emc.('tilt_default_grouping_global');
-catch
-  tilt_default_grouping_global = 5;
-end
-try
-  tilt_default_grouping_local = emc.('tilt_default_grouping_local');
-catch
-  tilt_default_grouping_local = 5;
-end
-try
-  nFiducialsPerPatch = emc.('n_fiducials_per_patch');
-catch
-  % TODO how smooth should the solutions really be - should multiple
-  % results be run and compared?
-  nFiducialsPerPatch = ceil(100./sqrt(molMass));
-end
-try
-  target_patch_size = emc.('target_patch_size');
-catch
-  target_patch_size = 500;
-end
-try
-  peak_mask_fraction = emc.('peak_mask_fraction');
-catch
-  peak_mask_fraction = 0.4;
-end
-try
-  min_overlap = emc.('min_overlap');
-catch
-  min_overlap = 0.5;
-end
-try
-  k_factor_scaling = emc.('k_factor_scaling');
-catch
-  k_factor_scaling = nan;
-end
-try
-  shift_z_to_to_centroid = emc.('shift_z_to_to_centroid');
-catch
-  shift_z_to_to_centroid = true;
-end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -374,7 +230,7 @@ for iGold = 1:2
   end
   
   
-  imgNAME = sprintf('class_%d_Locations_REF_%s', refName, halfSet)
+  imgNAME = sprintf('class_%d_Locations_Ref_%s', refName, halfSet)
   
   iHeader = getHeader(MRCImage(subTomoMeta.(cycleNumber).(imgNAME){1},0));
   sizeWindow = iHeader.nZ.*[1,1,1];
@@ -495,7 +351,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   %PARTICLE_RADIUS = floor(mean(emc.('particleRadius')./pixelSize));
   % TODO, is this too restricted?
-  peakSearchRad = floor(peak_mask_fraction*PARTICLE_RADIUS.*[1,1]);
+  peakSearchRad = floor(emc.peak_mask_fraction*PARTICLE_RADIUS.*[1,1]);
   try
     lowPassCutoff = emc.('tomoCprLowPass');
     fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.',...
@@ -630,7 +486,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     avgColor = zeros(reconstructionSize, 'int16');
   end
   
-  if (flgColorMap)
+  if (emc.save_mapback_classes)
     avgColor = zeros(reconstructionSize, 'int16');
   end
   
@@ -663,8 +519,11 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   backgroundName = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec',CWD,tiltNameList{iTiltSeries},1, samplingRate);
-  %   emClarity('internal','ctf','3d',PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries},'dummy');
-  BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries},'dummy');
+
+  % TODO: investigate deviations from the default, which is to shut off the phakePhasePlate and to use a backgroundLowPassResolution of 28
+  send_phakePhasePlateOption = [0,0];
+  send_backgroundLowPassResolution = 28;
+  BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution);
   
   % re-initialize the parpool for each tilt series to free up mem.
   delete(gcp('nocreate'))
@@ -699,7 +558,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   
-  if (flgColorMap)
+  if (emc.save_mapback_classes)
     avgColor = zeros(reconstructionSize, 'int16');
   end
   
@@ -815,7 +674,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     
     % TODO need to update this.
-    if (flgColorMap)
+    if (emc.save_mapback_classes)
       colorMap = single(getVolume(MRCImage(COLOR_MAP)));
       % should be the same size as the average
       
@@ -891,7 +750,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         
         % % %       prjVector = prjVector + [0.5,0.0,-0.5];
         %       prjVector = prjVector + [0.0,0.0,1.0];
-        prjVector = prjVector - preShift;
+        prjVector = prjVector - emc.flgPreShift;
         recVector = (originPrj + [0,0,ceil((reconstructionSize(3)+1)/2)] + prjVector); % subTomo origin relative to reconLowerLeft
         
         %Resample a copy of the average to match the position in the tomogram
@@ -920,8 +779,8 @@ for iTiltSeries = tiltStart:nTiltSeries
           
           iAvgResamp = gather(iMaskResamp.*iAvgResamp);
           
-          if (flgColorMap || flgClassAvg)
-            if (flgColorMap)
+          if (emc.save_mapback_classes || flgClassAvg)
+            if (emc.save_mapback_classes)
               iColorMap = gather(int16(iMaskResamp.* BH_resample3d(colorMap, ...
                 rSubTomo',shiftVAL,'Bah',METHOD,'forward')));
             else
@@ -973,7 +832,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           
           
           % Reproject using tilt, so just save the 3d coords.
-          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]'- prjVectorShift([1,3,2]), fidIDX);
+          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2]), fidIDX);
           
           for iPrj = 1:nPrjs
             
@@ -1033,7 +892,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     end
     clear avgTomo
     
-    if (flgColorMap || flgClassAvg)
+    if (emc.save_mapback_classes || flgClassAvg)
       SAVE_IMG(MRCImage(gather(avgColor)),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
       clear avgColor
     end
@@ -1050,7 +909,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     %                        tmpTomoBin,mbOUT{1:3},iSave,mbOUT{1:3},tmpTomoBin,iSave));
     %       end
     tmpTomoBin = 2;
-    if (flgColorMap || flgClassAvg)
+    if (emc.save_mapback_classes || flgClassAvg)
       system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomoColor ',...
         '%smapBack%d/%s.bin%dTomoColor.mrc'], ...
         tmpTomoBin,mbOUT{1:3},mbOUT{1:3},tmpTomoBin));
@@ -1078,7 +937,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     
     
-    % % % %   if (flgColorMap)
+    % % % %   if (emc.save_mapback_classes)
     % % % %     SAVE_IMG(MRCImage(avgColor),sprintf('mapBack/%s_colorMap.mrc',tiltBaseName));
     % % % %     % -90 is assumed for trim vol, so if rotate vol is used add 90
     % % % %     if (rotateVol)
@@ -1365,7 +1224,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   %   Need to shift again from the model coordinate system
-  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(prjVectorShift(1:2)', size(fidList,1),1);
+  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(emc.prjVectorShift(1:2)', size(fidList,1),1);
   foundNans = sum(isnan(fidList(:,3)));
   if (foundNans)
     fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);
@@ -1453,15 +1312,15 @@ for iTiltSeries = tiltStart:nTiltSeries
   nUniqueFids = numel(unique(fidList(:,2))); % I think the max val of this column should also be okay (+1)
   nFidsTotal = nUniqueFids;
   %     nFidsTotal =  sum(fidList(:,5) == 1 );
-  if tomoCPR_random_subset == -1 || tomoCPR_random_subset > nUniqueFids
+  if emc.tomoCPR_random_subset == -1 || emc.tomoCPR_random_subset > nUniqueFids
     fprintf('Using all of the %d available fiducials\n',nUniqueFids);
   else
     fprintf('Using a random subset of %d fiducials from the %d available\n',...
-      tomoCPR_random_subset, nUniqueFids);
+      emc.tomoCPR_random_subset, nUniqueFids);
     
-    keepFids = datasample(0:nUniqueFids-1,tomoCPR_random_subset,'Replace',false);
+    keepFids = datasample(0:nUniqueFids-1,emc.tomoCPR_random_subset,'Replace',false);
     fidList(~ismember(fidList(:,2),keepFids),2) = -9999;
-    nFidsTotal = tomoCPR_random_subset;
+    nFidsTotal = emc.tomoCPR_random_subset;
   end
   
   
@@ -1476,8 +1335,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   %Put back into a natural order
   TLT = sortrows(TLT,1);
   
-  if isnan(k_factor_scaling)
-    k_factor_scaling = 10 / sqrt(nFidsTotal);
+  if isnan(emc.k_factor_scaling)
+    emc.k_factor_scaling = 10 / sqrt(nFidsTotal);
   end
   
   parfor iPrj = 1:nPrjs
@@ -1576,7 +1435,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     sRms = rms(dataRMS(:)-mRms);
     
     % FIXME
-    if (whitenProjections)
+    if (emc.whitenProjections)
       whitenBP = [2*PARTICLE_RADIUS,lowPassCutoff,pixelSize,PARTICLE_RADIUS];
       [dataPrj,NPS] = BH_whitenNoiseSpectrum(dataPrj,'',whitenBP,1);
       % Create a matched filter.
@@ -1684,14 +1543,14 @@ for iTiltSeries = tiltStart:nTiltSeries
         continue
       end
       
-      pixelX = wrkFid(iFid,3) - pixelShift + postShift(1);
-      pixelY = wrkFid(iFid,4) - pixelShift + postShift(2);
+      pixelX = wrkFid(iFid,3) - emc.pixelShift + emc.flgPostShift(1);
+      pixelY = wrkFid(iFid,4) - emc.pixelShift + emc.flgPostShift(2);
       
       ox = floor(pixelX) - tileRadius;
       oy = floor(pixelY) - tileRadius;
       
-      sx = pixelMultiplier*(pixelX - floor(pixelX));
-      sy = pixelMultiplier*(pixelY - floor(pixelY));
+      sx = emc.pixelMultiplier*(pixelX - floor(pixelX));
+      sy = emc.pixelMultiplier*(pixelY - floor(pixelY));
       
       %         ox = floor(wrkFid(iFid,3)) - tileRadius;
       %         oy = floor(wrkFid(iFid,4)) - tileRadius;
@@ -2030,7 +1889,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % % % % %                            mbOUT{1:3},outCTF,targetPatchSize,targetPatchSize,...
   % % % % %                            nFiducialsPerPatch,floor(nFiducialsPerPatch/3));
   
-  if (shift_z_to_to_centroid)
+  if (emc.shift_z_to_to_centroid)
     final_line1 =  'ShiftZFromOriginal';
     final_line2 =  'AxisZShift 0.0';
     final_line3 =  'LocalOutputOptions 1,1,1';
@@ -2095,18 +1954,25 @@ for iTiltSeries = tiltStart:nTiltSeries
     fullPixelSize,fullPixelSize,...
     mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,...
     mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF, ...
-    tilt_script_name,n_surfaces,rot_option_global,...
-    tilt_option_global,tilt_default_grouping_global,...
-    mag_option_global,mag_default_grouping_global,...
-    k_factor_scaling,...
-    rot_option_local,rot_default_grouping_local,...
-    tilt_option_local,tilt_default_grouping_local,...
-    mag_option_local,mag_default_grouping_local, ...
-    mbOutAlt{1:3},outCTF,targetPatchSize,targetPatchSize,...
-    nFiducialsPerPatch,floor(nFiducialsPerPatch/3),...
-    min_overlap,min_overlap,...
+    tilt_script_name,n_surfaces, ...
+    emc.rot_option_global, ...
+    emc.tilt_option_global, ...
+    emc.tilt_default_grouping_global, ...
+    emc.mag_option_global, ...
+    emc.mag_default_grouping_global, ...
+    emc.k_factor_scaling, ...
+    emc.rot_option_local, ...
+    emc.rot_default_grouping_local, ...
+    emc.tilt_option_local, ...
+    emc.tilt_default_grouping_local, ...
+    emc.mag_option_local, ...
+    emc.mag_default_grouping_local, ...
+    mbOutAlt{1:3},outCTF,targetPatchSize, ...
+    targetPatchSize,...
+    nFiducialsPerPatch, ...
+    floor(nFiducialsPerPatch/3),...
+    emc.min_overlap,emc.min_overlap,...
     final_line1,final_line2,final_line3);
-  
   % % % Assume that any backlash was solved well enough that there are no major
   % % % discontinuities in the coarse alignment. Mag and rot are solved/ tilt in
   % % % the global solution anyhow, so this shouldn't be a bit deal.
