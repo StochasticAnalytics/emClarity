@@ -89,7 +89,7 @@ end
 % use the mechanism in place to handle  multiple references at different length scales derived from the global average,
 % to instead be used for multiple distinct classes. If the results are promising, then expand so each ref may also be
 % looked at over its own scale space.
-test_multi_ref_diffmap = false;
+test_multi_ref_diffmap = true;
 
 startTime =  datetime("now");
 
@@ -159,7 +159,7 @@ end
 nCores  = BH_multi_parallelWorkers(emc.('nCpuCores'));
 pInfo = parcluster();
 
-nTempParticles = emc.('PcaGpuPull');
+nParticlesOnGpuBeforeTransfer = emc.('PcaGpuPull');
 
 
 outputPrefix   = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
@@ -229,10 +229,7 @@ catch
   CUTPADDING=20
 end
 
-% %
-% % pathList= subTomoMeta.mapPath;
-% % extList = subTomoMeta.mapExt;
-masterTM = subTomoMeta; clear subTomoMeta
+
 
 [ useGPU ] = BH_multi_checkGPU( -1 );
 gDev = gpuDevice(useGPU);
@@ -277,7 +274,7 @@ if (flgGold)
 else
   iRefPrev = 1;
   
-  aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev))
+  aliParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev))
   oddRot = reshape(aliParams(1,:),3,3)';
   % refine the translation per particle.
 
@@ -336,8 +333,8 @@ for iGold = 1:2
   
   
   [ averageMotif{iGold} ] = BH_unStackMontage4d(1:nReferences(iGold), ...
-    masterTM.(cycleNumber).(imgNAME){1}, ...
-    masterTM.(cycleNumber).(imgNAME){2},...
+    subTomoMeta.(cycleNumber).(imgNAME){1}, ...
+    subTomoMeta.(cycleNumber).(imgNAME){2},...
     preSizeMask);
   
   
@@ -347,7 +344,7 @@ for iGold = 1:2
   end
   if (flgLoadMask) && (iGold == 1)
     fprintf('\n\nLoading external mask\n');
-    externalMask = getVolume(MRCImage(sprintf('%s-pcaMask',masterTM.(cycleNumber).(imgNAME){1})));
+    externalMask = getVolume(MRCImage(sprintf('%s-pcaMask',subTomoMeta.(cycleNumber).(imgNAME){1})));
   end
 end
 
@@ -503,19 +500,21 @@ clear volumeMask
 % radius, convert Ang to pix , denom = equiv stdv from normal to include, e.g.
 % for 95% use 1/sig = 1/2
 %stdDev = 1/2 .* (emc.pca_scale_spaces ./ pixelSize - 1)  .* 3.0./log(emc.pca_scale_spaces)
-threeSigma = 1/3 .* (emc.pca_scale_spaces ./ pixelSize);
-for iScale = 1:emc.n_scale_spaces
-  
-  kernelSize = ceil(threeSigma(iScale).*3) + 3;
-  kernelSize = kernelSize + (1-mod(kernelSize,2));
-  % masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
-  masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,1,1].*kernelSize, 2*threeSigma(iScale), 'gpu', {});
+if ~(test_multi_ref_diffmap)
+  threeSigma = 1/3 .* (emc.pca_scale_spaces ./ pixelSize);
+  for iScale = 1:emc.n_scale_spaces
+    
+    kernelSize = ceil(threeSigma(iScale).*3) + 3;
+    kernelSize = kernelSize + (1-mod(kernelSize,2));
+    % masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,kernelSize],  threeSigma(iScale), 'cpu', {});
+    masks.('scaleMask').(sprintf('s%d',iScale))  = EMC_gaussianKernel([1,1,1].*kernelSize, 2*threeSigma(iScale), 'gpu', {});
 
- 
-  % SAVE_IMG( masks.('scaleMask').(sprintf('s%d',iScale)), ...
-  %   sprintf('%s_scaleMask_s%d.mrc',outputPrefix,iScale),pixelSize);
   
-  
+    % SAVE_IMG( masks.('scaleMask').(sprintf('s%d',iScale)), ...
+    %   sprintf('%s_scaleMask_s%d.mrc',outputPrefix,iScale),pixelSize);
+    
+    
+  end
 end
 
 avgMotif_FT = cell(1+flgGold,emc.n_scale_spaces);
@@ -595,6 +594,7 @@ for iGold = 1:1+flgGold
   end
   
   % Extend the random subset to each peak if needed
+  % FIXME: this should just be in random subset
   if (emc.nPeaks > 1)
     for iTomo = 1:nTomograms
       selectedList = geometry.(tomoList{iTomo})(:,8) > 0;
@@ -611,7 +611,7 @@ for iGold = 1:1+flgGold
   tempDataMatrix = cell(3,1);
   for iScale = 1:emc.n_scale_spaces
     dataMatrix{iScale} = zeros(nPixels(iGold,iScale), nSUBSET, 'single');
-    tempDataMatrix{iScale} = zeros(nPixels(iGold,iScale), nTempParticles, 'single', 'gpuArray');
+    tempDataMatrix{iScale} = zeros(nPixels(iGold,iScale), nParticlesOnGpuBeforeTransfer, 'single', 'gpuArray');
   end
   
   % Pull masks onto GPU (which are cleared along with everything else when
@@ -627,7 +627,9 @@ for iGold = 1:1+flgGold
       gpuArray(masks.('binary').(stHALF).(stSCALE));
     gpuMasks.('binaryApply').(stSCALE)  = ...
       gpuArray(masks.('binaryApply').(stHALF).(stSCALE));
-    gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));
+    if ~(test_multi_ref_diffmap)
+      gpuMasks.('scaleMask').(stSCALE) = gpuArray(masks.('scaleMask').(stSCALE));
+    end
     
     
     gpuMasks.('highPass').(stSCALE) = BH_bandpass3d(sizeMask,1e-6,400,2.2*pixelSize,'GPU',pixelSize);
@@ -653,11 +655,12 @@ for iGold = 1:1+flgGold
     
     
     tomoName = tomoList{iTomo};
+
     iGPU = 1;
-    tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-    tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
+    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+    reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
     
     
     if (emc.flgCutOutVolumes)
@@ -670,9 +673,9 @@ for iGold = 1:1+flgGold
     end
     
     
-    iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
+    iTiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoName).tiltName;
     
-    tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
+    tiltGeometry = subTomoMeta.tiltGeometry.(tomoList{iTomo});
     
     fprintf('Working on %d/%d volumes %s\n',iTomo,nTomograms,tomoName);
     % Load in the geometry for the tomogram, and get number of subTomos.
@@ -778,10 +781,12 @@ for iGold = 1:1+flgGold
             shiftVAL = shiftVAL + aliParams(2,1:3)./samplingRate;
           end
           
+          using_this_subtomo = true;
+          particleIDX = positionList(iSubTomo, 4); % Same for all peaks
           if ~ischar(indVAL)
             % Read in and interpolate at single precision as the local values
             % in the interpolant suffer from any significant round off errors.
-            particleIDX = positionList(iSubTomo, 4); % Same for all peaks
+            
             
             
             if (emc.flgCutOutVolumes)
@@ -834,8 +839,11 @@ for iGold = 1:1+flgGold
             
             
             for iScale = 1:emc.n_scale_spaces
-              
-              iPrt = EMC_convn(iTrimParticle , gpuMasks.('scaleMask').(sprintf('s%d',iScale)));
+              if (test_multi_ref_diffmap)
+                iPrt = iTrimParticle;
+              else
+                iPrt = EMC_convn(iTrimParticle , gpuMasks.('scaleMask').(sprintf('s%d',iScale)));
+              end
               
               iPrt = BH_bandLimitCenterNormalize( ...
                 iPrt .* ...
@@ -844,36 +852,33 @@ for iGold = 1:1+flgGold
                 gpuMasks.('binary').(sprintf('s%d',iScale)),...
                 [0,0,0;0,0,0],'single');
               
-              
-              
-              
-              
               [iWmd,~] = BH_diffMap(avgMotif_FT{iGold, iScale},iPrt,ifftshift(iWedge),...
                 flgNorm,pixelSize,radialMask, padWdg);
               
               
-              
+              % using_this_subtomo is set true for each particle, but if we are not finite for ANY scale space, we want to skip this particle for all
+              % scale spaces.
               if all(isfinite(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale)))))
-                keepTomo = 1;
                 tempDataMatrix{iScale}(:,nTemp) = single(iWmd(gpuMasks.('binary').(sprintf('s%d',iScale))));
               else
-                fprintf('inf or nan in subtomo %d scalePace %d',iSubTomo,iScale);
-                keepTomo = 0;
+                fprintf('inf or nan in subtomo %d scalePace %d',particleIDX, iScale);
+                using_this_subtomo = false;
               end
               
-            end
+            end % loop on scale spaces
             clear iAvg iWmd  iTrimParticle
             
             
             
-            if (keepTomo)
+            if (using_this_subtomo)
               idxList(1, nExtracted) = particleIDX;
+              fprintf("Adding subtomo %d to idxList\n",particleIDX);
               peakList(1,nExtracted) = iPeak+1;
               nExtracted = nExtracted + 1;
               nTemp = nTemp + 1;
               
               % pull data of the gpu every 1000 particls (adjust this to max mem)
-              if nTemp == nTempParticles - 1
+              if nTemp - 1 == nParticlesOnGpuBeforeTransfer
                 for iScale = 1:emc.n_scale_spaces
                   dataMatrix{iScale}(:,1+nTempPrev:nTemp+nTempPrev-1) = ...
                     gather(tempDataMatrix{iScale}(:,1:nTemp-1));
@@ -884,21 +889,27 @@ for iGold = 1:1+flgGold
               end
             else
               nIgnored = nIgnored + 1;
-              fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
-              masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
+              fprintf('Ignoring subtomo %d from %s\n',particleIDX, tomoList{iTomo});
+              eraseIDX = subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(:,4) == particleIDX;
+              subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(eraseIDX, 26+iPeak*26) = -9999;
             end
             
             
           else
             nIgnored = nIgnored + 1;
-            fprintf('Ignoring subtomo %d from %s\n',iSubTomo, tomoList{iTomo});
-            masterTM.(cycleNumber).(geom_name).(tomoList{iTomo})(iSubTomo, 26+iPeak*26) = -9999;
+            fprintf('Ignoring inside subtomo %d from %s\n',particleIDX, tomoList{iTomo});
+            eraseIDX = subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(:,4) == particleIDX;
+            subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(eraseIDX, 26+iPeak*26) = -9999;
             
-          end % end of ignore new particles
+          end % end of update data matrix or if ignoring update metaData
           
         end % end of loop over peaks
-        
-      end % end of ignore if statment
+      else
+        nIgnored = nIgnored + 1;
+        fprintf('Ignoring outside subtomo %d from %s\n',particleIDX, tomoList{iTomo});
+        eraseIDX = subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(:,4) == particleIDX;
+        subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(eraseIDX, 26+iPeak*26) = -9999;
+      end % end of ignore if statment from extracted window out of bounds (ischar(indVAL))
       if ~rem(iSubTomo,100)
         fprintf('\nworking on %d/%d subTomo peak %d/%d from %d/%d Tomo\n', ...
           iSubTomo, nSubTomos,iPeak+1,emc.nPeaks, iTomo,nTomograms);
@@ -919,9 +930,9 @@ for iGold = 1:1+flgGold
   end
   
   
-  masterTM.(cycleNumber).('newIgnored_PCA').(halfSet) = gather(nIgnored);
+  subTomoMeta.(cycleNumber).('newIgnored_PCA').(halfSet) = gather(nIgnored);
   
-  subTomoMeta = masterTM;
+  subTomoMeta = subTomoMeta;
   save(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
   
   for iScale = 1:emc.n_scale_spaces

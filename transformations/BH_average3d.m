@@ -111,6 +111,10 @@ peakMask = [];
 peakBinary = [];
 peakCOM = [];
 peakSearch = [];
+
+% FIXME: It doesn' tmake any sense to average the classes then also average those together.
+% This is a waste of memory as we could just create a single average. I think this must have been
+% a hack override for multi-ref alignment with classification or something.
 saveClassSum = -1;
 
 % The prefix of the variable read in from the parameter file.
@@ -131,15 +135,18 @@ switch STAGEofALIGNMENT
     samplingRate = emc.('Ali_samplingRate');
     
     if (emc.multi_reference_alignment && (test_multi_ref_diffmap || ~emc.classification))
-      className    = emc.(sprintf('Raw_className'))
-      saveClassSum = emc.(sprintf('Raw_className'))
-    elseif (emc.multi_reference_alignment && emc.classification)
-      fprintf('\n\nMutliRef and Classify enabled.\n');
-      fprintf('Only creating the global class average for PCA\n\n.');
-      className = 0;
-      saveClassSum = 0;
-      classVector{1} = [0;1];
-      classVector{2} = [0;1];
+      fprintf('\n\nMutliRef enabled.\n');
+      pause(2);
+      className    = emc.(sprintf('Raw_className'));
+    else
+      if (emc.multi_reference_alignment && emc.classification)
+        fprintf('\n\nMutliRef and Classify enabled.\n');
+        fprintf('Only creating the global class average for PCA\n\n.');
+        className = 0;
+        saveClassSum = 0;
+        classVector{1} = [0;1];
+        classVector{2} = [0;1];
+      end
     end
     
     
@@ -506,12 +513,12 @@ if (emc.flgQualityWeight)
             
           end
           nVol = nVol + 1;
-        end
-      end
+        end % iPeak
+      end % iSubTomo
       
       angVect = [angVect tmpTomo];
       
-    end
+    end % iTomo
     
     
     spike_info.('std_dev') = std(angVect);
@@ -535,7 +542,7 @@ if (emc.flgQualityWeight)
     
     save('spike_hist.mat','angVect','chiVect');
     %       figure,
-  end
+  end % if spike_prior
   
   nVolumes = 0;
   addedWeight = 0;
@@ -720,7 +727,7 @@ parfor iParProc = parVect
       tomoCount = 0;
     end
     
-    sprintf('gpu %d working on %d/%d volumes\n',iParProc,iTomo,nTomograms)
+    fprintf('gpu %d working on %d/%d volumes\n',iParProc,iTomo,nTomograms);
     
     tomoName = tomoList{iTomo};
     
@@ -744,7 +751,6 @@ parfor iParProc = parVect
     
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    fprintf('Loading tomo %d from tilt %s \n',tomoNumber,tiltName);
     reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
     
     if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
@@ -768,8 +774,6 @@ parfor iParProc = parVect
     
     % Work on each class seperately pushing to main memory when finished.
     for iGold = 1:2-flgFinalAvg
-      iGold
-      size(classVector{iGold},2);
       for iClassPos = 1:size(classVector{iGold},2)
         
         
@@ -1192,9 +1196,7 @@ for iParProc = 1:nParProcesses
   nIgnored  = nIgnored  + cntResults{iParProc}(1,2);
   
   for iVol = 1:maxClasses
-    iVol
     for iHalf = 1:2-flgFinalAvg
-      iHalf
       if iParProc == 1
         avgVolume{iVol, iHalf} = avgResults{iParProc}{iVol, iHalf};
         avgWedge{iVol, iHalf} = wgtResults{iParProc}{iVol, iHalf};
@@ -1285,7 +1287,6 @@ for iClassPos = 1:maxClasses
       sum(nExtracted(iClassPos,iGold));
   end
   
-  fprintf('flgGold = %d\n',flgGold);
   for iGold = 1:2-flgFinalAvg
     if iGold == 1
       halfSet = 'ODD';
@@ -1362,15 +1363,11 @@ end
 
 
 for iGold = 1:2-flgFinalAvg
-  %%%      if( flgGold )
   if iGold == 1
     halfSet = 'ODD';
   else
     halfSet = 'EVE';
   end
-  %%%      else
-  %%%        halfSet = 'STD';
-  %%%      end
   imgCounts = gather([classVector{iGold}(1,:) ; nExtracted(:,iGold)']);
   
   
@@ -1478,15 +1475,11 @@ if ~( flgEstSNR )
   %%%%%%%%%%%%%55 Reweight now that the FSC is calculated
   
   for iGold = 1:2
-    %%%    if( flgGold )
     if iGold == 1
       halfSet = 'ODD';
     else
       halfSet = 'EVE';
     end
-    %%%   else
-    %%%      halfSet = 'STD';
-    %%%    end
     imgIN = sprintf('class_%d_Locations_%s_%s_NoWgt', ...
       className, fieldPrefix, halfSet);
     wgtIN = sprintf('class_%d_Locations_%s_%s_Wgt', ...

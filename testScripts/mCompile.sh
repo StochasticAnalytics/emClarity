@@ -45,7 +45,7 @@ outName="$(basename ${mFile} .m)${post}"
 major=1
 minor=8
 bugs=0
-nightly=0
+nightly=1
 
 binaryOutName="${major}_${minor}_${bugs}_${nightly}"
 scriptOutName="${major}_${minor}_${bugs}_${nightly}_v23a"

@@ -212,8 +212,8 @@ emc = EMC_assert_deprecated_substitution(emc, false, 'classification', 'flgClass
 EMC_assert_boolean(emc.classification);
 
 
-emc = EMC_assert_deprecated_substitution(emc, false, 'multi_reference_alignment', 'flgMultiRefAlignment');
-EMC_assert_boolean(emc.multi_reference_alignment);
+emc = EMC_assert_deprecated_substitution(emc, 0, 'multi_reference_alignment', 'flgMultiRefAlignment');
+EMC_assert_numeric(emc.multi_reference_alignment, 1, [0, 2]);
 
 % Zero padding of the volumes before alignment/other FFT ops
 emc = EMC_assert_deprecated_substitution(emc, 1.5, 'scale_calc_size', 'scaleCalcSize');
@@ -232,11 +232,11 @@ if isfield(emc, 'force_no_symmetry')
     error('force_no_symmetry must be after symmetry check');
   end
   % Warning must be after symmetry check
-  if (force_no_symmetry)
+  if (emc.force_no_symmetry)
     emc.symmetry='C1';
   end
 else
-  force_no_symmetry = false;
+  emc.force_no_symmetry = true;
 end
 
 if isfield(emc, 'Pca_constrain_symmetry')

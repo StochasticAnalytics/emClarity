@@ -18,6 +18,8 @@ if (nargin < 3 && nargin > 4)
   error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
 end
 
+% FIXME
+test_multi_ref_diffmap = true;
 
 % Explicit reference to location of variables in main memory, or on the GPU.
 cpuVar = struct();
@@ -109,7 +111,7 @@ else
   
   switch STAGEofALIGNMENT
     case 'RawAlignment'
-      if (emc.classification)
+      if (emc.classification  && ~(test_multi_ref_diffmap ))
         % FIXME: This won't be correct for multi-ref alignment if testing out the multi-ref classifications
         fieldPrefix = 'Ref';
         savePrefix = 'Ref';

@@ -10,6 +10,7 @@ cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
+% Only used in PCA pub right now
 test_multi_ref_diffmap=true;
 
 %%% For general release, I've disabled class average alignment and

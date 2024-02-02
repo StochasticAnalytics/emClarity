@@ -12,7 +12,6 @@ function [  ] = BH_alignRaw3d_v2(PARAMETER_FILE, CYCLE, varargin)
 %   TODO
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-force_no_symmetry = false;
 
 global bh_global_print_shifts_in_particle_basis;
 if isempty(bh_global_print_shifts_in_particle_basis)
@@ -593,9 +592,13 @@ parVect = 1:nParProcesses;
 fprintf('Starting main loopwith N references %d\n', nReferences(1));
 
 % This may be modified in the parfor loop (tho that prob isn't really necessary)
-
+particle_symmetry = emc.symmetry;
+if (emc.force_no_symmetry)
+  particle_symmetry = 'C1';
+end
 parfor iParProc = parVect
   symmetry = emc.symmetry;
+
   bestAngles_tmp = struct();
   geometry_tmp = geometry;
   
@@ -962,7 +965,7 @@ parfor iParProc = parVect
                           [ iTrimParticle ] = particleInterpolator.interp3d(...
                             RotMat,...
                             estPeakCoord,rotConvention ,...
-                            'inv',symmetry);
+                            'inv',particle_symmetry);
                           
                           
                           
@@ -971,12 +974,12 @@ parfor iParProc = parVect
                             [ iTrimInitial ] = particleInterpolator.interp3d(...
                               reshape(angles,3,3),...
                               shiftVAL,rotConvention ,...
-                              'inv',symmetry);
+                              'inv',particle_symmetry);
                             
                             [ iWedgeInitial ] = imgWdgInterpolator.interp3d(...
                               reshape(angles,3,3),...
                               [0,0,0],rotConvention ,...
-                              'inv',symmetry);
+                              'inv',particle_symmetry);
                             
                             
                           end
@@ -985,7 +988,7 @@ parfor iParProc = parVect
                           [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                             RotMat,...
                             [0,0,0],rotConvention ,...
-                            'inv',symmetry);
+                            'inv',particle_symmetry);
                           
                           
                       end
@@ -1250,29 +1253,18 @@ parfor iParProc = parVect
                           padWindow(1,3) + 1:end - padWindow(2,3) );
                         
                       case 2
-                        
-                        if (force_no_symmetry)
-                          symmetry = 'C1';
-                        end
-                        
+  
                         [ iTrimParticle ] = particleInterpolator.interp3d(...
                           RotMat,...
                           rXYZ,rotConvention ,...
-                          'inv',symmetry);
+                          'inv',particle_symmetry);
                         
                         
                         [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                           RotMat,...
                           [0,0,0],rotConvention ,...
-                          'inv',symmetry);
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
+                          'inv',particle_symmetry);
+                               
                     end
                     
                     
