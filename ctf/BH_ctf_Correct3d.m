@@ -78,7 +78,7 @@ if nargin > 2
     recWithoutMat = true;
     if length(varargin) > 2
       % Full recon for tomoCPR
-      bh_global_turn_on_phase_plate = varargin{3};
+      bh_global_turn_on_phase_plate = varargin{3}
       filterProjectionsForTomoCPRBackground = varargin{4};
     else
       loadSubTomoMeta = false;
@@ -93,7 +93,6 @@ elseif nargin > 1
   if strcmpi(varargin{1},'templateSearch')
     recWithoutMat = true;
     loadSubTomoMeta = false;
-    flgWhitenPS = [0,0,1.0];
     if (bh_global_turn_on_phase_plate(1))
       fprintf('WARNING: the filtered tomogram should only be used for viz, not template matching.');
     end

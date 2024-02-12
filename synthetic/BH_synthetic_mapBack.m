@@ -16,7 +16,11 @@ function [ ] = BH_synthetic_mapBack(PARAMETER_FILE, CYCLE, tiltStart)
 buildTomo=1;% % % % % % %
 METHOD = 'GPU';
 flgRunAlignments = true;
-COLOR_MAP= '0';
+
+% Default true, we don't need this after projection
+delete_background_estimate = true;
+
+
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
@@ -262,7 +266,7 @@ is_first_run = true;
 
 mbOUT = {[tmpCache],[mapBackIter+1],'dummy'};
 fprintf('\nmBOUT name is %smapBack%d/%s\n',mbOUT{1:3});
-
+tiltStart=1; 
 for iTiltSeries = tiltStart:nTiltSeries
   if (skip_to_the_end_and_run)
     continue;
@@ -277,7 +281,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     % altogether.
     continue
   end
-  
+
+  skip_this_tilt_series_because_it_is_empty = false(nTomograms,1);
+
   
   
   tiltList = cell(nTomograms,1);
@@ -430,14 +436,14 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   
-  % re-initialize the parpool for each tilt series to free up mem.
-  if ~isempty(gcp('nocreate'))
-    delete(gcp('nocreate'))
-    EMC_parpool(nWorkers);
-  else
-    EMC_parpool(nWorkers);
-  end
-  fprintf('init with %d workers\n',nWorkers);
+  % % re-initialize the parpool for each tilt series to free up mem.
+  % if ~isempty(gcp('nocreate'))
+  %   delete(gcp('nocreate'))
+  %   EMC_parpool(nWorkers);
+  % else
+  %   EMC_parpool(nWorkers);
+  % end
+  % fprintf('init with %d workers\n',nWorkers);
   
   outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
   
@@ -516,10 +522,16 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   backgroundName = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec',CWD,tiltNameList{iTiltSeries},1, samplingRate);
+  send_backgroundLowPassResolution = 28;
 
   % TODO: investigate deviations from the default, which is to shut off the phakePhasePlate and to use a backgroundLowPassResolution of 28
+  % Default false, we don't apply this filter
+  % if enabled, it currently only saves the filtered background estimate for visualization in addition to the normal version
+   if (emc.save_mapback_classes)
+    BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3);
+  end
+
   send_phakePhasePlateOption = [0,0];
-  send_backgroundLowPassResolution = 28;
   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution);
   
   % re-initialize the parpool for each tilt series to free up mem.
@@ -529,7 +541,9 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   avgTomo{1} = getVolume(MRCImage(backgroundName));
   
-  system(sprintf('rm %s',backgroundName));
+  if (delete_background_estimate)
+    system(sprintf('rm %s',backgroundName));
+  end
   
   for iRef = 1:nRefs
     refVol{1}{iRef} = gpuArray(refVol{1}{iRef});
@@ -569,6 +583,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % Track the number of fiducials in order to scale the K-factor to more or less
   % aggressivley downweight outliers in the alignment
   nFidsTotal = 0;
+  fidIDX = 0;
   for iTomo = 1:nTomograms
     
     TLT = tiltGeometry.(tomoList{iTomo});
@@ -668,20 +683,28 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     nPrjs = size(TLT,1)
     nSubTomos = size(positionList,1);
-    
-    
-    % TODO need to update this.
-    if (emc.save_mapback_classes)
-      colorMap = single(getVolume(MRCImage(COLOR_MAP)));
-      % should be the same size as the average
-      
-      if any(size(refVol{1})-size(colorMap))
-        error('Color map and average vol must be the same size.\n');
-      end
-      colorMap = colorMap(avgOrigin(1)-maxRad:avgOrigin(1)+maxRad,...
-        avgOrigin(2)-maxRad:avgOrigin(2)+maxRad,...
-        avgOrigin(3)-maxRad:avgOrigin(3)+maxRad);
+
+    if (nSubTomos == 0)
+      % No points were saved after template matching so skip this tilt series
+      % altogether.
+      skip_this_tilt_series_because_it_is_empty(iTomo) = true;
+      continue;
     end
+
+    
+    
+    % % TODO need to update this.
+    % if (emc.save_mapback_classes)
+    %   colorMap = single(getVolume(MRCImage(COLOR_MAP)));
+    %   % should be the same size as the average
+      
+    %   if any(size(refVol{1})-size(colorMap))
+    %     error('Color map and average vol must be the same size.\n');
+    %   end
+    %   colorMap = colorMap(avgOrigin(1)-maxRad:avgOrigin(1)+maxRad,...
+    %     avgOrigin(2)-maxRad:avgOrigin(2)+maxRad,...
+    %     avgOrigin(3)-maxRad:avgOrigin(3)+maxRad);
+    % end
     
     
     
@@ -711,9 +734,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     
     
-    if (iTomo == 1)
-      fidIDX = 0;
-    end
+
     
     %%%%%%%%%%
     if (buildTomo)
@@ -777,7 +798,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           iAvgResamp = gather(iMaskResamp.*iAvgResamp);
           
           if (emc.save_mapback_classes || flgClassAvg)
-            if (emc.save_mapback_classes)
+            if ~(emc.save_mapback_classes)
               iColorMap = gather(int16(iMaskResamp.* BH_resample3d(colorMap, ...
                 rSubTomo',shiftVAL,'Bah',METHOD,'forward')));
             else
@@ -805,7 +826,6 @@ for iTiltSeries = tiltStart:nTiltSeries
             
           end
           
-          
           try
             avgTomo{1}(indVAL(1,1):indVAL(2,1), ...
               indVAL(1,2):indVAL(2,2), ...
@@ -824,9 +844,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             continue
           end
           
-          
-          
-          
+           
           
           % Reproject using tilt, so just save the 3d coords.
           fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2]), fidIDX);
@@ -870,9 +888,13 @@ for iTiltSeries = tiltStart:nTiltSeries
     end %%%% temp condition to skip building full tomo
     
     
+  end % end of loop over tomograms on this tilt-series
+  
+  % No subtomos remain
+  if all(  skip_this_tilt_series_because_it_is_empty)
+    continue;
   end
-  
-  
+    
   if (buildTomo)
     fclose(coordOUT);
     fclose(coordSTART);
@@ -890,7 +912,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     clear avgTomo
     
     if (emc.save_mapback_classes || flgClassAvg)
-      SAVE_IMG(MRCImage(gather(avgColor)),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),4.0);
+      SAVE_IMG(MRCImage(gather(avgColor)),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),pixelSize);
       clear avgColor
     end
     % If not planning on visualization, save only a binned copy of the synthetic
@@ -905,8 +927,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     %                        '%smapBack%d/%s.bin%dTomo%d.mrc'], ...
     %                        tmpTomoBin,mbOUT{1:3},iSave,mbOUT{1:3},tmpTomoBin,iSave));
     %       end
-    tmpTomoBin = 2;
-    if (emc.save_mapback_classes || flgClassAvg)
+    tmpTomoBin = 1;
+    if (emc.save_mapback_classes || flgClassAvg && tmpTomoBin > 1)
       system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomoColor ',...
         '%smapBack%d/%s.bin%dTomoColor.mrc'], ...
         tmpTomoBin,mbOUT{1:3},mbOUT{1:3},tmpTomoBin));
