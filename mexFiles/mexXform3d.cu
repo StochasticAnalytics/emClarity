@@ -202,7 +202,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     mxClassID output_data_class = {mxUINT64_CLASS};
     mxComplexity output_data_complexity = {mxREAL};
 
-    // Forward and inverse transforms
+    // We want to allocate memory that Matlab knows about so it can be used outside of mex (and recycled within)
+    // Then we point the texture object to it.
+    // FIXME: The textrure object should not be as big as the cudaArray, right?! WHy is this setup like this.
     plhs[1] =  mxCreateNumericArray(ptr_dims,
                                     ptr_size,
                                     output_data_class,
@@ -225,7 +227,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 //    mexMakeArrayPersistent(plhs[2]);
 //  
 
-//    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+  //  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
 
     checkCudaErrors(cudaMalloc3DArray(cuArray,
@@ -247,18 +249,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     resDesc.resType = cudaResourceTypeArray;
     resDesc.res.array.array = *cuArray;
    
-
-//    size_t n_bytes = dims.x*dims.y*dims.z*sizeof(float);
-//    float* buffer;
-//    checkCudaErrors(cudaMalloc(&buffer, n_bytes );
-//    struct cudaResourceDesc resDesc;
-
-//    memset(&resDesc, 0, sizeof(cudaResourceDesc));
-//    resDesc.resType = cudaResourceTypeLinear;
-//    resDesc.res.linear.devPtr = buffer;
-//    resDesc.res.linear.desc.f = cudaChannelFormatKindFloat;
-//    resDesc.res.linear.desc.x = 32; // bits per channel
-//    resDesc.res.linear.sizeInBytes = n_bytes;
 
     struct cudaTextureDesc texDesc;
     memset(&texDesc,0,sizeof(texDesc));

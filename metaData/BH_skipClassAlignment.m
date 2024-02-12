@@ -34,26 +34,21 @@ load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 
+
+
+
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   
-  if (emc.multi_reference_alignment && ~emc.classification)
-    subTomoMeta.(cycleNumber).('RawAlign') = ...
-      subTomoMeta.(cycleNumber).('Avg_geometry');
-    
-  elseif (emc.multi_reference_alignment && emc.classification)
-    subTomoMeta.(cycleNumber).('RawAlign') = ...
-      subTomoMeta.(cycleNumber).('ClusterClsGeom');
-  else
-    
-    try
-      subTomoMeta.(cycleNumber).('RawAlign') = ...
-        subTomoMeta.(cycleNumber).('ClusterClsGeom');
-    catch
-      subTomoMeta.(cycleNumber).('RawAlign') = ...
-        subTomoMeta.(cycleNumber).('ClusterRefGeom');
+  if (emc.multi_reference_alignment)
+    if (emc.classification)
+      subTomoMeta.(cycleNumber).('RawAlign') = subTomoMeta.(cycleNumber).('ClusterClsGeom');
+    else
+      subTomoMeta.(cycleNumber).('RawAlign') = subTomoMeta.(cycleNumber).('ClusterRefGeom');
     end
-    
+  else
+    subTomoMeta.(cycleNumber).('RawAlign') = subTomoMeta.(cycleNumber).('Avg_geometry');
   end
+
 else
   error(['STAGEofALIGNMENT to skip may be RawAlignment'],...
     ['the former requires the latter to exist.\n']);

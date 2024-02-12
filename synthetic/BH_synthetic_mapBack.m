@@ -163,14 +163,11 @@ system(sprintf('mkdir -p %s',tmpCache));
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
 mapBackIter = subTomoMeta.currentTomoCPR;
 
+% FIXME: rename this to something more descriptive
+ctfRange = emc.('tomo_cpr_defocus_range')*10^10;
+ctfInc = emc.('tomo_cpr_defocus_step')*10^10;
 
-
-
-% Add error check onrange for reasonable values.
-ctfRange = emc.('tomoCprDefocusRange')*10^10;
-ctfInc = emc.('tomoCprDefocusStep')*10^10;
-
-calcCTF = emc.('tomoCprDefocusRefine');
+calcCTF = emc.('tomo_cpr_defocus_refine');
 
 
 [tiltNameList, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );

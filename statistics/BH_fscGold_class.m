@@ -870,19 +870,23 @@ for iRef = 1:nReferences
   %%%%%%%%%%%%%%%%%%%%%%%%%
   % For comparing results from a tight mask and solvent normalized fsc
   % The tight mask calculation is not so reliable (which is by it isn't used in the first place.
-  % This is used for the figure S3 in the Nature Methods paper, but not in regular us.
-  figure('Visible','off'), plot(osX,fnval(fitTightFSC,osX),'k-.',...
-    osX,fnval(fscTrue,osX),'k',...
-    osX,fnval(fitFSC{1},osX),'b',...
-    osX, 0.*osX+0.143, 'k--',...
-    osX,zeros(length(osX)),'k');
-  
-  fTightGold = osX(find(fnval(fscTrue,osX) < 0.143 & osX > 1/100, 1, 'first'));
-  
-  title({'FSC',sprintf('0.143 - %3.2f, %3.2f\n(paritcleVolume,tightMask)',1./fgold,1./fTightGold)});
-  xlabel('Spatial Freq'); ylabel('fsc');
-  ylim([-.05 1.025])
-  file_out = sprintf('%s-%d-fscFull_%s', outputPrefix, iRef, halfSet);
+  % This is used for the figure S3 in the Nature Methods paper, but not in regular use.
+  plot_compareable_tight_fsc = false;
+  if (plot_compareable_tight_fsc)
+    figure('Visible','off'), plot(osX,fnval(fitTightFSC,osX),'k-.',...
+      osX,fnval(fscTrue,osX),'k',...
+      osX,fnval(fitFSC{1},osX),'b',...
+      osX, 0.*osX+0.143, 'k--',...
+      osX,zeros(length(osX)),'k');
+    
+    fTightGold = osX(find(fnval(fscTrue,osX) < 0.143 & osX > 1/100, 1, 'first'));
+    
+    title({'FSC',sprintf('0.143 - %3.2f, %3.2f\n(paritcleVolume,tightMask)',1./fgold,1./fTightGold)});
+    xlabel('Spatial Freq'); ylabel('fsc');
+    ylim([-.05 1.025])
+    file_out = sprintf('%s-%d-fscFull_%s', outputPrefix, iRef, halfSet);
+    saveas(gcf, file_out,'pdf')
+  end
   
   figure('Visible','off'), plot(osX,cRef{1}(osX),'kd','MarkerSize',3); hold on;
   if (emc.flgCones)
