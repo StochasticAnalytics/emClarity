@@ -724,12 +724,14 @@ parfor iParProc = parVect
       tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
       tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
       reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+      reconGeometry = (masterTM.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+      
       TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
       
       if (emc.flgCutOutVolumes)
         volumeData = [];
       else
-        [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+        [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
           reconCoords, mapBackIter, ...
           samplingRate,iGPUidx,reconScaling,0);
           volHeader = getHeader(volumeData);
@@ -792,6 +794,7 @@ parfor iParProc = parVect
           % end
           % Align all valid subtomos, even if the do not belong to the classes we've selected as references.
           % To ignore particles, remove them with geometry RemoveClases.m
+          % FIXME: what was this for?
           flgAllClasses = true;
           
           
@@ -952,23 +955,17 @@ parfor iParProc = parVect
                             padWindow(1,2) + 1:end - padWindow(2,2) , ...
                             padWindow(1,3) + 1:end - padWindow(2,3) );
                           
-                          
                         case 2
-                          
                           
                           bestOfRefs = sortrows(gather(cccStorageTrans), -6);
                           %sortrows(gather(cccStorage1(angCount:angCount+nReferences(1)-1,:)),-6);
                           
                           estPeakCoord = bestOfRefs(1,8:10);
-                          
                          
                           [ iTrimParticle ] = particleInterpolator.interp3d(...
                             RotMat,...
                             estPeakCoord,rotConvention ,...
                             'inv',particle_symmetry);
-                          
-                          
-                          
                           
                           if (getInitialCCC)
                             [ iTrimInitial ] = particleInterpolator.interp3d(...
@@ -980,18 +977,13 @@ parfor iParProc = parVect
                               reshape(angles,3,3),...
                               [0,0,0],rotConvention ,...
                               'inv',particle_symmetry);
-                            
-                            
                           end
-                          
                           
                           [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
                             RotMat,...
                             [0,0,0],rotConvention ,...
                             'inv',particle_symmetry);
-                          
-                          
-                      end
+                      end % switch on align loop
                       
                       
                       switch emc.multi_reference_alignment

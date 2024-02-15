@@ -77,7 +77,7 @@ system(sprintf('rm -f %s',tmpName));
 
 for iPrj = 1:d3
   
-  system(sprintf('tail -n -1 %s%d.txt | awk  ''{print (($2-$3)/2)*10^-10,3.141592/180*$4,-1*(($2+$3)/2)*10^-10 }'' >> %s', baseName,iPrj,tmpName));
+  system(sprintf('tail -n -1 %s%d.txt | awk  ''{print (($2-$3)/2)*10^-10,3.1415926535/180.0*$4,-1*(($2+$3)/2)*10^-10 }'' >> %s', baseName,iPrj,tmpName));
   
 end
 

@@ -73,7 +73,6 @@ end
 
 % For some reason matlab was geeking out about calling this in the parfor
 % loop, getting confused about whether it is a variable or a function.
-recGeomForThickness = subTomoMeta.reconGeometry;
 parfor iGPU = 1:nGPUs
   %  for iTilt = 1:length(ITER_LIST{iGPU})
   
@@ -159,8 +158,6 @@ parfor iGPU = 1:nGPUs
     
     % FIXME, this should be stored from previous mask calc and accessed there.
     % For now just take based on tomogram (which will be larger than the true specimen thickness)
-    %THICKNESS = recGeomForThickness.(sprintf('%s_1',STACK_PRFX));
-    %THICKNESS = min(10,abs(THICKNESS(1,3)-THICKNESS(2,3)).*emc.pixel_size_si.*10^9);
     THICKNESS = 100;
     % Assuming all extreme pixels have already been removed from the stack.
     %PRJ_STACK = {sprintf('%s_local04_18.mrc',mjIDX)};%,sprintf('%s_local14_18.mrc',mjIDX),sprintf('%s_local24_18.mrc',mjIDX),sprintf('%s_local34_18.mrc',mjIDX)};

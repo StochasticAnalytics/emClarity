@@ -87,9 +87,9 @@ end
 
 switch STAGEofALIGNMENT
   case 'TiltAlignment'
-    fieldPrefix = 'Ref'
+    fieldPrefix = 'Raw'
   case 'RawAlignment'
-    fieldPrefix = 'Ref';
+    fieldPrefix = 'Raw';
   case 'Cluster_cls'
     fieldPrefix = 'Cls';
     STAGEofALIGNMENT = 'Cluster';

@@ -1,7 +1,10 @@
-function [ IMG_OUT, reconGeom ] = BH_multi_loadOrBuild(tomoName,  ...
-  rCoords, mapBackIter, ...
-  SAMPLING, gpuIDX,...
-  reconScaling, varargin)
+function [ IMG_OUT, reconGeom ] = BH_multi_loadOrBuild( tomoName,  ...
+                                                        rCoords, ...
+                                                        mapBackIter, ...
+                                                        SAMPLING, ...
+                                                        gpuIDX,...
+                                                        reconScaling, ...
+                                                        varargin)
 %Check to see if a cached binned image exists, either load or reconstruct
 %   Switched to using imod's newstack and binvol to create binning and
 %   removed inline binning from my workflow.
@@ -20,8 +23,6 @@ end
 
 
 if nargin > 6
-  flgLoad = varargin{1};
-else
   flgLoad = varargin{1};
 end
 
@@ -48,8 +49,8 @@ nameSplit = strsplit(tomoName,'_');
 tomoName = strjoin(nameSplit(1:end-1),'_')
 tomoNumber = EMC_str2double(nameSplit{end})
 
-% % % rCoords = subTomoMeta.mapBackGeometry.(tomoName).coords(tomoNumber,:);
 rCoords = rCoords ./ SAMPLING;
+% fix is like floor but rounds towards zero, not sure why I'm doing this here anymore.
 rCoords(1:4) = fix(rCoords(1:4));
 
 
@@ -202,10 +203,14 @@ end
 
   function [ reconGeom ] = calc_rg(  header, rCoords )
     
-    oY = ceil((header.nY +1)./2);
+    % Origin in the binned tilt series
+    oY = 1 + floor(header.nY ./ 2);
+    % Size in the binned tilt series
     nY = rCoords(3) - rCoords(2) + 1;
-    dY = floor(rCoords(2)+nY/2) -oY;
+    % Origin in the reconstructed area (active shift from origin in tilt series)
+    dY = floor(rCoords(2) + nY/2) - oY;
     reconGeom = zeros(2,3);
+    % FIXME index 4 and 5 should be 3 and 4
     reconGeom(1,1:3) = [rCoords(1), nY, rCoords(4)];
     % value specify location of origin, but SHIFT in IMOD's tilt takes the
     % location to shift the origin too, so multiply oX by -1. The notion for Z is

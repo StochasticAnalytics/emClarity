@@ -660,13 +660,15 @@ for iGold = 1:1+flgGold
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    reconGeometry = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+
     TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
     
     
     if (emc.flgCutOutVolumes)
       volumeData = [];
     else
-      [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
+      [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
         reconCoords, mapBackIter, ...
         samplingRate, iGPU, reconScaling,0);
       volHeader = getHeader(volumeData);
@@ -872,7 +874,6 @@ for iGold = 1:1+flgGold
             
             if (using_this_subtomo)
               idxList(1, nExtracted) = particleIDX;
-              fprintf("Adding subtomo %d to idxList\n",particleIDX);
               peakList(1,nExtracted) = iPeak+1;
               nExtracted = nExtracted + 1;
               nTemp = nTemp + 1;

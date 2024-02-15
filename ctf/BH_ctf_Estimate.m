@@ -324,7 +324,7 @@ fprintf('Combining tranformations\n\n');
 mbEST = load(sprintf('%s.xf',mapBackPrfx));
 mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 
-outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension)
+outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension);
 
 try
   erase_beads_after_ctf = emc.('erase_beads_after_ctf');
@@ -505,45 +505,7 @@ if ~(flgSkip)
     
   end
   
-  d3 = size(STACK,3)
-  % Check for extra large (8k) data which will be too big for the gpu.
-  % Should set this up to be a hybrid where  each slice is on GPU but
-  % But then pull to the cpu and store there in stack.
-  if d1C > 4096 || d2C > 4096 || d3 > 40
-    prjMaskMethod = 'GPU'
-  else
-    prjMaskMethod = 'GPU'
-  end
-  
-  % % % % evalMask = zeros(d1C,d2C,d3,'single');
-  % % % % for iPrj = 1:d3
-  % % % %   tmpTLT = tltForExp(iPrj,:);
-  % % % %   % need to write over the projections position in the stack to not expand beyond 2d
-  % % % %   tmpTLT(1) = 1;
-  % % % %   [ iEvalMask, ~ ] = BH_multi_projectionMask([d1C,d2C,1;d1C,d2C,1], tmpTLT, ...
-  % % % %                                        'GPU', [zShift,deltaZTolerance] );
-  % % % %
-  % % % %   evalMask(:,:,tltForExp(iPrj,1)) = gather(iEvalMask);
-  % % % % end
-  % % % %
-  % % % %
-  % % % % %evalMask = gather(evalMask);
-  % % % %
-  % % % %
-  % % % % nTiles = zeros(size(STACK,3),1);
-  % % % %
-  % % % %
-  % % % % for i = 1+tileSize/2:overlap:d1C-tileSize/2
-  % % % %   for j = 1+tileSize/2:overlap:d2C-tileSize/2
-  % % % %     for k = 1:size(STACK,3)
-  % % % %       if evalMask(i,j,k)
-  % % % %         nTiles(k) = nTiles(k) + 1;
-  % % % %       end
-  % % % %     end
-  % % % %   end
-  % % % % end
-  
-  
+  d3 = size(STACK,3); 
   
   [radialForCTF,phi,~,~,~,~] = ...
     BH_multi_gridCoordinates([paddedSize,paddedSize,1],'Cylindrical','GPU', ...
@@ -555,15 +517,11 @@ if ~(flgSkip)
   
   inc = (0.5 - FIXED_FIRSTZERO) / (paddedSize/2);
   freqVector = [inc+FIXED_FIRSTZERO:inc:0.5 ];
-  % % % % clear sumVector radialAvg
-  % % % % sumVector(length(freqVector)) = gpuArray(double(0));
-  % % % % radialAvg(length(freqVector)) = gpuArray(double(0));
-  
   
   tic
-  nT = 1;
-  nT2=0;
-  nT3= 0;
+  nT =  1;
+  nT2 = 0;
+  nT3 = 0;
   
   halfX = floor(paddedSize/2) + 1;
   % % % % psTile = zeros([(paddedSize).*[1,1],3],'single','gpuArray');
@@ -612,10 +570,6 @@ if ~(flgSkip)
     iProjection = iProjection ./ ...
       BH_movingRMS(iProjection,[tileSize,tileSize]);
     
-    
-    
-    
-    
     for i = 1+tileSize/2:overlap:d1C-tileSize/2
       if min([nT,nT2,nT3])< maxNumberOfTiles && (iEvalMask(i) || iEvalPos(i) || iEvalNeg(i))
         for j = 1+tileSize/2:overlap:d2C-tileSize/2
@@ -626,17 +580,8 @@ if ~(flgSkip)
             j-tileSize/2+1:j+tileSize/2)),...
             padVAL(1,:),padVAL(2,:),...
             'GPU','singleTaper')));
-          
-          % % % %
-          % % % %          thisTile = abs(fftn( ...
-          % % % %                                  BH_padZeros3d(...
-          % % % %                                  (iProjection( ...
-          % % % %                                         i-tileSize/2+1:i+tileSize/2,...
-          % % % %                                         j-tileSize/2+1:j+tileSize/2)),...
-          % % % %                                                   padVAL(1,:),padVAL(2,:),...
-          % % % %                                                   'GPU','singleTaper')));
+
           tmpTile(:,:,1) = tmpTile(:,:,1) + thisTile;
-          
           
           if (iEvalMask(i))
             nT = nT+1;

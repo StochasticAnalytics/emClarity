@@ -525,6 +525,5 @@ EMC_assert_numeric(emc.tomo_cpr_defocus_step, 1, [1.0e-9, 10000e-9]);
 emc = EMC_assert_deprecated_substitution(emc, false, 'tomo_cpr_defocus_refine', 'calcCTF');
 EMC_assert_boolean(emc.tomo_cpr_defocus_refine);
 
-
 end
 

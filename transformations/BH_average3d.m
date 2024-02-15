@@ -76,7 +76,6 @@ if (emc.track_stats)
     emc.track_stats = false;
   end
 end
-fprintf('track stats is %d\n',emc.track_stats)
 
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
@@ -363,7 +362,7 @@ else
 end
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
-  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size )
+  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size );
 
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, emc.nGPUs, sizeCalc(1), emc.nCpuCores);
 
@@ -752,13 +751,14 @@ parfor iParProc = parVect
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    
+    reconGeometry = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+
     if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
       volumeData = [];
     else
 
       reconScaling = 1;
-      [ volumeData, reconGeometry ] = BH_multi_loadOrBuild( ...
+      [ volumeData, ~ ] = BH_multi_loadOrBuild( ...
         tomoList{iTomo}, ...
         reconCoords, mapBackIter, ...
         samplingRate,iGPUidx,reconScaling,0);

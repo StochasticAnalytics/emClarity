@@ -1,5 +1,4 @@
-function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = ...
-  BH_multi_loadOrBin( IMG, SAMPLING,DIMENSION, varargin )
+function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = BH_multi_loadOrBin( IMG, SAMPLING, DIMENSION, varargin )
 %Check to see if a cached binned image exists, either load or bin and load.
 %   Switched to using imod's newstack and binvol to create binning and
 %   removed inline binning from my workflow.
@@ -8,12 +7,6 @@ iPixelHeader = '';
 iOriginHeader = '';
 imgExt = '';
 flgLoad = 0;
-
-if nargin > 3
-  flgMedianFilter = varargin{1};
-else
-  flgMedianFilter = 0;
-end
 
 if SAMPLING < 0
   samplingRate = abs(SAMPLING);
@@ -37,7 +30,7 @@ rng('shuffle');
 randIDX = randi([1,10^10],1);
 
 if samplingRate > 1
-  nameOUT = sprintf('cache/%s_bin%d%s', imgName, samplingRate,imgExt);
+  nameOUT = sprintf('cache/%s_bin%d%s', imgName, samplingRate, imgExt);
   doCalc = 0;
   if exist(nameOUT,'file')
     fprintf('Using cached file %s_bin%d%s\n', imgName, samplingRate,imgExt);
@@ -60,7 +53,6 @@ if samplingRate > 1
         system(sprintf('binvol -BinningFactor %d -antialias 6 %s cache/%s_bin%d%s >  /dev/null', ...
           samplingRate,IMG, imgName, samplingRate,imgExt));
       case 2
-        sprintf('%s',IMG)
         try
           tiltObj = MRCImage(IMG,0);
         catch

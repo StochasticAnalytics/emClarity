@@ -105,7 +105,7 @@ if iscell(STAGEofALIGNMENT)
     refVector{1} =1;
     refVector{2}= 1;
     STAGEofALIGNMENT = 'RawAlignment';
-    fieldPrefix = 'Ref'
+    fieldPrefix = 'Ref';
   end
 else
   
@@ -130,7 +130,6 @@ else
       imageName{2} =  sprintf('class_%d_Locations_%s_EVE_NoWgt', className,fieldPrefix);
       weightName{1} = sprintf('class_%d_Locations_%s_ODD_Wgt', className,fieldPrefix);
       weightName{2} = sprintf('class_%d_Locations_%s_EVE_Wgt', className,fieldPrefix);
-      imageName{1}
       
       refVector{1} =1;
       refVector{2}= 1;
@@ -141,7 +140,7 @@ else
     case 'SnrEstimate'
       savePrefix = 'SNR';
       flgEstSNR = 1;
-      fieldPrefix = 'Ref'
+      fieldPrefix = 'Ref';
 
       imageName{1} = sprintf('class_%d_Locations_%s_ODD_NoWgt', 25,fieldPrefix);
       imageName{2} = sprintf('class_%d_Locations_%s_EVE_NoWgt', 25,fieldPrefix);
@@ -159,10 +158,10 @@ for iGold = 1:2
 end
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-  BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms)
+  BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms);
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc] = ...
-  BH_multi_validArea(  maskSize, maskRadius, emc.scale_calc_size )
+  BH_multi_validArea(  maskSize, maskRadius, emc.scale_calc_size );
 
 padDIM = max(max(sizeWindow),384);
 padREF = [0,0,0;0,0,0];
@@ -243,8 +242,8 @@ particleVolume = zeros(nReferences,1);
 % end
 fprintf('%d\n',nargin);
 if nargin > 3
-  sLow = EMC_str2double(varargin{1})
-  sTop = EMC_str2double(varargin{2})
+  sLow = EMC_str2double(varargin{1});
+  sTop = EMC_str2double(varargin{2});
 else
   sLow = 1e-6;
   sTop = 0.999;
@@ -482,7 +481,7 @@ for iRef = 1:nReferences
     fscRandCutoffRes = 3*masterTM.currentResForDefocusError(1);
     lowResShift = emc.pixel_size_angstroms*2 - 10;
     if lowResShift <= 0
-      lowResShift = 0
+      lowResShift = 0;
     else
       lowResShift = 1/(fscRandCutoffRes+lowResShift);
     end
@@ -642,12 +641,10 @@ for iRef = 1:nReferences
     gridSearch = eulerSearch(refSymmetry,180,5,360,5,0.0,1,true);
     fprintf('Adjusting the one/half bit cutoffs for the %d asymmetric unit(s)\n',gridSearch.number_of_asymmetric_units);
   end
-  nCones
   nEffective = fnval(fitNUM{1},osX).*(3/2.*DbyL).^2 ./ (2.*gridSearch.number_of_asymmetric_units);
   
   oneBIT = ( 0.5+2.4142./sqrt(nEffective) ) ./ ...
     ( 1.5 + 1.4142./sqrt(nEffective) );
-  
   
   halfBIT= ( 0.207+1.9102./sqrt(nEffective) ) ./ ...
     ( 1.2071 + 0.9102./sqrt(nEffective) );
@@ -656,8 +653,6 @@ for iRef = 1:nReferences
   % Find the two common cutoff values -- need a better way to determine the second
   % value that handles non-monotonic curves and is still smooth/gentle without
   % falling off too slowly.
-  
-  
   lowCut1 = find(fnval(fitFSC{1},osX) <= 0.143 & osX > 1/100, 1, 'first');
   try
     oneBitCut(1) = find(fnval(fitFSC{1},osX)-aliBIT < 0 & osX > 1/100, 1, 'first');
@@ -726,7 +721,7 @@ for iRef = 1:nReferences
       
       if lowestRes < 1./osX(lowCut1)
         lowestRes = 1./osX(lowCut1);
-      elseif highestRes > 1./ osX(lowCut1)
+      elseif highestRes > 1 ./ osX(lowCut1)
         highestRes = 1./osX(lowCut1);
       end
       
@@ -803,8 +798,8 @@ for iRef = 1:nReferences
   clear fout famp1 famp2 fphase1 fphase2
   
   
-  fmid = osX(find(fnval(fitFSC{1},osX) < 0.5 & osX > 1/100, 1, 'first'))
-  fgold = osX(find(fnval(fitFSC{1},osX) < 0.143 & osX > 1/100, 1, 'first'))
+  fmid = osX(find(fnval(fitFSC{1},osX) < 0.5 & osX > 1/100, 1, 'first'));
+  fgold = osX(find(fnval(fitFSC{1},osX) < 0.143 & osX > 1/100, 1, 'first'));
   
   fprintf('\n0.5 = 1/%f\n0.143 = 1/%f\n', fmid, fgold)
   

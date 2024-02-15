@@ -13,9 +13,11 @@ function [ ] = BH_synthetic_mapBack(PARAMETER_FILE, CYCLE, tiltStart)
 % Some flags that are worth keeping as options, but not accessible
 % directlyCT
 % by the users (private methods-ish)
+
+% FIXME: is this even relevant any more?
 buildTomo=1;% % % % % % %
-METHOD = 'GPU';
-flgRunAlignments = true;
+
+
 
 % Default true, we don't need this after projection
 delete_background_estimate = true;
@@ -27,32 +29,36 @@ emc = BH_parseParameterFile(PARAMETER_FILE);
 CYCLE = EMC_str2double(CYCLE);
 cycle_numerator = '';
 cycle_denominator ='';
+
+% When tomoCPR is run on one node (start to finish) or is being finalized on a many node run using the [cycle, nodeIDX, totalNodes] syntax with we [ cycle, 0, 0 ]
+% this is set to true. For the many node alignment, we want to defer running the final alignment until all the nodes have finished their work, which we do by setting this to false.
+flgRunAlignments = true;
+multi_node_run = false;
 skip_to_the_end_and_run = false;
 
 if numel(CYCLE) == 3
-  
+  multi_node_run = true;
   % After splitting, run the alignments while skipping everything else
   if CYCLE(2) == 0 && CYCLE(3) == 0
     skip_to_the_end_and_run = true;
-    flgRunAlignments = true;
   else
     flgRunAlignments = false;
   end
   cycle_numerator = CYCLE(2);
   cycle_denominator = CYCLE(3);
   CYCLE = CYCLE(1);
-  flgAltRun = 1;
-  
-else
-  flgAltRun = 0; % Could just use one flag for RunAlignments and ALt Run
+end
+
+EMC_assert_numeric(CYCLE, 1, [0, inf]);
+
+% skip_to_the_end_and_run is only relevant when running on multiple nodes
+if (skip_to_the_end_and_run && ~multi_node_run)
+  error('You are trying to skip to the end and run, but you are not running on multiple nodes');
 end
 
 
 cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
-
-
-reconScaling = 1;
 samplingRate = emc.('Ali_samplingRate');
 % used to determine the number of fiducials/patch for local area.
 MOL_MASS = emc.('particleMass');
@@ -96,7 +102,7 @@ n_surfaces=2;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 try
-  use_PCF =  emc.('use_PCF')
+  use_PCF =  emc.('use_PCF');
 catch
   use_PCF = 0;
 end
@@ -177,7 +183,7 @@ calcCTF = emc.('tomo_cpr_defocus_refine');
 [tiltNameList, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
 
 
-if (flgAltRun && ~skip_to_the_end_and_run)
+if (multi_node_run && ~skip_to_the_end_and_run)
   nParts = ceil(nTiltSeries ./ cycle_denominator);
   tiltStart = 1+(cycle_numerator - 1)*nParts;
   nTotal = nTiltSeries;
@@ -214,12 +220,9 @@ refName = emc.('Raw_className');
 
 
 classVector{1}  = emc.('Raw_classes_odd')(1,:);
-classSymmetry{1}= emc.('Raw_classes_odd')(2,:);
 classVector{2}  = emc.('Raw_classes_eve')(1,:);
-classSymmetry{2}= emc.('Raw_classes_eve')(2,:);
 
-nRefs = length(classVector{1})
-
+nRefs = length(classVector{1});
 
 particleMask = cell(nRefs,1);
 for iGold = 1:2
@@ -261,18 +264,19 @@ catch
 end
 tiltGeometry = subTomoMeta.tiltGeometry;
 
-outCTF = '';
+% TODO: this is a bit of an aritfact, can be removed.
+outCTF = '_ctf';
+
 is_first_run = true;
 
 mbOUT = {[tmpCache],[mapBackIter+1],'dummy'};
-fprintf('\nmBOUT name is %smapBack%d/%s\n',mbOUT{1:3});
 tiltStart=1; 
 for iTiltSeries = tiltStart:nTiltSeries
   if (skip_to_the_end_and_run)
     continue;
   end
+
   
-  tiltNameList
   mapBackRePrjSize = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).('tomoCprRePrjSize');
   % % %   iViewGroup = subTomoMeta.mapBackGeometry.viewGroups.(tiltNameList{iTiltSeries});
   nTomograms = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).nTomos
@@ -283,8 +287,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
 
   skip_this_tilt_series_because_it_is_empty = false(nTomograms,1);
-
-  
   
   tiltList = cell(nTomograms,1);
   % tomoList = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
@@ -295,16 +297,10 @@ for iTiltSeries = tiltStart:nTiltSeries
     if any(subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).coords(iTomo,:))
       tomoList{tomoIDX} = sprintf('%s_%d',tiltNameList{iTiltSeries},iTomo);
       
-      
-      
-      tiltList{tomoIDX} = sprintf('%saliStacks/%s_ali%d.fixed',...
-        CWD,tiltNameList{iTiltSeries},mapBackIter+1);
-      outCTF='_ctf';
-      
+      tiltList{tomoIDX} = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tiltNameList{iTiltSeries}, mapBackIter + 1);
       % Only increment if values found.
       tomoIDX = tomoIDX + 1;
     end
-    
   end
   
   [~,tiltBaseName,~] = fileparts(tiltList{1});
@@ -312,36 +308,28 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   if (mapBackIter)
-    localFile = sprintf('%smapBack%d/%s_ali%d_ctf.local', ...
-      CWD,mapBackIter,tiltNameList{iTiltSeries},mapBackIter)
+    localFile = sprintf('%smapBack%d/%s_ali%d_ctf.local', CWD,mapBackIter,tiltNameList{iTiltSeries},mapBackIter);
   else
-    localFile = sprintf('%sfixedStacks/%s.local',CWD,tiltNameList{iTiltSeries})
+    localFile = sprintf('%sfixedStacks/%s.local',CWD,tiltNameList{iTiltSeries});
   end
   
   if exist(localFile,'file')
-    fprintf('Found local file\n.');
+    fprintf('Found local file %s\n.', localFile);
   else
     fprintf('No local transforms requested.\n');
     localFile = 0;
   end
   
-  % For now assume that all of these are the same - this is a shitty way to
-  % handle it, but keeps things general and simple.
-  reconRotation = zeros(nTomograms,3);
-  % Remove this option (always assume -rx)
-  for iTomo = 1:nTomograms
-    reconRotation(iTomo,:) = [0,0,-90];
-  end
+
   % The model is scaled to full sampling prior to passing to tiltalign,
   % make sure the header in the synthetic stack is set appropriately.
-  fullPixelSize = emc.pixel_size_angstroms;
-  pixelSize = fullPixelSize .* samplingRate;
+  unsampled_pixel_size = emc.pixel_size_angstroms;
+  pixel_size = unsampled_pixel_size .* samplingRate;
   
   try
     eraseMaskType = emc.('Peak_mType');
-    eraseMaskRadius = emc.('Peak_mRadius')./pixelSize;
-    fprintf('Further restricting peak search to radius %f %f %f\n',...
-      eraseMaskRadius);
+    eraseMaskRadius = emc.('Peak_mRadius') ./ pixel_size;
+    fprintf('Further restricting peak search to radius of [%f %f %f] pixels\n', eraseMaskRadius);
     eraseMask = 1;
   catch
     eraseMask = 0;
@@ -349,16 +337,16 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   
-  [ ~,~,maskRadius,~ ] = BH_multi_maskCheck(emc,'Ali',pixelSize)
-  PARTICLE_RADIUS = floor(max(emc.('particleRadius')./pixelSize));
+  particle_radius = floor(max(emc.('particleRadius')./pixel_size));
   
-  %PARTICLE_RADIUS = floor(mean(emc.('particleRadius')./pixelSize));
   % TODO, is this too restricted?
-  peakSearchRad = floor(emc.peak_mask_fraction*PARTICLE_RADIUS.*[1,1]);
+  % current default peak_mask_fraction = 0.4
+  peak_search_radius = floor(emc.peak_mask_fraction .* particle_radius .* [1,1]);
+
+  % FIXME: this should be in parseParameterFile
   try
     lowPassCutoff = emc.('tomoCprLowPass');
-    fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.',...
-      lowPassCutoff);
+    fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.', lowPassCutoff);
   catch
     % TODO are these range limits okay?
     lowPassCutoff = 1.5.*mean(subTomoMeta.currentResForDefocusError);
@@ -370,11 +358,14 @@ for iTiltSeries = tiltStart:nTiltSeries
     fprintf('Using an internatlly determined lowpass cutoff of %3.3f Ang\n.',...
       lowPassCutoff);
   end
-  if lowPassCutoff < 2* pixelSize
+
+  % FIXME: this can also be in parseParameterFile 
+  if lowPassCutoff < 2* pixel_size
     fprintf('Psych, the cutoff is being set to Nyquist');
-    lowPassCutoff = 2*pixelSize;
+    lowPassCutoff = 2*pixel_size;
   end
   
+  % FIXME: this should be in parseParameterFile
   min_res_for_ctf_fitting = 10.0;
   if (calcCTF)
     try
@@ -382,44 +373,23 @@ for iTiltSeries = tiltStart:nTiltSeries
     catch
     end
     
-    if sqrt(2)*pixelSize > min_res_for_ctf_fitting
+    if sqrt(2)*pixel_size > min_res_for_ctf_fitting
       fprintf('Warning the current resolution is too low to refine the defocus. Turning off this feature');
       calcCTF = false;
     end
   end
   
-  % % % % %   targetPatchSize = max(500, ceil(2.*(PARTICLE_RADIUS).*sqrt(nFiducialsPerPatch)))
   
-  nFiducialsPerPatch = ceil(100./sqrt(molMass))
-  targetPatchSize = max(500, ceil(2.*(PARTICLE_RADIUS).*sqrt(nFiducialsPerPatch)))
-  
-  
-  % % %
-  % % %   % Check to see if this tilt has already been worked on, if so skip
-  % % %   aliCmdFileCheck = sprintf('%smapBack%d/%s.align',mbOUT{1:3});
-  % % %   if exist(aliCmdFileCheck,'file')
-  % % %     fprintf('\n\nFound aliCmdFileCheck, skipping rather than overwrite.\n');
-  % % %     continue
-  % % %   end
-  
-  
-  
+  nFiducialsPerPatch = ceil(100./sqrt(molMass));
+  targetPatchSize = max(500, ceil(2.*(particle_radius).*sqrt(nFiducialsPerPatch)));
+
   
   if (samplingRate > 1)
     
     for iTomo = 1:nTomograms
       [~, tltName, tltExt] = fileparts(tiltList{iTomo});
-      
-      % Resample the tilt if necessary, then modify the tilt list
-      
       BH_multi_loadOrBin(tiltList{iTomo},-1.*samplingRate, 2);
-      tiltList{iTomo} = sprintf('%scache/%s_bin%d%s', ...
-        CWD,tltName, samplingRate,tltExt);
-      
-      
-      
-      
-      
+      tiltList{iTomo} = sprintf('%scache/%s_bin%d%s', CWD, tltName, samplingRate, tltExt);
     end
   end
   
@@ -436,23 +406,18 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   
-  % % re-initialize the parpool for each tilt series to free up mem.
-  % if ~isempty(gcp('nocreate'))
-  %   delete(gcp('nocreate'))
-  %   EMC_parpool(nWorkers);
-  % else
-  %   EMC_parpool(nWorkers);
-  % end
-  % fprintf('init with %d workers\n',nWorkers);
+  % re-initialize the parpool for each tilt series to free up mem.
+  if ~isempty(gcp('nocreate'))
+    delete(gcp('nocreate'))
+    EMC_parpool(nWorkers);
+  else
+    EMC_parpool(nWorkers);
+  end
+  fprintf('init with %d workers\n',nWorkers);
   
   outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
   
-  
-  
-  
-  
-  
-  
+   
   % Get the thickest for recon
   maxZ = 0;
   overSampleZforProjection = 1.0;
@@ -478,8 +443,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   % xyzproj assumes centered in Z, so add extra height for z offsets to create
   % the true "in microsope" dimension
   
-  reconstructionSize = [tiltHeader.nX,tiltHeader.nY,maxZ]
-  originRec = ceil((reconstructionSize+1)./2)
+  reconstructionSize = [tiltHeader.nX,tiltHeader.nY,maxZ];
+  originRec = ceil((reconstructionSize+1)./2);
   avgTomo = cell(3,1);
   
   
@@ -493,10 +458,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     avgColor = zeros(reconstructionSize, 'int16');
   end
   
-  % as the projection of the 3dModel with tilt will use this file and it
-  % must match the zCoords in the defAng file.
-  tomoList{1}
-  pause(3)
+
   TLT = tiltGeometry.(tomoList{1});
   
   
@@ -527,9 +489,9 @@ for iTiltSeries = tiltStart:nTiltSeries
   % TODO: investigate deviations from the default, which is to shut off the phakePhasePlate and to use a backgroundLowPassResolution of 28
   % Default false, we don't apply this filter
   % if enabled, it currently only saves the filtered background estimate for visualization in addition to the normal version
-   if (emc.save_mapback_classes)
-    BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3);
-  end
+  % if (emc.save_mapback_classes)
+  %   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3);
+  % end
 
   send_phakePhasePlateOption = [0,0];
   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution);
@@ -576,7 +538,9 @@ for iTiltSeries = tiltStart:nTiltSeries
   if (buildTomo)
     coordOUT = fopen(sprintf('%smapBack%d/%s.coord',mbOUT{1:3}),'w');
     coordSTART = fopen(sprintf('%smapBack%d/%s.coord_start',mbOUT{1:3}),'w');
-    
+    if (emc.save_mapback_classes)
+      coordCLASS = fopen(sprintf('%smapBack%d/%s.coord_class',mbOUT{1:3}),'w');
+    end    
     defOUT   = fopen(sprintf('%smapBack%d/%s.defAng',mbOUT{1:3}),'w');
   end
   
@@ -631,8 +595,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
     
-    %     [ binShift, ~ ] = BH_multi_calcBinShift( coords, samplingRate);
-    binShift = [0,0,0];
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
     
@@ -648,40 +610,17 @@ for iTiltSeries = tiltStart:nTiltSeries
     sTX = floor(tiltHeader.nX );
     sTY = floor(tiltHeader.nY );
     iTLT = floor(tiltHeader.nZ);
-    % FIXME the z-dimension should be 1 right?
-    originPrj = ceil(([sTX,sTY,0]+1)./2);
+
     
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    % reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    tomoReconCoords = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+
+    tomo_origin_in_tomo_frame = ceil((tomoReconCoords(1,1:3)+1)./2);
+    tomo_origin_wrt_tilt_origin = tomoReconCoords(2,1:3);
     
-    
-    %     iGPU=1;
-    
-    if (buildTomo)
-      %        [tomo,tomoReconCoords] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
-      %                                               reconCoords, mapBackIter, ...
-      %                                               samplingRate, iGPU,reconScaling,1);
-      
-      doRecon = 0;
-      doLoad = false;
-      reconCoords
-      [~,tomoReconCoords] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
-        reconCoords, mapBackIter, ...
-        samplingRate, doRecon,reconScaling,...
-        doLoad, 'tomoCPR');
-      
-      
-      
-      originVol = ceil((tomoReconCoords(1,1:3)+1)./2);
-      
-      reconShift = tomoReconCoords(2,1:3);
-      
-    end
-    
-    
-    
-    nPrjs = size(TLT,1)
+    nPrjs = size(TLT,1);
     nSubTomos = size(positionList,1);
 
     if (nSubTomos == 0)
@@ -706,101 +645,76 @@ for iTiltSeries = tiltStart:nTiltSeries
     %     avgOrigin(3)-maxRad:avgOrigin(3)+maxRad);
     % end
     
-    
-    
-    % Switch from maskRadius to particleRadius 20180129
     sizeAvgVol = size(refVol{1}{1});
-    
-    
-    
-    
-    
     for iRef = 1:nRefs
       
-      % FIXME change to EMC_maskreference
+      % FIXME: change to EMC_maskreference
       refVol{1}{iRef} = gpuArray(refVol{1}{iRef});
       refVol{2}{iRef} = gpuArray(refVol{2}{iRef});
-      particleMask{iRef} = BH_mask3d('sphere',sizeAvgVol,PARTICLE_RADIUS.*[1,1,1],[0,0,0]).* ...
-        BH_mask3d(refVol{1}{iRef} + refVol{2}{iRef} ,pixelSize,'','');
-      
-      %         binaryMask = particleMask{iRef} > 0.01;
-      %         for rV = 1:2
-      %           refVol{rV}{iRef} = refVol{rV}{iRef} - mean(refVol{rV}{iRef}(binaryMask));
-      %           refVol{rV}{iRef} = refVol{rV}{iRef} ./ (0.5.*rms(refVol{rV}{iRef}(binaryMask)));
-      %           refVol{rV}{iRef} = refVol{rV}{iRef} .* particleMask{iRef};
-      %         end
+      particleMask{iRef} = BH_mask3d('sphere',sizeAvgVol,particle_radius.*[1,1,1],[0,0,0]).* ...
+        BH_mask3d(refVol{1}{iRef} + refVol{2}{iRef} ,pixel_size,'','');
     end
     
-    
-    
-    
-
-    
-    %%%%%%%%%%
     if (buildTomo)
       
+      % We need to rotate the model 90 degrees around X to match the "natural" reconstruction reference frame of imod
+      % that is [x,z,-y]
       modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector');
       
       for iSubTomo = 1:nSubTomos
-        
-        
-        %
-        %       prjVector = (positionList(iSubTomo,11:13)./samplingRate + binShift) - ...
-        %                                           originVol + reconShift;
-        %
-        rSubTomo = reshape(positionList(iSubTomo,17:25),3,3);
-        prjVector = (positionList(iSubTomo,11:13)./samplingRate) - originVol + reconShift;
+
+        subtomo_rot_matrix = reshape(positionList(iSubTomo,17:25),3,3);
+        subtomo_origin_in_tomo_frame = (positionList(iSubTomo,11:13) ./ samplingRate);
+        subtomo_origin_wrt_tilt_origin = subtomo_origin_in_tomo_frame - tomo_origin_in_tomo_frame + tomo_origin_wrt_tilt_origin;
         
         iRefIDX = 1;
-        iClassIDX = 1;
+        iClassIDX = positionList(iSubTomo,26);
         if (nRefs > 1)
           % Assuming generally there are fewer classes seleceted as references than there are total classes
-          % For those that aren't on of the select ones, we could try to track the best matched reference from the most recent
+          % For those that aren't one of the select ones, we could try to track the best matched reference from the most recent
           % alignment
-          iClassIDX = positionList(iSubTomo,26);
+          % FIXME: having a class occupancy factor would be better than just picking a random one.
+          
           if ~(ismember(iClassIDX,classVector{1}) || ismember(iClassIDX,classVector{2}))
-            iClassIDX = datasample(classVector{1},1);
+            use_class = datasample(classVector{1},1);
+          else
+            use_class = iClassIDX;
           end
-          iRefIDX = find(classVector{1} == iClassIDX);
+          iRefIDX = find(classVector{1} == use_class);
         end
         
         
+        % This extra shift came from experiments with real data but is both annoying and not understood.
+        subtomo_origin_wrt_tilt_origin = subtomo_origin_wrt_tilt_origin - emc.flgPreShift;
+
+        % subTomo origin relative to reconLowerLeft
+        subtomo_origin_in_sample = originRec + subtomo_origin_wrt_tilt_origin; 
         
-        % % %       prjVector = prjVector + [0.5,0.0,-0.5];
-        %       prjVector = prjVector + [0.0,0.0,1.0];
-        prjVector = prjVector - emc.flgPreShift;
-        recVector = (originPrj + [0,0,ceil((reconstructionSize(3)+1)/2)] + prjVector); % subTomo origin relative to reconLowerLeft
-        
-        %Resample a copy of the average to match the position in the tomogram
+        % Resample a copy of the average to match the position in the tomogram
         % The third entry is a dummy, normally used to make sure at least the
         % particle was being extracted even if the surrounding density (where
         % some delocalized values may be located) are not.
-        [ indVAL, padVAL, shiftVAL ] = ...
-          BH_isWindowValid(reconstructionSize, sizeAvgVol, sizeAvgVol./5, recVector);
+        [ indVAL, padVAL, shiftVAL ] =  BH_isWindowValid(reconstructionSize, sizeAvgVol, sizeAvgVol./5, subtomo_origin_in_sample);
         
-        
-        
-        if ~ischar(indVAL)
-          
-          
+                
+        if ischar(indVAL)
+          fprintf('ignoring subTomo %d for out of bounds conditions.\n', iSubTomo);
+        else
           if positionList(iSubTomo,7) == 1
-            iAvgResamp = BH_resample3d(refVol{1}{iRefIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
+            iAvgResamp = BH_resample3d(refVol{1}{iRefIDX},subtomo_rot_matrix',shiftVAL,'Bah','GPU','forward');
           elseif positionList(iSubTomo,7) ==2
-            iAvgResamp = BH_resample3d(refVol{2}{iRefIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
+            iAvgResamp = BH_resample3d(refVol{2}{iRefIDX},subtomo_rot_matrix',shiftVAL,'Bah','GPU','forward');
           else
             error('positionList iSubtomo %d col 7 is %d',iSubTomo,positionList(iSubTomo,7));
           end
-          iMaskResamp = BH_resample3d(particleMask{iRefIDX},rSubTomo',shiftVAL,'Bah',METHOD,'forward');
-          
-          
-          
+          iMaskResamp = BH_resample3d(particleMask{iRefIDX},subtomo_rot_matrix',shiftVAL,'Bah','GPU','forward');
           
           iAvgResamp = gather(iMaskResamp.*iAvgResamp);
           
-          if (emc.save_mapback_classes || flgClassAvg)
+          if (emc.save_mapback_classes)
             if ~(emc.save_mapback_classes)
               iColorMap = gather(int16(iMaskResamp.* BH_resample3d(colorMap, ...
-                rSubTomo',shiftVAL,'Bah',METHOD,'forward')));
+                subtomo_rot_matrix',shiftVAL,'Bah','GPU','forward')));
             else
               % Set value to class average number
               iColorMap = iMaskResamp;
@@ -808,12 +722,7 @@ for iTiltSeries = tiltStart:nTiltSeries
               iColorMap(iColorMap >= 0.05) = iRefIDX;
               iColorMap = gather(int16(iColorMap));
             end
-            
-            
-            if ( flgClassAvg )
-              
-            end
-            
+
             avgColor(indVAL(1,1):indVAL(2,1), ...
               indVAL(1,2):indVAL(2,2), ...
               indVAL(1,3):indVAL(2,3)) = avgColor(indVAL(1,1):indVAL(2,1), ...
@@ -822,7 +731,6 @@ for iTiltSeries = tiltStart:nTiltSeries
               iColorMap(1+padVAL(1,1):end-padVAL(2,1),...
               1+padVAL(1,2):end-padVAL(2,2),...
               1+padVAL(1,3):end-padVAL(2,3));
-            
             
           end
           
@@ -844,30 +752,34 @@ for iTiltSeries = tiltStart:nTiltSeries
             continue
           end
           
-           
-          
           % Reproject using tilt, so just save the 3d coords.
-          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot*prjVector' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2]), fidIDX);
+    
+          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2]), fidIDX);
           
+          % Save a non-rotated model with each class on its own object for visualization
+          if (emc.save_mapback_classes)
+            fprintf(coordCLASS,'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_wrt_tilt_origin' + originRec'- emc.prjVectorShift);
+          end
+
           for iPrj = 1:nPrjs
             
             iPrj_nat = find(TLT(:,1) == iPrj);
-            % imod is indexing from zero
             % imod is indexing from zero
             zCoord = iPrj_nat;
             
             rTilt = BH_defineMatrix([90,1.*TLT(iPrj_nat,4),-90],'Bah','forwardVector');
             
-            prjCoords = rTilt*prjVector';
+            prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
             
-            fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15));
-            %           d1 = -1.*((samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15)) - TLT(iPrj_nat,12))*10^10;
-            %           d2 = -1.*((samplingRate.*prjCoords(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15)) + TLT(iPrj_nat,12))*10^10;
+            fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15));
+            %           d1 = -1.*((samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15)) - TLT(iPrj_nat,12))*10^10;
+            %           d2 = -1.*((samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15)) + TLT(iPrj_nat,12))*10^10;
             
-            d1 = -1.*(samplingRate.*prjVector(3).*fullPixelSize.*10^-10+TLT(iPrj_nat,15))*10^9; % Defocus value adjusted for Z coordinate in the tomogram. nm
+            d1 = -1.*(samplingRate.*subtomo_origin_wrt_tilt_origin(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15))*10^9; % Defocus value adjusted for Z coordinate in the tomogram. nm
             d2 = TLT(iPrj_nat,12)*10^9; % half astigmatism value
             
-            fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n',fidIDX, tomoNumber,positionList(iSubTomo,4),d1,d2,180./pi.*TLT(iPrj_nat,13),reshape(rSubTomo,1,9) , preExposure(iPrj_nat), postExposure(iPrj_nat),positionList(iSubTomo,7));
+            fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n', ...
+                                fidIDX, tomoNumber,positionList(iSubTomo,4),d1,d2,180./pi.*TLT(iPrj_nat,13),reshape(subtomo_rot_matrix,1,9) , preExposure(iPrj_nat), postExposure(iPrj_nat),positionList(iSubTomo,7));
             
             % These shifts are a record of transformation from the raw data, but here
             % we are comparing with [CTF] corrected data, from which the
@@ -875,15 +787,8 @@ for iTiltSeries = tiltStart:nTiltSeries
             
           end % loop over tilt projections
           
-          
           fidIDX = fidIDX + 1;
-        else
-          fprintf('ignoring subTomo %d for out of bounds conditions.\n', iSubTomo);
-          reconstructionSize
-          sizeAvgVol
-          sizeAvgVol./5
-          recVector
-        end
+        end % if condition for valid subTomo windowing
       end % loop over subtomos
     end %%%% temp condition to skip building full tomo
     
@@ -891,42 +796,38 @@ for iTiltSeries = tiltStart:nTiltSeries
   end % end of loop over tomograms on this tilt-series
   
   % No subtomos remain
-  if all(  skip_this_tilt_series_because_it_is_empty)
+  if all( skip_this_tilt_series_because_it_is_empty )
     continue;
   end
     
   if (buildTomo)
+
     fclose(coordOUT);
     fclose(coordSTART);
-    
+    if (emc.save_mapback_classes)
+      fclose(coordCLASS);
+      p2m = sprintf(['point2model -sphere 6 -thick 6 -scat  ',...
+        '%smapBack%d/%s.coord_class %smapBack%d/%s_classIdx.3dfid'], ...
+        mbOUT{1:3},mbOUT{1:3});
+      system(p2m);
+    end
     
     p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 ',...
-      '%smapBack%d/%s.coord %smapBack%d/%s.3dfid'], ...
-      mbOUT{1:3},mbOUT{1:3})
+                  '%smapBack%d/%s.coord %smapBack%d/%s.3dfid'], ...
+                  mbOUT{1:3},mbOUT{1:3});
     system(p2m);
     
     for iSave = 1
-      SAVE_IMG(MRCImage(gather(avgTomo{iSave})),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixelSize);
+      SAVE_IMG(MRCImage(gather(avgTomo{iSave})),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixel_size);
       avgTomo{iSave} = [];
     end
     clear avgTomo
     
     if (emc.save_mapback_classes || flgClassAvg)
-      SAVE_IMG(MRCImage(gather(avgColor)),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),pixelSize);
+      SAVE_IMG(MRCImage(gather(avgColor)),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),pixel_size);
       clear avgColor
     end
-    % If not planning on visualization, save only a binned copy of the synthetic
-    % tomo.
-    
-    %       tmpTomoBin = floor(1/samplingRate*6);
-    % TODO make this an adjustable parameter
-    %       tmpTomoBin = ceil(6/pixelSize);
-    %
-    %       for iSave = 1:1+(3*testSubtraction)
-    %         system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomo%d ',...
-    %                        '%smapBack%d/%s.bin%dTomo%d.mrc'], ...
-    %                        tmpTomoBin,mbOUT{1:3},iSave,mbOUT{1:3},tmpTomoBin,iSave));
-    %       end
+
     tmpTomoBin = 1;
     if (emc.save_mapback_classes || flgClassAvg && tmpTomoBin > 1)
       system(sprintf(['binvol -bin %d %smapBack%d/%s.tmpTomoColor ',...
@@ -936,10 +837,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       
     end
     
-    
-    
-    
-    rotSize = [tiltHeader.nX,maxZ,tiltHeader.nY]
+    rotSize = [tiltHeader.nX,maxZ,tiltHeader.nY];
     
     for iSave = 1
       rotCMD = sprintf(['rotatevol -angles 0,0,90 -size %d,%d,%d ',...
@@ -949,23 +847,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       system(rotCMD);
       
       system(sprintf('rm %smapBack%d/%s.tmpTomo%d',  mbOUT{1:3},iSave));
-      
-      
     end
-    
-    
-    
-    
-    % % % %   if (emc.save_mapback_classes)
-    % % % %     SAVE_IMG(MRCImage(avgColor),sprintf('mapBack/%s_colorMap.mrc',tiltBaseName));
-    % % % %     % -90 is assumed for trim vol, so if rotate vol is used add 90
-    % % % %     if (rotateVol)
-    % % % %       system(sprintf('rotatevol -angles 0,0,%d mapBack/%s_colorMap.mrc mapBack/%s_colorMap.rot',reconRotation(iTomo,3)+90.0,tiltBaseName,tiltBaseName));
-    % % % %       system(sprintf('mv mapBack/%s_colorMap.rot mapBack/%s_colorMap.mrc',tiltBaseName,tiltBaseName));
-    % % % %       system(sprintf('rm mapBack/%s_colorMap.rot',tiltBaseName));
-    % % % %     end
-    % % % %   end
-    
     
     clear avgTomo{1}  wgt
   end
@@ -1006,7 +888,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       cpuLastLine = '';
     end
     
-    if strcmpi(METHOD, 'GPU')
+    if strcmpi('GPU', 'GPU')
       if (lastLine1)
         lastLine2 = 'UseGPU 0';
         lastLine3 = 'ActionIfGPUFails 2,2';
@@ -1023,7 +905,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     % Break this up into chunks since things hang even with the
     % ActionIfGPUFails option. Try 3 times 512,256,128
-    %         refPrj = zeros(sTX,sTY,iTLT, 'single');
     
     for iSave = 1
       keepItRunning = 1;
@@ -1031,26 +912,23 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       while (keepItRunning)
         
-        
         inc = 0:mapBackRePrjSize:sTY-1;
         if inc(end) < sTY-1
           inc = [inc,sTY-1];
         end
-        inc
         nChunks = length(inc)-1;
         
         for iChunk = 1:nChunks
           
           if iChunk == 1
-            
             if exist(outputStackName,'file')
               fprintf('removing %s\n',outputStackName);
               system(sprintf('rm %s',outputStackName));
             end
             % Special case, initialize the full sized volume and the
             % header but don't actually reproject anything.
-            fprintf('Initializing volume %d/%d with size %d\n',...
-              iChunk,nChunks,mapBackRePrjSize);
+            fprintf('Initializing volume %d/%d with size %d\n', iChunk, nChunks, mapBackRePrjSize);
+
             rePrjFileName = sprintf('%smapBack%d/%s_%d_rePrj.sh',mbOUT{1:3},iSave);
             reModFileName = sprintf('%smapBack%d/%s_%d_reMod.sh',mbOUT{1:3},iSave);
             reProjFile = fopen(rePrjFileName,'w');
@@ -1199,7 +1077,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       'EOF'],tiltList{1}, mbOUT{1:3}, maxZ, ...
       mbOUT{1:3},...
       mbOUT{1:3},...
-      pixelSize./10, flgInvertTiltAngles,... % Ang --> nm
+      pixel_size./10, flgInvertTiltAngles,... % Ang --> nm
       mbOUT{1:3},...
       mbOUT{1:3},...
       mbOUT{1:3},...
@@ -1257,12 +1135,13 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % for center of mass
   COM = 3;
-  [bx,by] = ndgrid(-COM:COM,-COM:COM)
+  [bx,by] = ndgrid(-COM:COM,-COM:COM);
+
   % add optional half radius for edge case and make the padding more
   % logical, twice the particle radius, and then CTF size using mulit_iter
   % with an optimization step
   particlePad = 1.5;
-  tileRadius = floor(particlePad.*PARTICLE_RADIUS);
+  tileRadius = floor(particlePad.*particle_radius);
   tileSize = (2.*tileRadius + 1).*[1,1];
   
   CTFSIZE = BH_multi_iterator([2.*tileSize,1], 'fourier');
@@ -1276,14 +1155,14 @@ for iTiltSeries = tiltStart:nTiltSeries
   if (eraseMask)
     peakMask = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
   else
-    peakMask = BH_mask3d('sphere',CTFSIZE,peakSearchRad,[0,0],'2d');
+    peakMask = BH_mask3d('sphere',CTFSIZE,peak_search_radius,[0,0],'2d');
   end
   
   peakMask(peakMask < 0.99) = 0;
   
   
   
-  bandPassPrj = BH_bandpass3d([sTX,sTY,1],0,0,lowPassCutoff,'cpu',pixelSize);
+  bandPassPrj = BH_bandpass3d([sTX,sTY,1],0,0,lowPassCutoff,'cpu',pixel_size);
   
   diagnosticCell = cell(nPrjs,1);
   evalMaskCell = cell(nPrjs,1);
@@ -1294,13 +1173,13 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % Any large shifts should be obvious in the original alignment, so only
   % look around +/- this value
-  globalPeak = max(2,ceil(10/pixelSize));
+  globalPeak = max(2,ceil(10/pixel_size));
   globalPeak = globalPeak + mod(globalPeak,2);
   
   globalPeakMask = zeros([sTX,sTY,1],'single');
   
-  globalPeakMask(originPrj(1) -globalPeak : originPrj(1) + globalPeak,...
-    originPrj(2) -globalPeak : originPrj(2) + globalPeak) = 1;
+  globalPeakMask(originRec(1) -globalPeak : originRec(1) + globalPeak,...
+    originRec(2) -globalPeak : originRec(2) + globalPeak) = 1;
   
   globalBinary = ( globalPeakMask > 0 );
   % Zero and only changed if CTF is refined.
@@ -1455,7 +1334,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     % FIXME
     if (emc.whitenProjections)
-      whitenBP = [2*PARTICLE_RADIUS,lowPassCutoff,pixelSize,PARTICLE_RADIUS];
+      whitenBP = [2*particle_radius,lowPassCutoff,pixel_size,particle_radius];
       [dataPrj,NPS] = BH_whitenNoiseSpectrum(dataPrj,'',whitenBP,1);
       % Create a matched filter.
       refPrj = refPrj ./ NPS; NPS = [];
@@ -1524,11 +1403,11 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     
     
-    estPeak = [mRx, mRy] - originPrj(1:2) + [comPRJX, comPRJY];
+    estPeak = [mRx, mRy] - originRec(1:2) + [comPRJX, comPRJY];
     glbList = fopen(sprintf('%smapBack%d/%s_%03d.global',mbOUT{1:3},iPrj),'w');
     % Add unique indicies to prevent ambiquity when comparing with paral
     fprintf(glbList,'%f  degree tilt at %f %f\n', TLT(iPrj,4),estPeak);
-    dataPrj = BH_resample2d(dataPrj,[0,0,0],[estPeak,0],'Bah',METHOD,'inv',1,size(dataPrj));
+    dataPrj = BH_resample2d(dataPrj,[0,0,0],[estPeak,0],'Bah','GPU','inv',1,size(dataPrj));
     %mapBack%d, imshow3D(gather(fftshift(real(ifftn(fftn(dataPrj).*conj(fftn(refPrj)))))));
     
     
@@ -1573,8 +1452,8 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       %         ox = floor(wrkFid(iFid,3)) - tileRadius;
       %         oy = floor(wrkFid(iFid,4)) - tileRadius;
-      oxEval = [floor(wrkFid(iFid,3) - PARTICLE_RADIUS),floor(wrkFid(iFid,3) + PARTICLE_RADIUS)];
-      oyEval = [floor(wrkFid(iFid,4) - PARTICLE_RADIUS),floor(wrkFid(iFid,4) + PARTICLE_RADIUS)];
+      oxEval = [floor(wrkFid(iFid,3) - particle_radius),floor(wrkFid(iFid,3) + particle_radius)];
+      oyEval = [floor(wrkFid(iFid,4) - particle_radius),floor(wrkFid(iFid,4) + particle_radius)];
       % it would be good to try a smaller tile.
       % First check that the data are found in this given projection
       
@@ -1623,11 +1502,11 @@ for iTiltSeries = tiltStart:nTiltSeries
       dfA = wrkPar(iFid,6);
       
       if (calcCTF)
-        dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,40,min(min_res_for_ctf_fitting,sqrt(2).*pixelSize),pixelSize]),'fwd');
-        refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,40,min(min_res_for_ctf_fitting,sqrt(2).*pixelSize),pixelSize]));
+        dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,40,min(min_res_for_ctf_fitting,sqrt(2).*pixel_size),pixel_size]),'fwd');
+        refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,40,min(min_res_for_ctf_fitting,sqrt(2).*pixel_size),pixel_size]));
       else
-        dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,400,lowPassCutoff,pixelSize]),'fwd');
-        refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,400,lowPassCutoff,pixelSize]));
+        dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,400,lowPassCutoff,pixel_size]),'fwd');
+        refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,400,lowPassCutoff,pixel_size]));
       end
       
       bestScore = -1000000;
@@ -1646,7 +1525,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         if (use_PCF)
           cccMap = cccMap .* cccMap ./ (abs(cccMap) + 0.1);
         else
-          % % % % %               cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixelSize]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
+          % % % % %               cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixel_size]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
           
         end
         cccMap = peakMask.*real(bhF.invFFT(cccMap));
@@ -1697,8 +1576,8 @@ for iTiltSeries = tiltStart:nTiltSeries
         dCTF = imDefC;
         %           fprintf('New best score %3.6f for defocus shift %3.3eAng\n', bestScore, defShiftVect(dCTF));
         
-        dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,400,lowPassCutoff,pixelSize]),'fwd');
-        refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,400,lowPassCutoff,pixelSize]));
+        dataFT = bhF.swapPhase(bhF.fwdFFT(dataTile,1,1,[1e-5,400,lowPassCutoff,pixel_size]),'fwd');
+        refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,400,lowPassCutoff,pixel_size]));
         
         iRefCTF = refFT .* ...
           mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate*TLT(iPrj,16)*10^10), ...
@@ -1762,19 +1641,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       fprintf(defShifts,'%6.6e\n',defocusShifts{iPrj});
     end
   end
-  %     evalMaskStack = zeros(sTX,sTY,nPrjs);
-  %     diagnosticStack = zeros([(globalPeak.*2+1).*[1,1],nPrjs],'single');
-  %     for iPrj = 1:nPrjs
-  %       diagnosticStack(:,:,iPrj) = gather(diagnosticCell{iPrj});
-  %       evalMaskStack(:,:,iPrj) = int16(gather(evalMaskCell{iPrj}));
-  %     end
-  %     if (bh_global_save_tomoCPR_diagnostics)
-  %       diagnosticStack = zeros([(globalPeak.*2+1).*[1,1],nPrjs],'single');
-  %       for iPrj = 1:nPrjs
-  %         diagnosticStack(:,:,iPrj) = gather(diagnosticCell{iPrj});
-  %         evalMaskStack(:,:,iPrj) = int16(gather(evalMaskCell{iPrj}));
-  %       end
-  %     end
+
   
   clear diagnosticCell evalMaskCell
   %     if ~(conserveDiskSpace) && bh_global_save_tomoCPR_diagnostics
@@ -1812,7 +1679,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   fFull = fCombine;
   fDefFull = [fCombine,zeros(size(fCombine,1),1)];
-  % % % % %     fDefFull(:,2:3) = fDefFull(:,2:3).*pixelSize;
+  % % % % %     fDefFull(:,2:3) = fDefFull(:,2:3).*pixel_size;
   fDefFull(:,2:3) = fDefFull(:,2:3).*samplingRate;
   for iPrj = 1:nPrjs
     % Create a file that has the X,Y,defocus positions for all fiducials
@@ -1838,7 +1705,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % The model ends up seeing the pixel size as 1, so even though it loads
   % properly on the full aligned stack, these coords need to be scaled by
   % the pixel size since this is the input to tiltalign.
-  fFull(:,2:3) = fFull(:,2:3).*pixelSize;
+  fFull(:,2:3) = fFull(:,2:3).*pixel_size;
   
   fprintf(fidCombine,'%d %4.4f %4.4f %d\n',fCombine');
   fclose(fidCombine);
@@ -1857,56 +1724,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   RotDef = 5;
   TltDef = 4;
   aliCom = fopen(sprintf('%smapBack%d/%s.align',mbOUT{1:3}),'w');
-  % % % % %     fprintf(aliCom,['#!/bin/bash\n\n',...
-  % % % % %                     'tiltalign -StandardInput << EOF\n',...
-  % % % % %                     'ModelFile %smapBack%d/%s_fit-full.fid\n',...
-  % % % % %                     'ImageSizeXandY %d,%d\n',...
-  % % % % %                     'ImagePixelSizeXandY %f,%f\n',...
-  % % % % %                     'ImagesAreBinned 1\n',...
-  % % % % %                     'OutputModelFile %smapBack%d/%s%s.3dmod\n',...
-  % % % % %                     'OutputResidualFile %smapBack%d/%s%s.resid\n',...
-  % % % % %                     'OutputFidXYZFile	%smapBack%d/%s%s.xyz\n',...
-  % % % % %                     'OutputTiltFile	%smapBack%d/%s%s.tlt\n',...
-  % % % % %                     'OutputXAxisTiltFile	%smapBack%d/%s%s.xtilt\n',...
-  % % % % %                     'OutputTransformFile	%smapBack%d/%s%s.tltxf\n',...
-  % % % % %                     'RotationAngle	0.00\n',... % assumed to be rotated already
-  % % % % %                     'TiltFile	%s\n',...
-  % % % % %                     'SurfacesToAnalyze	2\n',...
-  % % % % %                     'RotOption	1\n',... % def solve all rotations
-  % % % % %                     'RotDefaultGrouping	3\n',... % if rot option --> 5 use def group size
-  % % % % %                     'TiltOption	%d\n',... % Tilts are harder use automapping
-  % % % % %                     'TiltDefaultGrouping	%d\n',...
-  % % % % %                     'MagOption	1\n',... % def solve all mags
-  % % % % %                     'MagDefaultGrouping	3\n',...
-  % % % % %                     'XStretchOption	0\n',...
-  % % % % %                     'SkewOption	0\n',...
-  % % % % %                     'BeamTiltOption	0\n',...
-  % % % % %                     'XTiltOption	0\n',...
-  % % % % %                     'ResidualReportCriterion	0.001\n',...
-  % % % % %                     'ShiftZFromOriginal\n',...
-  % % % % %                     'AxisZShift 0.0\n',...
-  % % % % %                     'RobustFitting\n',...
-  % % % % %                     'KFactorScaling %3.3f\n',...
-  % % % % %                     'LocalAlignments\n',...
-  % % % % %                     'LocalRotOption 1\n',...
-  % % % % %                     'LocalRotDefaultGrouping 3\n',...
-  % % % % %                     'LocalTiltOption %d\n',...
-  % % % % %                     'LocalTiltDefaultGrouping %d\n',...
-  % % % % %                     'LocalMagOption %d\n',...
-  % % % % %                     'LocalMagDefaultGrouping 5\n',...
-  % % % % %                     'OutputLocalFile %smapBack%d/%s%s.local\n',...
-  % % % % %                     'TargetPatchSizeXandY %d,%d\n', ...
-  % % % % %                     'MinFidsTotalAndEachSurface %d,%d\n',...
-  % % % % %                     'MinSizeOrOverlapXandY 0.5,0.5\n',...
-  % % % % %                     'LocalOutputOptions 1,1,1\n', ...
-  % % % % %                     'EOF'],mbOUT{1:3},fullTiltSizeXandY,...
-  % % % % %                            fullPixelSize,fullPixelSize,...
-  % % % % %                            mbOUT{1:3},outCTF,mbOUT{1:3},outCTF,mbOUT{1:3},outCTF,...
-  % % % % %                            mbOUT{1:3},outCTF,mbOUT{1:3},outCTF,mbOUT{1:3},outCTF, ...
-  % % % % %                            iRawTltName,tiltAliOption(1:2),...
-  % % % % %                            10 / sqrt(nFidsTotal),tiltAliOption(3:4),flgLocalMag, ...
-  % % % % %                            mbOUT{1:3},outCTF,targetPatchSize,targetPatchSize,...
-  % % % % %                            nFiducialsPerPatch,floor(nFiducialsPerPatch/3));
   
   if (emc.shift_z_to_to_centroid)
     final_line1 =  'ShiftZFromOriginal';
@@ -1920,7 +1737,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   mbOutAlt = mbOUT;
   tilt_script_name = iRawTltName;
-  if (flgAltRun)
+  if (multi_node_run)
     mbOutAlt{1} = 'cache/';
     [~,tn2,tn3] = fileparts(iRawTltName);
     tilt_script_name = sprintf('cache/mapBack%d/%s%s',mbOUT{2},tn2,tn3);
@@ -1970,7 +1787,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     '%s\n',...
     '%s\n',...
     'EOF'],iTiltSeries,mbOutAlt{1:3},fullTiltSizeXandY,...
-    fullPixelSize,fullPixelSize,...
+    unsampled_pixel_size,unsampled_pixel_size,...
     mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,...
     mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF, ...
     tilt_script_name,n_surfaces, ...
@@ -2004,7 +1821,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   system(sprintf('chmod a=wrx %smapBack%d/%s.align',mbOUT{1:3}));
   
   if (is_first_run)
-    if ( flgAltRun )
+    if ( multi_node_run )
       fOUT = fopen(sprintf('%smapBack%d/runAlignments_%d_%d.sh',mbOUT{1:2},tiltStart,nTiltSeries),'w');
       fprintf(fOUT,['%smapBack%d/%s.align > ',...
         '%smapBack%d/%s.align_ta.log &\n'],mbOutAlt{1:3},mbOutAlt{1:3});
@@ -2022,7 +1839,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     fclose(fOUT);
     is_first_run = false;
   else
-    if ( flgAltRun )
+    if ( multi_node_run )
       fOUT = fopen(sprintf('%smapBack%d/runAlignments_%d_%d.sh',mbOUT{1:2},tiltStart,nTiltSeries),'a');
     else
       fOUT = fopen(sprintf('%smapBack%d/runAlignments.sh',mbOUT{1:2}), 'a');
@@ -2051,13 +1868,13 @@ for iTiltSeries = tiltStart:nTiltSeries
   
 end % loop over tilts
 
+
 if ( flgRunAlignments )
-  
+
   mainFile = sprintf('%smapBack%d/runAlignments.sh',mbOUT{1:2});
   altFiles = sprintf('%smapBack%d/runAlignments_*.sh',mbOUT{1:2});
   
-  
-  if (flgAltRun)
+  if (multi_node_run)
     fOUT = fopen(mainFile,'w');
     fprintf(fOUT,'#!/bin/bash\n\n');
     fclose(fOUT);
@@ -2066,13 +1883,11 @@ if ( flgRunAlignments )
     system(sprintf('cat %s >> %s',altFiles,mainFile));
   end
   
-  
   fOUT = fopen(mainFile,'a');
   fprintf(fOUT,'\nwait\n');
   fclose(fOUT);
   
   system(sprintf('chmod a=wrx %smapBack%d/runAlignments.sh', mbOUT{1:2}));
-  
   system(sprintf('%smapBack%d/runAlignments.sh', mbOUT{1:2}));
 end
 

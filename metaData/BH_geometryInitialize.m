@@ -140,9 +140,8 @@ end
 nTomogramsTotal = length(getPath);
 fileInfo = cell(nTomogramsTotal,4);
 
-getCoords = dir('recon/*.coords')
-getCoords(1).name
-nStacks = length(getCoords)
+getCoords = dir('recon/*.coords');
+nStacks = length(getCoords);
 
 % There is no real need to have a separate data here. The main difference
 % is these have all tomos from one tilt-series and instead of the origin on
@@ -152,11 +151,7 @@ nStacks = length(getCoords)
 % this could lead to bugs if one is changed and the other not. The only
 % other concern is then linking each tomogram to the parent tilt-series.
 for iStack = 1:nStacks
-  
-  
-  
-  sprintf('recon/%s',getCoords(iStack).name)
-  
+    
   
   [ recGeom, tiltName, nTomosPossible] = BH_multi_recGeom( sprintf('recon/%s',getCoords(iStack).name) );
   % Initialize
@@ -164,7 +159,7 @@ for iStack = 1:nStacks
   
   subTomoMeta.('mapBackGeometry').(tiltName).('coords') = zeros(nTomosPossible,6);
   if (doImport)
-    iPath = dir(sprintf('convmap/%s_*.csv',tiltName))
+    iPath = dir(sprintf('convmap/%s_*.csv',tiltName));
   else
     iPath = dir(sprintf('convmap/%s_*.mod',tiltName));
   end
@@ -192,8 +187,7 @@ for iStack = 1:nStacks
     end
     
     
-    subTomoMeta.('mapBackGeometry').(tiltName).('coords')(tomoNumber,:) = ...
-      recGeom(tomoNumber,:);
+    subTomoMeta.('mapBackGeometry').(tiltName).('coords')(tomoNumber,:) =  recGeom(tomoNumber,:);
     subTomoMeta.('mapBackGeometry').('tomoName').(...
       sprintf('%s_%d',tiltName,tomoNumber)).('tiltName') = tiltName;
     subTomoMeta.('mapBackGeometry').('tomoName').(...
@@ -202,21 +196,19 @@ for iStack = 1:nStacks
   
   
   
-end
+end % end of loop over stacks
 
 
 for iTomo = 1:nTomogramsTotal
-  iTomo
   
-  sprintf('convmap/%s',getPath(iTomo).name)
-  modName = strsplit(getPath(iTomo).name,'_')
+  modName = strsplit(getPath(iTomo).name,'_');
   if (doImport)
-    tiltName = modName{1}
+    tiltName = modName{1};
     tomoNumber = strsplit(modName{2},'.csv');
     tomoNumber = EMC_str2double(tomoNumber{1})
   else
     tiltName = strjoin(modName(1:end-2),'_');
-    tomoNumber = EMC_str2double(modName{end-1})
+    tomoNumber = EMC_str2double(modName{end-1});
   end
   
   fileInfo{iTomo,1} = tiltName;
@@ -226,8 +218,8 @@ for iTomo = 1:nTomogramsTotal
   
   subTomoMeta.('tiltGeometry').(fileInfo{iTomo,2}) = load(fileInfo{iTomo,4});
   
-  recCoords = importdata(sprintf('./recon/%s_recon.coords',tiltName))
-  recCoords = recCoords.data
+  recCoords = importdata(sprintf('./recon/%s_recon.coords',tiltName));
+  recCoords = recCoords.data;
   
   % The reconstruction could be defined based on the aliStacks or the
   % fixedStacks. the dimensions
@@ -239,17 +231,8 @@ for iTomo = 1:nTomogramsTotal
     floor((recCoords(4 + (tomoNumber-1)*6) + recCoords(3 + (tomoNumber-1)*6) - 1)/2 - (subTomoMeta.('tiltGeometry').(fileInfo{iTomo,2})(1,21))/2),... % oY -- need the tilt series size
     recCoords(7 + (tomoNumber-1)*6)];  %OZ (negative shift Z in imod reconstruction command -- but rotated during reconstruction so the -1 is implicit);
   
-  subTomoMeta.('reconGeometry').(fileInfo{iTomo,2}) = ...
-    [recGeom(1:3);recGeom(4:6)];
-  %   try
-  %     recGeom = load(sprintf('./recon/%s_recon.txt',fileInfo{iTomo,2}));
-  %     subTomoMeta.('reconGeometry').(fileInfo{iTomo,2}) = ...
-  %                                                    [recGeom(1:3);recGeom(4:6)];
-  %
-  %   catch
-  %     fileInfo{iTomo,2}
-  %     error('error loading ./recon/%s_recon.txt',fileInfo{iTomo,2});
-  %   end
+  subTomoMeta.('reconGeometry').(fileInfo{iTomo,2}) = [recGeom(1:3);recGeom(4:6)];
+
   
   
   % Check to make sure no out of bounds conditions were created in X Y

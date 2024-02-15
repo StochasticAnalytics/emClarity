@@ -297,13 +297,10 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    
-    flgLoad = 0;
-    [~,tomoReconCoords] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
-      reconCoords, mapBackIter, ...
-      samplingRate, 1,reconScaling,flgLoad, 'tomoCPR');
-    
+    % reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
+    tomoReconCoords = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+
+
     originVol = floor(tomoReconCoords(1,1:3)./2) + 1;
     reconShift = tomoReconCoords(2,1:3);
     
