@@ -264,7 +264,7 @@ function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj
   ddZ, x1, y1, Xnew, Ynew, coordShift,  ...
   reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine)
 
-DFo = TLT(iPrj,15);
+DFo = abs(TLT(iPrj,15));
 
 padTileOver = 256;
 tmpTile = zeros(paddedSize.*[1,1]+2*padTileOver,'single','gpuArray');
@@ -391,12 +391,12 @@ end
 
 function [minRes] = calcMinResolution(TLT, radialForCTF,Cs,WAVELENGTH,AMPCONT)
 
-meanDef = mean(TLT(:,15));
+meanDef = abs(mean(TLT(:,15)));
 meanAst = mean(TLT(:,12));
 meanAng = mean(TLT(:,13));
 
-df1 = meanDef - meanAst;
-df2 = meanDef + meanAst;
+df1 = meanDef + meanAst;
+df2 = meanDef - meanAst;
 
 [ Hqz ] = BH_ctfCalc(radialForCTF,Cs,WAVELENGTH, ...
   [df1,df2,meanAng],size(radialForCTF{1}), ...

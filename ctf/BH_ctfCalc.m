@@ -129,9 +129,12 @@ end
 % df1 should be defocus of greater mag and phi0 -90/90
 
 % phasePerturbation = pi.*(0.5.*CS.*WL^3.*(radialGrid).^4 + DF.*WL.*(radialGrid).^2);
+if (df1 - df2 < 0)
+  error('df1 must be greater than df2')
+end
+
 dfTerm = 0.5.*( (df1+df2) + (df1-df2)*cos(2.*(phi-phi0)) );
-phasePerturbation = pi.*(0.5.*CS.*WL^3.*(radialGrid).^4 + ...
-  WL.*(radialGrid).^2 .* dfTerm);
+phasePerturbation = pi.*(0.5.*CS.*WL^3.*(radialGrid).^4 - WL.*(radialGrid).^2 .* dfTerm);
 % dPdQ = 2*pi*CS*WL^3.*radialGrid.^3 + 2*WL.*radialGrid.*dfTerm;
 if ( flgComplex )
   ctfMask =  exp(-1i.*(phasePerturbation-atan2(AMPCONT,sqrt(1+AMPCONT))));

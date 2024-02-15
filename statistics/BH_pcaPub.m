@@ -688,20 +688,7 @@ for iGold = 1:1+flgGold
     nSubTomos = size(positionList,1);
     
     
-    if (flgWMDs == 0)
-      % Make a wedge mask that can be interpolated with no extrapolation for
-      % calculating wedge weighting in class average alignment.
-      
-      % COMMMMMMENT
-      
-      % make a binary wedge
-      [ wedgeMask ]= BH_weightMask3d(sizeMask, tiltGeometry, ...
-        'binaryWedgeGPU',2*maskRadius,1, 1, samplingRate);
-      
-      
-      error('do not do it man');
-    end
-    
+
     
     % reset for each tomogram
     wdgIDX = 0;

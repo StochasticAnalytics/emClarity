@@ -54,12 +54,12 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
                     
 
   if (b_ctf.doSqCTF ) {
-    tmp_coord = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.defocus1 + b_ctf.defocus2 * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
+    tmp_coord = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.mean_defocus + b_ctf.half_astigmatism * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
     // Is this any better (or worse) than pow?
     a[output_IDX] = tmp_coord*tmp_coord;
   }
   else{
-     a[output_IDX] = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.defocus1 + b_ctf.defocus2 * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
+     a[output_IDX] = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.mean_defocus + b_ctf.half_astigmatism * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
   }
     
 }
@@ -112,7 +112,7 @@ __global__ void ctf(cufftReal* a, uint2 dims, uint2 o_dims, ctfParams b_ctf, flo
 
   radius_sq = radius_sq*radius_sq + tmp_coord*tmp_coord;
    
-  tmp_coord = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.defocus1 + b_ctf.defocus2 * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
+  tmp_coord = sinf(b_ctf.cs_term*powf(radius_sq,2) - b_ctf.df_term*radius_sq*(b_ctf.mean_defocus + b_ctf.half_astigmatism * cosf(2.0f * (phi-b_ctf.astigmatism_angle))) - b_ctf.amplitudeContrast);
                   
                   
   // if you add the radial weighting you will need to fix this.

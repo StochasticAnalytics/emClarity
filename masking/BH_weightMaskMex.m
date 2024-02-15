@@ -22,7 +22,7 @@ prjVector = xyzSubTomo - originVol + reconShift;
 iCs = single(TLT(:,17).*10^3);
 iWavelength = single(TLT(:,18).*10^10);
 iPhaseShift = TLT(:,19)  ;
-iDefocus = single(-TLT(:,15).*10^10)  ;
+iDefocus = single(abs(TLT(:,15)).*10^10)  ;
 iddF = single(TLT(:,12).*10^10);
 idPHI = single(TLT(:,13).*180.0/pi);
 

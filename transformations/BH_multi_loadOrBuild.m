@@ -67,7 +67,7 @@ if SAMPLING > 1
   
   stack = sprintf('cache/%s_ali%d%s_bin%d.fixed',tomoName,mapBackIter+1,ctf,SAMPLING);
   if ~exist(stack, 'file')
-    BH_multi_loadOrBin(checkStack,SAMPLING, 2); %%%%% med filt flag
+    BH_multi_loadOrBin(checkStack, SAMPLING, 2, true); %%%%% med filt flag
   end
   
 else

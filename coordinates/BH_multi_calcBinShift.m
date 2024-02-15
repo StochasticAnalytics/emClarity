@@ -1,4 +1,4 @@
-function [ binSize, binShift ] = BH_multi_calcBinShift(coords, isTilt, samplingRate)
+function [ binSize, binShift ] = BH_multi_calcBinShift(coords, samplingRate)
 % Address fractional shifts on binning
 %   Coordinates are stored relative to the lower left corner of the full
 %   tilt/tomo. On binning a shift is needed to keep that origin in the same
@@ -7,24 +7,17 @@ function [ binSize, binShift ] = BH_multi_calcBinShift(coords, isTilt, samplingR
 %   way to do this is to shift the data on binning in 2d, and leave the
 %   coordinates alone.
 
-if (isTilt)
-  % Expecting just the x,y,z for a tilt series and the binning. Also may
-  % shift to have an odd dimension so that Imod origin is always the same.
-  binSize = floor(coords./samplingRate);
-  binSize = binSize - (1-mod(binSize,2));
-  
-  originFull = floor(coords ./2) + 1;
-  originBin  = floor(binSize./2) + 1;
-  % This is the shift we need to apply to the binned image to make sure
-  % that the origin is in the same place.
-  binShift = -1.*(samplingRate.*originBin - originFull) ./ samplingRate;
-  
-end
 
+% Expecting just the x,y,z for a tilt series and the binning. Also may
+% shift to have an odd dimension so that Imod origin is always the same.
+binSize = floor(coords./samplingRate);
+binSize = binSize - (1-mod(binSize,2));
 
-% tmpShift = (coords-fix(coords./samplingRate).*samplingRate);
-% binShiftTemplateSearch = [tmpShift(1), tmpShift(3) + tmpShift(2),tmpShift(4)];
-% binShift = binShiftTemplateSearch ./ samplingRate;
+originFull = floor(coords ./2) + 1;
+originBin  = floor(binSize./2) + 1;
+% This is the shift we need to apply to the binned image to make sure
+% that the origin is in the same place.
+binShift = -1.*(samplingRate.*originBin - originFull) ./ samplingRate;
 
 end
 

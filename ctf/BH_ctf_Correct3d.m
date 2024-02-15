@@ -378,15 +378,18 @@ for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
 end
-try
-  EMC_parpool(nGPUs)
-catch
-  delete(gcp('nocreate'))
-  EMC_parpool(nGPUs)
-end
+% FIXME
+% try
+%   EMC_parpool(nGPUs)
+% catch
+%   delete(gcp('nocreate'))
+%   EMC_parpool(nGPUs)
+% end
 
+% FIXME
+% parfor iGPU = 1:nGPUs
+for iGPU = 1:nGPUs
 
-parfor iGPU = 1:nGPUs
   for iTilt = iterList{gpuList(iGPU)}
     
     iTomoList = {};
@@ -443,8 +446,9 @@ end
 
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
-parfor iGPU = 1:nGPUs%
-  %for iGPU = 1:nGPUs
+% FIXME
+% parfor iGPU = 1:nGPUs
+  for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt
   for iTilt = iterList{gpuList(iGPU)}
@@ -524,7 +528,7 @@ parfor iGPU = 1:nGPUs%
         % %     binCMD = sprintf('newstack -bin %d -antialias 6 %s %s ',samplingRate,fullStack,inputStack);
         %
         %     system(binCMD);
-        BH_multi_loadOrBin(fullStack,-1.*samplingRate,2);
+        BH_multi_loadOrBin(fullStack, samplingRate, 2, false);
         
       end
     else
@@ -567,7 +571,7 @@ parfor iGPU = 1:nGPUs%
     else
       dampeningMax = 0.90;
       [ ctf3dDepth ] = BH_ctfCalcError( samplingRate*mean(TLT(:,16)), ...
-        TLT(1,17),TLT(1,18),TLT(1,15), ...
+        TLT(1,17),TLT(1,18),abs(TLT(1,15)), ...
         2048, TLT(1,19), ...
         resTarget,maxZ*10, ...
         dampeningMax,CYCLE);
@@ -584,27 +588,22 @@ parfor iGPU = 1:nGPUs%
       % max odd number
       nSections = nSections + ~mod(nSections,2);
     end
-    fprintf('with %3.3f nm sections, correcting %d tilt-series\n',ctf3dDepth*10^9,nSections);
+    fprintf('with %3.3f nm sections, correcting %d tilt-series\n', ctf3dDepth*10^9, nSections);
     
     % For each tomo create a list of slices that are to be reconstructed
     % for every section section.
     
-    [ sectionList ] = calcTomoSections(iCoords, tomoNumber,emc.pixel_size_angstroms, ...
-      nSections,tiltList{iTilt}, ctf3dDepth);
+    [ sectionList ] = calcTomoSections(iCoords, tomoNumber, emc.pixel_size_angstroms, nSections, tiltList{iTilt}, ctf3dDepth);
     
     
     if (recWithoutMat)
       avgZ = 0;
       surfaceFit = 0;
-      
     else
-      
       [ avgZ, maxZ, tomoNumber, surfaceFit ] = calcAvgZ(masterTM,iCoords,tiltList{iTilt}, ...
-        iTomoList,nTomos, emc.pixel_size_angstroms, ...
-        samplingRate, cycleNumber,...
-        sectionList,0);
-      
-      
+                                                        iTomoList,nTomos, emc.pixel_size_angstroms, ...
+                                                        samplingRate, cycleNumber,...
+                                                        sectionList, 0);
     end
     
     if ( shiftDefocusOrigin )
@@ -616,35 +615,10 @@ parfor iGPU = 1:nGPUs%
     end
     
     
-    
-    
-    
-    % Correct a tilt series for earch section which requires writing each to
-    % disk for use of IMOD.
-    if (mapBackIter)
-      tiltErrorFile = sprintf('mapBack%d/%s_ali%d_ctf.beamTiltError', ...
-        mapBackIter,tiltList{iTilt}, mapBackIter);
-      try
-        tiltError = load(tiltErrorFile);
-        if numel(tiltError) ~= 1
-          error('tiltError should be a single number in degrees.\n');
-        else
-          fprintf('\nUsing %f degrees for beam tilt error.\n',tiltError)
-        end
-        
-      catch
-        fprintf('\nTiltErrorFile %s not found.\n', tiltErrorFile);
-        fprintf('\nUsing 0 degrees for beam tilt error.\n',tiltErrorFile)
-        tiltError = 0;
-      end
-      
-      
-    else
-      tiltError = 0;
-    end
+    fprintf('Using a avgZ of %3.3e nm\n',avgZ);
+
     
     for iSection = 1:nSections
-      
       
       defFitFull = '';
       preCombDefocus = 0;
@@ -659,12 +633,9 @@ parfor iGPU = 1:nGPUs%
         end
       end
       
-      
-      
       if (PosControl2d)
         correctedStack = maskedStack;
       else
-        
         
         % I would have thought the global would be recognized, but it looks
         % like there is something odd about its use with a parfor loop
@@ -690,8 +661,7 @@ parfor iGPU = 1:nGPUs%
       end
       
       
-      outputStack = sprintf('%s/%s_ali%d_%d.fixed', ...
-        tmpCache,tiltList{iTilt},mapBackIter+1,iSection)
+      outputStack = sprintf('%s/%s_ali%d_%d.fixed', tmpCache,tiltList{iTilt},mapBackIter+1,iSection);
       SAVE_IMG(correctedStack,outputStack,emc.pixel_size_angstroms);
       correctedStack = [];
       
@@ -740,7 +710,6 @@ parfor iGPU = 1:nGPUs%
           end
           
           
-          fprintf('Local file %s\n',LOCAL);
           
           if exist(LOCAL,'file')
             flgLocal = 1;
@@ -920,7 +889,7 @@ fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
 inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
   STACK_PRFX,mapBackIter+1,suffix,samplingRate);
 if ~exist(inputStack, 'file')
-  BH_multi_loadOrBin(fullStack,-1.*samplingRate,2,flgMedianFilter);
+  BH_multi_loadOrBin(fullStack, samplingRate, 2, false);
 end
 
 
@@ -930,31 +899,38 @@ end
 function  [ sectionList ] = calcTomoSections(iCoords, tomoNumber, pixel_size_angstroms, nSections,tiltName, ctf3Depth)
 
 nTomos = length(tomoNumber);
-sectionList = cell(nTomos,1);
+sectionList = cell(nTomos,1)
 for iTomo = 1:nTomos
   % min and max in absolute pixels min and max from 1:nZrecon
-  sectionList{iTomo} = zeros(nSections,6);
+  sectionList{iTomo} = zeros(nSections,6)
 end
 
 % With rounding this could end up a bit short except the top and bottom are both
 % half a section larger than minimally needed.
-nSec = floor(ctf3Depth*10^10/pixel_size_angstroms)      ;
-nSec = nSec + ~mod(nSec,2);
-halfSec = (nSec-1)/2;
+n_pixels_per_slab = floor(ctf3Depth*10^10/pixel_size_angstroms)      
+n_pixels_per_slab = n_pixels_per_slab + ~mod(n_pixels_per_slab,2)
+
+halfSec = (n_pixels_per_slab-1)/2
 
 for iT = 1:length(tomoNumber)
   iTomo = tomoNumber(iT);
   % Origin + originshift
   
-  -1.*(ceil((iCoords(iTomo,4)+1)/2)-1) + iCoords(iTomo,6),
-  reconRange = floor([-1.*(ceil((iCoords(iTomo,4)+1)/2)-1) + iCoords(iTomo,6),0]);
+  oZ_in_tomo_frame = emc_get_origin_index(iCoords(iTomo,4));
+  % iCoords(iTomo,6) is the origin of the specimen with respect to the origin of the tomogram
+  % We want the origin of the tomogram with respect to the origin of the specimen and then calculate the lower
+  % bound of the reconstruction range as half the volume lower than that
+  oZ_in_specimen_frame = -1*iCoords(iTomo,6);
+  reconRange = floor([oZ_in_specimen_frame - oZ_in_tomo_frame,0]);
   reconRange(2) = reconRange(1) + iCoords(iTomo,4) - 1;
   nZ = 1;
   flgFirstSec = 1;
   
+  % nSections is always ODD
+  % FIXME: The half section (slab) shift seems precarious, I don't remember why this is set up this way.
   for iSection = 1:nSections
     
-    sectionCenter = ((nSections-1)/-2+(iSection-1))*(nSec-1);
+    sectionCenter = ((nSections-1)/-2+(iSection-1))*(n_pixels_per_slab-1);
     
     % Check that sectionCenter is within range
     if sectionCenter + halfSec < reconRange(1) || ...
@@ -1065,9 +1041,16 @@ correctedStack = zeros(d1,d2,nPrjs,'single');
 % the center of mass of subtomograms in Z to the focal plane, rather than
 % the center of mass of the tomograms (specimen)
 
-defocusOffset = (((nSections-1)/-2+(iSection-1))*ctf3dDepth);
-fprintf('using offset %3.3e for section %d with COM offset %3.3e\n',defocusOffset,iSection,avgZ);
-defocusOffset = (defocusOffset - avgZ)*(1-useSurfaceFit); % The average height of the particles is factored into the surface fit
+if (useSurfaceFit)
+  defocusOffset = 0;
+else
+  defocusOffset = (((nSections-1)/-2+(iSection-1))*ctf3dDepth);
+  fprintf('Not using surface fit, so using offset %3.3e for section %d with COM offset %3.3e\n', defocusOffset, iSection, avgZ);
+  % Assuming the majority of the fit defocus came from the subtomograms, then the estimated defocus value needs to be moved from
+  % the origin of the specimen to the origin of the subtomograms.
+  defocusOffset = (defocusOffset + avgZ); % The average height of the particles is factored into the surface fit
+end
+
 
 % The avg Z seems like it should be added?
 
@@ -1117,8 +1100,8 @@ end
 for iPrj = 1:nPrjs
   
   maxEval = cosd(TLT(iPrj,4)).*(d1/2) + maxZ./2*abs(sind(TLT(iPrj,4)));
-  oX = ceil((d1+1)./2);
-  oY = ceil((d2+1)./2);
+  oX = emc_get_origin_index(d1);
+  oY = emc_get_origin_index(d2);
   iEvalMask = floor(oX-maxEval):ceil(oX+maxEval);
   
   if ( applyExposureFilter )
@@ -1128,23 +1111,11 @@ for iPrj = 1:nPrjs
   end
   
   iExposureFilter = iExposureFilter .* bpFilter;
-  
-  
-  
-  
-  STRIPWIDTH = min(floor((0.5*ctf3dDepth/(pixel_size_angstroms*10^-10))/abs(tand(TLT(iPrj,4)))),512);
-  STRIPWIDTH = STRIPWIDTH + mod(STRIPWIDTH,2);
-  % take at least 1200 Ang & include the taper if equal to STRIPWIDTH
-  tileSize   = floor(max(600./pixel_size_angstroms, STRIPWIDTH + 28));
-  tileSize = tileSize + mod(tileSize,2);
-  %fprintf('stripwidth tilesize %d %d\n',STRIPWIDTH,tileSize);
-  incLow = ceil(tileSize./2);
-  incTop = tileSize - incLow;
-  border = ceil(incLow+apoSize)+1;
+
   
   ddF = TLT(iPrj,12);
   dPhi = TLT(iPrj,13);
-  D0 = TLT(iPrj,15);
+  D0 = abs(TLT(iPrj,15));
   %TLT(iPrj,16);
   
   
@@ -1159,8 +1130,6 @@ for iPrj = 1:nPrjs
   % Gridvectors for the specimen plane
   [rX,rY,~] = BH_multi_gridCoordinates([d1,d2],'Cartesian','GPU',{'none'},0,1,0);
   % Assuming the plane fit is from the origin as it is.
-  
-  
   
   if (useSurfaceFit)
     %rZ = (surfaceFit.p00 + surfaceFit.p10.*(rX+oX)) + surfaceFit.p01.*(rY+oY);
@@ -1177,16 +1146,19 @@ for iPrj = 1:nPrjs
   else
     rZ = zeros([d1,d2],'single','gpuArray');
   end
+
   
+  defocus_adj = D0 - (defocusOffset.*cosd(TLT(iPrj,4)));
   
-  full_defocusOffset = ((defocusOffset.*cosd(TLT(iPrj,4))) + D0);
-  
+  % For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)
   rA = BH_defineMatrix([0,TLT(iPrj,4),0],'SPIDER','inv');
+
   % Transform the specimen plane
-  tX = round(rA(1).*rX + rA(4).*rY + rA(7).*rZ +oX);
-  tY = round(rA(2).*rX + rA(5).*rY + rA(8).*rZ +oY);
-  tZ = (pixel_size_angstroms*10^-10).*(rA(3).*rX + rA(6).*rY + rA(9).*rZ) + full_defocusOffset;
-  
+  tX = round(rA(1).*rX + rA(4).*rY + rA(7).*rZ + oX);
+  tY = round(rA(2).*rX + rA(5).*rY + rA(8).*rZ + oY);
+  % undefocus is positive, but we have stored the negative value (so we just add this to the positional offset)
+  tZ = defocus_adj - (pixel_size_angstroms*10^-10).*(rA(3).*rX + rA(6).*rY + rA(9).*rZ);
+
   % Some edge pixels can be out of bounds depending on the orientation of
   % the plan fit. Setting to zero will will ignore them (assuming defocus
   % is always < 0)
@@ -1194,15 +1166,16 @@ for iPrj = 1:nPrjs
   
   
   minDefocus = min(tZ(:));
-  maxDefocus = max(tZ(tZ<1));
+  maxDefocus = max(tZ(tZ < 1));
   % Spit out some info
   %  fprintf('Found a min/max defocus of %3.3e/ %3.3e for tilt %d (%3.3f deg)\n',minDefocus,maxDefocus,iPrj,TLT(iPrj,4));
   
   % To track sampling in case I put in overlap
   samplingMask = zeros([d1,d2],'single','gpuArray');
   
+  % TODO: confirm the astigmatism is correct, check - and +/- 90
   for iDefocus = minDefocus-ctf3dDepth/1:ctf3dDepth/1:maxDefocus+ctf3dDepth/1
-    defVect = [iDefocus - ddF, iDefocus + ddF, dPhi];
+    defVect = [iDefocus + ddF, iDefocus - ddF, dPhi];
     
     if (phakePhasePlate(1) > 0)
       
@@ -1231,7 +1204,7 @@ for iPrj = 1:nPrjs
       end
     end
     
-    
+ 
     if (flgWhitenPS(3))
       tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz./(abs(Hqz).^2+flgWhitenPS(3)))),trimVal(1,:),trimVal(2,:),'GPU','single');
     else
@@ -1275,41 +1248,32 @@ clear tile Hqz
 end
 
 function [avgZ, maxZ, tomoNumber,surfaceFit] = calcAvgZ(masterTM,iCoords, ...
-  tiltName,tomoList,...
-  nTomos, pixel_size_angstroms,...
-  samplingRate,cycleNumber,...
-  sectionList,calcMaxZ)
+                                                        tiltName,tomoList,...
+                                                        nTomos, pixel_size_angstroms,...
+                                                        samplingRate,cycleNumber,...
+                                                        sectionList,calcMaxZ)
 
 % Calculate the maximum extensions in Z and then how many separate sections
 % need to be corrected.
 
 surfaceFit = '';
 avgZ = 0;
-maxZ = 0;
-tomoNumber = zeros(nTomos,1);
-for iTomo = 1:nTomos
-  % The tomograms may not be listed monotonically so explicitly get their
-  % id number
-  
-  if isa(masterTM,'struct')
-    tomoNumber(iTomo) = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-    nZdZ = iCoords(tomoNumber(iTomo),[4,6]);
-  else
-    tomoNumber(iTomo) = iTomo;
-    nZdZ = iCoords(iTomo,[4,6]);
-  end
-  
-  % half the size in z plus the shift back to the microscope coords.
-  sZneeded = 2.*ceil(nZdZ(1)/2+abs(nZdZ(2))+1);
-  if sZneeded > maxZ
-    maxZ = sZneeded;
-  end
+
+
+if isa(masterTM,'struct')
+  val_to_pass =  masterTM.mapBackGeometry.tomoName;
+else
+  val_to_pass = 'dummy';
 end
 
-maxZ = maxZ + (samplingRate*2);
+[ maxZ, tomoNumber ] = emc_get_max_specimen_NZ(val_to_pass, ...
+                                              iCoords * samplingRate, ...
+                                              tomoList, ...
+                                              nTomos, ...
+                                              samplingRate);
 
-maxZ = maxZ.*pixel_size_angstroms./10;
-fprintf('combining thickness and shift on tilt %s, found a maxZ  %3.3f nm\n',tiltName,maxZ);
+maxZ = maxZ .* pixel_size_angstroms ./ 10;
+fprintf('combining the thickness and shift on tilt %s, found a maxZ  %3.3f nm\n',tiltName,maxZ);
 
 if (calcMaxZ)
   return;
@@ -1317,7 +1281,6 @@ end
 
 % For now use cycle000, if adding a refinment focused on a specific set of
 % particles, then consider that later.
-
 try
   initGeom = masterTM.(cycleNumber).RawAlign;
   fprintf('Loaded the geometry for RawAlign %s\n',cycleNumber);
@@ -1349,94 +1312,72 @@ for iSection = 1:nSections
   zFull{iSection} = [];
 end
 
+
 for iT = 1:nTomos
+
   iTomo = tomoNumber(iT);
-  micDimension = floor(masterTM.tiltGeometry.(tomoList{iT})(1,20:22) ./ samplingRate);
-  
-  % Already scaled to sampled pixels
-  tomoOrigin =[ ceil((iCoords(iTomo,1)+1)./2),...
-    ceil((iCoords(iTomo,3)-iCoords(iTomo,2))./2),...
-    ceil((iCoords(iTomo,4)+1)/2)];
-  micOrigin = [-1*iCoords(iTomo,5), ...
-    (iCoords(iTomo,2) + tomoOrigin(2)) - ceil((micDimension(2)+1)/2),...
-    iCoords(iTomo,6)];
-  
+
+  % X in the Y frame means a vector from the Y lower left to the X origin
+  % X origin wrt Y origin is a vector from the origin of Y to the X origin
+  tomoReconCoords = masterTM.reconGeometry.(tomoList{iT}) ./ samplingRate;
+  tomo_origin_in_tomo_frame = emc_get_origin_index(tomoReconCoords(1,1:3));
+  tomo_origin_wrt_specimen_origin = -1.*tomoReconCoords(2,1:3);
+ 
   iTomoName = sprintf('%s_%d',tiltName,iTomo);
   
+  % Get the z-coordinates of the origin for all included subtomograms relative to the lower left of the tomogram
   % shouldn't be any removed particles at this stage but later there would be.
-  zList = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,13)./samplingRate;
-  
+  subtomo_origin_z_in_tomo_frame = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,13) ./ samplingRate;
+
+  % We should not get to this point if all subtomograms have been removed.
+  if isempty(subtomo_origin_z_in_tomo_frame)
+    error('No subtomograms found for %s',iTomoName);
+  end
+
   % shift from lower left to centered and include the tomos offset from the
-  % microscope frame
-  zList = zList - tomoOrigin(3) + micOrigin(3);
-  totalZ = totalZ + sum(zList);
+  subtomo_origin_wrt_specimen_origin = subtomo_origin_z_in_tomo_frame - tomo_origin_in_tomo_frame(3) + tomo_origin_wrt_specimen_origin(3);
+
+  totalZ = totalZ + sum(subtomo_origin_wrt_specimen_origin);
   fprintf('%s tomo has %d subTomos with mean Z %3.3f nm\n', ...
-    iTomoName, length(zList), mean(zList)*pixel_size_angstroms./10);
-  nSubTomos = nSubTomos + length(zList);
-  
+    iTomoName, length(subtomo_origin_wrt_specimen_origin), ...
+    mean(subtomo_origin_wrt_specimen_origin) * pixel_size_angstroms ./ 10);
+
+  nSubTomos = nSubTomos + length(subtomo_origin_wrt_specimen_origin);
+
   for iSection = 1:nSections
-    
     
     iSecOrigin = sectionList{iT}(iSection,6);
     iSecRadius = sectionList{iT}(iSection,5)/2;
-    inSectionIDX = zList >  iSecOrigin - iSecRadius & zList <= iSecOrigin + iSecRadius;
-    
+    inSectionIDX = subtomo_origin_wrt_specimen_origin >  iSecOrigin - iSecRadius & subtomo_origin_wrt_specimen_origin <= iSecOrigin + iSecRadius;
     
     
     x = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,11)./samplingRate;
-    x = x - tomoOrigin(1) + micOrigin(1);
+    x = x - tomo_origin_in_tomo_frame(1) + tomo_origin_wrt_specimen_origin(1);
     y = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,12)./samplingRate;
-    y = y - tomoOrigin(2) + micOrigin(2);
+    y = y - tomo_origin_in_tomo_frame(2) + tomo_origin_wrt_specimen_origin(2);
     
     
     xFull{iSection} = [xFull{iSection} ; x(inSectionIDX)];
     yFull{iSection} = [yFull{iSection} ; y(inSectionIDX)];
-    zFull{iSection} = [zFull{iSection} ; zList(inSectionIDX)];
-    
-    
-    
+    zFull{iSection} = [zFull{iSection} ; subtomo_origin_wrt_specimen_origin(inSectionIDX)];
     
   end % loop over sections
-  clear zList
+  clear subtomo_origin_wrt_specimen_origin
 end % loop over tomos
 
 
-avgZ = totalZ/nSubTomos*pixel_size_angstroms/10*10^-9;
+avgZ = totalZ / nSubTomos*pixel_size_angstroms / 10*10^-9;
 
-%       sf(x,y) = p00 + p10*x + p01*y;
-%      surfaceFit = fit([xFull, yFull],zFull,'poly11');
-%surfaceFit = fit([xFull, yFull],zFull,'lowess','Span',0.1);
+
 for iSection = 1:nSections
   
   if length(xFull{iSection}) >= 6
-    %       try
-    %      try
-    %          exclude = abs(mean(zFull{iSection})-zFull{iSection})>1.5.*std(zFull{iSection});
-    %          surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'lowess', 'Span', 0.05,'Normalize','on','Exclude',exclude);
-    %      catch
-    %
-    %             surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'lowess','Robust','on');
-    %           end
-    
     surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'poly22','Robust','on');
-    %     end
-    %
-    %     figure('visible','off'), plot(surfaceFit{iSection},[xFull{iSection},yFull{iSection}],zFull{iSection});
-    %     saveas(gcf,sprintf('fitThis_%s_%d.pdf',tiltName,iSection));
-    %     close(gcf);
   else
     surfaceFit{iSection} = 0;
   end
 end
 
-% save(sprintf('fitThis_%s_%d.mat',tiltName,iSection),'xFull','yFull','zFull','surfaceFit');
-
-
-fprintf('%s tilt-series has %d subTomos with mean Z %3.3f nm\n', ...
-  tiltName, nSubTomos,avgZ*10^9);
-
-
-
-
+fprintf('%s tilt-series has %d subTomos with mean Z %3.3f nm\n', tiltName, nSubTomos,avgZ*10^9);
 
 end

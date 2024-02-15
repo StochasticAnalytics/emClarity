@@ -172,16 +172,6 @@ catch
   scale_mip = false;
 end
 
-% Limit to the first zero if we are NOT using the CTF rec
-if ~( use_ctf3d_templateSearch )
-  TLT = load(sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tomoName,mapBackIter+1));
-  def = mean(-1.*TLT(:,15))*10^6; %TODO if you switch to POSITIVEDEFOCUS this will be wrong
-  firstZero = -0.2*def^2 +5.2*def +11;
-  % FIXME: if you have a ctf 3d tomo why limit to the firsts zero?
-  % Take the lower of firstZero lowResCut or Nyquist
-  bp_vals(3) = max(bp_vals(3), firstZero);
-  fprintf('\nUsing max (%f) of specified resolution cutoff of %f and first ctf zero %f Angstrom\n',bp_vals(3), wantedCut, firstZero);
-end
 
 if pixelSize*2 >  bp_vals(3)
   fprintf('\nLimiting to Nyquist (%f) instead of user requested low pass cutoff %f Angstrom\n',pixelSize*2,bp_vals(3));
@@ -232,8 +222,7 @@ particleThickness =  latticeRadius(3);
 
 
 
-[template, tempPath, tempName, tempExt] = ...
-  BH_multi_loadOrBin( TEMPLATE, 1, 3 );
+[template, tempPath, tempName, tempExt] = BH_multi_loadOrBin( TEMPLATE, 1, 3, true );
 
 % Bandpass the template so it is properly normalized
 bp_vals
@@ -417,40 +406,6 @@ kVal = 0;
 [ OUTPUT ] = BH_multi_iterator( [sizeChunk;kVal.*[1,1,1]], 'extrapolate' );
 
 
-%
-% switch wedgeType
-%   case 1
-%     % make a binary wedge
-%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-%                    'binaryWedgeGPU',particleThickness,...
-%                                                  1, 1, samplingRate);
-%   case 2
-%     % make a non-CTF wedge
-%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-%                    'applyMask',particleThickness,...
-%                                                  2, 1, samplingRate);
-%   case 3
-%     % make a CTF without exposure weight
-%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-%                    'applyMask',particleThickness,...
-%                                                  3, 1, samplingRate);
-%   case 4
-%     % make a wedge with full-ctf
-%     [ wedgeMask ]= BH_weightMask3d(-1.*OUTPUT(1,:), tiltGeometry, ...
-%                    'applyMask',particleThickness,...
-%                                                  4, 1, samplingRate);
-%   otherwise
-%     error('wedgeType must be 1-4');
-% end
-%
-% wedgeMask = (ifftshift(wedgeMask));
-%
-% % Now just using the mask to calculate the power remaining in the template,
-% % without actually applying.
-% wedgeMask = gather(find(ifftshift(wedgeMask)));
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Preprocess the tomogram
 
 tomoIDX = 1;
 nTomograms = prod(nIters);

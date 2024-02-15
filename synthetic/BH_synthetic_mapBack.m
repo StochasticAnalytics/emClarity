@@ -226,15 +226,13 @@ nRefs = length(classVector{1});
 
 particleMask = cell(nRefs,1);
 for iGold = 1:2
-  
   if iGold == 1
     halfSet = 'ODD';
   else
     halfSet = 'EVE';
   end
   
-  
-  imgNAME = sprintf('class_%d_Locations_Ref_%s', refName, halfSet)
+  imgNAME = sprintf('class_%d_Locations_Ref_%s', refName, halfSet);
   
   iHeader = getHeader(MRCImage(subTomoMeta.(cycleNumber).(imgNAME){1},0));
   sizeWindow = iHeader.nZ.*[1,1,1];
@@ -288,22 +286,23 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   skip_this_tilt_series_because_it_is_empty = false(nTomograms,1);
   
-  tiltList = cell(nTomograms,1);
   % tomoList = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
   tomoList = {};
   tomoIDX = 1;
+  tilt_filename = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tiltNameList{iTiltSeries}, mapBackIter + 1);
+  [~, tltName, tltExt] = fileparts(tilt_filename);
+  tilt_binned_filename = sprintf('%scache/%s_bin%d%s', CWD, tltName, samplingRate, tltExt);
   for iTomo = 1:size(subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).coords,1)
     % This is dumb, fix it to be explicit.
     if any(subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).coords(iTomo,:))
       tomoList{tomoIDX} = sprintf('%s_%d',tiltNameList{iTiltSeries},iTomo);
-      
-      tiltList{tomoIDX} = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tiltNameList{iTiltSeries}, mapBackIter + 1);
+       
       % Only increment if values found.
       tomoIDX = tomoIDX + 1;
     end
   end
   
-  [~,tiltBaseName,~] = fileparts(tiltList{1});
+  [~,tiltBaseName,~] = fileparts(tilt_filename);
   mbOUT{3} = tiltBaseName;
   
   
@@ -379,17 +378,15 @@ for iTiltSeries = tiltStart:nTiltSeries
     end
   end
   
-  
+  % TODO: these defaults should be re-examined
   nFiducialsPerPatch = ceil(100./sqrt(molMass));
   targetPatchSize = max(500, ceil(2.*(particle_radius).*sqrt(nFiducialsPerPatch)));
 
-  
+  % The binned stacks should already exist, if not, this will re-create it in the cache dir.
+  % Note that this will also be checked when reconstructing the full 3d background tomo.
   if (samplingRate > 1)
-    
     for iTomo = 1:nTomograms
-      [~, tltName, tltExt] = fileparts(tiltList{iTomo});
-      BH_multi_loadOrBin(tiltList{iTomo},-1.*samplingRate, 2);
-      tiltList{iTomo} = sprintf('%scache/%s_bin%d%s', CWD, tltName, samplingRate, tltExt);
+      BH_multi_loadOrBin(tilt_filename, samplingRate, 2, false);
     end
   end
   
@@ -400,11 +397,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     system(sprintf('mv mapBack%d mapBack%d_%d%0.2d%0.2d_%d_%d_%d',mapBackIter+1,mapBackIter+1,y,m,d,h,mi,floor(s)));
     clear y m d h mi s
   end
+
   system(sprintf('mkdir -p %smapBack%d',tmpCache,mapBackIter+1));
-  
-  
-  
-  
   
   % re-initialize the parpool for each tilt series to free up mem.
   if ~isempty(gcp('nocreate'))
@@ -415,47 +409,34 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   fprintf('init with %d workers\n',nWorkers);
   
-  outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
-  
    
   % Get the thickest for recon
   maxZ = 0;
-  overSampleZforProjection = 1.0;
-  tiltHeader = getHeader(MRCImage(tiltList{1},0));
-  
-  for iTomo = 1:nTomograms
-    
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
-    tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    nZdZ = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,[4,6])./samplingRate
-    
-    % half the size in z plus the shift back to the microscope coords.
-    sZneeded = 2.*ceil(overSampleZforProjection * (nZdZ(1)/2+abs(nZdZ(2))));
-    if sZneeded > maxZ
-      maxZ = sZneeded;
-    end
-    
-    clear tomoNumber nZdZ
-  end
-  maxZ = maxZ + (samplingRate*2);
+
+  % The 
+  tiltHeader = getHeader(MRCImage(tilt_binned_filename, 0));
+  [ maxZ ] = emc_get_max_specimen_NZ(subTomoMeta.mapBackGeometry.tomoName, ...
+                                     subTomoMeta.mapBackGeometry.(tiltName).coords,  ...
+                                     tomoList, ...
+                                     nTomograms, 
+                                     samplingRate);
+
   fprintf('combining thickness and shift, found a maxZ of %d\n',maxZ);
   
   % xyzproj assumes centered in Z, so add extra height for z offsets to create
   % the true "in microsope" dimension
   
-  reconstructionSize = [tiltHeader.nX,tiltHeader.nY,maxZ];
-  originRec = ceil((reconstructionSize+1)./2);
+  reconstruction_size = [tiltHeader.nX, tiltHeader.nY, maxZ];
+  originRec = emc_get_origin_index(reconstruction_size);
   avgTomo = cell(3,1);
   
-  
-  avgSampling = zeros(reconstructionSize,'uint8');
   % These two are mutually exclusive for now, but not enforced.
   if (flgClassAvg)
-    avgColor = zeros(reconstructionSize, 'int16');
+    avgColor = zeros(reconstruction_size, 'int16');
   end
   
   if (emc.save_mapback_classes)
-    avgColor = zeros(reconstructionSize, 'int16');
+    avgColor = zeros(reconstruction_size, 'int16');
   end
   
 
@@ -512,27 +493,11 @@ for iTiltSeries = tiltStart:nTiltSeries
     refVol{2}{iRef} = gpuArray(refVol{2}{iRef});
     particleMask{iRef} = gpuArray(particleMask{iRef});
   end
-  avgTomo{1} = avgTomo{1} ./ (overSampleZforProjection.*rmsScale*rms(avgTomo{1}(:)));
-  
-  % % %   % Now reset the binned tilt to the non-ctf corrected. Could probably
-  % % %   % just temporarily rename, but for testing do this.
-  % % %   if (samplingRate > 1)
-  % % %      rmTiltName = sprintf('%scache/%s_ali%d_bin%d.fixed', ...
-  % % %                                    CWD,tiltNameList{iTiltSeries}, mapBackIter+1, samplingRate);
-  % % %     % Force removal so that a binned version of the ctf stack will be
-  % % %     % created
-  % % %     system(sprintf('rm %s',rmTiltName));
-  % % %
-  % % %     % Resample the tilt if necessary, then modify the tilt list
-  % % %       BH_multi_loadOrBin(sprintf('aliStacks/%s_ali%d.fixed',tiltNameList{iTiltSeries}, mapBackIter+1),-1.*samplingRate, 2);
-  % % %   end
-  
-  %     avgTomo{1} = zeros(reconstructionSize,'single');
-  
-  
+  avgTomo{1} = avgTomo{1} ./ (rmsScale*rms(avgTomo{1}(:)));
+
   
   if (emc.save_mapback_classes)
-    avgColor = zeros(reconstructionSize, 'int16');
+    avgColor = zeros(reconstruction_size, 'int16');
   end
   
   if (buildTomo)
@@ -551,7 +516,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   for iTomo = 1:nTomograms
     
     TLT = tiltGeometry.(tomoList{iTomo});
-    
     
     doseList = TLT(:,[1,11]);
     postExposure = doseList(:,2)';
@@ -599,7 +563,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     nFidsTotal = nFidsTotal + size(positionList,1);
     
     % Need to store tilt name/path explicity in meta deta
-    tiltName    = tiltList{iTomo};
+    tiltName    = tilt_binned_filename;
     
     
     tiltHeader = getHeader(MRCImage(tiltName,0));
@@ -617,7 +581,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     % reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
     tomoReconCoords = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
 
-    tomo_origin_in_tomo_frame = ceil((tomoReconCoords(1,1:3)+1)./2);
+    tomo_origin_in_tomo_frame = emc_get_origin_index(tomoReconCoords(1,1:3));
     tomo_origin_wrt_tilt_origin = tomoReconCoords(2,1:3);
     
     nPrjs = size(TLT,1);
@@ -694,7 +658,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         % The third entry is a dummy, normally used to make sure at least the
         % particle was being extracted even if the surrounding density (where
         % some delocalized values may be located) are not.
-        [ indVAL, padVAL, shiftVAL ] =  BH_isWindowValid(reconstructionSize, sizeAvgVol, sizeAvgVol./5, subtomo_origin_in_sample);
+        [ indVAL, padVAL, shiftVAL ] =  BH_isWindowValid(reconstruction_size, sizeAvgVol, sizeAvgVol./5, subtomo_origin_in_sample);
         
                 
         if ischar(indVAL)
@@ -947,7 +911,7 @@ for iTiltSeries = tiltStart:nTiltSeries
               '%s\n', ...
               '%s\n', ...
               '%s\n',...
-              'EOF'],tiltList{1} ,outputStackName, maxZ, ...
+              'EOF'],tilt_binned_filename ,outputStackName, maxZ, ...
               mbOUT{1:3},...
               taStr, mbOUT{1:3},iSave,...
               0,sTY-1,...
@@ -986,7 +950,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             '%s\n', ...
             '%s\n', ...
             '%s\n',...
-            'EOF'],tiltList{1} ,outputStackName, maxZ, ...
+            'EOF'],tilt_binned_filename ,outputStackName, maxZ, ...
             mbOUT{1:3},...
             taStr, mbOUT{1:3},iSave,...
             0,sTY-1,...
@@ -1074,7 +1038,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       '%s\n',...
       '%s\n',...
       '%s\n',...
-      'EOF'],tiltList{1}, mbOUT{1:3}, maxZ, ...
+      'EOF'],tilt_binned_filename, mbOUT{1:3}, maxZ, ...
       mbOUT{1:3},...
       mbOUT{1:3},...
       pixel_size./10, flgInvertTiltAngles,... % Ang --> nm
@@ -1362,10 +1326,11 @@ for iTiltSeries = tiltStart:nTiltSeries
     evalMask(~samplingMask) = false;
     samplingMask = [];
     
-    mean_defocus = TLT(iPrj,15);
+    % FIXME: The old convention was negative. For now, assuming no support for overfocus, so if a negative value is encountered, invert it.
+    mean_defocus = abs(TLT(iPrj,15));
     half_astigmatism = TLT(iPrj,12);
     angle_astigmatism = TLT(iPrj,13);
-    defVect = [mean_defocus - half_astigmatism, mean_defocus + half_astigmatism, angle_astigmatism];
+    defVect = [mean_defocus + half_astigmatism, mean_defocus - half_astigmatism, angle_astigmatism];
     
     [Hqz, HqzUnMod] = BH_ctfCalc(TLT(iPrj,16).*samplingRate,TLT(iPrj,17), ...
       TLT(iPrj,18),defVect,size(refPrj), ...

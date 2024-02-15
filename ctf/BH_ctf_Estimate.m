@@ -126,7 +126,7 @@ highCutoff = emc.pixel_size_si/emc.('defCutOff');
 % I still use the def for underfocus < 0 as this places the origin at the
 % focal plan in the microscope rather than on the specimen. Which makes
 % more sense to me.
-defEST = -1.*emc.('defEstimate').*10^6
+defEST = emc.('defEstimate').*10^6
 defWIN =  emc.('defWindow').*10^6
 tiltRange = [-1];
 
@@ -806,8 +806,8 @@ if ~(flgSkip)
       
       for iAng = coarseAngSearch
         for iDelDF = coarseDefSearch
-          df1 =  maxDef*10^-6 - iDelDF*astigStep;
-          df2 =  maxDef*10^-6 + iDelDF*astigStep;
+          df1 =  maxDef*10^-6 + iDelDF*astigStep;
+          df2 =  maxDef*10^-6 - iDelDF*astigStep;
           
           if (emc.pixel_size_si < 1*10^-10)
             
@@ -846,8 +846,8 @@ if ~(flgSkip)
         for iAng = fineAngSearch
           for iDelDF = fineDefSearch
             
-            df1 =  maxDef*10^-6 - (mDef + iDelDF);
-            df2 =  maxDef*10^-6 + (mDef + iDelDF);
+            df1 =  maxDef*10^-6 + (mDef + iDelDF);
+            df2 =  maxDef*10^-6 - (mDef + iDelDF);
             
             % For values very close to zero, the search range may include
             % values |df1| < |df2| which is against convention.

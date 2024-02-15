@@ -48,8 +48,8 @@ struct ctfParams {
   float waveLength; // Angstrom
   float CS; // millimeter
   float amplitudeContrast;
-  float defocus1; // Angstrom
-  float defocus2; // Angstrom
+  float mean_defocus; // Angstrom
+  float half_astigmatism; // Angstrom
   float astigmatism_angle; // from x-axis
 
   float cs_term;
@@ -59,7 +59,7 @@ struct ctfParams {
 	  __host__ __device__ ctfParams() : doHalfGrid(true), doSqCTF(false),
                                       pixelSize(0.0f), waveLength(0.0f), 
                                       CS(0.0f), amplitudeContrast(0.0f), 
-                                      defocus1(0.0f), defocus2(0.0f), 
+                                      mean_defocus(0.0f), half_astigmatism(0.0f), 
                                       astigmatism_angle(0.0f),
                                       cs_term(0.0f), df_term(0.0f) {}
 	  __host__ __device__ ctfParams(bool doHalfGrid, bool doSqCTF,
@@ -72,7 +72,7 @@ struct ctfParams {
                                   CS(CS * 1e7), 
                                   amplitudeContrast(atanf(amplitudeContrast / 
                                                           sqrtf(1.0 - powf(amplitudeContrast, 2)))), // Convert ampContrast to phase shift TODO is this safe? 
-                                  defocus1(0.5f*(df1+df2)), defocus2(0.5f*(df1-df2)), // Convert these to terms used in calc
+                                  mean_defocus(0.5f*(df1+df2)), half_astigmatism(0.5f*(df1-df2)), // Convert these to terms used in calc
                                   astigmatism_angle(astigmatism_angle*PI/180.0f - (PI * (float)lrintf(astigmatism_angle/180.0f))),
                                   cs_term(PI * 0.5f * CS* 1e7 * powf(waveLength,3)), df_term(PI * waveLength) {} // enforce -90 to 90 convention
 

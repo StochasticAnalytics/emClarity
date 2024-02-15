@@ -1,4 +1,4 @@
-function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = BH_multi_loadOrBin( IMG, SAMPLING, DIMENSION, varargin )
+function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = BH_multi_loadOrBin( input_tilt_series_filename, samplingRate, DIMENSION, LOAD_VOL )
 %Check to see if a cached binned image exists, either load or bin and load.
 %   Switched to using imod's newstack and binvol to create binning and
 %   removed inline binning from my workflow.
@@ -6,22 +6,17 @@ function [ IMG_OUT, iPixelHeader, iOriginHeader, imgExt ] = BH_multi_loadOrBin( 
 iPixelHeader = '';
 iOriginHeader = '';
 imgExt = '';
-flgLoad = 0;
+flgLoad = LOAD_VOL;
+IMG_OUT = '';
 
-if SAMPLING < 0
-  samplingRate = abs(SAMPLING);
-  IMG_OUT = '';
-else
-  flgLoad = 1;
-  samplingRate = SAMPLING;
-end
 
 try
-  [imgPath, imgName, imgExt] = fileparts(IMG);
+  [imgPath, imgName, imgExt] = fileparts(input_tilt_series_filename);
 catch
-  IMG
+  input_tilt_series_filename
   error('Trouble getting fileparts for this tilt-series');
 end
+
 if isempty(imgPath)
   imgPath = '.';
 end
@@ -36,44 +31,42 @@ if samplingRate > 1
     fprintf('Using cached file %s_bin%d%s\n', imgName, samplingRate,imgExt);
     [checkHeader,~] = system(sprintf('header %s > /dev/null',nameOUT));
     if (checkHeader)
-      fprintf('File exists but appears to be corrupt %s_bin%d%s\n', imgName, samplingRate,imgExt);
+      fprintf('File exists but appears to be corrupt %s_bin%d%s\n', imgName, samplingRate, imgExt);
       doCalc = 1;
     end
   else
     doCalc = 1;
   end
   
-  
   if (doCalc)
+
     !mkdir -p cache
-    
-    
     switch DIMENSION
       case 3
         system(sprintf('binvol -BinningFactor %d -antialias 6 %s cache/%s_bin%d%s >  /dev/null', ...
-          samplingRate,IMG, imgName, samplingRate,imgExt));
+                      samplingRate, input_tilt_series_filename, imgName, samplingRate, imgExt));
       case 2
         try
-          tiltObj = MRCImage(IMG,0);
+          tiltObj = MRCImage(input_tilt_series_filename,0);
         catch
           fprintf('If you have restarted somewhere it is possible the aligned stack is not found?\n');
           fprintf('Perhaps the value for CurrentTomoCpr is not correct?\n');
-          error('Could not init an MRCImage for %s in loadOrBin',IMG);
-          
+          error('Could not init an MRCImage for %s in loadOrBin',input_tilt_series_filename);
         end
         iHeader = getHeader(tiltObj);
-        outputName = (sprintf('cache/%s_bin%d%s',imgName, samplingRate,imgExt));
+        outputName = (sprintf('cache/%s_bin%d%s', imgName, samplingRate, imgExt));
+
         iPixelHeader = [iHeader.cellDimensionX/iHeader.nX .* samplingRate , ...
-          iHeader.cellDimensionY/iHeader.nY .* samplingRate, ...
-          iHeader.cellDimensionZ/iHeader.nZ .* samplingRate];
+                        iHeader.cellDimensionY/iHeader.nY .* samplingRate, ...
+                        iHeader.cellDimensionZ/iHeader.nZ .* samplingRate];
         
         iOriginHeader= [iHeader.xOrigin ./ samplingRate, ...
-          iHeader.yOrigin ./ samplingRate, ...
-          iHeader.zOrigin ./ samplingRate];
+                        iHeader.yOrigin ./ samplingRate, ...
+                        iHeader.zOrigin ./ samplingRate];
         
         pixelSize = iHeader.cellDimensionX/iHeader.nX; % Assuming X/Y the same and Z might be incorrect.
         
-        [binSize,binShift] = BH_multi_calcBinShift([iHeader.nX,iHeader.nY],1,samplingRate);
+        [binSize, binShift] = BH_multi_calcBinShift([iHeader.nX, iHeader.nY], samplingRate);
         
         % Gridding correction for the interpolation in the binning. Not
         % sure this is quite right, but it looks much better. TODO FIXME
@@ -93,18 +86,13 @@ if samplingRate > 1
           
           iProjection = BH_resample2d(iProjection,[0,0,0],binShift,'Bah','GPU','forward',1/samplingRate,binSize(1:2),bhF);
           
-          
-          %           iProjection = real(ifftn(ifftshift(BH_padZeros3d(fftshift(fftn(iProjection)),'fwd',padVal,'GPU','singleTaper'))));
-          %
-          
-          
           newStack(:,:,iPrj) = gather(iProjection);
         end
         
         SAVE_IMG(newStack,outputName,iPixelHeader,iOriginHeader);
         clear newStack bpFilt iProjection
         %        system(sprintf('newstack -shrink %d -antialias 6 %s cache/%s_bin%d%s > /dev/null', ...
-        %                                     samplingRate,IMG, imgName, samplingRate,imgExt));
+        %                                     samplingRate,input_tilt_series_filename, imgName, samplingRate,imgExt));
       otherwise
         error('DIMENSION should be 2 or 3\n.')
     end
@@ -142,7 +130,7 @@ else
   % but throw a warning.
   fprintf('\n\nYou requested a sampling of -1 Nonsense!! loading anyway.\n\n');
   
-  IMG_OUT = single(getVolume(MRCImage(IMG)));
+  IMG_OUT = single(getVolume(MRCImage(input_tilt_series_filename)));
 end
 
 
