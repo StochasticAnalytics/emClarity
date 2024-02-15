@@ -533,8 +533,6 @@ switch varargin{1}
             error('\n\nYou now only need to specify %s parameter file.\n\n','the')
           end
           BH_ctf_Updatefft(varargin{3},'-1','full');
-        case 'correct'
-          BH_ctf_Correct(varargin{3},varargin{4},varargin{5},varargin{6},varargin{7});
         case '3d'
           if nArgs == 6
             % last is a dummy, used for tomoCPR background
@@ -549,7 +547,7 @@ switch varargin{1}
           end
           
         otherwise
-          error('ctf operations are estimate,refine,update,correct, or 3d.');
+          error('ctf operations are estimate,refine,update, or 3d.');
       end
     end
   case 'tomoCPR'

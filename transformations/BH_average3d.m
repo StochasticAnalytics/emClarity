@@ -899,7 +899,7 @@ parfor iParProc = parVect
               
               if ( any(emc.filterDefocus))
                 iDef = abs(mean(tiltGeometry(:,15))*10^6);
-                iDef = -1.*(emc.filterDefocus(1)*max(iDef-1,0.5))^emc.filterDefocus(2);
+                iDef = (emc.filterDefocus(1)*max(iDef-1,0.5))^emc.filterDefocus(2);
                 fprintf('Using iDef %f\n',iDef);
                 % Frequency is already squared so adjust to match iDef scale
                 % factor.

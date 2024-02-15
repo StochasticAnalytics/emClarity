@@ -233,7 +233,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     % Imod expects nanometers and underfocus positive (origin on specimen)
     % whereas I let the origin be the focal plane such that underfocus is
     % negative.
-    fprintf(iDefocusFile,'%f\n',defTLT(:,2)'.*(-1*10^9));
+    fprintf(iDefocusFile,'%f\n',abs(defTLT(:,2)').*(10^9));
     fclose(iDefocusFile);
     
     % We also need the transform from the microscope frame in order to

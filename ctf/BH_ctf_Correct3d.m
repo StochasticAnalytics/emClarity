@@ -255,9 +255,6 @@ catch
 end
 
 
-% ctf3dDepth=emc.('defocusErrorEst')
-%mean in case cones.
-
 
 %%%%% Take these from param file later.
 if (reconstructionParameters(1))
@@ -378,17 +375,15 @@ for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
 end
-% FIXME
-% try
-%   EMC_parpool(nGPUs)
-% catch
-%   delete(gcp('nocreate'))
-%   EMC_parpool(nGPUs)
-% end
+try
+  EMC_parpool(nGPUs)
+catch
+  delete(gcp('nocreate'))
+  EMC_parpool(nGPUs)
+end
 
-% FIXME
-% parfor iGPU = 1:nGPUs
-for iGPU = 1:nGPUs
+parfor iGPU = 1:nGPUs
+% for iGPU = 1:nGPUs
 
   for iTilt = iterList{gpuList(iGPU)}
     
@@ -447,8 +442,8 @@ end
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
 % FIXME
-% parfor iGPU = 1:nGPUs
-  for iGPU = 1:nGPUs
+parfor iGPU = 1:nGPUs
+  % for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt
   for iTilt = iterList{gpuList(iGPU)}
@@ -615,21 +610,16 @@ end
     end
     
     
-    fprintf('Using a avgZ of %3.3e nm\n',avgZ);
-
     
     for iSection = 1:nSections
       
       defFitFull = '';
       preCombDefocus = 0;
       if (mapBackIter)
-        defFitFull = sprintf('mapBack%d/%s_ali%d_ctf.defFidFull',mapBackIter, ...
-          tiltList{iTilt},mapBackIter);
+        defFitFull = sprintf('mapBack%d/%s_ali%d_ctf.defFidFull',mapBackIter, tiltList{iTilt},mapBackIter);
         if exist(defFitFull,'file')
           preCombDefocus = load(defFitFull);
           fprintf('3dCTF using pre calc combined per tilt defocus %s\n',defFitFull);
-        else
-          fprintf('Did not find %s\n!!',defFitFull);
         end
       end
       
@@ -899,38 +889,31 @@ end
 function  [ sectionList ] = calcTomoSections(iCoords, tomoNumber, pixel_size_angstroms, nSections,tiltName, ctf3Depth)
 
 nTomos = length(tomoNumber);
-sectionList = cell(nTomos,1)
+sectionList = cell(nTomos,1);
 for iTomo = 1:nTomos
   % min and max in absolute pixels min and max from 1:nZrecon
-  sectionList{iTomo} = zeros(nSections,6)
+  sectionList{iTomo} = zeros(nSections,6);
 end
 
 % With rounding this could end up a bit short except the top and bottom are both
 % half a section larger than minimally needed.
-n_pixels_per_slab = floor(ctf3Depth*10^10/pixel_size_angstroms)      
-n_pixels_per_slab = n_pixels_per_slab + ~mod(n_pixels_per_slab,2)
-
-halfSec = (n_pixels_per_slab-1)/2
+nSec = floor(ctf3Depth*10^10/pixel_size_angstroms)      ;
+nSec = nSec + ~mod(nSec,2);
+halfSec = (nSec-1)/2;
 
 for iT = 1:length(tomoNumber)
   iTomo = tomoNumber(iT);
   % Origin + originshift
   
-  oZ_in_tomo_frame = emc_get_origin_index(iCoords(iTomo,4));
-  % iCoords(iTomo,6) is the origin of the specimen with respect to the origin of the tomogram
-  % We want the origin of the tomogram with respect to the origin of the specimen and then calculate the lower
-  % bound of the reconstruction range as half the volume lower than that
-  oZ_in_specimen_frame = -1*iCoords(iTomo,6);
-  reconRange = floor([oZ_in_specimen_frame - oZ_in_tomo_frame,0]);
+  -1.*(ceil((iCoords(iTomo,4)+1)/2)-1) + iCoords(iTomo,6),
+  reconRange = floor([-1.*(ceil((iCoords(iTomo,4)+1)/2)-1) + iCoords(iTomo,6),0]);
   reconRange(2) = reconRange(1) + iCoords(iTomo,4) - 1;
   nZ = 1;
   flgFirstSec = 1;
   
-  % nSections is always ODD
-  % FIXME: The half section (slab) shift seems precarious, I don't remember why this is set up this way.
-  for iSection = 1:nSections
+    for iSection = 1:nSections
     
-    sectionCenter = ((nSections-1)/-2+(iSection-1))*(n_pixels_per_slab-1);
+    sectionCenter = ((nSections-1)/-2+(iSection-1))*(nSec-1);
     
     % Check that sectionCenter is within range
     if sectionCenter + halfSec < reconRange(1) || ...
@@ -1168,7 +1151,6 @@ for iPrj = 1:nPrjs
   minDefocus = min(tZ(:));
   maxDefocus = max(tZ(tZ < 1));
   % Spit out some info
-  %  fprintf('Found a min/max defocus of %3.3e/ %3.3e for tilt %d (%3.3f deg)\n',minDefocus,maxDefocus,iPrj,TLT(iPrj,4));
   
   % To track sampling in case I put in overlap
   samplingMask = zeros([d1,d2],'single','gpuArray');
@@ -1213,24 +1195,12 @@ for iPrj = 1:nPrjs
     
     tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
     
-    %      try
-    
     linearIDX =  unique(sub2ind([d1,d2],tX(tmpMask),tY(tmpMask)));
-    %      catch
-    %
-    %
-    %        ferr=fopen('err.txt','w');
-    %        fprintf(ferr,'%f %f\n',[tX(tmpMask),tY(tmpMask)]);
-    %        fclose(ferr);
-    %      error('sdf')
-    %      end
     
     correctedPrj(linearIDX) = correctedPrj(linearIDX) + tmpCorrection(linearIDX);
     samplingMask(linearIDX) = samplingMask(linearIDX) + 1;
     
   end % end loop over defocus values
-  
-  
   
   samplingMask(samplingMask == 0) = 1;
   

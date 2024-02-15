@@ -27,7 +27,7 @@ system(sprintf('mv fixedStacks/ctf/%s fixedStacks/ctf/%s_orig',tltName,tltName))
 % end
 
 tmpTLT = load(sprintf('fixedStacks/ctf/%s_orig',tltName));
-meanDefocus = mean(tmpTLT(:,15))*-1.0*10^10;
+meanDefocus = mean(abs(tmpTLT(:,15)))*10^10;
 fprintf('Searching around an estimated mean defocus of %3.6f Angstrom\n');
 
 % write the run script, this should link to a distributed version with
