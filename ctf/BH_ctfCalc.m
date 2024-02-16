@@ -111,7 +111,7 @@ if  ( calcRad )
     radialGrid = double(radialGrid);
     phi = double(phi);
   end
-  
+
   radialGrid = radialGrid ./ PIXEL_SIZE;
   
 end
@@ -134,6 +134,7 @@ if (df1 - df2 < 0)
 end
 
 dfTerm = 0.5.*( (df1+df2) + (df1-df2)*cos(2.*(phi0-phi)) );
+
 phasePerturbation = pi.*(0.5.*CS.*WL^3.*(radialGrid).^4 - WL.*(radialGrid).^2 .* dfTerm);
 % dPdQ = 2*pi*CS*WL^3.*radialGrid.^3 + 2*WL.*radialGrid.*dfTerm;
 if ( flgComplex )

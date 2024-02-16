@@ -101,7 +101,7 @@ METHOD = 'GPU';
 
 WAVELENGTH = 10^-12*1226.39/sqrt(emc.VOLTAGE + 0.97845*10^-6*emc.VOLTAGE^2) ;
 
-CUM_e_DOSE = emc.('CUM_e_DOSE');
+CUM_e_DOSE = 0;
 % test astigmatism vals
 flgAstigmatism = 1;
 if (flgAstigmatism ~=1 && flgAstigmatism ~= 0)

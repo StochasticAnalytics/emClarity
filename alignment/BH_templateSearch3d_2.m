@@ -283,7 +283,7 @@ rotConvention = 'Bah';
 % Check and override the rotational convention to get helical averaging.
 % Replaces the former hack of adding a fifth dummy value to the angular search
 
-if ( doHelical )
+if ( emc.doHelical )
   rotConvention = 'Helical';
 end
 
@@ -1359,8 +1359,7 @@ fprintf(fileID,'%s,%s,%s,%s',mapName,mapPath,mapExt,RAWTLT);
 fclose(fileID);
 
 
-
-fprintf('Total execution time : %f seconds\n', datetime("now") - startTime);
+fprintf('Total execution time : %f seconds\n', seconds(datetime("now")-startTime));
 
 
 
