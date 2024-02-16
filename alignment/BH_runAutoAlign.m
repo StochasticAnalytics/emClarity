@@ -98,6 +98,7 @@ MAG_OPTION=5;
 tiltAngleOffset=0.0;
 TILT_OPTION = 0;
 
+fprintf("Stack in is %s\n",stackIN);
 inputMRC = MRCImage(stackIN,0);
 inputStack = single(getVolume(inputMRC));
 

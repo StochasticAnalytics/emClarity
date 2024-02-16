@@ -415,10 +415,11 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   % The 
   tiltHeader = getHeader(MRCImage(tilt_binned_filename, 0));
+  tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{1}).tiltName;
   [ maxZ ] = emc_get_max_specimen_NZ(subTomoMeta.mapBackGeometry.tomoName, ...
                                      subTomoMeta.mapBackGeometry.(tiltName).coords,  ...
                                      tomoList, ...
-                                     nTomograms, 
+                                     nTomograms, ...
                                      samplingRate);
 
   fprintf('combining thickness and shift, found a maxZ of %d\n',maxZ);
@@ -473,7 +474,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % if (emc.save_mapback_classes)
   %   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3);
   % end
-
+  % FIXME: calling like this does not use the surface fit for the background
   send_phakePhasePlateOption = [0,0];
   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution);
   
@@ -623,7 +624,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       % We need to rotate the model 90 degrees around X to match the "natural" reconstruction reference frame of imod
       % that is [x,z,-y]
-      modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector');
+      modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector')
       
       for iSubTomo = 1:nSubTomos
 
@@ -1666,11 +1667,13 @@ for iTiltSeries = tiltStart:nTiltSeries
   fprintf(fidBin,'%d %4.4f %4.4f %d\n',fFull');
   fclose(fidBin);
   
-  % % % % %     fFull(:,2:3) = fFull(:,2:3).*samplingRate;
+  fFull(:,2:3) = fFull(:,2:3) .* samplingRate;
+  % FIXME: I am reverting to sampling rate here, which I think should be correct.
+
   % The model ends up seeing the pixel size as 1, so even though it loads
   % properly on the full aligned stack, these coords need to be scaled by
   % the pixel size since this is the input to tiltalign.
-  fFull(:,2:3) = fFull(:,2:3).*pixel_size;
+  % fFull(:,2:3) = fFull(:,2:3).*pixel_size;
   
   fprintf(fidCombine,'%d %4.4f %4.4f %d\n',fCombine');
   fclose(fidCombine);

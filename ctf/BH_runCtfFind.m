@@ -36,18 +36,21 @@ scriptName = sprintf('.%s.sh',randPrfx);
 fID = fopen(scriptName,'w');
 
 fprintf(fID,'#!/bin/bash\n\n');
-for iPrj = 1:d3 % I want to fit to lower resolution at higher tilts
+for iPrj = 1:d3 
+  % I want to fit to lower resolution at higher tilts
   tltIDX = find(tiltAngles(:,1) == iPrj);
   
   % put in a line to limit number of cores, or use the threaded version
   fprintf(fID,'\n%s --amplitude-spectrum-input << eof &',ctfFindPath);
   fprintf(fID,'\nfixedStacks/ctf/forCtfFind/%s_%d.mrc\n',randPrfx,iPrj);
   fprintf(fID,'fixedStacks/ctf/forCtfFind/%s_diagnostic_%d.mrc\n',randPrfx,iPrj);
-  fprintf(fID,'%f\n%f\n%f\n%f\n%d\n%f\n%f\n%d\n%d\n%d\n',ctfParams(1:4), ...
-    d1,30,3*ctfParams(1)./cosd(tiltAngles(tltIDX,4)),...
-    0.75*meanDefocus,...
-    1.25*meanDefocus,...
-    25.0);
+  fprintf(fID,'%f\n%f\n%f\n%f\n%d\n%f\n%f\n%d\n%d\n%d\n', ...
+          ctfParams(1:4), ...
+          d1, ...
+          30,3*ctfParams(1)./cosd(tiltAngles(tltIDX,4)).^0.4,...
+          0.75*meanDefocus,...
+          1.25*meanDefocus,...
+          25.0);
   fprintf(fID,'no\nno\nyes\n500.0\nno\nno\nno\neof\n\n');
 end
 fprintf(fID,'wait\n');
@@ -76,8 +79,8 @@ system(sprintf('rm %s?.mrc %s??.mrc',baseName,baseName));
 system(sprintf('rm -f %s',tmpName));
 
 for iPrj = 1:d3
-  
-  system(sprintf('tail -n -1 %s%d.txt | awk  ''{print (($2-$3)/2)*10^-10,3.1415926535/180.0*$4,-1*(($2+$3)/2)*10^-10 }'' >> %s', baseName,iPrj,tmpName));
+  % 2024 Jan, finally make switch to record positive for underfocus as is used internally.
+  system(sprintf('tail -n -1 %s%d.txt | awk  ''{print (($2-$3)/2)*10^-10, 3.1415926535/180.0*$4, 1*(($2+$3)/2)*10^-10 }'' >> %s', baseName,iPrj,tmpName));
   
 end
 

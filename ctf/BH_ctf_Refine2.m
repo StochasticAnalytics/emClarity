@@ -68,14 +68,18 @@ FIXED_FIRSTZERO =  emc.pixel_size_si / 40*10^-10 ;
 try
   paddedSize = emc.('paddedSize');
 catch
-  paddedSize = 768;
+  paddedSize = 512;
 end
 
 % Tile size & overlap
 tileOverlap = 4;
 tileSize = floor(680e-10 / emc.pixel_size_si);
-tileSize = tileSize + mod(tileSize,2);
-fprintf('Using a tile size of %d',tileSize);
+tileSize = BH_multi_iterator(tileSize.*[1,1],'fourier2d');
+tileSize = tileSize(1);
+% if (tileSize > 512)
+%   tileOverlap = tileOverlap * 2;
+% end
+fprintf('Using a tile size of %d\n',tileSize);
 overlap = floor(tileSize ./ tileOverlap);
 
 
@@ -119,7 +123,7 @@ for iStack = 1%stacksFound
   % created in IMod alignment.
   [~,iPixelHeader] = system(sprintf('header -pixel %s',INPUT_CELL{iStack,2}));
   iPixelHeader = EMC_str2double(iPixelHeader);
-  [d1,d2,d3] = size(STACK)
+  [d1,d2,d3] = size(STACK);
   
   
   
@@ -156,7 +160,7 @@ for iStack = 1%stacksFound
       BH_movingRMS(iProjection,[tileSize,tileSize]);
     % Taking a cue from Alexis
     maxPixelSizeWanted = 2.0e-10;
-    if TLT(iPrj,16) < maxPixelSizeWanted
+        if TLT(iPrj,16) < maxPixelSizeWanted
       %fprintf(ftmp,'Resampling pixel size\n');
       %  Resample to 2Ang/pix
       padSq = BH_multi_padVal(size(iProjection),max(size(iProjection)).*[1,1]);
@@ -167,13 +171,13 @@ for iStack = 1%stacksFound
       iProjection = fftshift(fftn(iProjection));
       trimVal = BH_multi_padVal(size(iProjection), floor(size(iProjection).*(TLT(iPrj,16)./maxPixelSizeWanted)));
       iProjection = real(ifftn(ifftshift(BH_padZeros3d(iProjection,trimVal(1,:),trimVal(2,:),'GPU','single'))));
-      sizeOUT = size(iProjection);
+            sizeOUT = size(iProjection);
       if iPrj == 1
         flgReplaceStack = 1;
         newSTACK = zeros([sizeOUT,d3],'single');
       end
       newSTACK(:,:,TLT(iPrj,1)) = gather(iProjection);
-      clear iProjection
+      iProjection = [];
       % Actual new pixel size
       pixelSize = sizeIN./sizeOUT(1).*TLT(iPrj,16);
       
@@ -192,44 +196,50 @@ for iStack = 1%stacksFound
   if ( flgReplaceStack )
     STACK = newSTACK ; clear newSTACK;
   end
-  [d1,d2,d3] = size(STACK);
-  [Xnew, Ynew, ~, x1,y1, ~] = BH_multi_gridCoordinates([tileSize,d2], ...
-    'Cartesian','GPU', ...
-    {'none'},0,1,0);
+  [d1,d2,d3] = size(STACK)
   
-  [X, Y, ~,~,~, ~] = BH_multi_gridCoordinates([tileSize,tileSize], ...
-    'Cartesian','GPU', ...
-    {'none'},0,1,0);
+
   
-  coordShift = (-1).^(X+Y);
-  clear X Y
-  
-  try
-    ppool = EMC_parpool(nWorkers);
-  catch
-    delete(gcp('nocreate'));
-    ppool = EMC_parpool(nWorkers);
-  end
-  
-  for iPrj = 1:d3
+  debug_without_parallel = false;
+  if (debug_without_parallel)
+    for iPrj = 1:d3
+      fprintf('Calculating stretched tiles on prj %d/ %d in serial debug mode\n',iPrj,d3);
+
+      [psTile(:,:,TLT(iPrj,1)),pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, ...
+        d1,d2, iPrj, overlap, ...
+        STACK(:,:,TLT(iPrj,1)), ...
+        1, ...
+        1, ...
+        reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine);  
+
+    end
+  else
+    try
+      ppool = EMC_parpool(nWorkers);
+    catch
+      delete(gcp('nocreate'));
+      ppool = EMC_parpool(nWorkers);
+    end
     
-    pFuture(iPrj) = parfeval(ppool,@runAvgTiles,2, TLT, paddedSize, tileSize, ...
-      d1,d2, iPrj, overlap, ...
-      STACK(:,:,TLT(iPrj,1)), ...
-      1, ...
-      1, ...
-      x1, y1, Xnew, Ynew,coordShift,  ...
-      reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine);
+    for iPrj = 1:d3
+      
+      pFuture(iPrj) = parfeval(ppool,@runAvgTiles,2, TLT, paddedSize, tileSize, ...
+        d1,d2, iPrj, overlap, ...
+        STACK(:,:,TLT(iPrj,1)), ...
+        1, ...
+        1, ...
+        reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine);
+      
+      
+    end
     
-    
-  end
-  
-  for iWorker = 1:d3
-    fprintf('Refining defocus on prj %d/ %d\n',iWorker,d3);
-    [iPrj, ctfCorr,pixelSize] = fetchNext(pFuture);
-    
-    psTile(:,:,TLT(iPrj,1)) = ctfCorr;
-  end
+    for iWorker = 1:d3
+      fprintf('Calculating stretched tiles on prj %d/ %d\n',iWorker,d3);
+      [iPrj, ctfCorr,pixelSize] = fetchNext(pFuture);
+      
+      psTile(:,:,TLT(iPrj,1)) = ctfCorr;
+    end
+  end % debug without parallel
   
   pixelSize = pixelSize*10^10;
   SAVE_IMG(MRCImage(gather(psTile)),sprintf('fixedStacks/ctf/%s-PS.mrc',fileName),pixelSize);
@@ -261,13 +271,12 @@ end
 
 function [psTile,pixelSize] = runAvgTiles(TLT, paddedSize, tileSize, d1,d2, iPrj, overlap, ...
   iProjection, evalMask, ...
-  ddZ, x1, y1, Xnew, Ynew, coordShift,  ...
+  ddZ, ...
   reScaleRealSpace,pixelSize,fraction_of_extra_tilt_data,testNoRefine)
 
 DFo = abs(TLT(iPrj,15));
 
 padTileOver = 256;
-tmpTile = zeros(paddedSize.*[1,1]+2*padTileOver,'single','gpuArray');
 
 tiltOrigin = ceil((size(iProjection,1)+1)./2);
 
@@ -280,6 +289,7 @@ maxEval = (fraction_of_extra_tilt_data + ...
 
 iEvalMask = floor(oXprj-maxEval):ceil(oXprj+maxEval);
 
+psTile = zeros(paddedSize.*[1,1], 'single','gpuArray');
 % Since I'm enforcing Y-tilt axis, then this could be dramatically sped up
 % by resampling strips along the sampling
 
@@ -295,13 +305,16 @@ for iOuter = 1+tileSize/2:overlap:d1-tileSize/2
   
   % Slightly randomize the step size to avoid a Moire like effect that
   % presents particulary strongly with a continuous carbon layer.
-  
+
   iDeltaZ = (i - tiltOrigin)*pixelSize*-1.*tand(TLT(iPrj,4));
   if any(ismember(i-tileSize/2+1:i+tileSize/2,iEvalMask)) %evalMask(i,paddedSize/2+1)
     
     mag =  (1+iDeltaZ./DFo).^0.5;
+    if ~isfinite(mag)
+      error('mag is not finite');
+    end
     
-    estSize = 2048;
+    estSize = tileSize(1);
     ctf1 = BH_ctfCalc(pixelSize,TLT(iPrj,17),TLT(iPrj,18),DFo,estSize,TLT(iPrj,19),-1,1);
     ctf2 = BH_ctfCalc(pixelSize,TLT(iPrj,17),TLT(iPrj,18),iDeltaZ+DFo,estSize,TLT(iPrj,19),-1,1);
     ctf1 = ctf1(1:estSize/2);
@@ -344,48 +357,35 @@ for iOuter = 1+tileSize/2:overlap:d1-tileSize/2
     end
     
     scaledStrip = iProjection(i-tileSize/2+1:i+tileSize/2,:);
-    
+
     for j = 1+tileSize/2:overlap:d2-tileSize/2
       
-      iTile = scaledStrip(:,j-tileSize/2+1:j+tileSize/2);%.*coordShift;
-      if (reScaleRealSpace)
-        scaledSize = paddedSize;
+      iTile = fftshift(fftn(scaledStrip(:,j-tileSize/2+1:j+tileSize/2)));%.*coordShift;
+ 
+      % Slightly randomize scaling
+      if (randi(2,1) == 2)
+        scaledSize = ceil(size(iTile) .* mag) + randi(2,1) -1;
       else
-        % Slightly randomize scaling
-        if (randi(2,1) == 2)
-          scaledSize = ceil(paddedSize .* mag) + randi(2,1) -1;
-        else
-          scaledSize = floor(paddedSize .* mag)+ randi(2,1) -1;
-        end
-        %scaledSize = floor(paddedSize ./ mag);
+        scaledSize = floor(size(iTile) .* mag)+ randi(2,1) -1;
       end
+     
+      tile_padVal = BH_multi_padVal(size(iTile),scaledSize);
+      iTile = real(ifftn(ifftshift(BH_padZeros3d(iTile,'fwd',tile_padVal,'GPU','singleTaper', 0))));
+   
+      iPadVal = BH_multi_padVal(scaledSize,paddedSize.*[1,1]);
+
+      iTile = fftshift(abs(fftn(BH_padZeros3d(iTile, 'fwd', iPadVal, ...
+                                              'GPU','singleTaper', mean(iTile(:))))));
       
-      [oX,oY] = size(tmpTile);
-      oX = ceil((oX+1)./2);
-      oY = ceil((oY+1)./2);
       
-      iPadVal = BH_multi_padVal(size(iTile),[scaledSize,scaledSize]);
-      
-      
-      oupSize = [floor(scaledSize./2),ceil(scaledSize./2); ...
-        floor(scaledSize./2),ceil(scaledSize./2)];
-      
-      % Get rid of th fftshift
-      tmpTile(oX-oupSize(1,1):oX+oupSize(1,2)-1, ...
-        oY-oupSize(2,1):oY+oupSize(2,2)-1) = ...
-        tmpTile(oX-oupSize(1,1):oX+oupSize(1,2)-1, ...
-        oY-oupSize(2,1):oY+oupSize(2,2)-1) + ...
-        fftshift(abs(fftn(BH_padZeros3d(iTile,iPadVal(1,:),iPadVal(2,:), ...
-        'GPU','singleTaper', mean(iTile(:))))));
+      psTile = psTile + iTile;
       
     end % loop over j
   end % if over eval mask
 end % over tiles
 
 
-psTile = gather(BH_padZeros3d(tmpTile, [-1,-1].* ...
-  padTileOver,[-1,-1].*padTileOver,...
-  'GPU','single'));
+psTile = gather(psTile);
 clear tmpTile iProjection ddZ evalMask Xnew Ynew x1 y1
 end
 

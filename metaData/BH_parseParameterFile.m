@@ -19,6 +19,7 @@ end
 clear p
 
 emc = struct();
+last_parsed_parameter = 'none';
 % Check that all paramters are name: value pairs
 stringValues = {'subTomoMeta'; ...
   'Ali_mType';'Cls_mType';'Cls_mType';'Raw_mType';'Fsc_mType'; ...
@@ -27,16 +28,18 @@ stringValues = {'subTomoMeta'; ...
 for i = 1:size(p2,1)
   pNameVal = strsplit(p2{i,1},'=');
   if length(pNameVal) == 1
+    fprintf("Last successfully parsed parameter: %s\n", string(last_parsed_parameter));
     error('Could not split Name=Value pair for\n\t %s',char(pNameVal))
   elseif length(pNameVal) > 2
+    fprintf("Last successfully parsed parameter: %s\n", string(last_parsed_parameter));
     error('To many colons in\n\t %s',char(pNameVal))
-  else
-    
+  else   
     if any(strcmp(stringValues, pNameVal{1}))
       emc.(pNameVal{1}) = pNameVal{2};
     else
       emc.(pNameVal{1}) = EMC_str2double(pNameVal{2});
     end
+    last_parsed_parameter = pNameVal{1};
   end
 end
 

@@ -73,22 +73,22 @@ SHIFTS =   deltaWinCenter;
 
 availableArea = WINDOW_SIZE - PADVALUES(1,:) - PADVALUES(2,:);
 if any(availableArea - minSizeMask < -2)
-        fprintf(['\nvs %d %d %d\nws %d %d %d\nmr %2.1f %2.1f %2.1f\n',...
-                'minArea %d %d %d\navailArea %d %d %d\nc %2.1f %2.1f %2.1f\n'], ...
-                VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, minSizeMask, availableArea, CENTER);
+        % fprintf(['\nvs %d %d %d\nws %d %d %d\nmr %2.1f %2.1f %2.1f\n',...
+        %         'minArea %d %d %d\navailArea %d %d %d\nc %2.1f %2.1f %2.1f\n'], ...
+        %         VOLUME_SIZE, WINDOW_SIZE, MASK_RADIUS, minSizeMask, availableArea, CENTER);
         INDICES = 'noUse';
         PADVALUES = [availableArea];
 end
 if any(isnan(PADVALUES(:)))
-        fprintf('center %f %f %f\n',CENTER);
-        fprintf('min %f %f %f\n',minSizeMask);
-        fprintf('winLowCorner %f %f %f\n', winLowCorner);
-        fprintf('top %f %f %f\n',winTopCorner);
-        fprintf('%f %f %f\n',winCenter);
-        fprintf('del %f %f %f\n',deltaWinCenter);
-        fprintf('%f %f %f\n',LOW);
-        fprintf('%f %f %f\n',TOP);
-        error('\n\nFound a NaN in the pad values. But Why ben why?\n\n');
+        % fprintf('center %f %f %f\n',CENTER);
+        % fprintf('min %f %f %f\n',minSizeMask);
+        % fprintf('winLowCorner %f %f %f\n', winLowCorner);
+        % fprintf('top %f %f %f\n',winTopCorner);
+        % fprintf('%f %f %f\n',winCenter);
+        % fprintf('del %f %f %f\n',deltaWinCenter);
+        % fprintf('%f %f %f\n',LOW);
+        % fprintf('%f %f %f\n',TOP);
+        % error('\n\nFound a NaN in the pad values. But Why ben why?\n\n');
         INDICES='noUse';
         PADVALUES = [availableArea];
 end

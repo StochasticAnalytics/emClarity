@@ -30,8 +30,10 @@ emc = BH_parseParameterFile(PARAMETER_FILE);
 gpuIDX = BH_multi_checkGPU(-1);
 gDev = gpuDevice(gpuIDX);
 
-flgResume = 0;
-flgSkip = 0;
+% for trouble shooting downstream, default falsw
+flgSkip = false;
+% For trouble shooting downstream, default true
+resample_stack = true; 
 % slightly dampen lower resolution information that may overwhelm the CCC calc,
 % but don't risk too much noise amplification. 1 = fit just the amplitude (not
 % PS) 0.5 = take sqrt prior to normalizing.
@@ -171,6 +173,9 @@ tileOverlap = 2;
 
 tileSize = tileSize + mod(tileSize,2);
 % tileSize = max(tileSize, 384);
+if (tileSize > 512)
+  tileOverlap = tileOverlap * 2;
+end
 fprintf('Using a tile size of %d\n',tileSize);
 
 overlap = floor(tileSize ./ tileOverlap);
@@ -231,9 +236,6 @@ end
 
 % Make ctf directory to store diagnostic images
 system(sprintf('mkdir -p %s/ctf', pathName));
-
-% if ~(flgResume)
-
 
 
 iMrcObj = MRCImage(stackNameIN,0);
@@ -317,7 +319,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
+if ( resample_stack)
 
 fprintf('Combining tranformations\n\n');
 % Load in the mapBack alignment
@@ -446,7 +448,8 @@ for i = 1:d3
     combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
     combinedInverted = combinedInverted([1,2,4,5]);
     
-    iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
+    iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2), ...
+    'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
   else
     combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
     combinedInverted = combinedInverted([1,2,4,5]);
@@ -477,6 +480,7 @@ end
 SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
 SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
 
+end
 
 if ~(flgSkip)
   
@@ -523,7 +527,7 @@ if ~(flgSkip)
   nT2 = 0;
   nT3 = 0;
   
-  halfX = floor(paddedSize/2) + 1;
+  halfX = emc_get_origin_index(paddedSize);
   % % % % psTile = zeros([(paddedSize).*[1,1],3],'single','gpuArray');
   psTile = zeros([halfX,paddedSize,3],'single','gpuArray');
   
@@ -658,11 +662,11 @@ if ~(flgSkip)
     currentDefocusEst = defEST;
     currentDefocusWin = defWIN;
     measuredVsExpected = zeros(2,3);
-  end
+  end % end of not skip fitting
   
   for iTilt = 1:3
     
-    if (skipFitting)
+    if (skipFitting && resample_stack)
       currentDefocusEst = defEST;
       
       % Add the determined defocus, and write out with mic paramters as well.
@@ -823,7 +827,6 @@ if ~(flgSkip)
           
           initAstigCCC(n,:) = [iAng,iDelDF*astigStep,iCCC];
           n = n + 1;
-          fprintf('%d / %d coarse astigmatism search\n',n,size(initAstigCCC,1));
         end
       end
       
@@ -947,18 +950,18 @@ if ~(flgSkip)
   
 else
   
-  [~, idx] = sortrows(abs(TLT(:,4)), -1);
-  TLT = TLT(idx,:);
-  % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
-  % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
-  % scaleFactor, defocus, emc.pixel_size_si, CS, Wavelength, Amplitude contrast
-  fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
-  fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
-    '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
-    '%d\t%d\t%d\t%8.2f\n'], TLT');
-  fclose(fileID);
-  
-  
+  if (resample_stack)
+    [~, idx] = sortrows(abs(TLT(:,4)), -1);
+    TLT = TLT(idx,:);
+    % number in stack, dx, dy, tilt angle, projection rotation, tilt azimuth, tilt
+    % elevation, e1,e2,e3, dose number (order in tilt collection), offsetX, offsetY
+    % scaleFactor, defocus, emc.pixel_size_si, CS, Wavelength, Amplitude contrast
+    fileID = fopen(sprintf('%s/ctf/%s_ctf.tlt',pathName,stackNameOUT), 'w');
+    fprintf(fileID,['%d\t%08.2f\t%08.2f\t%07.3f\t%07.3f\t%07.3f\t%07.7f\t%07.7f\t',...
+      '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
+      '%d\t%d\t%d\t%8.2f\n'], TLT');
+    fclose(fileID);
+  end
 end % end flgSkip
 
 % TODO should I restart the parallel pool
