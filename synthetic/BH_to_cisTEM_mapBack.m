@@ -198,6 +198,8 @@ pixelShift = -1;
 iCell = 0;
 output_cell = {};
 newstack_file = sprintf('%s/temp_particle_stack.newstack',mbOUT{1});
+newstack_file_handle = fopen(newstack_file,'w');
+
 for iTiltSeries = tiltStart:nTiltSeries
   n_particles_added_to_stack = 0;
   if (skip_to_the_end_and_run)
@@ -727,13 +729,18 @@ for iTiltSeries = tiltStart:nTiltSeries
       particle_was_skipped = false;
       if  ( ox > 0 && oy > 0 && ox + 2*tileRadius < sTX && oy +2*tileRadius < sTY )
         output_particle_stack(:,:,iGpuDataCounter) = STACK(ox:ox+2.*tileRadius-1,oy:oy+2.*tileRadius-1,TLT(iPrj,1));
-
+      % else
+      %   particle_was_skipped = true;
+      %   output_particle_stack(:,:,iGpuDataCounter) = randn(tileSize,'single').*0.1; % Why am I not just skipping these?
+      % end
       
         if (useFixedNotAliStack)
           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
           RF = fullXform(TLT(iPrj,1),1:4);
           rotFull = rTilt*[RF(1), RF(2), 0; RF(3), RF(4), 0; 0, 0, 1]*reshape(wrkPar(iFid,7:15),3,3);
         else
+
+        
           %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
           rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','forwardVector');
           
@@ -770,10 +777,9 @@ for iTiltSeries = tiltStart:nTiltSeries
         particleGroup = wrkPar(iFid,3);
         preExposure = wrkPar(iFid,16);
         totalExposure = wrkPar(iFid,17);
-        
-        xShift = sx*pixelSize;
-        yShift = sy*pixelSize;
-        
+        pixelMultiplier = 0;
+        xShift = pixelMultiplier*sx*pixelSize;
+        yShift = pixelMultiplier*sy*pixelSize;
 
         % df1 = ( wrkPar(iFid,4) + wrkPar(iFid,5)) * 10;
         % df2 = ( wrkPar(iFid,4) - wrkPar(iFid,5)) * 10;
@@ -795,29 +801,25 @@ for iTiltSeries = tiltStart:nTiltSeries
         
         iDataCounter = iDataCounter + 1;
         iGpuDataCounter = iGpuDataCounter + 1;
-        n_particles_added_to_stack = n_particles_added_to_stack + 1;
       end % if on windowing
     end % end of fiducial loop
     
   end % end of prj loop
   
   % Trim the stack to account for windowing skips
-  output_particle_stack = gather(output_particle_stack(:,:,1:n_particles_added_to_stack));
+  output_particle_stack = gather(output_particle_stack(:,:,1:iGpuDataCounter - 1));
   tmp_stack_filename = sprintf('%s/%s_%d.mrc',mbOUT{1:2},iCell);
   SAVE_IMG(output_particle_stack, tmp_stack_filename, pixelSize);
 
-
-  newstack_file_handle = fopen(newstack_file,'a');
   fprintf(newstack_file_handle, '%s\n',tmp_stack_filename);
-  fprintf(newstack_file_handle, '0-%d\n',n_particles_added_to_stack-1);
-  fclose(newstack_file_handle);
+  fprintf(newstack_file_handle, '0-%d\n',iGpuDataCounter-2);
 
   % output_cell{iCell}= gather(output_particle_stack);
   iCell = iCell + 1;
 
 end % end of the loop over tilt series
 
-
+fclose(newstack_file_handle);
 fclose(starFile);
 
 newstack_file_with_n_stacks = sprintf('%s/%s.newstack_full',mbOUT{1:2});
@@ -826,7 +828,7 @@ fprintf(fh,'%d\n', iCell);
 fclose(fh);
 
 system(sprintf('cat %s >> %s',newstack_file,newstack_file_with_n_stacks));
-system(sprintf('newstack -FileOfInputs %s %s.mrc',newstack_file_with_n_stacks,output_prefix));
+system(sprintf('newstack -FileOfInputs %s %s.mrc > /dev/null',newstack_file_with_n_stacks,output_prefix));
 
 % SAVE_IMG(cat(3,output_cell{:}),sprintf('%s.mrc',output_prefix),pixelSize);
 
