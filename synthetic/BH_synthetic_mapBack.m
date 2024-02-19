@@ -719,11 +719,11 @@ for iTiltSeries = tiltStart:nTiltSeries
           
           % Reproject using tilt, so just save the 3d coords.
     
-          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2]), fidIDX);
+          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2])', fidIDX);
           
           % Save a non-rotated model with each class on its own object for visualization
           if (emc.save_mapback_classes)
-            fprintf(coordCLASS,'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_wrt_tilt_origin' + originRec'- emc.prjVectorShift);
+            fprintf(coordCLASS,'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_wrt_tilt_origin' + originRec'- emc.prjVectorShift');
           end
 
           for iPrj = 1:nPrjs
@@ -1086,7 +1086,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   
   %   Need to shift again from the model coordinate system
-  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(emc.prjVectorShift(1:2)', size(fidList,1),1);
+  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(emc.prjVectorShift(1:2), size(fidList,1),1);
   foundNans = sum(isnan(fidList(:,3)));
   if (foundNans)
     fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);

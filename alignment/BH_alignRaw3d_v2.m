@@ -1430,7 +1430,7 @@ parfor iParProc = parVect
               
               
               deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
-              if (deltaCCC < 0) && (abs(deltaCCC) > 0.15*cccInitial(1,6))
+              if (emc.print_alignment_stats && deltaCCC < 0 && abs(deltaCCC) > 0.15*cccInitial(1,6))
                 fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
                 fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
                   '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
@@ -1464,7 +1464,7 @@ parfor iParProc = parVect
               
               cccInitial(1,1) = classVector{iGold}(cccInitial(1,1));
               cccStorageBest{iPeak}(iSubTomo,1) = classVector{iGold}(cccStorageBest{iPeak}(iSubTomo,1));
-              if (flgRefine)
+              if (emc.print_alignment_stats && flgRefine)
                 cccPreRefineSort(1,1) = classVector{iGold}(cccPreRefineSort(1,1));
                 fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
                   '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
@@ -1474,12 +1474,13 @@ parfor iParProc = parVect
                   cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
                   'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
                 
-              else
-                fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                  '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                  'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:),...
-                  'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
-                
+              else 
+                if (emc.print_alignment_stats)
+                  fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                    '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                    'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:),...
+                    'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
+                end
               end
               
               
@@ -1528,10 +1529,6 @@ parfor iParProc = parVect
       [~,a,~] = unique(sortCCC(:,2), 'stable','rows');
       
       cccSortedandUnique = sortCCC(a,:);
-      % % %     save('cccSortedandUnique.mat','cccSortedandUnique');
-      % % %     g = gather(geometry);
-      % % %     save('TBL_geom.mat','g');
-      
       bestAngles_tmp.(tomoList{iTomo}) = gather(cccSortedandUnique);
       
       % save doesn't work in a parfor, so write out the results for each tomogram so that a
