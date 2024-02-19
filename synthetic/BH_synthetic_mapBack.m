@@ -534,7 +534,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     % Imod expects nanometers and underfocus positive (origin on specimen)
     % whereas I let the origin be the focal plane such that underfocus is
     % negative.
-    fprintf(iDefocusFile,'%f\n',defTLT(:,2)'.*(-1*10^9));
+    fprintf(iDefocusFile,'%f\n',abs(defTLT(:,2)') .* 10^9);
     fclose(iDefocusFile);
     
     % We also need the transform from the microscope frame in order to
@@ -624,7 +624,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       % We need to rotate the model 90 degrees around X to match the "natural" reconstruction reference frame of imod
       % that is [x,z,-y]
-      modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector')
+      modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector');
       
       for iSubTomo = 1:nSubTomos
 
@@ -740,7 +740,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             %           d1 = -1.*((samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15)) - TLT(iPrj_nat,12))*10^10;
             %           d2 = -1.*((samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15)) + TLT(iPrj_nat,12))*10^10;
             
-            d1 = -1.*(samplingRate.*subtomo_origin_wrt_tilt_origin(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15))*10^9; % Defocus value adjusted for Z coordinate in the tomogram. nm
+            d1 = (abs(TLT(iPrj_nat,15)) - samplingRate.*subtomo_origin_wrt_tilt_origin(3).*unsampled_pixel_size.*10^-10) * 10^9; % Defocus value adjusted for Z coordinate in the tomogram. nm
             d2 = TLT(iPrj_nat,12)*10^9; % half astigmatism value
             
             fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n', ...
@@ -1039,10 +1039,14 @@ for iTiltSeries = tiltStart:nTiltSeries
       '%s\n',...
       '%s\n',...
       '%s\n',...
-      'EOF'],tilt_binned_filename, mbOUT{1:3}, maxZ, ...
-      mbOUT{1:3},...
-      mbOUT{1:3},...
-      pixel_size./10, ...flgInvertTiltAngles,... % Ang --> nm
+      'EOF'], ...
+      tilt_binned_filename, ... % input
+      mbOUT{1:3}, ... % output fiducial model
+      maxZ, ... % thickness
+      mbOUT{1:3},... % tilt angle file
+      mbOUT{1:3},... % defocus file
+      pixel_size./10, ...
+      0, ... % flgInvertTiltAngles,... % Ang --> nm
       mbOUT{1:3},...
       mbOUT{1:3},...
       mbOUT{1:3},...
@@ -1063,27 +1067,18 @@ for iTiltSeries = tiltStart:nTiltSeries
     end
     
     % re-write the projected coords
-    system(sprintf(['model2point -float -contour -zero ',...
-      '%smapBack%d/%s.fid %smapBack%d/%s.coordPrj'],...
-      mbOUT{1:3}, mbOUT{1:3}))
-    
-    
-    
-    
+    system(sprintf(['model2point -float -contour -zero ', '%smapBack%d/%s.fid %smapBack%d/%s.coordPrj'], mbOUT{1:3}, mbOUT{1:3}))
     
   end
-  
   
   for iSave = 1
     % Remove the full size tomo
     system(sprintf('rm %smapBack%d/%s.tmpRot%d',mbOUT{1:3},iSave));
   end
   
-  
   fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
   parList = load(sprintf('%smapBack%d/%s.coord_start',mbOUT{1:3}));
   defList = load(sprintf('%smapBack%d/%s.defAngTilt',mbOUT{1:3}));
-  
   
   %   Need to shift again from the model coordinate system
   fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(emc.prjVectorShift(1:2), size(fidList,1),1);
