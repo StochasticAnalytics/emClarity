@@ -380,13 +380,13 @@ end
 if isfield(emc, 'flgPostShift')
   EMC_assert_numeric(emc.flgPostShift, 2);
 else
-  emc.flgPostShift = [-0.5,-0.5];
+  emc.flgPostShift = [-1.5,1.0];
 end
 
 if isfield(emc, 'prjVectorShift')
   EMC_assert_numeric(emc.prjVectorShift, 3);
 else
-  emc.prjVectorShift = [0.5,0.5,1.0]';
+  emc.prjVectorShift = [0.5,0.5,0.5];
 end
 
 if isfield(emc,'pixelShift')

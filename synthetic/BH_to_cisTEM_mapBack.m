@@ -13,15 +13,7 @@ function [ ] = BH_to_cisTEM_mapBack(PARAMETER_FILE, CYCLE, output_prefix, symmet
 % Some flags that are worth keeping as options, but not accessible
 % directlyCT
 % by the users (private methods-ish)
-global bh_global_imodProjectionShifts;
-if isempty(bh_global_imodProjectionShifts)
-  %  bh_global_imodProjectionShifts = [ -0.5, -0.5, 0.5 ; -0.5, -0.5, 0; 0.5,0.5,1.0 ];
-  % From a more thorough sweep
-  bh_global_imodProjectionShifts = [ 0.5, -0.5, 0.5 ; 0.0, -0.5, 0; 0.5,0.5,1.0 ];
-  
-end
-preShift = bh_global_imodProjectionShifts(1,:);
-postShift = bh_global_imodProjectionShifts(2,1:2);
+
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 MAX_EXPOSURE = EMC_str2double(MAX_EXPOSURE)
@@ -193,12 +185,13 @@ mbOUT = {[tmpCache],'dummy'};
 tiltStart=1; 
 firstTilt = true;
 
-pixelShift = -1;
+
 
 iCell = 0;
 output_cell = {};
 newstack_file = sprintf('%s/temp_particle_stack.newstack',mbOUT{1});
 newstack_file_handle = fopen(newstack_file,'w');
+
 
 for iTiltSeries = tiltStart:nTiltSeries
   n_particles_added_to_stack = 0;
@@ -381,7 +374,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     if (useFixedNotAliStack)
       
-      % 20190509 - I think this is royally screwing things up FIXME
+      % 20190509 - I think this is ry_startally screwing things up FIXME
       % Commenting this out invalidates the defocus vals
       % positionn in stack, imod rotation matrix (2x2), x,y shift (unbinned)
       xfTLT = sortrows(TLT(:,[1,7:10,2,3],1));
@@ -408,7 +401,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       end
     else
       % Create an identity transform for the model
-      % 20190509 - I think this is royally screwing things up FIXME
+      % 20190509 - I think this is ry_startally screwing things up FIXME
       % Commenting this out invalidates the defocus vals
       xfTLT = zeros(size(TLT,1),6);
       xfTLT(:,[1,4]) = 1.0;
@@ -461,13 +454,13 @@ for iTiltSeries = tiltStart:nTiltSeries
       subtomo_origin_in_tomo_frame = (positionList(iSubTomo,11:13));
       subtomo_origin_wrt_tilt_origin = subtomo_origin_in_tomo_frame - tomo_origin_in_tomo_frame + tomo_origin_wrt_tilt_origin;
         
-      % This extra shift came from experiments with real data but is both annoying and not understood.
+      % This extra shift came from experiments with real data but is both anny_starting and not understood.
       subtomo_origin_wrt_tilt_origin = subtomo_origin_wrt_tilt_origin - emc.flgPreShift;
 
       % subTomo origin relative to reconLowerLeft
       subtomo_origin_in_sample = originRec + subtomo_origin_wrt_tilt_origin; 
       % Reproject using tilt, so just save the 3d coords.
-      fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2]), fidIDX);
+      fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2])', fidIDX);
       
       nPrjsIncluded = 0;
       for iPrj = 1:nPrjs
@@ -621,7 +614,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   % x
   % y
   % projection idx, from 0
-  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(emc.prjVectorShift(1:2)', size(fidList,1),1);
+
+  fidList(:,[2,3]) = fidList(:,[2,3]) + repmat(emc.prjVectorShift(1:2), size(fidList,1),1);
   foundNans = sum(isnan(fidList(:,3)));
   if (foundNans)
     fprintf('\n\t\tThere are %d NaNs in the projected fiducial list %3.3f\n\n',foundNans, foundNans/size(fidList,1)*100);
@@ -634,9 +628,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   particlePad = 2.0;
   tileRadius = floor(particlePad.*particle_radius);
-  tileSize = (2.*tileRadius).*[1,1];
-  
-  tileOrigin = floor(tileSize./2) + 1;
+  tileSize = BH_multi_iterator((2.*tileRadius).*[1,1],'fourier2d');
+  tileOrigin = emc_get_origin_index(tileSize);
   
   nFidsTotal = numel(unique(fidList(parList(:,1)~=-9999,2)));
 
@@ -717,22 +710,18 @@ for iTiltSeries = tiltStart:nTiltSeries
         continue;
       end
 
-      pixelX = wrkFid(iFid,3) - pixelShift + postShift(1);
-      pixelY = wrkFid(iFid,4) - pixelShift + postShift(2);
+      pixelX = wrkFid(iFid,3) - emc.pixelShift + emc.flgPostShift(1);
+      pixelY = wrkFid(iFid,4) - emc.pixelShift + emc.flgPostShift(2);
       
-      ox = floor(pixelX) - tileRadius;
-      oy = floor(pixelY) - tileRadius;
+      x_start = floor(pixelX) - tileOrigin(1) + 1;
+      y_start = floor(pixelY) - tileOrigin(2) + 1;
       
       sx = pixelX - floor(pixelX);
       sy = pixelY - floor(pixelY);
       
       particle_was_skipped = false;
-      if  ( ox > 0 && oy > 0 && ox + 2*tileRadius < sTX && oy +2*tileRadius < sTY )
-        output_particle_stack(:,:,iGpuDataCounter) = STACK(ox:ox+2.*tileRadius-1,oy:oy+2.*tileRadius-1,TLT(iPrj,1));
-      % else
-      %   particle_was_skipped = true;
-      %   output_particle_stack(:,:,iGpuDataCounter) = randn(tileSize,'single').*0.1; % Why am I not just skipping these?
-      % end
+      if  ( x_start > 0 && y_start > 0 && x_start + tileSize(1) - 1 < sTX && y_start + tileSize(2) - 1 < sTY )
+        output_particle_stack(:,:,iGpuDataCounter) = STACK(x_start:x_start+tileSize(1)-1,y_start:y_start+tileSize(2)-1,TLT(iPrj,1));
       
         if (useFixedNotAliStack)
           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
@@ -740,7 +729,6 @@ for iTiltSeries = tiltStart:nTiltSeries
           rotFull = rTilt*[RF(1), RF(2), 0; RF(3), RF(4), 0; 0, 0, 1]*reshape(wrkPar(iFid,7:15),3,3);
         else
 
-        
           %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
           rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','forwardVector');
           
@@ -756,8 +744,8 @@ for iTiltSeries = tiltStart:nTiltSeries
         
         phaseShift = 0.0;
         occupancy = 100.0; % TODO test replacement with CCC score?
-        logp = -1000;
-        sigma = 10.0;
+        logp = -1000; % Tru -40000
+        sigma = 10.0; % try 20
         score = 10.0; % TODO test with scaled CCC score?
         scoreChange = 0.0;
         pixelSize = emc.pixel_size_angstroms;
@@ -886,8 +874,6 @@ system(sprintf('chmod a=wrx %s_rec.sh',output_prefix));
 pause(3)
 system(sprintf('./%s_rec.sh',output_prefix));
 
-% FIXME: add a parameter to control this as we will probably want to consider just moving into cisTEM from the start
-return;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 % Refine
