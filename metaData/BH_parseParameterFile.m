@@ -47,6 +47,25 @@ end
 % Asserts on required parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+if isfield(emc, 'fastScratchDisk')
+  if strcmpi(emc.fastScratchDisk, 'ram')
+    if isempty(getenv('EMC_CACHE_MEM'))
+      fprintf('Did not find a variable for EMC_CACHE_MEM\nSkipping ram\n');
+      emc.fastScratchDisk = '';
+    else
+      % I have no ideah how much is needed
+      if EMC_str2double(getenv('EMC_CACHE_MEM')) < 32
+        fprintf('There is only 64 Gb of cache on ramdisk, not using\n');
+        emc.fastScratchDisk = '';
+      else
+        emc.fastScratchDisk=getenv('MCR_CACHE_ROOT');
+      end
+    end % if EMC_CACHE_MEM
+  end % if ram
+else
+  emc.fastScratchDisk = '';
+end
+
 if isfield(emc, 'nGPUs')
   EMC_assert_numeric(emc.nGPUs, 1, [1, 1000]);
 else
@@ -533,5 +552,32 @@ if isfield(emc, 'print_alignment_stats')
 else
   emc.print_alignment_stats = false;
 end
+
+if isfield(emc, 'printShiftsInParticleBasis')
+  EMC_assert_boolean(emc.printShiftsInParticleBasis);
+else
+  emc.printShiftsInParticleBasis = true;
+end
+
+if isfield(emc, 'ML_compressByFactor')
+  EMC_assert_numeric(emc.ML_compressByFactor, 1);
+else
+  emc.ML_compressByFactor = 2.0;
+end
+
+if isfield(emc, 'ML_angleTolerance')
+  EMC_assert_numeric(emc.ML_angleTolerance, 1);
+else
+  emc.ML_angleTolerance = 2.0;
+end
+
+if isfield(emc, 'mtf_value')
+  EMC_assert_numeric(emc.mtf_value, 1);
+else
+  emc.mtf_value = 2.0;
+end
+
+
+
 end
 

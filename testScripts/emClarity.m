@@ -41,7 +41,7 @@ else
   add_slash = '/';
 end
 
-fprintf('ctfroot is %s\n',ctfroot);
+% fprintf('ctfroot is %s\n',ctfroot);
 
 emC_PATH = strsplit(pathWithDir, slashCheck{end-shift_end});
 emC_PATH = sprintf('%s%semClarity',emC_PATH{1},add_slash);
@@ -50,7 +50,7 @@ if isdeployed
   % This will find the m-file, which is used to grab the shell script which is what we want to define here.
   [BH_checkInstallPath, fname, fext] = fileparts(which('BH_checkInstall'));
   BH_checkInstallPath = fullfile(BH_checkInstallPath,fname);
-  fprintf('BH_checkInstall is %s\n',BH_checkInstallPath);
+  % fprintf('BH_checkInstall is %s\n',BH_checkInstallPath);
   %BH_checkInstallPath = sprintf('%s%s/metaData/BH_checkInstall',ctfroot,compiled_PATH);
 else
   BH_checkInstallPath=sprintf('%s/metaData/BH_checkInstall',emC_PATH);
@@ -61,8 +61,8 @@ end
 emC_autoAliPath = sprintf('%s/alignment/emC_autoAlign',fileparts(fileparts(BH_checkInstallPath)));
 emC_findBeadsPath = sprintf('%s/alignment/emC_findBeads',fileparts(fileparts(BH_checkInstallPath)));
 
-fprintf('emC_autoAlign is %s\n',emC_autoAliPath);
-fprintf('emC_findBeads is %s\n',emC_findBeadsPath);
+% fprintf('emC_autoAlign is %s\n',emC_autoAliPath);
+% fprintf('emC_findBeads is %s\n',emC_findBeadsPath);
 
 
 setenv('EMC_AUTOALIGN',emC_autoAliPath);
@@ -229,16 +229,16 @@ switch varargin{1}
         length(varargin) < 2 && length(varargin)> 5
       fprintf(['\nUsage: emClarity init param.m [tomoCpr iter, for continuing after second globalsearch]\n']);
     elseif length(varargin) == 5
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_geometryInitialize(varargin{2},varargin{3},varargin{4},varargin{5});
     elseif length(varargin) == 4
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_geometryInitialize(varargin{2},varargin{3},varargin{4});
     elseif length(varargin) == 3
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_geometryInitialize(varargin{2},varargin{3});
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_geometryInitialize(varargin{2});
     end
   case 'removeNeighbors'
@@ -246,7 +246,7 @@ switch varargin{1}
         length(varargin) ~= 6
       fprintf(['\nUsage: emCLarity removeNeighbors pixelSize CYCLE distanceCutoff (Ang) angleCutoff (Deg) N-neighbors\n']);
     else
-      %emC_testParse(varargin{2})
+      %emC_testParse(varargin{2});
       if length(varargin) == 6
         BH_geometry_Constraints(varargin{2},varargin{3},varargin{4},varargin{5},varargin{6});
       else
@@ -259,7 +259,7 @@ switch varargin{1}
         (length(varargin) ~= 5 && length(varargin) ~= 6)
       fprintf(['\nUsage: emClarity autoAlign param.m stackName tiltFile tilt-axis Rotation\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       if ~exist(varargin{4}, 'file')
         fprintf('Did not find your .rawtlt file %s\n',varargin{3});
         error('Expecting tiltName.st tiltName.rawtlt pixelSize (Ang) imageRotation (degrees)');
@@ -282,7 +282,7 @@ switch varargin{1}
         length(varargin) ~= 3
       fprintf(['\nUsage: emClarity skip param.m iter\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_skipClassAlignment(varargin{2},varargin{3},'RawAlignment','1');
     end
   case 'rescale'
@@ -351,7 +351,7 @@ switch varargin{1}
         '  raw (post raw alignment)\n',...
         '  cluster_cls (post classification)\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_average3d(varargin{2}, varargin{3}, varargin{4});
     end
   case 'fsc'
@@ -364,7 +364,7 @@ switch varargin{1}
         '  raw (post raw alignment)\n',...
         '  cluster_cls (post classification)\n']);
     elseif length(varargin) == 4
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_fscGold_class(varargin{2}, varargin{3}, varargin{4});
     else
       BH_fscGold_class(varargin{2}, varargin{3}, varargin{4},varargin{5},varargin{6});
@@ -377,7 +377,7 @@ switch varargin{1}
         'cycle number\n',...
         '[experimental option 1/2/3, 1 - abs(ccc),2 - weighted,3 -abs(weighted)]']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       if length(varargin) == 3
         BH_alignRaw3d_v2(varargin{2}, varargin{3});
       else
@@ -393,7 +393,7 @@ switch varargin{1}
         'cycle number\n',...
         'stage of alignment\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_alignReferences3d(varargin{2}, varargin{3});
     end
   case 'alignCls'
@@ -403,48 +403,10 @@ switch varargin{1}
         'cycle number\n',...
         'stage of alignment\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_alignClassRotAvg3d(varargin{2}, varargin{3});
     end
-    %   case 'alignFrames'
-    %     if emcProgramHelp || ...
-    %        (length(varargin) < 9 && length(varargin) > 11)
-    %      fprintf(['\nnameIN\n',...
-    %                'nameOUT\n',...
-    %                'gpuIDX\n',...
-    %                'FPN\n',...
-    %                'pixelSizeIN\n',...
-    %                'pixelSizeOUT\n',...
-    %                'overSampleBy\n',...
-    %                'doLocal [particleRadiusAng, maxRes]\n']);
-    %     else
-    %       switch length(varargin)
-    %         case 9
-    %           BH_alignSubFramesTot(varargin{2}, varargin{3}, varargin{4},...
-    %                               EMC_str2double(varargin{5}),...
-    %                               EMC_str2double(varargin{6}),...
-    %                               EMC_str2double(varargin{7}),...
-    %                               EMC_str2double(varargin{8}),...
-    %                               EMC_str2double(varargin{9}));
-    %         case 10
-    %           BH_alignSubFramesTot(varargin{2}, varargin{3}, varargin{4},...
-    %                               EMC_str2double(varargin{5}),...
-    %                               EMC_str2double(varargin{6}),...
-    %                               EMC_str2double(varargin{7}),...
-    %                               EMC_str2double(varargin{8}),...
-    %                               EMC_str2double(varargin{9}),...
-    %                               EMC_str2double(varargin{10}));
-    %         case 11
-    %           BH_alignSubFramesTot(varargin{2}, varargin{3}, varargin{4},...
-    %                               EMC_str2double(varargin{5}),...
-    %                               EMC_str2double(varargin{6}),...
-    %                               EMC_str2double(varargin{7}),...
-    %                               EMC_str2double(varargin{8}),...
-    %                               EMC_str2double(varargin{9}),...
-    %                               EMC_str2double(varargin{10}),...
-    %                               EMC_str2double(varargin{11}));
-    %       end
-    %     end
+
   case 'pca'
     if emcProgramHelp || ...
         length(varargin) ~= 4  && length(varargin) ~= 5
@@ -456,7 +418,7 @@ switch varargin{1}
       %  '  2 from variance\n',...
       %  '  3 user supplied (not recommended)\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       
       if (EMC_str2double(varargin{4}))
         % project onto full set
@@ -487,7 +449,7 @@ switch varargin{1}
       fprintf(['\nparam.m\n',...
         'cycle number\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_clusterPub(varargin{2}, varargin{3});
     end
   case 'ctf'
@@ -505,7 +467,7 @@ switch varargin{1}
         '  param.m [/local/Scratch]\n']);
     else
       
-      emC_testParse(varargin{3})
+      emC_testParse(varargin{3});
       
       switch varargin{2}
         case 'estimate'
@@ -559,13 +521,13 @@ switch varargin{1}
         'cycle number\n',...
         'nTiltStart\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       if length(varargin) == 4
         tiltStart = EMC_str2double(varargin{4});
       else
         tiltStart = 1;
       end
-      BH_synthetic_mapBack(varargin{2}, varargin{3},tiltStart);
+      BH_synthetic_mapBack(varargin{2}, varargin{3}, tiltStart);
     end
   case 'removeDuplicates'
     if emcProgramHelp || ...
@@ -574,7 +536,7 @@ switch varargin{1}
         'cycle number\n',...
         ]);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_removeDuplicates(varargin{2}, varargin{3} );
     end
   case 'geometry'
@@ -590,7 +552,7 @@ switch varargin{1}
         'vectOP [0,0,0]\n',...
         'STD, EVE, ODD\n']);
     else
-      emC_testParse(varargin{2})
+      emC_testParse(varargin{2});
       BH_geometryAnalysis(varargin{2}, varargin{3},varargin{4}, ...
         varargin{5}, varargin{6},varargin{7});
     end
@@ -692,18 +654,6 @@ function [ emc  ] = emC_testParse( paramTest )
   
   
   
-  %%%%%%%% GLOBALS  %%%%%%%%%%%%%%%%%%%%
-  
-  % These variables are to maintain some flexibility for parameters that have
-  % an ill-defined dependence on experimental factors. Preferably only until
-  % they can be resolved.
-  
-  global bh_global_window_cutoff;
-  try
-    bh_global_window_cutoff = emc.('windowCutoff');
-  catch
-    bh_global_window_cutoff = -2;
-  end
   
   % These are for making shape based masks. I think the problem is likely
   % dependent on the current resolution of the sub-tomogram, and that a
@@ -711,6 +661,13 @@ function [ emc  ] = emC_testParse( paramTest )
   
   % Note that these must also be declared in the relevant functions
   
+  global emc_debug_print;
+  try
+    emc_debug_print = emc.('debugPrint');
+  catch
+    emc_debug_print = false;
+  end
+
   %%%%%%% BH_mask3d.m %%%%%%%
   global bh_global_binary_mask_low_pass;
   global bh_global_binary_mask_threshold;
@@ -841,42 +798,7 @@ function [ emc  ] = emC_testParse( paramTest )
     % mask_3d
     bh_global_vol_est_scaling = 0.0;
   end
-  
-  try
-    % 0 - off, 2 original (matches closely measured MTF), 1 stronger
-    % Anthing else, float, iX = scalar, dX = cap val e.g.
-    % opiton 1 100.04 and 2 (default) is 25.06
-    bh_global_MTF = emc.('mtfVal');
-  catch
-    bh_global_MTF = 2;
-  end
-  
-  global bh_global_print_shifts_in_particle_basis;
-  try
-    bh_global_print_shifts_in_particle_basis = emc.('printShiftsInParticleBasis');
-  catch
-    bh_global_print_shifts_in_particle_basis = true;
-  end
-  
-  global bh_global_zero_lag_score;
-  try
-    bh_global_zero_lag_score = emc.('useZeroLagScore');
-  catch
-    bh_global_zero_lag_score = false;
-  end
-  
-  global bh_global_ML_compressByFactor;
-  global bh_global_ML_angleTolerance;
-  try
-    bh_global_ML_compressByFactor = emc.('ML_compressByFactor');
-  catch
-    bh_global_ML_compressByFactor = 2.0;
-  end
-  try
-    bh_global_ML_angleTolerance = emc.('ML_angleTolerance');
-  catch
-    bh_global_ML_angleTolerance = 5;
-  end
+
   
   fprintf('nExpGlobals %2.2f maskLP, %2.2f maskThr, %2.2f pcaMaskThr\n', ...
     bh_global_binary_mask_low_pass, ...

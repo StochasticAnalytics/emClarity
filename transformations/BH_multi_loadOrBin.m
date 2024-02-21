@@ -94,7 +94,7 @@ if samplingRate > 1
         %        system(sprintf('newstack -shrink %d -antialias 6 %s cache/%s_bin%d%s > /dev/null', ...
         %                                     samplingRate,input_tilt_series_filename, imgName, samplingRate,imgExt));
       otherwise
-        error('DIMENSION should be 2 or 3\n.')
+        error('DIMENSION should be 2 or 3\n')
     end
     
     

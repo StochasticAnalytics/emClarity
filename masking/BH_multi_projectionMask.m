@@ -33,10 +33,8 @@ elseif strcmp(METHOD,'cpu')
   evalMask = false([d1,d2,d3]);
   Z1 = zeros([r1,r2],'single');
 else
-  error('METHOD must be GPU or cpu\n.');
+  error('METHOD must be GPU or cpu\n');
 end
-
-
 
 for iPrj = 1:d3
   

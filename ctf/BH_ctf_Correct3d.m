@@ -70,6 +70,7 @@ reconstructionParameters = 0;
 filterProjectionsForTomoCPRBackground=0;
 loadSubTomoMeta = true;
 flgWhitenPS = [0,0,0.0];
+use_existing_tmpCache='';
 if nargin > 2
   if isempty(EMC_str2double(varargin{1}))
     error('Extra argument to ctf 3d should be a vector [THICKNESS, BINNING] tiltN, or a string templateSearch');
@@ -78,8 +79,11 @@ if nargin > 2
     recWithoutMat = true;
     if length(varargin) > 2
       % Full recon for tomoCPR
-      bh_global_turn_on_phase_plate = varargin{3}
+      bh_global_turn_on_phase_plate = varargin{3};
       filterProjectionsForTomoCPRBackground = varargin{4};
+      if length(varargin) > 4
+        use_existing_tmpCache = varargin{5};
+      end
     else
       loadSubTomoMeta = false;
       % Default to on for subregion picking
@@ -118,7 +122,7 @@ catch
 end
 
 if (bh_global_turn_on_phase_plate(1) && any(emc.whitenPS))
-  fprintf('WARNING: phakePhasePlate and whitening are conflicting preocesses. Turning off whitening.\n')
+  fprintf('WARNING: phakePhasePlate and whitening are conflicting preocesses. Turning off whitening.\n');
   emc.whitenPS = [0,0,0];
 end
 
@@ -134,7 +138,7 @@ end
 try
   useSurfaceFit = emc.('useSurfaceFit')
 catch
-  useSurfaceFit = 1
+  useSurfaceFit = 1;
 end
 
 try
@@ -152,55 +156,11 @@ fprintf('tiltweight is %f %f\n',tiltWeight);
 
 
 
-
-tmpCache= emc.('fastScratchDisk');
-
-if strcmpi(tmpCache, 'ram')
-  if isempty(getenv('EMC_CACHE_MEM'))
-    fprintf('Did not find a variable for EMC_CACHE_MEM\nSkipping ram\n');
-    tmpCache= '';
-  else
-    % I have no ideah how much is needed
-    if EMC_str2double(getenv('EMC_CACHE_MEM')) < 64
-      fprintf('There is only 64 Gb of cache on ramdisk, not using');
-      tmpCache = '';
-    else
-      tmpCache=getenv('MCR_CACHE_ROOT');
-      fprintf('Using the tmp EMC cache in ram at %s\n',tmpCache);
-    end
-  end
-end
-
-% Check to make sure it even exists
-if isempty(dir(tmpCache))
-  fprintf('\n\nIt appears your fastScratchDisk\n\t%s\ndoes not exist!\n\n',tmpCache);
-  tmpCache = '';
-end
-
 reconScaling = 1;
 
-if isempty(tmpCache)
-  tmpCache='cache';
-  flgCleanCache = 0;
-  CWD='';
-else
-  flgCleanCache = 1;
-  CWD = sprintf('%s/',pwd);
-  % Check for a trailing slash
-  slashCheck = strsplit(tmpCache,'/');
-  if isempty(slashCheck{end})
-    % This means the final character was a slash, strip it
-    tmpCache = sprintf('%scache',tmpCache); %strjoin(slashCheck(1:end-1),'/');
-  else
-    tmpCache = sprintf('%s/cache',tmpCache);
-  end
-end
+[tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(emc.fastScratchDisk, use_existing_tmpCache, 'ctf3d', false);
 
-% Incase this is launched form another process (synthetic mapback for example, make one level lower in the cache
-tmpCache=sprintf('%s/ctf3d',tmpCache);
-fprintf('tmpCache is %s\n',tmpCache);
-system(sprintf('mkdir -p %s',tmpCache));
-system(sprintf('mkdir -p %s','cache')); % This should exist, but to be safe.
+
 if (recWithoutMat)
   useSurfaceFit = false;
   if (loadSubTomoMeta)
@@ -234,9 +194,9 @@ end
 
 
 try
-  flgDampenAliasedFrequencies = emc.('flgDampenAliasedFrequencies')
+  flgDampenAliasedFrequencies = emc.('flgDampenAliasedFrequencies');
 catch
-  flgDampenAliasedFrequencies = 0
+  flgDampenAliasedFrequencies = 0;
 end
 
 try
@@ -382,6 +342,7 @@ catch
   EMC_parpool(nGPUs)
 end
 
+% FIXME 
 parfor iGPU = 1:nGPUs
 % for iGPU = 1:nGPUs
 
@@ -394,8 +355,8 @@ parfor iGPU = 1:nGPUs
     % not present.
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
     TLT = load(TLTNAME);
-    fprintf('using TLT %s\n', TLTNAME);
-    
+    fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
+
     
     % Get all the tomogram names that belong to a given tilt-series.
     if (~recWithoutMat)
@@ -441,14 +402,12 @@ end
 
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
-% FIXME
 parfor iGPU = 1:nGPUs
   % for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
   % Loop over each tilt
   for iTilt = iterList{gpuList(iGPU)}
-    
-    
+
     
     if (recWithoutMat)
       if (loadSubTomoMeta)
@@ -476,9 +435,9 @@ parfor iGPU = 1:nGPUs
     
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
     TLT = load(TLTNAME);
-    fprintf('using TLT %s\n', TLTNAME);
-    
-    
+    fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
+
+  
     
     if (~recWithoutMat)
       % Get all the tomogram names that belong to a given tilt-series.
@@ -590,7 +549,7 @@ parfor iGPU = 1:nGPUs
     
     [ sectionList ] = calcTomoSections(iCoords, tomoNumber, emc.pixel_size_angstroms, nSections, tiltList{iTilt}, ctf3dDepth);
     
-    
+
     if (recWithoutMat)
       avgZ = 0;
       surfaceFit = 0;
@@ -800,13 +759,13 @@ parfor iGPU = 1:nGPUs
         reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
           tiltList{iTilt},thisTomo,samplingRate);
       elseif reconstructionParameters(1)
-        
-        reconNameFull = sprintf('cache/%s_%d_bin%d_backgroundEst.rec', ...
-          tiltList{iTilt},thisTomo,samplingRate);
+        reconNameFull = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec', ...
+          CWD,tiltList{iTilt},thisTomo,samplingRate);
       else
         reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
           tiltList{iTilt},thisTomo,samplingRate);
       end
+      fprintf('in ctf3d reconNameFull is %s\n\n',reconNameFull);
       
       recCMD = 'newstack -fromone';
       for iSection = 1:nSections
@@ -1035,7 +994,6 @@ else
 end
 
 
-% The avg Z seems like it should be added?
 
 if ( flgDampenAliasedFrequencies )
   % Experiment with dampning higher frequencies where aliasing is going to

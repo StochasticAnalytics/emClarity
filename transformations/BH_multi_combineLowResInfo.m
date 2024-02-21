@@ -18,8 +18,12 @@ for iRef = refIDX'
   % meta data, so add this in soon.
   %   oddWeight = sum(nExtracted(iClassPos,1)) ./ sum(nExtracted(iClassPos,1:2))
   %   eveWeight = sum(nExtracted(iClassPos,2)) ./ sum(nExtracted(iClassPos,1:2))
-  oddWeight = inputCounts{1}(2,iRef) ./ (inputCounts{1}(2,iRef) + inputCounts{2}(2,iRef))
-  eveWeight = inputCounts{2}(2,iRef) ./ (inputCounts{1}(2,iRef) + inputCounts{2}(2,iRef))
+  oddWeight = inputCounts{1}(2,iRef) ./ (inputCounts{1}(2,iRef) + inputCounts{2}(2,iRef));
+  eveWeight = inputCounts{2}(2,iRef) ./ (inputCounts{1}(2,iRef) + inputCounts{2}(2,iRef));
+
+  if (abs(eveWeight - oddWeight) > 0.25)
+    fprintf('Warning: The weights for the two half-maps (%f and %f) are not equal, this may cause issues with the final map.\n', oddWeight, eveWeight);
+  end
   
   
   

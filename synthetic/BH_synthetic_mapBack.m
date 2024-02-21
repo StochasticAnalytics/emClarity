@@ -94,11 +94,9 @@ end
 % diff.
 flgInvertTiltAngles = 0;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Playing around with the model
-n_surfaces=2;
-
-
+% We expect our particles to be distributed throught the thickness.
+% Setting to 2 can cause the alignment to silently die
+n_surfaces=1;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 try
@@ -121,53 +119,14 @@ else
   tmpCache= emc.('fastScratchDisk');
 end
 
-if strcmpi(tmpCache, 'ram')
-  if isempty(getenv('EMC_CACHE_MEM'))
-    fprintf('Did not find a variable for EMC_CACHE_MEM\nSkipping ram\n');
-    tmpCache= '';
-  else
-    % I have no ideah how much is needed
-    if EMC_str2double(getenv('EMC_CACHE_MEM')) < 64
-      fprintf('There is only 64 Gb of cache on ramdisk, not using');
-      tmpCache = '';
-    else
-      tmpCache=getenv('MCR_CACHE_ROOT');
-      fprintf('Using the tmp EMC cache in ram at %s\n',tmpCache);
-    end
-  end
-end
+[tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(tmpCache, '', 'tomoCPR', true);
 
-% % % nWorkers = EMC_str2double(nWORKERS)
 nGPUs = emc.('nGPUs');
 pInfo = parcluster();
 gpuScale=3*samplingRate;
 nWorkers = min(nGPUs*gpuScale,emc.('nCpuCores')); % 18
 fprintf('Using %d workers as max of %d %d*nGPUs and %d nWorkers visible\n', ...
   nWorkers,gpuScale,nGPUs*gpuScale,pInfo.NumWorkers);
-
-% Check to make sure it even exists
-if isempty(dir(tmpCache))
-  fprintf('\n\nIt appears your fastScratchDisk\n\t%s\ndoes not exist!\n\n',tmpCache);
-  tmpCache = '';
-end
-if isempty(tmpCache)
-  tmpCache='cache/';
-  flgCleanCache = 0;
-  CWD = '';
-else
-  flgCleanCache = 1;
-  CWD = sprintf('%s/',pwd);
-  % Check for a trailing slash
-  slashCheck = strsplit(tmpCache,'/');
-  if isempty(slashCheck{end})
-    tmpCache = sprintf('%scache/',tmpCache); % prefix for mapBack
-  else
-    tmpCache = sprintf('%s/cache/',tmpCache); % prefix for mapBack
-  end
-  
-end
-
-system(sprintf('mkdir -p %s',tmpCache));
 
 
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
@@ -268,7 +227,7 @@ outCTF = '_ctf';
 is_first_run = true;
 
 mbOUT = {[tmpCache],[mapBackIter+1],'dummy'};
-tiltStart=1; 
+
 for iTiltSeries = tiltStart:nTiltSeries
   if (skip_to_the_end_and_run)
     continue;
@@ -313,7 +272,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   if exist(localFile,'file')
-    fprintf('Found local file %s\n.', localFile);
+    fprintf('Found local file %s\n', localFile);
   else
     fprintf('No local transforms requested.\n');
     localFile = 0;
@@ -328,7 +287,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   try
     eraseMaskType = emc.('Peak_mType');
     eraseMaskRadius = emc.('Peak_mRadius') ./ pixel_size;
-    fprintf('Further restricting peak search to radius of [%f %f %f] pixels\n', eraseMaskRadius);
+    % fprintf('Further restricting peak search to radius of [%f %f %f] pixels\n', eraseMaskRadius);
     eraseMask = 1;
   catch
     eraseMask = 0;
@@ -345,7 +304,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % FIXME: this should be in parseParameterFile
   try
     lowPassCutoff = emc.('tomoCprLowPass');
-    fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.', lowPassCutoff);
+    fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n', lowPassCutoff);
   catch
     % TODO are these range limits okay?
     lowPassCutoff = 1.5.*mean(subTomoMeta.currentResForDefocusError);
@@ -354,13 +313,13 @@ for iTiltSeries = tiltStart:nTiltSeries
     elseif (lowPassCutoff > 24)
       lowPassCutoff = 24;
     end
-    fprintf('Using an internatlly determined lowpass cutoff of %3.3f Ang\n.',...
+    fprintf('Using an internatlly determined lowpass cutoff of %3.3f Ang\n',...
       lowPassCutoff);
   end
 
   % FIXME: this can also be in parseParameterFile 
   if lowPassCutoff < 2* pixel_size
-    fprintf('Psych, the cutoff is being set to Nyquist');
+    fprintf('Psych, the cutoff is being set to Nyquist\n');
     lowPassCutoff = 2*pixel_size;
   end
   
@@ -373,13 +332,12 @@ for iTiltSeries = tiltStart:nTiltSeries
     end
     
     if sqrt(2)*pixel_size > min_res_for_ctf_fitting
-      fprintf('Warning the current resolution is too low to refine the defocus. Turning off this feature');
+      fprintf('Warning the current resolution is too low to refine the defocus. Turning off this feature\n');
       calcCTF = false;
     end
   end
   
-  % TODO: these defaults should be re-examined
-  nFiducialsPerPatch = ceil(100./sqrt(molMass));
+% TODO: these defaults should be re-examined
   targetPatchSize = max(500, ceil(2.*(particle_radius).*sqrt(nFiducialsPerPatch)));
 
   % The binned stacks should already exist, if not, this will re-create it in the cache dir.
@@ -461,22 +419,23 @@ for iTiltSeries = tiltStart:nTiltSeries
     particleMask{iRef} = gather(particleMask{iRef});
   end
   
-  sprintf('[%d,%d]',maxZ,samplingRate)
-  tiltNameList{iTiltSeries}
+  sprintf('[%d,%d]',maxZ,samplingRate);
+  tiltNameList{iTiltSeries};
   
   
   backgroundName = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec',CWD,tiltNameList{iTiltSeries},1, samplingRate);
+  fprintf('In tomocpr, using background estimate %s\n\n',backgroundName);
   send_backgroundLowPassResolution = 28;
 
   % TODO: investigate deviations from the default, which is to shut off the phakePhasePlate and to use a backgroundLowPassResolution of 28
   % Default false, we don't apply this filter
   % if enabled, it currently only saves the filtered background estimate for visualization in addition to the normal version
   % if (emc.save_mapback_classes)
-  %   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3);
+  %   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3, tmpCache);
   % end
   % FIXME: calling like this does not use the surface fit for the background
   send_phakePhasePlateOption = [0,0];
-  BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution);
+  BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution, tmpCache);
   
   % re-initialize the parpool for each tilt series to free up mem.
   delete(gcp('nocreate'))
@@ -486,7 +445,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   avgTomo{1} = getVolume(MRCImage(backgroundName));
   
   if (delete_background_estimate)
-    system(sprintf('rm %s',backgroundName));
+    system(sprintf('rm -f %s',backgroundName));
   end
   
   for iRef = 1:nRefs
@@ -731,8 +690,8 @@ for iTiltSeries = tiltStart:nTiltSeries
             iPrj_nat = find(TLT(:,1) == iPrj);
             % imod is indexing from zero
             zCoord = iPrj_nat;
-            
-            rTilt = BH_defineMatrix([90,1.*TLT(iPrj_nat,4),-90],'Bah','forwardVector');
+            % For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)% For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)
+            rTilt = BH_defineMatrix([0,TLT(iPrj_nat,4),0],'SPIDER','inv');
             
             prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
             
@@ -1197,7 +1156,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     emc.k_factor_scaling = 10 / sqrt(nFidsTotal);
   end
   
-  parfor iPrj = 1:nPrjs
+  % FIXME revert
+  for iPrj = 1:nPrjs
+  % parfor iPrj = 1:nPrjs
     
     %   	    % For some reason if these mrc objects are created before the parfor
     % loop begins, they fail to load. It is fine as a regular for loop
@@ -1223,7 +1184,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       end
     end
     if toc == 300
-      error('failed to load dataPrj %s at %d after %d tries\n.', ...
+      error('failed to load dataPrj %s at %d after %d tries\n', ...
         tiltSeries,iPrj,3000);
     else
       %         fprintf('loaded dataPrj %d on try %d\n',iPrj,floor(toc./0.1));
@@ -1241,7 +1202,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       end
     end
     if toc == 300
-      error('failed to load refPrj %s at %d after %d tries\n.', ...
+      error('failed to load refPrj %s at %d after %d tries\n', ...
         tiltSeries,iPrj,3000);
     else
       %         fprintf('loaded refPrj %d on try %d\n',iPrj,floor(toc./0.1));
@@ -1259,7 +1220,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       end
     end
     if toc == 300
-      error('failed to load samplingMask %s at %d after %d tries\n.', ...
+      error('failed to load samplingMask %s at %d after %d tries\n', ...
         tiltSeries,iPrj,3000);
     else
       %         fprintf('loaded refPrj %d on try %d\n',iPrj,floor(toc./0.1));
@@ -1470,14 +1431,14 @@ for iTiltSeries = tiltStart:nTiltSeries
         refFT  = conj(bhF.fwdFFT(refTile,1,1,[1e-5,400,lowPassCutoff,pixel_size]));
       end
       
-      bestScore = -1000000;
+      bestScore = -inf;
       bestCTF = 1;
       for deltaCTF = 1:nDefTotal
         
         iRefCTF = refFT .* ...
           mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate*TLT(iPrj,16)*10^10), ...
-          single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
-          single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
+                single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
+                single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
         
         %           try
         iRefCTF = iRefCTF ./ sqrt(2.*sum(abs(iRefCTF(1:end-bhF.invTrim,:)).^2,'all'));
@@ -1485,9 +1446,6 @@ for iTiltSeries = tiltStart:nTiltSeries
         cccMap = dataFT .* iRefCTF;
         if (use_PCF)
           cccMap = cccMap .* cccMap ./ (abs(cccMap) + 0.1);
-        else
-          % % % % %               cccMap = peakMask.*real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(dataTile,1,0,[0,300,lowPassCutoff,pixel_size]).*conj(bhF.fwdFFT(refTile,1,0) .* iCTF),'fwd')));
-          
         end
         cccMap = peakMask.*real(bhF.invFFT(cccMap));
         
@@ -1573,13 +1531,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         
         dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak - [sx,sy];
       end
-      
-      
       fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), dXY, wrkFid(iFid,5));
-      
-      
-      
-      
     end % end of loop over fiducials
     
     if (calcCTF)
@@ -1605,16 +1557,12 @@ for iTiltSeries = tiltStart:nTiltSeries
 
   
   clear diagnosticCell evalMaskCell
-  %     if ~(conserveDiskSpace) && bh_global_save_tomoCPR_diagnostics
-  %       SAVE_IMG(MRCImage(gather(diagnosticStack)),sprintf('%smapBack%d/%s_diagnostic.mrc',mbOUT{1:3}));
-  %       SAVE_IMG(MRCImage(gather(evalMaskStack)),sprintf('%smapBack%d/%s_evalMask.mrc',mbOUT{1:3}));
-  %     end
+
   system(sprintf('cat %smapBack%d/%s_???.coordFIT | sort -k 1 -g > %smapBack%d/%s.coordFIT',mbOUT{1:3},mbOUT{1:3}));
   system(sprintf('rm %smapBack%d/%s_???.coordFIT',mbOUT{1:3}));
   
   system(sprintf('cat %smapBack%d/%s_???.global | sort -k 1 -g > %smapBack%d/%s.global',mbOUT{1:3},mbOUT{1:3}));
   system(sprintf('rm %smapBack%d/%s_???.global ',mbOUT{1:3}));
-  
   
   % create model tomogram for cross correlation
   fidShifts = load(sprintf('%smapBack%d/%s.coordFIT',mbOUT{1:3}));
@@ -1628,15 +1576,12 @@ for iTiltSeries = tiltStart:nTiltSeries
   fidBin  = fopen(sprintf('%smapBack%d/%s.coordBin%d',mbOUT{1:3},samplingRate),'w');
   fidList = fidList(:,2:end);
   
-  
   % shifts/List col 1/4 should match - maybe add a check to be safe
   size(fidShifts)
   size(fidList)
   
   fCombine = [fidShifts(:,1),fidList(:,2:3)+fidShifts(:,2:3),fidShifts(:,4)];
   fprintf('\n\n%d/%d pts ignored\n\n',sum(fCombine(:,4)==-9999),size(fCombine,1));
-  
-  
   
   fFull = fCombine;
   fDefFull = [fCombine,zeros(size(fCombine,1),1)];
@@ -1648,7 +1593,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     wrkFidIDX = ( fidList(:,4) == iPrj - 1 );
     fDefFull(wrkFidIDX,5) = defList(wrkFidIDX,7) + defocusShifts{iPrj};
   end
-  
   
   fDefFull = fDefFull(fDefFull(:,4)~=-9999,:);
   fFull = fFull(fFull(:,4)~=-9999,:);
@@ -1662,13 +1606,11 @@ for iTiltSeries = tiltStart:nTiltSeries
   fprintf(fidBin,'%d %4.4f %4.4f %d\n',fFull');
   fclose(fidBin);
   
-  fFull(:,2:3) = fFull(:,2:3) .* samplingRate;
-  % FIXME: I am reverting to sampling rate here, which I think should be correct.
-
-  % The model ends up seeing the pixel size as 1, so even though it loads
+  % % % % %     fFull(:,2:3) = fFull(:,2:3).*samplingRate;
+    % The model ends up seeing the pixel size as 1, so even though it loads
   % properly on the full aligned stack, these coords need to be scaled by
   % the pixel size since this is the input to tiltalign.
-  % fFull(:,2:3) = fFull(:,2:3).*pixel_size;
+  fFull(:,2:3) = fFull(:,2:3).*pixel_size;
   
   fprintf(fidCombine,'%d %4.4f %4.4f %d\n',fCombine');
   fclose(fidCombine);

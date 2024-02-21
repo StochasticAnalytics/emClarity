@@ -12,14 +12,6 @@ if (nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, STAGEofALIGNMENT')
 end
 
-global bh_global_ML_compressByFactor;
-global bh_global_ML_angleTolerance;
-if isempty(bh_global_ML_compressByFactor)
-  bh_global_ML_compressByFactor = 2.0;
-end
-if isempty(bh_global_ML_angleTolerance)
-  bh_global_ML_angleTolerance = 5;
-end
 
 startTime =  datetime("now");
 CYCLE = EMC_str2double(CYCLE);
@@ -94,7 +86,7 @@ end
 
 if (emc.nPeaks > 1)
   fprintf('For ML approach:\nUsing a compression factor %3.3f\nUsing an angulare tolerance of %3.3f degrees\n', ...
-    bh_global_ML_compressByFactor, bh_global_ML_angleTolerance);
+    emc.ML_compressByFactor, emc.ML_angleTolerance);
 end
 
 % for now only turn on (optionally) in reference generation.
@@ -140,7 +132,6 @@ switch STAGEofALIGNMENT
     else
       if (emc.multi_reference_alignment && emc.classification)
         fprintf('\n\nMutliRef and Classify enabled.\n');
-        fprintf('Only creating the global class average for PCA\n\n.');
         className = 0;
         saveClassSum = 0;
         classVector{1} = [0;1];

@@ -13,15 +13,6 @@ function [  ] = BH_alignRaw3d_v2(PARAMETER_FILE, CYCLE, varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-global bh_global_print_shifts_in_particle_basis;
-if isempty(bh_global_print_shifts_in_particle_basis)
-  bh_global_print_shifts_in_particle_basis = true;
-end
-
-global bh_global_zero_lag_score;
-if isempty(bh_global_zero_lag_score)
-  bh_global_zero_lag_score = false;
-end
 
 if (nargin ~= 2 && nargin ~= 3)
   error('args = PARAMETER_FILE, CYCLE, [1,abs(ccc),2,weighted,3,abs(weighted)]')
@@ -148,9 +139,6 @@ end
 % % % extList = subTomoMeta.mapExt;
 masterTM = subTomoMeta; clear subTomoMeta
 
-
-
-
 refVector = cell(2,1);
 refGroup = cell(2,1);
 refSym = cell(2,1);
@@ -159,25 +147,22 @@ for iGold = 1:2
   % Sort low to high, because order is rearranged as such unstack
   refVectorFull{iGold} = sortrows(refVectorFull{iGold}', 1)';
   % class id corresponding to membership in ???_refName
-  refVector{iGold} = refVectorFull{iGold}(1,:)
+  refVector{iGold} = refVectorFull{iGold}(1,:);
   % reference id, so multiple classes can be merged into one
-  refGroup{iGold}  = refVectorFull{iGold}(3,:)
+  refGroup{iGold}  = refVectorFull{iGold}(3,:);
   % axial symmetry to apply, negative value indicates creating a mirrored ref
   % accros the corresponding axis
-  refSym{iGold}    = refVectorFull{iGold}(2,:)
+  refSym{iGold}    = refVectorFull{iGold}(2,:);
 end
 
 % make sure the number of references match the unique groups in the classVector
 % and also that the class/group pairs match the class/ref pairs.
 nReferences(1:2) = [length(unique(refGroup{1})),length(unique(refGroup{1}))];
-nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})]''
+nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})];
 
 
 nRefOut(1:2) = [length(unique(refGroup{1})) + sum(( refSym{1} < 0 )),...
   length(unique(refGroup{2})) + sum(( refSym{2} < 0 ))];
-
-
-%%%%%%%%%%%%%%%%%%%%%%%
 
 % Get the number of tomograms to process.
 tomoList = fieldnames(geometry);
@@ -195,10 +180,10 @@ tiltList = masterTM.tiltGeometry;
 
 
 [ maskType, maskSize, maskRadius, maskCenter ] = ...
-  BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms)
+  BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms);
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
-  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size  )
+  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size  );
 
 
 
@@ -698,7 +683,6 @@ parfor iParProc = parVect
       
       % Load the tomo into gpu
       tomoName = tomoList{iTomo};
-      %fprintf('gpu %d working on tomoName %s\n', iGPU, tomoName);
       
       tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
       % Load in the geometry for the tomogram, and get number of subTomos.
@@ -1414,7 +1398,7 @@ parfor iParProc = parVect
               
               % It is probably more useful see the shifts in the particle
               % reference frame vs. the avg which was the original
-              if (bh_global_print_shifts_in_particle_basis)
+              if (emc.printShiftsInParticleBasis)
                 printShifts = zeros(3,3);
                 printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
                 printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
@@ -1490,8 +1474,7 @@ parfor iParProc = parVect
           
           if ~(rem(iSubTomo,100))
             timeClass = toc;
-            fprintf('\nworking on %d/%d subTomo from %s...%fs\n',...
-              iSubTomo,nSubTomos,tomoName,timeClass);
+            fprintf('Refining %d/%d subTomo from %s...%fs\n', iSubTomo, nSubTomos, tomoName, timeClass);
             tic;
           end
           
@@ -1556,7 +1539,7 @@ end % parfor
 
 
 if ( flgReverseOrder || flgStartThird )
-  fprintf('This reverse run will not write the metaData\n');
+  fprintf('This multi-node run will not write the metaData\n');
 else
   
   save('bestAnglesResults.mat', 'bestAnglesResults');
@@ -1578,9 +1561,7 @@ else
   clear bestAngles rawAlign
   subTomoMeta = masterTM;
   save(emc.('subTomoMeta'), 'subTomoMeta');
-  
-  
-  
+   
 end
 
 delete(gcp('nocreate'))

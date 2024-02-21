@@ -80,54 +80,14 @@ else
   tmpCache= emc.('fastScratchDisk');
 end
 
-if strcmpi(tmpCache, 'ram')
-  if isempty(getenv('EMC_CACHE_MEM'))
-    fprintf('Did not find a variable for EMC_CACHE_MEM\nSkipping ram\n');
-    tmpCache= '';
-  else
-    % I have no ideah how much is needed
-    if EMC_str2double(getenv('EMC_CACHE_MEM')) < 64
-      fprintf('There is only 64 Gb of cache on ramdisk, not using');
-      tmpCache = '';
-    else
-      tmpCache=getenv('MCR_CACHE_ROOT');
-      fprintf('Using the tmp EMC cache in ram at %s\n',tmpCache);
-    end
-  end
-end
+[tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(tmpCache, '', 'cisTEM', true);
 
-% % % nWorkers = EMC_str2double(nWORKERS)
 nGPUs = emc.('nGPUs');
 pInfo = parcluster();
 gpuScale=3;
 nWorkers = min(nGPUs*gpuScale,emc.('nCpuCores')); % 18
 fprintf('Using %d workers as max of %d %d*nGPUs and %d nWorkers visible\n', ...
   nWorkers,gpuScale,nGPUs*gpuScale,pInfo.NumWorkers);
-
-% Check to make sure it even exists
-if isempty(dir(tmpCache))
-  fprintf('\n\nIt appears your fastScratchDisk\n\t%s\ndoes not exist!\n\n',tmpCache);
-  tmpCache = '';
-end
-if isempty(tmpCache)
-  tmpCache='cache/to_cisTEM';
-  flgCleanCache = 0;
-CWD = '';
-else
-  flgCleanCache = 1;
-  CWD = sprintf('%s/',pwd);
-  % Check for a trailing slash
-  slashCheck = strsplit(tmpCache,'/');
-  if isempty(slashCheck{end})
-    tmpCache = sprintf('%scache/to_cisTEM',tmpCache); % prefix for mapBack
-  else
-    tmpCache = sprintf('%s/cache/to_cisTEM',tmpCache); % prefix for mapBack
-  end
-end
-
-
-
-system(sprintf('mkdir -p %s',tmpCache));
 
 
 load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
@@ -240,7 +200,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   if exist(localFile,'file')
-    fprintf('Found local file %s\n.', localFile);
+    fprintf('Found local file %s\n', localFile);
   else
     fprintf('No local transforms requested.\n');
     localFile = 0;
@@ -271,7 +231,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % FIXME: this should be in parseParameterFile
   try
     lowPassCutoff = emc.('tomoCprLowPass');
-    fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n.', lowPassCutoff);
+    fprintf('Using a user supplied lowpass cutoff of %3.3f Ang\n', lowPassCutoff);
   catch
     % TODO are these range limits okay?
     lowPassCutoff = 1.5.*mean(subTomoMeta.currentResForDefocusError);
@@ -280,7 +240,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     elseif (lowPassCutoff > 24)
       lowPassCutoff = 24;
     end
-    fprintf('Using an internatlly determined lowpass cutoff of %3.3f Ang\n.',...
+    fprintf('Using an internatlly determined lowpass cutoff of %3.3f Ang\n',...
       lowPassCutoff);
   end
 
@@ -871,7 +831,6 @@ fprintf(recScript, '\neof\n');
 
 fclose(recScript);
 system(sprintf('chmod a=wrx %s_rec.sh',output_prefix));
-pause(3)
 system(sprintf('./%s_rec.sh',output_prefix));
 
 

@@ -79,11 +79,6 @@ refName    = emc.('Cls_className');% emc.('Ref_className');
 peakSearch   = floor(emc.('particleRadius')./emc.pixel_size_angstroms);
 peakCOM      =3;
 
-global bh_global_MTF
-if isempty(bh_global_MTF)
-  bh_global_MTF = 2;
-end
-
 % The default is fsc-Gold Standard so the two images should need some degree of
 % alignment prior to calculating the fsc.
 flgAlignImages = 1;
@@ -770,7 +765,7 @@ for iRef = 1:nReferences
   % to work?
   if ~(flgJustFSC)
     masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRef)) = ...
-      {shellsFreq,shellsFSC,{cRef,cRefAli,bh_global_MTF},osX,forceMaskAlign,forceMask,nCones,coneList,halfAngle,samplingRate};
+      {shellsFreq,shellsFSC,{cRef,cRefAli,emc.mtf_value},osX,forceMaskAlign,forceMask,nCones,coneList,halfAngle,samplingRate};
     
     sprintf('Resample_%s%d',savePrefix,iRef)
     
