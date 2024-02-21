@@ -14,8 +14,8 @@ function [ max_specimen_nz, tomoNumber ] = emc_get_max_specimen_NZ(subTomoMeta_t
             tomoNumber(iTomo) = iTomo;
         end
     
-        % 4 is the unbinned size of the tomogram in Z
-        % 6 is location of the origin in Z relative to the origin of the specimen
+        % 4 is the unbinned pixel size of the tomogram in Z
+        % 6 is location of the specimen origin in Z relative to the origin of the tomogram
         nZ = subTomoMeta_coords(tomoNumber(iTomo),4) ./ samplingRate;
         oZ = subTomoMeta_coords(tomoNumber(iTomo),6) ./ samplingRate;
         

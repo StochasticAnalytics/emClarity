@@ -152,16 +152,11 @@ if gather(sum(nanCheck(:)))
   Hqz(nanCheck) = 0;
 end
 
-
 if Phase_Only < 0
   
-  
   % FIXME I need to know if I am a half grid or els this fails!
-  
-  
   oX = floor(CTFSIZE(1)/2)+1;
   oY = floor(CTFSIZE(2)/2)+1;
-  
   
   if (calcOneD)
     if (preShiftedOrigin)
@@ -191,7 +186,6 @@ if Phase_Only < 0
     firstMin = firstMin + 6;
   end
   
-  
   if ( preShiftedOrigin && ~calcOneD)
     if doHalfGrid
       freqMin  = radialGrid(firstMin,ceil((CTFSIZE(1)+1)./2));
@@ -200,17 +194,15 @@ if Phase_Only < 0
       try
         freqMin  = radialGrid(ceil((CTFSIZE(1)+1)./2)+firstMin,ceil((CTFSIZE(2)+1)./2));
       catch
-        ceil((CTFSIZE(1)+1)./2)
+        ceil((CTFSIZE(1)+1)./2);
       end
       maxRes = 0.5./radialGrid(1,ceil((CTFSIZE(2)+1)/2));
     end
-    
   else
     freqMin  = radialGrid(firstMin,1);
     freqZero = radialGrid(firstZero,1);
     maxRes = 0.5./radialGrid(ceil((CTFSIZE(1)+1)/2),1);
   end
-  
   
   if (thisZero > 0)
     lowCut = 1./(0.1*freqMin+0.9*freqZero);
@@ -250,7 +242,6 @@ if Phase_Only < 0
   
   
 elseif Phase_Only == 1
-  
   ctfMask = sign(Hqz);
   
 else

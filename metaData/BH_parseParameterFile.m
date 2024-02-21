@@ -577,6 +577,12 @@ else
   emc.mtf_value = 2.0;
 end
 
+% Number of tilt processes to run in parallel in ctf 3d.
+if isfield(emc, 'n_tilt_workers')
+  EMC_assert_numeric(emc.n_tilt_workers, 1);
+else
+  emc.n_tilt_workers = 4;
+end
 
 
 end
