@@ -183,7 +183,6 @@ mapPath = './cache';
 mapName = sprintf('%s_%d_bin%d',tomoName,tomoNumber,samplingRate);
 mapExt = '.rec';
 
-sprintf('recon/%s_recon.coords',tomoName)
 [ recGeom, ~, ~] = BH_multi_recGeom( sprintf('recon/%s_recon.coords',tomoName) );
 
 reconCoords = recGeom(tomoNumber,:);

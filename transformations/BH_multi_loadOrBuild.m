@@ -46,8 +46,8 @@ end
 !mkdir -p cache
 
 nameSplit = strsplit(tomoName,'_');
-tomoName = strjoin(nameSplit(1:end-1),'_')
-tomoNumber = EMC_str2double(nameSplit{end})
+tomoName = strjoin(nameSplit(1:end-1),'_');
+tomoNumber = EMC_str2double(nameSplit{end});
 
 rCoords = rCoords ./ SAMPLING;
 % fix is like floor but rounds towards zero, not sure why I'm doing this here anymore.

@@ -397,8 +397,8 @@ end
 
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
-parfor iGPU = 1:nGPUs
-% for iGPU = 1:nGPUs
+parfor iGPU = 1:nGPUs 
+% for iGPU = 1:nGPUs 
 
   % for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
@@ -428,9 +428,8 @@ parfor iGPU = 1:nGPUs
     end
     iTomoList = cell(nTomos,1);
     
-    
-    
-    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
+
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1)
     TLT = load(TLTNAME);
     fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
 
@@ -690,7 +689,7 @@ parfor iGPU = 1:nGPUs
           end
           
           if isfile(sprintf('%s.sh',reconName))
-            system(sprintf('rm %s.sh',reconName));
+            system(sprintf('rm %s.sh',reconName)); 
           end
           
           recScript = fopen(sprintf('%s.sh',reconName),'w');
@@ -698,14 +697,14 @@ parfor iGPU = 1:nGPUs
           fprintf(recScript,'%s -SLICE -1,-1 -TOTALSLICES %d,%d\n',rCMD,totalSlices);
 
           iShift = 1;
-          for iSlab = 1:length(tiltChunks)-1
-            if (iSlab == length(tiltChunks)-1)
+          for iChunk = 1:length(tiltChunks)-1
+            if (iChunk == length(tiltChunks)-1)
               iShift = 0;
             end
             fprintf(recScript,'%s -SLICE %d,%d -TOTALSLICES %d,%d > /dev/null  &\n', ...
                               rCMD, ...
-                              tiltChunks(iSlab),...
-                              tiltChunks(iSlab+1) - iShift,...
+                              tiltChunks(iChunk),...
+                              tiltChunks(iChunk+1) - iShift,...
                               totalSlices);
           end
           fprintf(recScript,'\n\nwait\n\n');
@@ -731,13 +730,13 @@ parfor iGPU = 1:nGPUs
             system(trimCMDPrintError);
             error('error during trimvol');
           end
-          system(sprintf('rm %s.TMPPAD', reconName));
+          system(sprintf('rm %s.TMPPAD', reconName)); 
         end
      
       end % end loop over tomos for this section
       
       if isfile(outputStack)
-        system(sprintf('rm %s',outputStack));
+        system(sprintf('rm %s',outputStack)); 
       end
     end % end loop over sectionsF()
 
@@ -778,7 +777,8 @@ parfor iGPU = 1:nGPUs
       fprintf(recombineCMD,'%d\n', n_total_sections);
 
       cleanup3 = sprintf('rm %s',file_of_outputs);
-      for iSection = 1:n_slabs_to_reconstruct
+      % for iSection = 1:n_slabs_to_reconstruct
+      for iSection = n_slabs_to_reconstruct:-1:1
         if(slab_list{iT}(iSection,1))
           this_slab = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, thisTomo, iSection);
           cleanup3 = sprintf('%s %s',cleanup3,this_slab);
@@ -797,7 +797,7 @@ parfor iGPU = 1:nGPUs
         error('error during recombination');
       end
       
-      system(cleanup3);
+      system(cleanup3);  
     end % end of recombination loop
     
     maskedStack = [];
@@ -905,13 +905,13 @@ for iT = 1:length(tomoNumber)
         slab_list{iT}(iSlab-1,5) = slab_list{iT}(iSlab-1,5) + delta;
         slab_list{iT}(iSlab,1) = 0;
         % we are adding slices from above the specimen in Z so the z shift is negative
-        slab_list{iT}(iSlab-1,6) = slab_list{iT}(iSlab-1,6) - delta;
+        slab_list{iT}(iSlab-1,6) = (slab_list{iT}(iSlab-1,6) - delta);
       elseif (iSlab < n_slabs_to_reconstruct && slab_list{iT}(iSlab+1,1))
         delta = slab_list{iT}(iSlab,5);
         slab_list{iT}(iSlab+1,5) = slab_list{iT}(iSlab+1,5) + slab_list{iT}(iSlab,5);
         slab_list{iT}(iSlab,1) = 0;
         % we are adding slices from below the specimen in Z so the z shift is positive
-        slab_list{iT}(iSlab+1,6) = slab_list{iT}(iSlab+1,6) + delta;
+        slab_list{iT}(iSlab+1,6) = (slab_list{iT}(iSlab+1,6) + delta);
       end
     end
   end
@@ -969,7 +969,7 @@ if (useSurfaceFit)
   defocusOffset = 0;
 else
   defocusOffset = (((n_slabs_to_reconstruct-1)/-2+(iSection-1))*ctf3dDepth);
-  fprintf('Not using surface fit, so using offset %3.3e for section %d with COM offset %3.3e\n', defocusOffset, iSection, avgZ);
+  fprintf('Not using surface fit, so using offset %3.3e nm for section %d with COM offset %3.3e nm with ctf3dDepth %3.3e\n', defocusOffset*10^9, iSection, avgZ*10^9, ctf3dDepth*10^9);
   % Assuming the majority of the fit defocus came from the subtomograms, then the estimated defocus value needs to be moved from
   % the origin of the specimen to the origin of the subtomograms.
   defocusOffset = (defocusOffset + avgZ); % The average height of the particles is factored into the surface fit
