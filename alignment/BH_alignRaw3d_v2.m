@@ -169,13 +169,13 @@ tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);
 tiltList = masterTM.tiltGeometry;
 
-% % Sort the list by number of active subtomos to improve parallelism
-% sortedTomoList = zeros(nTomograms,1);
-% for iTomo = 1:nTomograms
-%   sortedTomoList(iTomo) = sum(geometry.(tomoList{iTomo})(:,26)~=-9999);
-% end
-% [~, sortedTomoIDX] = sort(sortedTomoList,'descend')
-
+% Sort the list by number of active subtomos to improve parallelism
+sortedTomoList = zeros(nTomograms,1);
+for iTomo = 1:nTomograms
+  sortedTomoList(iTomo) = sum(geometry.(tomoList{iTomo})(:,26)~=-9999);
+end
+[~, sortedTomoIDX] = sort(sortedTomoList,'descend');
+tomoList = tomoList(sortedTomoIDX);
 % mask defines area for angular search, peakRADIUS restricts translational
 
 
@@ -216,8 +216,6 @@ if any(peakSearch > maskRadius)
   peakSearch( (peakSearch > maskRadius) ) = ...
     maskRadius( (peakSearch > maskRadius) );
 end
-
-
 
 % Read in the references.
 % Read in the references.
