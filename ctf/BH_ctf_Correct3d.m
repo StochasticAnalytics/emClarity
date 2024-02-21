@@ -635,8 +635,7 @@ parfor iGPU = 1:nGPUs
           fclose(rawTLT_file);
           
           if (mapBackIter)
-            LOCAL = sprintf('%smapBack%d/%s_ali%d_ctf.local',CWD,mapBackIter,tiltList{iTilt}, ...
-              mapBackIter);
+            LOCAL = sprintf('%smapBack%d/%s_ali%d_ctf.local',CWD,mapBackIter,tiltList{iTilt}, mapBackIter);
           else
             LOCAL = sprintf('%sfixedStacks/%s.local',CWD,tiltList{iTilt});
           end
@@ -697,7 +696,7 @@ parfor iGPU = 1:nGPUs
           recScript = fopen(sprintf('%s.sh',reconName),'w');
           fprintf(recScript,'#!/bin/bash\n\n');
           fprintf(recScript,'%s -SLICE -1,-1 -TOTALSLICES %d,%d\n',rCMD,totalSlices);
-1
+
           iShift = 1;
           for iSlab = 1:length(tiltChunks)-1
             if (iSlab == length(tiltChunks)-1)
@@ -996,11 +995,6 @@ Cs = TLT(1,17);
 WAVELENGTH = TLT(1,18);
 AMPCONT = TLT(1,19);
 
-%if d2 < padTileSize
-%  padYdim = padTileSize;
-%else
-%  padYdim = d2;
-%end
 if ( flgDampenAlias )
   % Calculate a centered grid b/c real space convolution
   [radialGrid,phi,~,~,~,~] = BH_multi_gridCoordinates(fastFTSize, ...
