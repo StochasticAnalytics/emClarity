@@ -644,7 +644,7 @@ end
 
 parVect = 1:nParProcesses;
 parfor iParProc = parVect
-  % for iParProc = parVect
+  % for iParProc = parVect % r
   
   % Get the gpuIDX assigned to this process
   gpuIDXList = mod(parVect+emc.nGPUs,emc.nGPUs)+1;
@@ -727,7 +727,7 @@ parfor iParProc = parVect
     tiltGeometry = subTomoMeta.tiltGeometry.(tomoList{iTomo});
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});
+    reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
     [ binShift ] = [0,0,0];%BH_multi_calcBinShift( coords, samplingRate);
     
     % Load in the geometry for the tomogram, and get number of subTomos.
@@ -739,9 +739,6 @@ parfor iParProc = parVect
     volumeData = [];
     %fprintf('loading tomo %d\n',iTomo);
     
-    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
-    tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
- 
 
     if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
       volumeData = [];
@@ -859,7 +856,7 @@ parfor iParProc = parVect
             TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
             
             if (make_sf3d)
-              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center, reconGeometry, emc.wiener_constant);
+            [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center.*samplingRate, reconGeometry, emc.wiener_constant);
               make_sf3d = false;
             end
             
@@ -1458,7 +1455,6 @@ end
 
 if ~( flgEstSNR )
   load(sprintf('%s.mat', emc.('subTomoMeta')), 'subTomoMeta');
-  masterTM = subTomoMeta;
   %%%%%%%%%%%%%55 Reweight now that the FSC is calculated
   
   for iGold = 1:2
@@ -1473,13 +1469,13 @@ if ~( flgEstSNR )
       className, fieldPrefix, halfSet);
     
     [ refIMG{iGold} ] = BH_unStackMontage4d(1:maxClasses, ...
-      masterTM.(cycleNumber).(imgIN){1}, ...
-      masterTM.(cycleNumber).(imgIN){2},...
+      subTomoMeta.(cycleNumber).(imgIN){1}, ...
+      subTomoMeta.(cycleNumber).(imgIN){2},...
       sizeWindow);
     
     [ refWGT{iGold} ] = BH_unStackMontage4d(1:maxClasses, ...
-      masterTM.(cycleNumber).(wgtIN){1},...
-      masterTM.(cycleNumber).(wgtIN){2},...
+      subTomoMeta.(cycleNumber).(wgtIN){1},...
+      subTomoMeta.(cycleNumber).(wgtIN){2},...
       sizeCalc);
   end
   
@@ -1519,14 +1515,14 @@ if ~( flgEstSNR )
     end
     
     try
-      fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRefPrev));
-      aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
-      mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
+      fscParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('%s%d',savePrefix,iRefPrev));
+      aliParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Resample%s%d',savePrefix,iRefPrev));
+      mskParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Mask%s%d',savePrefix,iRefPrev));
     catch
       fprintf('\nReverting from %s to REf in loading fitFSC\n',savePrefix);
-      fscParams = masterTM.(cycleNumber).('fitFSC').(sprintf('%s%d','Ref',iRefPrev));
-      aliParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev));
-      mskParams = masterTM.(cycleNumber).('fitFSC').(sprintf('Mask%s%d','Ref',iRefPrev));
+      fscParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('%s%d','Ref',iRefPrev));
+      aliParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Resample%s%d','Ref',iRefPrev));
+      mskParams = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Mask%s%d','Ref',iRefPrev));
     end
     iOdd = iRef;
     iEve = iRef;
@@ -1571,7 +1567,7 @@ if ~( flgEstSNR )
     end
     imgIN = sprintf('class_%d_Locations_%s_%s_NoWgt', ...
       className, fieldPrefix, halfSet);
-      imgCounts = masterTM.(cycleNumber).(imgIN){3};
+      imgCounts = subTomoMeta.(cycleNumber).(imgIN){3};
     % Save the unweighted, weighted imgs, weightes, optionally filtered.
     
     if (flgFinalAvg)
@@ -1588,14 +1584,13 @@ if ~( flgEstSNR )
         className, fieldPrefix, halfSet);
       classOut = sprintf('class_%d_Locations_%s_%s', className,fieldPrefix, halfSet);
       
-      masterTM.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
+      subTomoMeta.(cycleNumber).(classOut) = {imout,imgLocations,imgCounts};
       SAVE_IMG(montOUT, imout, emc.pixel_size_angstroms);
     end
     %%%%%%%
   end
   
   
-  subTomoMeta = masterTM;
   subTomoMeta.('CUTPADDING') = emc.CUTPADDING;
   if (emc.flgCutOutVolumes && volumesNeedToBeExtracted)
     subTomoMeta.('volumesAreCutOut') = 1;

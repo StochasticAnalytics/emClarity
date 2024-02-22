@@ -137,7 +137,6 @@ end
 
 % % % pathList= subTomoMeta.mapPath;
 % % % extList = subTomoMeta.mapExt;
-masterTM = subTomoMeta; clear subTomoMeta
 
 refVector = cell(2,1);
 refGroup = cell(2,1);
@@ -167,7 +166,7 @@ nRefOut(1:2) = [length(unique(refGroup{1})) + sum(( refSym{1} < 0 )),...
 % Get the number of tomograms to process.
 tomoList = fieldnames(geometry);
 nTomograms = length(tomoList);
-tiltList = masterTM.tiltGeometry;
+tiltList = subTomoMeta.tiltGeometry;
 
 % Sort the list by number of active subtomos to improve parallelism
 sortedTomoList = zeros(nTomograms,1);
@@ -236,20 +235,20 @@ for iGold = 1:2
   
   
   weightNAME = sprintf('class_%d_Locations_Ref_%s_Wgt', refName, halfSet);
-  imgCounts{iGold} = masterTM.(cycleNumber).(imgNAME){3};
+  imgCounts{iGold} = subTomoMeta.(cycleNumber).(imgNAME){3};
   
   
   [ refTMP ] = BH_unStackMontage4d(1:nReferences(iGold), ...
-    masterTM.(cycleNumber).(imgNAME){1}, ...
-    masterTM.(cycleNumber).(imgNAME){2},...
+    subTomoMeta.(cycleNumber).(imgNAME){1}, ...
+    subTomoMeta.(cycleNumber).(imgNAME){2},...
     sizeWindow);
   
   [ wdgTMP ] = BH_unStackMontage4d(1:nReferences(iGold), ...
-    masterTM.(cycleNumber).(weightNAME){1},...
-    masterTM.(cycleNumber).(weightNAME){2},...
+    subTomoMeta.(cycleNumber).(weightNAME){1},...
+    subTomoMeta.(cycleNumber).(weightNAME){2},...
     sizeCalc);
   
-  sizeREF = masterTM.(cycleNumber).(imgNAME){2}{1}(2:2:6)';
+  sizeREF = subTomoMeta.(cycleNumber).(imgNAME){2}{1}(2:2:6)';
   
   if (emc.move_reference_by_com)
     % % % % % % %    [ comMask ] = BH_mask3d(maskType, sizeMask, maskRadius, maskCenter);
@@ -354,7 +353,7 @@ end
 if (emc.classification || emc.multi_reference_alignment)
   for iRef = 1:nReferences(1)
 
-    fscINFO = masterTM.(cycleNumber).('fitFSC').(sprintf('Ref%d',iRef));
+    fscINFO = subTomoMeta.(cycleNumber).('fitFSC').(sprintf('Ref%d',iRef));
   
     [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
       'GPU', {'none'}, 1, 0, 1 );
@@ -375,7 +374,7 @@ else
   
   
   for iRef = 1
-    fscINFO = masterTM.(cycleNumber).('fitFSC').('Ref1');
+    fscINFO = subTomoMeta.(cycleNumber).('fitFSC').('Ref1');
     [radialGrid,~,~,~,~,~ ] = BH_multi_gridCoordinates(sizeCalc, 'Cartesian', ...
       'GPU', {'none'}, 1, 0, 1 );
     radialGrid = single(radialGrid./emc.pixel_size_angstroms);
@@ -544,7 +543,7 @@ else
 end
 
 
-% [masterTM] = BH_recordAngularSampling( masterTM, cycleNumber, angleStep, inPlaneSearch);
+% [subTomoMeta] = BH_recordAngularSampling( subTomoMeta, cycleNumber, angleStep, inPlaneSearch);
 
 nCount = 1;
 
@@ -682,29 +681,29 @@ parfor iParProc = parVect
       % Load the tomo into gpu
       tomoName = tomoList{iTomo};
       
-      tiltGeometry = masterTM.tiltGeometry.(tomoList{iTomo});
+      tiltGeometry = subTomoMeta.tiltGeometry.(tomoList{iTomo});
       % Load in the geometry for the tomogram, and get number of subTomos.
       positionList = geometry_tmp.(tomoList{iTomo});
       
-      tomoIdx = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
-      tiltName   = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+      tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+      tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
       binShift = [0,0,0];
       nSubTomos = size(positionList,1);
       
       
       
-      iTiltName = masterTM.mapBackGeometry.tomoName.(tomoName).tiltName;
+      iTiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoName).tiltName;
       
       
       
       % Can't clear inside the parfor, but make sure we don't have two tomograms
       % in memory at once.
       
-      tomoIdx = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
-      tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+      tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+      tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
       reconCoords = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
       
-      TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
+      TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
       
       if (emc.flgCutOutVolumes)
         volumeData = [];
@@ -1551,12 +1550,11 @@ else
   save('bestAngles.mat', 'bestAngles');
   
   [ rawAlign ] = BH_rawAlignmentsApply( gather(geometry), bestAngles, samplingRate, emc.nPeaks, rotConvention, updateWeights, emc.update_class_by_ccc);
-  masterTM.(cycleNumber).('RawAlign') = rawAlign;
-  masterTM.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
-  masterTM.('updatedWeights') = true;
+  subTomoMeta.(cycleNumber).('RawAlign') = rawAlign;
+  subTomoMeta.(cycleNumber).('newIgnored_rawAlign') = gather(nIgnored);
+  subTomoMeta.('updatedWeights') = true;
   
   clear bestAngles rawAlign
-  subTomoMeta = masterTM;
   save(emc.('subTomoMeta'), 'subTomoMeta');
    
 end

@@ -62,7 +62,7 @@ for iTomo = 1:nTomograms
   tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
   tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
   tomoName = sprintf('%s_%d',tiltName,tomoIdx);
-  reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});
+  reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
   %   iHeader = getHeader(MRCImage(tomoName));
   
   clear postionMatrix positionIDX

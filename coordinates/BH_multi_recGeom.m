@@ -75,12 +75,12 @@ for iTomo = 1:nTomos
   tomoCoords.('NX') = (read_in_Coords(1));
   tomoCoords.('NY') = (read_in_Coords(3) - read_in_Coords( 2) + 1);
   tomoCoords.('NZ') = (read_in_Coords(4));
-  tomoCoords.('dX_specimen_to_tomo') = -1*read_in_Coords(5);
+  tomoCoords.('dX_specimen_to_tomo') = read_in_Coords(5);
   tomoCoords.('dY_specimen_to_tomo') = ...
   (emc_get_origin_index(tomoCoords.('NY')) ...
     + read_in_Coords(2)) ... % origin of the tomogram in the full tilt projection
     - emc_get_origin_index(tilt_geometry(1,21));
-  tomoCoords.('dZ_specimen_to_tomo') = read_in_Coords( 6);
+  tomoCoords.('dZ_specimen_to_tomo') = read_in_Coords(6);
 
   % Check that NX, NY, NZ are all positive
   if tomoCoords.('NX') <= 0
