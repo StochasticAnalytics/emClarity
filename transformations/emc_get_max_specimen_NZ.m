@@ -34,7 +34,7 @@ function [ max_specimen_nz, tomoIdx ] = emc_get_max_specimen_NZ(subTomoMeta_tomo
             end
         end
 
-        NZ = NZ ./ samplingRate;
+        nZ = nZ ./ samplingRate;
         dZ = dZ ./ samplingRate;
 
         if (dZ + nZ / 2 > max_z_value)

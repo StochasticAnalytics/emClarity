@@ -585,7 +585,7 @@ else
 end
 
 if isfield(emc, 'max_ctf3dDepth')
-  EMC_assert_numeric(emc.max_ctf3dDepth, 1, [1 * 10^-9 || 1000 * 10^-9]);
+  EMC_assert_numeric(emc.max_ctf3dDepth, 1, [1 * 10^-9, 1000 * 10^-9]);
 else
   emc.max_ctf3dDepth = 100*10^-9;
 end

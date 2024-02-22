@@ -3,7 +3,7 @@ function [tiltList,nTilts] = BH_returnIncludedTilts(mapBackGeom)
 %   Detailed explanation goes here
 
 STACK_LIST_tmp = fieldnames(mapBackGeom);
-STACK_LIST_tmp = STACK_LIST_tmp(~ismember(STACK_LIST_tmp,{'tomoName','viewGroups'}));
+STACK_LIST_tmp = STACK_LIST_tmp(~ismember(STACK_LIST_tmp,{'tomoName','tomoCoords'}));
 tiltList = cell(length(STACK_LIST_tmp),1);
 
 nTilts = 0;

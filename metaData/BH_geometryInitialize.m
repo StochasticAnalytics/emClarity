@@ -136,7 +136,7 @@ end
 
 nTomogramsTotal = length(getPath);
 fileInfo = cell(nTomogramsTotal,4);
-
+n_tomos_added = 1;
 getCoords = dir('recon/*.coords');
 nStacks = length(getCoords);
 
@@ -159,7 +159,6 @@ for iStack = 1:nStacks
   end
   
   nTomos = length(iPath);
-  fprintf('nTomos %d by mods, nTomosPossible %d, by coords\n',nTomos,nTomosPossible);
   if nTomos > nTomosPossible
     error('The number of model files in convmap/*.mod is greater than the number in the recon/*.coords\n');
   elseif nTomos < nTomosPossible
@@ -168,7 +167,7 @@ for iStack = 1:nStacks
   end
   subTomoMeta.('mapBackGeometry').(tiltName).('nTomos') = nTomos;
   subTomoMeta.('mapBackGeometry').(tiltName).('tomoCprRePrjSize') = 512;
-  
+
   for iTomo = 1:nTomos
     
     if (doImport)
@@ -181,26 +180,27 @@ for iStack = 1:nStacks
     end
 
     % We are storing this info to make it available when checking for duplicates
-    fileInfo{iTomo,1} = tiltName;
-    fileInfo{iTomo,2} = sprintf('%s_%d', tiltName, tomoIdx);
-    fileInfo{iTomo,3} = sprintf('%s_%d_bin%d',tiltName, tomoIdx, dupSampling);
+    fileInfo{n_tomos_added,1} = tiltName;
+    fileInfo{n_tomos_added,2} = sprintf('%s_%d', tiltName, tomoIdx);
+    fileInfo{n_tomos_added,3} = sprintf('%s_%d_bin%d',tiltName, tomoIdx, dupSampling);
     tomoName = sprintf('%s_%d',tiltName,tomoIdx);
     
-    subTomoMeta.('tiltGeometry').(fileInfo{iTomo,2}) = tilt_geometry;
+    subTomoMeta.('tiltGeometry').(fileInfo{n_tomos_added,2}) = tilt_geometry;
+    n_tomos_added = n_tomos_added + 1;
     
     % Store a reference to the parent tilt-series for every tomogram
     subTomoMeta.('mapBackGeometry').('tomoName').(tomoName).('tiltName') = tiltName;
     % Store the tomoIdx for every tomogram, currently used to refer back to recGEom, but I'm going to put this into a struct
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('tomoIdx') = tomoIdx;
+    subTomoMeta.('mapBackGeometry').('tomoName').(tomoName).('tomoIdx') = tomoIdx;
     subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('is_active') = true;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_i') = recGeom{tomoIdx}.tomoCoords.y_i;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_f') = recGeom{tomoIdx}.tomoCoords.y_f;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NX')  = recGeom{tomoIdx}.tomoCoords.NX;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NY')  = recGeom{tomoIdx}.tomoCoords.NY;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NZ')  = recGeom{tomoIdx}.tomoCoords.NZ;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dY_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dY_specimen_to_tomo;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dZ_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dZ_specimen_to_tomo;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_i') = recGeom{tomoIdx}.y_i;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_f') = recGeom{tomoIdx}.y_f;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NX')  = recGeom{tomoIdx}.NX;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NY')  = recGeom{tomoIdx}.NY;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NZ')  = recGeom{tomoIdx}.NZ;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.dX_specimen_to_tomo;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dY_specimen_to_tomo') = recGeom{tomoIdx}.dY_specimen_to_tomo;
+    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dZ_specimen_to_tomo') = recGeom{tomoIdx}.dZ_specimen_to_tomo;
   end 
 end % end of loop over stacks
 
@@ -208,7 +208,7 @@ end % end of loop over stacks
 % suffix - generalize later.
 
 if nGPUs > nTomogramsTotal
-  nGPUs = nTomogramsTotal
+  nGPUs = nTomogramsTotal;
 end
 
 
@@ -229,7 +229,7 @@ parResults = cell(nGPUs,1);
 
 dupInTheLoop = dupSampling
 parfor iGPU = 1:nGPUs
-  % % % for iGPU = 1:nGPUs
+  % for iGPU = 1:nGPUs % revert
   
   D = gpuDevice(iGPU);
   
@@ -244,6 +244,11 @@ parfor iGPU = 1:nGPUs
     
     % Load in the template matching geometry for the tomogram, and the model file
     % which may (or may not) have been edited.
+    if isempty(fileInfo{iTomo,2})
+      fprintf("\n\tWarning, missing tomoname for fileInfo{%d,2}\n",iTomo);
+      pause(1)
+      continue
+    end
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(fileInfo{iTomo,2}).tomoIdx;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(fileInfo{iTomo,2}).tiltName;
     try
@@ -259,15 +264,10 @@ parfor iGPU = 1:nGPUs
       tmpSearchGeom(:,[11:16]) = tmpCSV;
       
       for iAng = 1:size(tmpSearchGeom,1)
-        
-        angleSgn
-        convention
-        direction
         tmpSearchGeom(iAng,17:25) = reshape( ...
           BH_defineMatrix( ...
           angleSgn .* tmpSearchGeom(iAng,14:16),...
           convention,direction),1,9);
-        
       end
       
       % I'm assuming that the proper scaling was done, let the user know
@@ -312,7 +312,6 @@ parfor iGPU = 1:nGPUs
       iHeader = getHeader(MRCImage(tiltName));
       % first convert the imod model file to a temporary text file
       tmpFile = sprintf('tmp_%d.txt',iGPU);
-      sprintf('model2point convmap/%s.mod %s', mapName, tmpFile)
       system(sprintf('model2point convmap/%s.mod %s', mapName, tmpFile))
       modGeom = load(tmpFile);
       system(sprintf('rm %s', tmpFile));
@@ -365,13 +364,8 @@ parfor iGPU = 1:nGPUs
       overlapMatrix = convn(positionMatrix, gpuArray(dupMask), 'same');
       
       idxLiTomo = positionIDX((overlapMatrix > 1));
-      size(overlapMatrix)
-      size(positionIDX)
-      
-      
-      tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom(ismember(tmpSearchGeom(:,4), idxLiTomo),:)
-      sum(idxLiTomo(:))
-      sum(ismember(tmpSearchGeom(:,4), idxLiTomo))
+
+      tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom(ismember(tmpSearchGeom(:,4), idxLiTomo),:);
     else
       
       tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom;
@@ -380,7 +374,6 @@ parfor iGPU = 1:nGPUs
     % Fix the retained points
   end
   parResults{iGPU} = tomoResults;
-  
   
 end
 
@@ -400,7 +393,7 @@ for iGPU = 1:nGPUs
     for iSubTomo = 1:size(tmpGeom,1)
       tmpGeom(iSubTomo, 4:26:26*emc.nPeaks) = nIDX;
       
-      nIDX = nIDX +1;
+      nIDX = nIDX + 1;
     end
         
     subTomoMeta.('cycle000').('geometry').(mapName) = tmpGeom;
