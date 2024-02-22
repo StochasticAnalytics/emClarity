@@ -686,11 +686,8 @@ parfor iParProc = parVect
       % Load in the geometry for the tomogram, and get number of subTomos.
       positionList = geometry_tmp.(tomoList{iTomo});
       
-      tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+      tomoIdx = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
       tiltName   = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-      coords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
-      
-      %     [ binShift, ~ ] = BH_multi_calcBinShift( coords, samplingRate);
       binShift = [0,0,0];
       nSubTomos = size(positionList,1);
       
@@ -703,20 +700,22 @@ parfor iParProc = parVect
       % Can't clear inside the parfor, but make sure we don't have two tomograms
       % in memory at once.
       
-      tomoNumber = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+      tomoIdx = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
       tiltName = masterTM.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-      reconCoords = masterTM.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-      reconGeometry = (masterTM.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+      reconCoords = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
       
       TLT = masterTM.('tiltGeometry').(tomoList{iTomo});
       
       if (emc.flgCutOutVolumes)
         volumeData = [];
       else
-        [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
-          reconCoords, mapBackIter, ...
-          samplingRate,iGPUidx,reconScaling,0);
-          volHeader = getHeader(volumeData);
+        do_load = false;
+        [ volumeData ] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
+                                              mapBackIter, ...
+                                              samplingRate,...
+                                              iGPUidx, ...
+                                              do_load);
+         volHeader = getHeader(volumeData);
       end
       
       
@@ -838,7 +837,7 @@ parfor iParProc = parVect
               if (make_SF3D)
                 make_SF3D = false;
                 % For now excluding the soften weight.
-                [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, emc.wiener_constant);
+                [ iMaxWedgeIfft ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center, reconCoords, emc.wiener_constant);
                 imgWdgInterpolator = '';
                 % The unshifted mask is kept in texture mem until no longer
                 % needed

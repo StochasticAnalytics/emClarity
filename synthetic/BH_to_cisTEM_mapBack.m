@@ -273,7 +273,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   tiltHeader = getHeader(MRCImage(tilt_filename, 0));
   tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{1}).tiltName;
   [ maxZ ] = emc_get_max_specimen_NZ(subTomoMeta.mapBackGeometry.tomoName, ...
-                                     subTomoMeta.mapBackGeometry.(tiltName).coords,  ...
+                                     subTomoMeta.mapBackGeometry.tomoCoords,  ...
                                      tomoList, ...
                                      nTomograms, ...
                                      1);
@@ -374,9 +374,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     end
      
     positionList = geometry.(tomoList{iTomo});
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoIdx,1:4);
     
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
@@ -388,13 +388,16 @@ for iTiltSeries = tiltStart:nTiltSeries
     sTX = floor(tiltHeader.nX);
     sTY = floor(tiltHeader.nY);    
         
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    % reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    tomoReconCoords = (subTomoMeta.reconGeometry.(tomoList{iTomo}));
+    reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});    
+    tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
+                                    reconGeometry.dY_specimen_to_tomo, ...
+                                    reconGeometry.dZ_specimen_to_tomo];              
+    tomo_origin_in_tomo_frame = emc_get_origin_index([reconGeometry.NX, ...
+                                                      reconGeometry.NY, ...
+                                                      reconGeometry.NZ]);     
 
-    tomo_origin_in_tomo_frame = emc_get_origin_index(tomoReconCoords(1,1:3));
-    tomo_origin_wrt_tilt_origin = tomoReconCoords(2,1:3);
         
     nPrjs = size(TLT,1);
     nSubTomos = size(positionList,1);
@@ -406,7 +409,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       continue;
     end
 
-    modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector');
+    modelRot = BH_defineMatrix([0,90,0],'Bah','fwdVector');
     
     for iSubTomo = 1:nSubTomos
       
@@ -432,7 +435,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           % imod is indexing from zero
           zCoord = iPrj_nat;
           % For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)
-          rTilt = BH_defineMatrix([0,TLT(iPrj_nat,4),0],'SPIDER','inv');
+          rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector') ;
           
           prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
           
@@ -444,7 +447,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           d2 = TLT(iPrj_nat,12)*10^9; % half astigmatism value
           
           fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n', ...
-                                fidIDX, tomoNumber, positionList(iSubTomo,4), d1, d2, 180./pi.*TLT(iPrj_nat,13), reshape(subtomo_rot_matrix,1,9), preExposure(iPrj_nat), postExposure(iPrj_nat), positionList(iSubTomo,7));
+                                fidIDX, tomoIdx, positionList(iSubTomo,4), d1, d2, 180./pi.*TLT(iPrj_nat,13), reshape(subtomo_rot_matrix,1,9), preExposure(iPrj_nat), postExposure(iPrj_nat), positionList(iSubTomo,7));
         else
           fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n',-9999, -9999,-9999,1.0,1.0,1.0,1,1,1,1,1,1,1,1,1,0,0,1);
         end
@@ -683,15 +686,19 @@ for iTiltSeries = tiltStart:nTiltSeries
       if  ( x_start > 0 && y_start > 0 && x_start + tileSize(1) - 1 < sTX && y_start + tileSize(2) - 1 < sTY )
         output_particle_stack(:,:,iGpuDataCounter) = STACK(x_start:x_start+tileSize(1)-1,y_start:y_start+tileSize(2)-1,TLT(iPrj,1));
       
+        % The trasformation of the particle is e1,e2,e3,esym  into it's postion in the tomogram frame, then
+        % the tomogram is tilted about the original Y axis and then the original Z
+        % The angles stored are those used for interpolation, i.e. produced from BH_define_matrix([e1, e2, e3], 'Bah', 'inv' (or 'forwardVector'))
+        % The angles are flipped in order so that the rotation matrix is R3*R2*R1 (really they should be flipped and negated, so the abvoe should be -e1, -e2, -e3, -esym)
         if (useFixedNotAliStack)
-          rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
+          rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           RF = fullXform(TLT(iPrj,1),1:4);
           rotFull = rTilt*[RF(1), RF(2), 0; RF(3), RF(4), 0; 0, 0, 1]*reshape(wrkPar(iFid,7:15),3,3);
         else
-
-          %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
-          rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','forwardVector');
+          % This gives us Rz*Ry
+            rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           
+          % this fives Rz*Ry*e3*e2*e1 * interpolant would rotate the particle by Rz*Ry*e1*e2*e3
           rotFull = rTilt*reshape(wrkPar(iFid,7:15),3,3);
         end
         
@@ -732,7 +739,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         % df1 = ( wrkPar(iFid,4) + wrkPar(iFid,5)) * 10;
         % df2 = ( wrkPar(iFid,4) - wrkPar(iFid,5)) * 10;
         % dfA = wrkPar(iFid,6)
-        % fidIDX, tomoNumber, positionList(iSubTomo,4), d1, d2, 180./pi.*TLT(iPrj_nat,13), reshape(subtomo_rot_matrix,1,9), preExposure(iPrj_nat), postExposure(iPrj_nat), positionList(iSubTomo,7));
+        % fidIDX, tomoIdx, positionList(iSubTomo,4), d1, d2, 180./pi.*TLT(iPrj_nat,13), reshape(subtomo_rot_matrix,1,9), preExposure(iPrj_nat), postExposure(iPrj_nat), positionList(iSubTomo,7));
 
         df1 = (wrkDefAngTilt(iFid,1) + wrkPar(iFid,5)) * 10;
         df2 = (wrkDefAngTilt(iFid,1) - wrkPar(iFid,5)) * 10;

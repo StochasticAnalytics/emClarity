@@ -584,6 +584,13 @@ else
   emc.n_tilt_workers = 4;
 end
 
+if isfield(emc, 'max_ctf3dDepth')
+  EMC_assert_numeric(emc.max_ctf3dDepth, 1, [1 * 10^-9 || 1000 * 10^-9]);
+else
+  emc.max_ctf3dDepth = 100*10^-9;
+end
+
+
 
 end
 

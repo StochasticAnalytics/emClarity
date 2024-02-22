@@ -657,10 +657,9 @@ for iGold = 1:1+flgGold
     tomoName = tomoList{iTomo};
 
     iGPU = 1;
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    reconGeometry = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+    reconCoords = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
 
     TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
     
@@ -668,9 +667,12 @@ for iGold = 1:1+flgGold
     if (emc.flgCutOutVolumes)
       volumeData = [];
     else
-      [ volumeData, ~ ] = BH_multi_loadOrBuild( tomoList{iTomo}, ...
-        reconCoords, mapBackIter, ...
-        samplingRate, iGPU, reconScaling,0);
+      do_load = false;
+      [ volumeData ] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
+                                            mapBackIter, ...
+                                            samplingRate, ...
+                                            iGPU, ...
+                                            do_load);
       volHeader = getHeader(volumeData);
     end
     
@@ -743,8 +745,7 @@ for iGold = 1:1+flgGold
             make_sf3d = false;
             radialGrid = '';
             padWdg = [0,0,0;0,0,0];
-            [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, ...
-              TLT, center,reconGeometry, wiener_constant);
+            [ wedgeMask ] = BH_weightMaskMex(sizeWindow, samplingRate, TLT, center, reconCoords, wiener_constant);
           end
           
           % If flgGold there is no change, otherwise temporarily resample the

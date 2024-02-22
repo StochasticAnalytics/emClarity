@@ -39,7 +39,7 @@ end
 for iPrj = 1:d3
   
   R = BH_defineMatrix([TLT(iPrj,6),TLT(iPrj,4),TLT(iPrj,6)], ...
-    'Bah','forwardVector');
+    'Bah','fwdVector');
   
   rInv = R';
   

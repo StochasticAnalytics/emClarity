@@ -402,7 +402,7 @@ switch OPERATION
             masterTM.(cycleNumber).RawAlign = rmfield(masterTM.(cycleNumber).RawAlign,(f{iOrig}));
           end
           if isfield(masterTM.mapBackGeometry.tomoName.(f{iOrig}))
-            tN = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tomoNumber;
+            tN = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tomoIdx;
             tName = masterTM.mapBackGeometry.tomoName.(f{iOrig}).tiltName;
             if isfield(masterTM.mapBackGeometry,tName)
               masterTM.mapBackGeometry.(tName).nTomos = masterTM.mapBackGeometry.(tName).nTomos - 1;

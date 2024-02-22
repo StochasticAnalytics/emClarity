@@ -725,9 +725,9 @@ parfor iParProc = parVect
     
     
     tiltGeometry = subTomoMeta.tiltGeometry.(tomoList{iTomo});
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});
     [ binShift ] = [0,0,0];%BH_multi_calcBinShift( coords, samplingRate);
     
     % Load in the geometry for the tomogram, and get number of subTomos.
@@ -739,21 +739,22 @@ parfor iParProc = parVect
     volumeData = [];
     %fprintf('loading tomo %d\n',iTomo);
     
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    reconGeometry = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
+ 
 
     if (emc.flgCutOutVolumes && ~volumesNeedToBeExtracted)
       volumeData = [];
     else
 
       reconScaling = 1;
-      [ volumeData, ~ ] = BH_multi_loadOrBuild( ...
-        tomoList{iTomo}, ...
-        reconCoords, mapBackIter, ...
-        samplingRate,iGPUidx,reconScaling,0);
-      
+      do_load = false;
+      [ volumeData ] = BH_multi_loadOrBuild(tomoList{iTomo}, ...
+                                            mapBackIter, ...
+                                            samplingRate, ...
+                                            iGPUidx,...
+                                            do_load);
+    
       volHeader = getHeader(volumeData);
     end
     
@@ -853,17 +854,12 @@ parfor iParProc = parVect
             center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
             angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
             wdgIDX = positionList(iSubTomo,9);
-            
-            % tmpang = BH_defineMatrix([0,0,-14],'Bah','inv');
-            % angles = reshape(angles,3,3)*tmpang;
-            % if (flgFinalAvg)
-            %   angles = reshape(angles,3,3)*oddRot;
-            % end
+          
             
             TLT = subTomoMeta.('tiltGeometry').(tomoList{iTomo});
             
             if (make_sf3d)
-              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center,reconGeometry, emc.wiener_constant);
+              [ iSF3D ] = BH_weightMaskMex(sizeCalc, samplingRate, TLT, center, reconGeometry, emc.wiener_constant);
               make_sf3d = false;
             end
             

@@ -1,5 +1,5 @@
 function []  = BH_templateSearch3d_2( PARAMETER_FILE,...
-  tomoName,tomoNumber,TEMPLATE, ...
+  tomoName,tomoIdx,TEMPLATE, ...
   SYMMETRY, wedgeType, varargin)
 
 
@@ -20,7 +20,7 @@ elseif length(varargin) > 1
   error('emClarity templateSearch paramN.m tiltN regionN referenceName symmetry(C1) <optional gpuIDX>');
 end
 
-tomoNumber = EMC_str2double(tomoNumber);
+tomoIdx = EMC_str2double(tomoIdx);
 
 [ useGPU ] = BH_multi_checkGPU( gpuIDX );
 
@@ -180,13 +180,10 @@ end
 
 
 mapPath = './cache';
-mapName = sprintf('%s_%d_bin%d',tomoName,tomoNumber,samplingRate);
+mapName = sprintf('%s_%d_bin%d',tomoName,tomoIdx,samplingRate);
 mapExt = '.rec';
 
-[ recGeom, ~, ~] = BH_multi_recGeom( sprintf('recon/%s_recon.coords',tomoName) );
-
-reconCoords = recGeom(tomoNumber,:);
-clear recGeom
+[ recGeom, ~, ~, ~] = BH_multi_recGeom( sprintf('recon/%s_recon.coords',tomoName) );
 
 
 bp_vals(2) = 2.*max(latticeRadius);
@@ -210,10 +207,13 @@ fprintf('\neraseMaskType %s, eraseMaskRadius %dx%dx%d pixels\n',eraseMaskType,er
 particleThickness =  latticeRadius(3);
 
 
-
-[ tomogram, ~] = BH_multi_loadOrBuild( sprintf('%s_%d',tomoName,tomoNumber),  ...
-  reconCoords, mapBackIter, samplingRate,...
-  gpuIDX, reconScaling,1,'',super_sample);
+do_load = true;
+[ tomogram ] = BH_multi_loadOrBuild(sprintf('%s_%d',tomoName,tomoIdx),  ...
+                                    mapBackIter, ...
+                                    samplingRate,...
+                                    gpuIDX, ...
+                                    do_load, ...
+                                    '');
 
 
 % We'll handle image statistics locally, but first place the global environment

@@ -84,7 +84,7 @@ end
 
 if strcmpi(DIRECTION, 'forward') || strcmpi(DIRECTION, 'fwd') || strcmpi(DIRECTION, 'invVector')
   angles =  -1.*angles;
-elseif strcmpi(DIRECTION, 'inverse') || strcmpi(DIRECTION, 'inv') || strcmpi(DIRECTION, 'forwardVector')
+elseif strcmpi(DIRECTION, 'inverse') || strcmpi(DIRECTION, 'inv') || strcmpi(DIRECTION, 'fwdVector')
   % For interpolation the vectors are applied to a grid, so the sense must
   % be inverted to make the final transformation active.
   

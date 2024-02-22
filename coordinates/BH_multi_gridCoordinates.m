@@ -83,7 +83,7 @@ if iscell(TRANSFORMATION)
       flgTrans = 0;
       R = [1,0,0;0,1,0;0,0,1];
       dXYZ = [0,0,0]';
-      DIR = 'forwardVector';
+      DIR = 'fwdVector';
       MAG = {1};
       % The majority of function calls that are not in a resample/rescale
       % program call this case, and don't expect a cell output.
@@ -93,7 +93,7 @@ if iscell(TRANSFORMATION)
       flgGridVectors = 1;
       R = [1,0,0;0,1,0;0,0,1];
       dXYZ = TRANSFORMATION{3};
-      DIR = 'forwardVector';
+      DIR = 'fwdVector';
       MAG = {TRANSFORMATION{6}};
       
     case 'single'
@@ -120,7 +120,7 @@ if iscell(TRANSFORMATION)
         symInc = 0;
       end
       
-      if strcmpi(DIR, 'inv') || strcmpi(DIR,'forwardVector')
+      if strcmpi(DIR, 'inv') || strcmpi(DIR,'fwdVector')
         MAG = {TRANSFORMATION{6}};
       else
         MAG = {1./TRANSFORMATION{6}}; % faster to just do A(I) but left as {{}} for clarity
@@ -227,7 +227,7 @@ x1 = x1 - conventionShift(1);
 y1 = y1 - conventionShift(2);
 if (flg3D); z1 = z1 - conventionShift(3); end
 
-if strcmpi(DIR, 'inv') || strcmpi(DIR, 'forwardVector')
+if strcmpi(DIR, 'inv') || strcmpi(DIR, 'fwdVector')
   x1 = x1 - dXYZ(1);
   y1 = y1 - dXYZ(2);
   if (flg3D); z1 = z1 - dXYZ(3); end

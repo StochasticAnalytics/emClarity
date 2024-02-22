@@ -59,11 +59,10 @@ for iTomo = 1:nTomograms
   
   nTotal = nTotal + length(includeList);
   
-  tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+  tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
   tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-  tomoName = sprintf('%s_%d',tiltName,tomoNumber);
-  
-  recGeom = subTomoMeta.reconGeometry.(tomoName);
+  tomoName = sprintf('%s_%d',tiltName,tomoIdx);
+  reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});
   %   iHeader = getHeader(MRCImage(tomoName));
   
   clear postionMatrix positionIDX
@@ -71,9 +70,9 @@ for iTomo = 1:nTomograms
   %   sx = floor(iHeader.nX ./ dupSampling);
   %   sy = floor(iHeader.nY ./ dupSampling);
   %   sz = floor(iHeader.nZ ./ dupSampling);
-  sx = floor(recGeom(1,1)./dupSampling);
-  sy = floor(recGeom(1,2)./dupSampling);
-  sz = floor(recGeom(1,3)./dupSampling);
+  sx = floor(reconGeometry.NX./dupSampling);
+  sy = floor(reconGeometry.NY./dupSampling);
+  sz = floor(reconGeometry.NZ./dupSampling);
   positionMatrix = zeros([sx,sy,sz],'single','gpuArray');
   positionIDX = zeros([sx,sy,sz],'single');
   

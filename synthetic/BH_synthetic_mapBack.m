@@ -375,7 +375,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   tiltHeader = getHeader(MRCImage(tilt_binned_filename, 0));
   tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{1}).tiltName;
   [ maxZ ] = emc_get_max_specimen_NZ(subTomoMeta.mapBackGeometry.tomoName, ...
-                                     subTomoMeta.mapBackGeometry.(tiltName).coords,  ...
+                                     subTomoMeta.mapBackGeometry.tomoCoords,  ...
                                      tomoList, ...
                                      nTomograms, ...
                                      samplingRate);
@@ -386,7 +386,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % the true "in microsope" dimension
   
   reconstruction_size = [tiltHeader.nX, tiltHeader.nY, maxZ];
-  originRec = emc_get_origin_index(reconstruction_size);
+  binned_specimen_origin_in_specimen_frame = emc_get_origin_index(reconstruction_size);
   avgTomo = cell(3,1);
   
   % These two are mutually exclusive for now, but not enforced.
@@ -515,9 +515,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     fclose(iXF);
     
     positionList = geometry.(tomoList{iTomo});
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,1:4);
+    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoIdx,1:4);
     
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
@@ -536,14 +536,15 @@ for iTiltSeries = tiltStart:nTiltSeries
     iTLT = floor(tiltHeader.nZ);
 
     
-    tomoNumber = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoNumber;
+    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    % reconCoords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoNumber,:);
-    tomoReconCoords = (subTomoMeta.reconGeometry.(tomoList{iTomo}) ./ samplingRate);
-
-    tomo_origin_in_tomo_frame = emc_get_origin_index(tomoReconCoords(1,1:3));
-    tomo_origin_wrt_tilt_origin = tomoReconCoords(2,1:3);
-    
+    reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});
+    tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
+                                    reconGeometry.dY_specimen_to_tomo, ...
+                                    reconGeometry.dZ_specimen_to_tomo];              
+    tomo_origin_in_tomo_frame = emc_get_origin_index([reconGeometry.NX, ...
+                                                      reconGeometry.NY, ...
+                                                      reconGeometry.NZ]); 
     nPrjs = size(TLT,1);
     nSubTomos = size(positionList,1);
 
@@ -583,12 +584,12 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       % We need to rotate the model 90 degrees around X to match the "natural" reconstruction reference frame of imod
       % that is [x,z,-y]
-      modelRot = BH_defineMatrix([0,90,0],'Bah','forwardVector');
+      modelRot = BH_defineMatrix([0,90,0],'Bah','fwdVector');
       
       for iSubTomo = 1:nSubTomos
 
         subtomo_rot_matrix = reshape(positionList(iSubTomo,17:25),3,3);
-        subtomo_origin_in_tomo_frame = (positionList(iSubTomo,11:13) ./ samplingRate);
+        subtomo_origin_in_tomo_frame = positionList(iSubTomo,11:13);
         subtomo_origin_wrt_tilt_origin = subtomo_origin_in_tomo_frame - tomo_origin_in_tomo_frame + tomo_origin_wrt_tilt_origin;
         
         iRefIDX = 1;
@@ -608,11 +609,11 @@ for iTiltSeries = tiltStart:nTiltSeries
         end
         
         
-        % This extra shift came from experiments with real data but is both annoying and not understood.
+        % FIXME: This extra shift came from experiments with real data but is both annoying and not understood.
         subtomo_origin_wrt_tilt_origin = subtomo_origin_wrt_tilt_origin - emc.flgPreShift;
 
         % subTomo origin relative to reconLowerLeft
-        subtomo_origin_in_sample = originRec + subtomo_origin_wrt_tilt_origin; 
+        subtomo_origin_in_sample = binned_specimen_origin_in_specimen_frame + subtomo_origin_wrt_tilt_origin./samplingRate; 
         
         % Resample a copy of the average to match the position in the tomogram
         % The third entry is a dummy, normally used to make sure at least the
@@ -678,11 +679,14 @@ for iTiltSeries = tiltStart:nTiltSeries
           
           % Reproject using tilt, so just save the 3d coords.
     
-          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2])', fidIDX);
+          fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', (modelRot * subtomo_origin_wrt_tilt_origin')./samplingRate + ...
+                                                    [binned_specimen_origin_in_specimen_frame(1),binned_specimen_origin_in_specimen_frame(3),binned_specimen_origin_in_specimen_frame(2)]' - ...
+                                                    emc.prjVectorShift([1,3,2])', ...
+                                                    fidIDX);
           
           % Save a non-rotated model with each class on its own object for visualization
           if (emc.save_mapback_classes)
-            fprintf(coordCLASS,'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_wrt_tilt_origin' + originRec'- emc.prjVectorShift');
+            fprintf(coordCLASS,'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_wrt_tilt_origin'./samplingRate + binned_specimen_origin_in_specimen_frame'- emc.prjVectorShift');
           end
 
           for iPrj = 1:nPrjs
@@ -691,19 +695,17 @@ for iTiltSeries = tiltStart:nTiltSeries
             % imod is indexing from zero
             zCoord = iPrj_nat;
             % For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)% For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)
-            rTilt = BH_defineMatrix([0,TLT(iPrj_nat,4),0],'SPIDER','inv');
+            rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector');
             
             prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
             
-            fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15));
-            %           d1 = -1.*((samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15)) - TLT(iPrj_nat,12))*10^10;
-            %           d2 = -1.*((samplingRate.*prjCoords(3).*unsampled_pixel_size.*10^-10+TLT(iPrj_nat,15)) + TLT(iPrj_nat,12))*10^10;
+            fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, prjCoords(3).*unsampled_pixel_size.*10^-10+abs(TLT(iPrj_nat,15)));
             
             d1 = (abs(TLT(iPrj_nat,15)) - samplingRate.*subtomo_origin_wrt_tilt_origin(3).*unsampled_pixel_size.*10^-10) * 10^9; % Defocus value adjusted for Z coordinate in the tomogram. nm
             d2 = TLT(iPrj_nat,12)*10^9; % half astigmatism value
             
             fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n', ...
-                                fidIDX, tomoNumber,positionList(iSubTomo,4),d1,d2,180./pi.*TLT(iPrj_nat,13),reshape(subtomo_rot_matrix,1,9) , preExposure(iPrj_nat), postExposure(iPrj_nat),positionList(iSubTomo,7));
+                                fidIDX, tomoIdx,positionList(iSubTomo,4),d1,d2,180./pi.*TLT(iPrj_nat,13),reshape(subtomo_rot_matrix,1,9) , preExposure(iPrj_nat), postExposure(iPrj_nat),positionList(iSubTomo,7));
             
             % These shifts are a record of transformation from the raw data, but here
             % we are comparing with [CTF] corrected data, from which the
@@ -1097,8 +1099,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   globalPeakMask = zeros([sTX,sTY,1],'single');
   
-  globalPeakMask(originRec(1) -globalPeak : originRec(1) + globalPeak,...
-    originRec(2) -globalPeak : originRec(2) + globalPeak) = 1;
+  globalPeakMask(binned_specimen_origin_in_specimen_frame(1) -globalPeak : binned_specimen_origin_in_specimen_frame(1) + globalPeak,...
+    binned_specimen_origin_in_specimen_frame(2) -globalPeak : binned_specimen_origin_in_specimen_frame(2) + globalPeak) = 1;
   
   globalBinary = ( globalPeakMask > 0 );
   % Zero and only changed if CTF is refined.
@@ -1164,7 +1166,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     % loop begins, they fail to load. It is fine as a regular for loop
     % though - annoying, but very little overhead. It would be nice
     % to know what is going on here.
-    bhF = fourierTransformer(randn(CTFSIZE,'single','gpuArray'),'OddSizeOversampled');
+    bhF = fourierTransformer(randn(CTFSIZE,'single','gpuArray'));
     
     iMrcObj = MRCImage(tiltSeries,0);
     iMrcObjRef = MRCImage(sprintf('%smapBack%d/%s_1_mapBack.st',mbOUT{1:3}),0);
@@ -1325,7 +1327,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     
     
-    estPeak = [mRx, mRy] - originRec(1:2) + [comPRJX, comPRJY];
+    estPeak = [mRx, mRy] - binned_specimen_origin_in_specimen_frame(1:2) + [comPRJX, comPRJY];
     glbList = fopen(sprintf('%smapBack%d/%s_%03d.global',mbOUT{1:3},iPrj),'w');
     % Add unique indicies to prevent ambiquity when comparing with paral
     fprintf(glbList,'%f  degree tilt at %f %f\n', TLT(iPrj,4),estPeak);
