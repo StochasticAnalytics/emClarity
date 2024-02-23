@@ -97,7 +97,7 @@ ctfInc = emc.('tomo_cpr_defocus_step')*10^10;
 calcCTF = emc.('tomo_cpr_defocus_refine');
 
 
-[tiltNameList, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
+[tilt_series_filenames, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
 
 
 if (multi_node_run && ~skip_to_the_end_and_run)
@@ -157,47 +157,49 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   if (useFixedNotAliStack)
-    tilt_filename = sprintf('%sfixedStacks/%s.fixed',CWD,tiltNameList{iTiltSeries});
+    tilt_filestem = tilt_series_filenames{iTiltSeries};
+    tilt_filepath = sprintf('%sfixedStacks/%s.fixed', CWD, tilt_series_filenames{iTiltSeries});
   else
-    tilt_filename = sprintf('%saliStacks/%s_ali%d.fixed',CWD,tiltNameList{iTiltSeries},mapBackIter+1);
+    tilt_filestem = sprintf('%s_ali%d',tilt_series_filenames{iTiltSeries},mapBackIter+1);
+    tilt_filepath = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tilt_series_filenames{iTiltSeries}, mapBackIter+1);
   end
-  tilt_filename = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tiltNameList{iTiltSeries}, mapBackIter + 1);
 
-  mapBackRePrjSize = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).('tomoCprRePrjSize');
-  % % %   iViewGroup = subTomoMeta.mapBackGeometry.viewGroups.(tiltNameList{iTiltSeries});
-  nTomograms = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).nTomos
-  if nTomograms == 0
+  % % %   iViewGroup = subTomoMeta.mapBackGeometry.viewGroups.(tilt_series_filenames{iTiltSeries});
+  n_tomos_this_tilt_series = subTomoMeta.mapBackGeometry.(tilt_series_filenames{iTiltSeries}).nTomos;
+  if n_tomos_this_tilt_series == 0
     % No points were saved after template matching so skip this tilt series
     % altogether.
     continue
   end
   
-  skip_this_tilt_series_because_it_is_empty = false(nTomograms,1);
+  skip_this_tilt_series_because_it_is_empty = false(n_tomos_this_tilt_series,1);
   
   % tomoList = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
   tomoList = {};
-  tomoIDX = 1;
+  n_active_tomos = 0;
   fn = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
   for iTomo = 1:numel(fn)
-    if strcmp(subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName, tiltNameList{iTiltSeries})
+    if strcmp(subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName, tilt_series_filenames{iTiltSeries})
       % This is dumb, fix it to be explicit.
       if (subTomoMeta.mapBackGeometry.tomoCoords.(fn{iTomo}).is_active)
-        tomoList{tomoIDX} = fn{iTomo};
+        tomoList{n_active_tomos+1} = fn{iTomo};
         % Only increment if values found.
-        tomoIDX = tomoIDX + 1;
+        n_active_tomos = n_active_tomos + 1;
       end
     end
   end
-    
-  [~,tiltBaseName,~] = fileparts(tilt_filename);
-  mbOUT{2} = tiltBaseName;
-  
-  if (mapBackIter)
-    localFile = sprintf('%s/%s_ali%d_ctf.local', CWD,mapBackIter,tiltNameList{iTiltSeries},mapBackIter);
-  else
-    localFile = sprintf('%sfixedStacks/%s.local',CWD,tiltNameList{iTiltSeries});
+
+  if (n_active_tomos == 0)
+    continue;
   end
-  
+
+  mbOUT{2} = tilt_filestem;
+  if (mapBackIter)
+    localFile = sprintf('%smapBack%d/%s_ali%d_ctf.local', CWD,mapBackIter,tilt_series_filenames{iTiltSeries},mapBackIter);
+  else
+    localFile = sprintf('%sfixedStacks/%s.local',CWD,tilt_series_filenames{iTiltSeries});
+  end
+
   if exist(localFile,'file')
     fprintf('Found local file %s\n', localFile);
   else
@@ -269,12 +271,12 @@ for iTiltSeries = tiltStart:nTiltSeries
   maxZ = 0;
 
   % The 
-  tiltHeader = getHeader(MRCImage(tilt_filename, 0));
+  tiltHeader = getHeader(MRCImage(tilt_filepath, 0));
   tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{1}).tiltName;
   [ maxZ ] = emc_get_max_specimen_NZ(subTomoMeta.mapBackGeometry.tomoName, ...
                                      subTomoMeta.mapBackGeometry.tomoCoords,  ...
                                      tomoList, ...
-                                     nTomograms, ...
+                                     n_active_tomos, ...
                                      1);
 
   fprintf('combining thickness and shift, found a maxZ of %d\n',maxZ);
@@ -302,7 +304,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % aggressivley downweight outliers in the alignment
   nFidsTotal = 0;
   fidIDX = 0;
-  for iTomo = 1:nTomograms
+  for iTomo = 1:n_active_tomos
     
     TLT = tiltGeometry.(tomoList{iTomo});
     
@@ -373,13 +375,12 @@ for iTiltSeries = tiltStart:nTiltSeries
     end
      
     positionList = geometry.(tomoList{iTomo});
-    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
-    tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+
     
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
 
-    tiltHeader = getHeader(MRCImage(tilt_filename,0));
+    tiltHeader = getHeader(MRCImage(tilt_filepath,0));
     
     fullTiltSizeXandY = [tiltHeader.nX,tiltHeader.nY];
     
@@ -433,7 +434,9 @@ for iTiltSeries = tiltStart:nTiltSeries
           % imod is indexing from zero
           zCoord = iPrj_nat;
           % For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)
-          rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector') ;
+          rTilt = BH_defineMatrix([0,TLT(iPrj_nat,4),0],'SPIDER','inv');
+          % rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector') ;
+
           
           prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
           
@@ -476,7 +479,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   if (localFile)
-    lastLine1 = sprintf('LOCALFILE %s', localFile)
+    lastLine1 = sprintf('LOCALFILE %s', localFile);
     % Used if GPU fails
     cpuLastLine = lastLine1;
   else
@@ -519,7 +522,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     '%s\n',...
     '%s\n',...
     '%s\n',...
-    'EOF'],tilt_filename, mbOUT{1:2}, maxZ, ...
+    'EOF'],tilt_filepath, mbOUT{1:2}, maxZ, ...
     mbOUT{1:2},...
     mbOUT{1:2},...
     pixel_size./10, ... % Ang --> nm
@@ -549,9 +552,14 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     system(sprintf('imodtrans -2 %s %s/%s.fid %s/%s.invfid  > /dev/null', iXFName_inv, mbOUT{1:2},mbOUT{1:2}));
     
-    system(sprintf(['model2point -contour -zero ',...
-          '%s/%s.invfid %s/%s.coordPrj > /dev/null'],...
-          mbOUT{1:2}, mbOUT{1:2}))
+    base_cmd = sprintf(['model2point -contour -zero ',...
+      '%s/%s.invfid %s/%s.coordPrj '],...
+      mbOUT{1:2}, mbOUT{1:2})
+    errmsg =  system(sprintf('%s > /dev/null',base_cmd));
+    if (errmsg)
+      system(sprintf('%s',base_cmd));
+      error('Failed to run model2point');
+    end
   else
     system(sprintf(['model2point  -contour -zero ',...
                 '%s/%s.fid %s/%s.coordPrj > /dev/null'],...
@@ -646,7 +654,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     fullXform = load(iXFName_inv);
   end
   
-  STACK = single(getVolume(MRCImage(tilt_filename)));
+  STACK = single(getVolume(MRCImage(tilt_filepath)));
   
   for iPrj = 1:nPrjs
     
@@ -694,9 +702,11 @@ for iTiltSeries = tiltStart:nTiltSeries
           rotFull = rTilt*[RF(1), RF(2), 0; RF(3), RF(4), 0; 0, 0, 1]*reshape(wrkPar(iFid,7:15),3,3);
         else
           % This gives us Rz*Ry
-            rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
+            % rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           
-          % this fives Rz*Ry*e3*e2*e1 * interpolant would rotate the particle by Rz*Ry*e1*e2*e3
+          %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
+          rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','fwdVector');
+          
           rotFull = rTilt*reshape(wrkPar(iFid,7:15),3,3);
         end
         
