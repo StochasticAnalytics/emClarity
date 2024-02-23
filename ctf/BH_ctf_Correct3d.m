@@ -316,18 +316,20 @@ for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
 end
+
 try
-  EMC_parpool(nGPUs)
+EMC_parpool(nGPUs)
 catch
-  delete(gcp('nocreate'))
-  EMC_parpool(nGPUs)
+delete(gcp('nocreate'))
+EMC_parpool(nGPUs)
 end
 
 parfor iGPU = 1:nGPUs
 % for iGPU = 1:nGPUs %%revert
  
   for iTilt = iterList{gpuList(iGPU)}
-    
+    nTomos = 0;
+    alreadyMade = 0;
     iTomoList = {};
     
     % For now, since the tilt geometry is not necessarily updated (it is manual)
@@ -342,8 +344,6 @@ parfor iGPU = 1:nGPUs
     % Get all the tomogram names that belong to a given tilt-series.
     % FIXME: I'm not sure it makes sense to restrict this block to for_subTomo
     if (recon_for_subTomo)
-      nTomos = 0;
-      alreadyMade = 0;
       for iTomo = 1:length(tomoList)
         if strcmp(tiltList{iTilt}, subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
           iTomoList{nTomos+1} = tomoList{iTomo};
@@ -393,27 +393,28 @@ parfor iGPU = 1:nGPUs
   for iTilt = iterList{gpuList(iGPU)}
     slab_list = {};
     
-    if (recon_for_subTomo)
-      nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
-      iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords;
-      % FIXME
-    else
-      if (recon_for_tomoCPR)
-        nTomos = 1;
-      else
-        % templaterch
-        nTomos  = nTomosPerTilt{iTilt};
-        iCoords = recGeom{iTilt};
-      end
-    end
+    % if (recon_for_subTomo)
+    %   nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
+    %   iCoords = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).coords;
+    %   % FIXME
+    % else
+    %   if (recon_for_tomoCPR)
+    %     nTomos = 1;
+    %   else
+    %     % templaterch
+    %     nTomos  = nTomosPerTilt{iTilt};
+    %     iCoords = tiltRecGeom{iTilt};
+    %   end
+    % end
     
-    if (recWithoutMat && ~loadSubTomoMeta) || ~recWithoutMat
-      targetSizeY = diff(floor(iCoords(:,2:3)),1,2)+1;
-      iCoords = iCoords ./ samplingRate;
-      iCoords(:,1:4) = floor(iCoords(:,1:4));
-      iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
-    end
-    iTomoList = cell(nTomos,1);
+    
+    % if (recon_for_subTomo || recon_for_templateMatching))
+    %   targetSizeY = diff(floor(iCoords(:,2:3)),1,2)+1;
+    %   iCoords = iCoords ./ samplingRate;
+    %   iCoords(:,1:4) = floor(iCoords(:,1:4));
+    %   iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
+    % end
+    % iTomoList = cell(nTomos,1);
     
     
 
@@ -454,7 +455,27 @@ parfor iGPU = 1:nGPUs
       end
     end
 
- 
+    if (recon_for_templateMatching)
+      % templaterch
+      nTomos  = nTomosPerTilt{iTilt};
+      % tiltRecGeom is a cell with each value being a cell returned by multi_recGeom 
+      iCoords = tiltRecGeom{iTilt};
+      % iCoords will be a cell indexed by each tomo wwith a struct .tomoCoords
+    else
+      nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
+      % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
+      iCoords = cell(nTomos,1);
+      for iCoordIdx = 1:nTomos
+        iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(iTomoList{iCoordIdx});
+      % FIXME
+      end
+    % else
+    %   if (recon_for_tomoCPR)
+    %     nTomos = 1;
+    %   else
+
+    %   end
+    end
 
     
     if samplingRate > 1
@@ -612,19 +633,20 @@ parfor iGPU = 1:nGPUs
             
           if (recon_for_tomoCPR)
             TA = sortrows(subTomoMeta.tiltGeometry.(tomoList{1}),1);
+            TA = TA(:,4);
           end
 
           if (recon_for_subTomo)
             TA = sortrows(subTomoMeta.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},thisTomo)),1);
+            TA = TA(:,4);
           end
-          TA = TA(:,4);
+          
 
           if (recon_for_templateMatching)
             if (mapBackIter)
               % FIXME: I don't think this block should work, it should only be the tilt angles!
               error('THis block should not be reached.')
-              TA = load(sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt},...
-                mapBackIter));
+              TA = load(sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt}, mapBackIter));
             else
               TA = load(sprintf('%sfixedStacks/%s.tlt',CWD,tiltList{iTilt}));
             end
