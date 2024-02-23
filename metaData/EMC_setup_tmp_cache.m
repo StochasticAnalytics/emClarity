@@ -15,7 +15,7 @@ function [tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(emc_fastScratchDis
         end
     else        
         % We are using an existing cache directory, we need to make sure it exists
-        if isdir(existing_tmpCache)
+        if isfolder(existing_tmpCache)
             tmpCache = existing_tmpCache;
         else
             error('The existing tmpCache %s does not exist',existing_tmpCache);
@@ -32,7 +32,7 @@ function [tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(emc_fastScratchDis
 
     if isempty(name)
         % We must be in the local project directory, add this little check
-        if ~isdir('fixedStacks')
+        if ~isfolder('fixedStacks')
             % Should work for soft links too
             error('The fixedStacks directory does not exist in the current directory, %s',pwd);
         end
@@ -52,7 +52,7 @@ function [tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(emc_fastScratchDis
         case 'ctf3d'
             tmpCache = fullfile(tmpCache, 'ctf3d');
             system(sprintf('mkdir -p %s', tmpCache));
-            if ~isdir(tmpCache)
+            if ~isfolder(tmpCache)
                 error('The tmpCache %s does not exist',tmpCache);
             end
         case 'tomoCPR'

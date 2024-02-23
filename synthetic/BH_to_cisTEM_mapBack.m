@@ -72,15 +72,12 @@ MOL_MASS = emc.('particleMass');
 flgInvertTiltAngles = 0;
 
 
-if (skip_to_the_end_and_run)
-  % The fractional runs have already copied everything to cache/mapback%d,
-  % so override the tmpCache.
-  tmpCache = '';
-else
-  tmpCache= emc.('fastScratchDisk');
-end
+% These stacks can get very unwieldy to we won't use the ramdisk even if it is asked for,
+% additionally we'll save stacks as we go which has the unfortunate side effect of
+% doubling the amount of disk space needed. The "Add stack" command might be a viable option, though there is
+% some risk of data corruption.
+[tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache('', fullfile(pwd,'cache'), 'cisTEM', false);
 
-[tmpCache, flgCleanCache, CWD] = EMC_setup_tmp_cache(tmpCache, '', 'cisTEM', true);
 
 nGPUs = emc.('nGPUs');
 pInfo = parcluster();
@@ -783,8 +780,8 @@ fh = fopen(newstack_file_with_n_stacks,'w');
 fprintf(fh,'%d\n', iCell);
 fclose(fh);
 
-system(sprintf('cat %s >> %s',newstack_file,newstack_file_with_n_stacks));
-system(sprintf('newstack -FileOfInputs %s %s.mrc > /dev/null',newstack_file_with_n_stacks,output_prefix));
+system(sprintf('cat %s >> %s', newstack_file, newstack_file_with_n_stacks));
+system(sprintf('newstack -FileOfInputs %s %s.mrc > /dev/null', newstack_file_with_n_stacks, output_prefix));
 
 % SAVE_IMG(cat(3,output_cell{:}),sprintf('%s.mrc',output_prefix),pixelSize);
 

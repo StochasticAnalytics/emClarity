@@ -121,7 +121,7 @@ dupMask = dupMask + 1;
 % If we are in the working directory, following template matching, there should
 % be the director convmap, holding convolution maps, model files etc.
 
-if ~isdir('convmap')
+if ~isfolder('convmap')
   error('Did not find directory named <convmap>')
 end
 
