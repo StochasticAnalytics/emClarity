@@ -393,12 +393,31 @@ parfor iGPU = 1:nGPUs
   for iTilt = iterList{gpuList(iGPU)}
     slab_list = {};
     
-    % if ~strcmp(tiltList{iTilt},'TS_116')
-    %   continue
-    %   % revert
-    % end
+    if (recon_for_subTomo)
+      nTomos = masterTM.mapBackGeometry.(tiltList{iTilt}).nTomos;
+      iCoords = masterTM.mapBackGeometry.(tiltList{iTilt}).coords;
+      % FIXME
+    else
+      if (recon_for_tomoCPR)
+        nTomos = 1;
+      else
+        % templaterch
+        nTomos  = nTomosPerTilt{iTilt};
+        iCoords = recGeom{iTilt};
+      end
+    end
+    
+    if (recWithoutMat && ~loadSubTomoMeta) || ~recWithoutMat
+      targetSizeY = diff(floor(iCoords(:,2:3)),1,2)+1;
+      iCoords = iCoords ./ samplingRate;
+      iCoords(:,1:4) = floor(iCoords(:,1:4));
+      iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
+    end
+    iTomoList = cell(nTomos,1);
+    
+    
 
-    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1)
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt}, mapBackIter + 1 );
     TLT = load(TLTNAME);
     fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
 
@@ -435,27 +454,7 @@ parfor iGPU = 1:nGPUs
       end
     end
 
-    if (recon_for_templateMatching)
-      % templaterch
-      nTomos  = nTomosPerTilt{iTilt};
-      % tiltRecGeom is a cell with each value being a cell returned by multi_recGeom 
-      iCoords = tiltRecGeom{iTilt};
-      % iCoords will be a cell indexed by each tomo wwith a struct .tomoCoords
-    else
-      nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
-      % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
-      iCoords = cell(nTomos,1);
-      for iCoordIdx = 1:nTomos
-        iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(iTomoList{iCoordIdx});
-      % FIXME
-      end
-    % else
-    %   if (recon_for_tomoCPR)
-    %     nTomos = 1;
-    %   else
-
-    %   end
-    end
+ 
 
     
     if samplingRate > 1
@@ -650,9 +649,9 @@ parfor iGPU = 1:nGPUs
           end
          
           % round down and then we'll add any extra needed to the final chunk
-          tiltChunkSize = ceil(iCoords{thisTomo}.NY ./ samplingRate ./ emc.n_tilt_workers);
+          tiltChunkSize = floor(iCoords{thisTomo}.NY ./ samplingRate ./ emc.n_tilt_workers);
           % This shoulid never happen, but to be safe
-          if (emc.n_tilt_workers > iCoords{thisTomo}.NY)
+          if (emc.n_tilt_workers > floor(iCoords{thisTomo}.NY ./ samplingRate))
             error('n_tilt_workers is greater than the number of slices in the tilt series');
           end
           y_i = floor(iCoords{thisTomo}.y_i ./ samplingRate);
@@ -905,6 +904,12 @@ for iT = 1:length(tomoIdx)
       continue;
     end
     valid_region_origin = emc_get_origin_index(slab_list{iT}(iSlab,5));
+    % This is a vector from the origin of the sample to the origin of the slab.
+    % The shift passed to imod-tilt moves the reconstructed area in the opposite sense.
+    % All slabs need to be shifted to the specimen origin (0) from tilts perspective, and then the are assembled into the final volume.
+    % This means a slab at Z > 0 needs to be shifted in the negative direction, which means supplying 
+    % a shift that is also > 0, moving the volume "up" in the rotated coordinate system (imod -Z)
+    % I know ... this is a shit show.
     dZ_for_reconstructed_slab = (valid_indices(valid_region_origin) + fraction_origin_shift);
 
     slab_list{iT}(iSlab,6) = dZ_for_reconstructed_slab; %dZ
@@ -918,14 +923,14 @@ for iT = 1:length(tomoIdx)
         delta = slab_list{iT}(iSlab,5);
         slab_list{iT}(iSlab-1,5) = slab_list{iT}(iSlab-1,5) + delta;
         slab_list{iT}(iSlab,1) = 0;
-        % we are adding slices from above the specimen in Z so the z shift is negative
-        slab_list{iT}(iSlab-1,6) = (slab_list{iT}(iSlab-1,6) - delta);
+        % we are adding slices from above the specimen in Z so the z shift is positive
+        slab_list{iT}(iSlab-1,6) = (slab_list{iT}(iSlab-1,6) + delta);
       elseif (iSlab < n_slabs_to_reconstruct && slab_list{iT}(iSlab+1,1))
         delta = slab_list{iT}(iSlab,5);
         slab_list{iT}(iSlab+1,5) = slab_list{iT}(iSlab+1,5) + slab_list{iT}(iSlab,5);
         slab_list{iT}(iSlab,1) = 0;
-        % we are adding slices from below the specimen in Z so the z shift is positive
-        slab_list{iT}(iSlab+1,6) = (slab_list{iT}(iSlab+1,6) + delta);
+        % we are adding slices from below the specimen in Z so the z shift is negative
+        slab_list{iT}(iSlab+1,6) = (slab_list{iT}(iSlab+1,6) - delta);
       end
     end
   end
@@ -1180,10 +1185,10 @@ else
 end
 
 [ specimen_NX_nm, tomoIdx ] = emc_get_max_specimen_NZ(val_to_pass, ...
-                                              iCoords, ...
-                                              tomoList, ...
-                                              nTomos, ...
-                                              samplingRate);
+                                                      iCoords, ...
+                                                      tomoList, ...
+                                                      nTomos, ...
+                                                      samplingRate);
 
 specimen_NX_nm = specimen_NX_nm .* pixel_size_angstroms ./ 10;
 fprintf('combining the thickness and shift on tilt %s, found a specimen_NX_nm  %3.3f nm\n',tiltName,specimen_NX_nm);
@@ -1253,7 +1258,7 @@ for iT = 1:nTomos
 
   % shift from lower left to centered and include the tomos offset from the
   subtomo_origin_wrt_specimen_origin = subtomo_origin_z_in_tomo_frame - tomo_origin_in_tomo_frame(3) + tomo_origin_wrt_tilt_origin(3);
-  subtomo_origin_wrt_specimen_origin ./ samplingRate;
+  subtomo_origin_wrt_specimen_origin = subtomo_origin_wrt_specimen_origin ./ samplingRate;
   totalZ = totalZ + sum(subtomo_origin_wrt_specimen_origin);
   fprintf('%s tomo has %d subTomos with mean Z %3.3f nm\n', ...
     iTomoName, length(subtomo_origin_wrt_specimen_origin), ...

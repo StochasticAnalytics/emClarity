@@ -11,7 +11,7 @@ function [ binSize, binShift ] = BH_multi_calcBinShift(coords, samplingRate, for
   % shift to have an odd dimension so that Imod origin is always the same.
   binSize = floor(coords./samplingRate);
   if (force_odd_dimension)
-    binSize = binSize + (1-mod(binSize,2));
+    binSize = binSize - (1-mod(binSize,2));
   end
   
   originFull = emc_get_origin_index(coords);
@@ -27,7 +27,7 @@ function [ binSize, binShift ] = BH_multi_calcBinShift(coords, samplingRate, for
   
   % This is the shift we need to apply to the binned image to make sure
   % that the origin is in the same place.
-  binShift = (samplingRate.*originBin - originFull) ./ samplingRate;
+  binShift = -1.*(samplingRate.*originBin - originFull) ./ samplingRate;
 
 
 end

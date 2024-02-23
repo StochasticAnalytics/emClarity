@@ -31,6 +31,7 @@ classdef fourierTransformer < handle
     paddedVolumeIsNonZero = true;
     shouldPad = false;
     
+OddSizeOversampled = 0;
     
     useFwdSwapForInverse; % works for even sized images
     
@@ -43,7 +44,11 @@ classdef fourierTransformer < handle
       
       if nargin > 1
         if (ischar(varargin{1}))
+if (strcmpi(varargin{1},'OddSizeOversampled'))
+            obj.OddSizeOversampled = 1;
+          else
             error('Did not recognize the extra argument when intializing the fourierTransformer');      
+end
         else
           if (isnumeric(varargin{1}))
             if (numel(varargin{1}) == 6)
@@ -229,7 +234,7 @@ classdef fourierTransformer < handle
           [ obj.phaseCenter, dV, dW] = BH_multi_gridCoordinates(obj.inputSize,'Cartesian','GPU', ...
             {'none'},1,0,0,{'halfgrid'});
           if ((obj.inputSize(1) == obj.inputSize(2)) && (obj.inputSize(2) == obj.inputSize(3)))
-            sx = obj.halfDimSize-1+obj.phaseSwapOffset(1);
+            sx = obj.halfDimSize-1+obj.OddSizeOversampled;
             obj.phaseCenter = exp(-2i.*pi.*sx.*(obj.phaseCenter+dV+dW));
             clear dU dV dW
           else

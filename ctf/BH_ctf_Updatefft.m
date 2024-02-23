@@ -374,7 +374,7 @@ parfor iGPU = 1:nGPUs
         'GPU','singleTaper');
       
       if (i == 1 && bh_global_do_2d_fourier_interp)
-        bhF = fourierTransformer(iProjection);
+        bhF = fourierTransformer(iProjection,'OddSizeOversampled');
       end
       
       

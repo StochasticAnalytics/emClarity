@@ -70,8 +70,7 @@ if samplingRate > 1
         % even sized images.
         force_odd_dimension = true;
         [binSize, binShift] = BH_multi_calcBinShift([iHeader.nX, iHeader.nY], samplingRate, force_odd_dimension);
-        % FIXME
-        binShift = binShift .* 0;
+
         % Gridding correction for the interpolation in the binning. Not
         % sure this is quite right, but it looks much better. TODO FIXME
         [ R ] = BH_multi_gridCoordinates([iHeader.nX,iHeader.nY],'Cartesian','GPU', {'none'},1,1,1);
@@ -83,8 +82,7 @@ if samplingRate > 1
           iProjection = gpuArray(getVolume(tiltObj,[],[],iPrj,'keep'));
           
           if (iPrj == 1)
-            % FIXME: The swapping 
-            bhF = fourierTransformer(iProjection);
+            bhF = fourierTransformer(iProjection,'OddSizeOversampled');
           end
           
           iProjection = bhF.invFFT(bhF.fwdFFT(R.*iProjection,0,0,[1e-6,600,samplingRate*pixelSize,pixelSize]),2);

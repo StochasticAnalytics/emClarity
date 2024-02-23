@@ -180,10 +180,11 @@ for iStack = 1:nStacks
     end
 
     % We are storing this info to make it available when checking for duplicates
+    tomoName = sprintf('%s_%d', tiltName,tomoIdx);
     fileInfo{n_tomos_added,1} = tiltName;
-    fileInfo{n_tomos_added,2} = sprintf('%s_%d', tiltName, tomoIdx);
+    fileInfo{n_tomos_added,2} = tomoName;
     fileInfo{n_tomos_added,3} = sprintf('%s_%d_bin%d',tiltName, tomoIdx, dupSampling);
-    tomoName = sprintf('%s_%d',tiltName,tomoIdx);
+    
     
     subTomoMeta.('tiltGeometry').(fileInfo{n_tomos_added,2}) = tilt_geometry;
     n_tomos_added = n_tomos_added + 1;
@@ -212,10 +213,9 @@ if nGPUs > nTomogramsTotal
 end
 
 
-iterLiTomo = cell(nGPUs,1);
+iterList = cell(nGPUs,1);
 for iGPU = 1:nGPUs
-  iterLiTomo{iGPU} = iGPU:nGPUs:nTomogramsTotal;
-  iterLiTomo{iGPU}
+  iterList{iGPU} = iGPU:nGPUs:nTomogramsTotal;
 end
 
 try
@@ -229,12 +229,12 @@ parResults = cell(nGPUs,1);
 
 dupInTheLoop = dupSampling
 parfor iGPU = 1:nGPUs
-  % for iGPU = 1:nGPUs % revert
+  % for iGPU = 1:nGPUs 
   
   D = gpuDevice(iGPU);
   
   tomoResults = struct();
-  for iTomo = iterLiTomo{iGPU}
+  for iTomo = iterList{iGPU}
     
     if (doImport)
       mapName = fileInfo{iTomo,2};
@@ -363,9 +363,9 @@ parfor iGPU = 1:nGPUs
       
       overlapMatrix = convn(positionMatrix, gpuArray(dupMask), 'same');
       
-      idxLiTomo = positionIDX((overlapMatrix > 1));
+      idxList = positionIDX((overlapMatrix > 1));
 
-      tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom(ismember(tmpSearchGeom(:,4), idxLiTomo),:);
+      tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom(ismember(tmpSearchGeom(:,4), idxList),:);
     else
       
       tomoResults.(fileInfo{iTomo,2}) = tmpSearchGeom;
@@ -381,7 +381,7 @@ end
 
 nIDX = 1;
 for iGPU = 1:nGPUs
-  for iTomo = iterLiTomo{iGPU}
+  for iTomo = iterList{iGPU}
     mapName = fileInfo{iTomo,2};
     tmpGeom = parResults{iGPU}.(mapName);
     

@@ -251,13 +251,15 @@ for iTiltSeries = tiltStart:nTiltSeries
   tilt_filename = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tiltNameList{iTiltSeries}, mapBackIter + 1);
   [~, tltName, tltExt] = fileparts(tilt_filename);
   tilt_binned_filename = sprintf('%scache/%s_bin%d%s', CWD, tltName, samplingRate, tltExt);
-  for iTomo = 1:size(subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).coords,1)
-    % This is dumb, fix it to be explicit.
-    if any(subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).coords(iTomo,:))
-      tomoList{tomoIDX} = sprintf('%s_%d',tiltNameList{iTiltSeries},iTomo);
-       
-      % Only increment if values found.
-      tomoIDX = tomoIDX + 1;
+  fn = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
+  for iTomo = 1:numel(fn)
+    if (subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName == tiltNameList{iTiltSeries})
+      % This is dumb, fix it to be explicit.
+      if (subTomoMeta.mapBackGeometry.tomoCoords.(fn{iTomo}).is_active)
+        tomoList{tomoIDX} = fn{iTomo};
+        % Only increment if values found.
+        tomoIDX = tomoIDX + 1;
+      end
     end
   end
   
@@ -517,7 +519,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     positionList = geometry.(tomoList{iTomo});
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    coords = subTomoMeta.mapBackGeometry.(tiltName).coords(tomoIdx,1:4);
     
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);

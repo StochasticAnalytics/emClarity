@@ -685,8 +685,7 @@ parfor iParProc = parVect
       % Load in the geometry for the tomogram, and get number of subTomos.
       positionList = geometry_tmp.(tomoList{iTomo});
       
-      tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
-      tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
+
       binShift = [0,0,0];
       nSubTomos = size(positionList,1);
       

@@ -50,6 +50,8 @@ end
 recGeom = cell(nTomos,1);
 for iTomo = 1:nTomos
   read_in_Coords = recCoords(1 + (iTomo-1)*6: 6 + (iTomo-1)*6);
+  % This is not necessarily correct, e.,g you could have 4 bin10 tomos from one tilt, and not keep any model points
+  % from tomo 3, then you would have tomos 1,2,4 but here we are using 1:3.
   tomoName = sprintf('%s_%d',tiltName, iTomo);
 
   % Check to make sure no out of bounds conditions were created in X Y

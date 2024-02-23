@@ -431,7 +431,7 @@ for i = 1:d3
     shiftMETHOD,'singleTaper');
   
   if (i == 1 && bh_global_do_2d_fourier_interp)
-    bhF = fourierTransformer(iProjection);
+    bhF = fourierTransformer(iProjection,'OddSizeOversampled');
   end
   
   
