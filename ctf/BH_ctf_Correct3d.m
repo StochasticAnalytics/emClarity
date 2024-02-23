@@ -316,15 +316,15 @@ for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
   iterList{gpuList(iGPU)};
 end
-% try
-%   EMC_parpool(nGPUs)
-% catch
-%   delete(gcp('nocreate'))
-%   EMC_parpool(nGPUs)
-% end
+try
+  EMC_parpool(nGPUs)
+catch
+  delete(gcp('nocreate'))
+  EMC_parpool(nGPUs)
+end
 
-% parfor iGPU = 1:nGPUs
-for iGPU = 1:nGPUs %%revert
+parfor iGPU = 1:nGPUs
+% for iGPU = 1:nGPUs %%revert
  
   for iTilt = iterList{gpuList(iGPU)}
     
@@ -345,7 +345,7 @@ for iGPU = 1:nGPUs %%revert
       nTomos = 0;
       alreadyMade = 0;
       for iTomo = 1:length(tomoList)
-        if strcmp(tiltList{iTilt},subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
+        if strcmp(tiltList{iTilt}, subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
           iTomoList{nTomos+1} = tomoList{iTomo};
           nTomos = nTomos + 1;
         end
@@ -384,8 +384,8 @@ end
 
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
-% parfor iGPU = 1:nGPUs 
-for iGPU = 1:nGPUs %%revert
+parfor iGPU = 1:nGPUs 
+% for iGPU = 1:nGPUs %%revert
 
   % for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
@@ -393,42 +393,17 @@ for iGPU = 1:nGPUs %%revert
   for iTilt = iterList{gpuList(iGPU)}
     slab_list = {};
     
-    % if ~strcmp(tiltList{iTilt},'TS_121')
+    % if ~strcmp(tiltList{iTilt},'TS_116')
     %   continue
     %   % revert
     % end
-
-    if (recon_for_templateMatching)
-      % templaterch
-      nTomos  = nTomosPerTilt{iTilt};
-      % tiltRecGeom is a cell with each value being a cell returned by multi_recGeom 
-      iCoords = tiltRecGeom{iTilt};
-      % iCoords will be a cell indexed by each tomo wwith a struct .tomoCoords
-    else
-      nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
-      % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
-      iCoords = cell(nTomos,1);
-      for iCoordIdx = 1:nTomos
-        iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iCoordIdx});
-      % FIXME
-      end
-    % else
-    %   if (recon_for_tomoCPR)
-    %     nTomos = 1;
-    %   else
-
-    %   end
-    end
-
-    iTomoList = cell(nTomos,1);
-    
 
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1)
     TLT = load(TLTNAME);
     fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
 
   
-    
+    iTomoList = {};
     if (recon_for_subTomo)
       % Get all the tomogram names that belong to a given tilt-series.
       nTomos = 0;
@@ -458,6 +433,28 @@ for iGPU = 1:nGPUs %%revert
         fprintf('All tomos 1-%d found to exist for tilt-series %s\n',nTomos,tiltList{iTilt});
         continue
       end
+    end
+
+    if (recon_for_templateMatching)
+      % templaterch
+      nTomos  = nTomosPerTilt{iTilt};
+      % tiltRecGeom is a cell with each value being a cell returned by multi_recGeom 
+      iCoords = tiltRecGeom{iTilt};
+      % iCoords will be a cell indexed by each tomo wwith a struct .tomoCoords
+    else
+      nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
+      % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
+      iCoords = cell(nTomos,1);
+      for iCoordIdx = 1:nTomos
+        iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(iTomoList{iCoordIdx});
+      % FIXME
+      end
+    % else
+    %   if (recon_for_tomoCPR)
+    %     nTomos = 1;
+    %   else
+
+    %   end
     end
 
     
@@ -685,7 +682,7 @@ for iGPU = 1:nGPUs %%revert
             gpuList(iGPU), ...
             floor(iCoords{thisTomo}.NX ./ samplingRate),... % WIDTH = NX
             floor(round(slab_list{iT}(iSection,5))), ... % THICKNESS = NZ
-            floor(iCoords{thisTomo}.dX_specimen_to_tomo ./ samplingRate), ... % SHIFT X
+            iCoords{thisTomo}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
             slab_list{iT}(iSection,6));
           
           
@@ -908,7 +905,7 @@ for iT = 1:length(tomoIdx)
       continue;
     end
     valid_region_origin = emc_get_origin_index(slab_list{iT}(iSlab,5));
-    dZ_for_reconstructed_slab = -(valid_indices(valid_region_origin) + fraction_origin_shift);
+    dZ_for_reconstructed_slab = (valid_indices(valid_region_origin) + fraction_origin_shift);
 
     slab_list{iT}(iSlab,6) = dZ_for_reconstructed_slab; %dZ
   end
