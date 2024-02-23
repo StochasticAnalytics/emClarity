@@ -182,7 +182,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   tomoIDX = 1;
   fn = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
   for iTomo = 1:numel(fn)
-    if (subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName == tiltNameList{iTiltSeries})
+    if strcmp(subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName, tiltNameList{iTiltSeries})
       % This is dumb, fix it to be explicit.
       if (subTomoMeta.mapBackGeometry.tomoCoords.(fn{iTomo}).is_active)
         tomoList{tomoIDX} = fn{iTomo};
@@ -391,7 +391,7 @@ for iTiltSeries = tiltStart:nTiltSeries
         
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});    
+    reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});    
     tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
                                     reconGeometry.dY_specimen_to_tomo, ...
                                     reconGeometry.dZ_specimen_to_tomo];              

@@ -26,6 +26,7 @@ while read target; do
     if [[ $this_mem && $this_mem -gt $MAX_MEM ]] ; then 
       MAX_MEM=${this_mem}
       MAX_FS=${target}
+      echo $MAX_MEM
     fi
 
   fi

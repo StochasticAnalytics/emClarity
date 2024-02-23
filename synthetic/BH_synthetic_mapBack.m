@@ -253,7 +253,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   tilt_binned_filename = sprintf('%scache/%s_bin%d%s', CWD, tltName, samplingRate, tltExt);
   fn = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
   for iTomo = 1:numel(fn)
-    if (subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName == tiltNameList{iTiltSeries})
+    if strcmp(subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName, tiltNameList{iTiltSeries})
       % This is dumb, fix it to be explicit.
       if (subTomoMeta.mapBackGeometry.tomoCoords.(fn{iTomo}).is_active)
         tomoList{tomoIDX} = fn{iTomo};
