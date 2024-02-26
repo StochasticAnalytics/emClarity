@@ -48,7 +48,7 @@ winTopCorner = winLowCorner - mod(WINDOW_SIZE-1,2);
 
 
 % Get the down to the nearest integer position, and save any fractional shift
-winCenter = floor(CENTER);
+winCenter = floor(CENTER+0.5);
 deltaWinCenter = CENTER - winCenter;
 
 

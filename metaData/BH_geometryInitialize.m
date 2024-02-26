@@ -167,7 +167,7 @@ for iStack = 1:nStacks
   end
   subTomoMeta.('mapBackGeometry').(tiltName).('nTomos') = nTomos;
   subTomoMeta.('mapBackGeometry').(tiltName).('tomoCprRePrjSize') = 512;
-
+  stm_tomoList = cell(nTomos,1);
   for iTomo = 1:nTomos
     
     if (doImport)
@@ -183,6 +183,7 @@ for iStack = 1:nStacks
     tomoName = sprintf('%s_%d', tiltName,tomoIdx);
     fileInfo{n_tomos_added,1} = tiltName;
     fileInfo{n_tomos_added,2} = tomoName;
+    stm_tomoList{iTomo} = tomoName;
     fileInfo{n_tomos_added,3} = sprintf('%s_%d_bin%d',tiltName, tomoIdx, dupSampling);
     
     
@@ -203,6 +204,7 @@ for iStack = 1:nStacks
     subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dY_specimen_to_tomo') = recGeom{tomoIdx}.dY_specimen_to_tomo;
     subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dZ_specimen_to_tomo') = recGeom{tomoIdx}.dZ_specimen_to_tomo;
   end 
+    subTomoMeta.('mapBackGeometry').(tiltName).('tomoList') =  stm_tomoList;
 end % end of loop over stacks
 
 % For now, just assuming all of the maps are in the same place and have the same

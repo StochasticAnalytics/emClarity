@@ -399,25 +399,25 @@ end
 if isfield(emc, 'flgPostShift')
   EMC_assert_numeric(emc.flgPostShift, 2);
 else
-  emc.flgPostShift = [-1.5,1.0];
+  emc.flgPostShift = 0.*[-1.5,1.0];
 end
 
 if isfield(emc, 'prjVectorShift')
   EMC_assert_numeric(emc.prjVectorShift, 3);
 else
-  emc.prjVectorShift = [0.5,0.5,0.5];
+  emc.prjVectorShift = 0.*[0.5,0.5,0.5];
 end
 
 if isfield(emc,'pixelShift')
   EMC_assert_numeric(emc.pixelShift, 1);
 else
-  emc.pixelShift = -1;
+  emc.pixelShift = 0.*-1;
 end
 
 if isfield(emc, 'pixelMultiplier')
   EMC_assert_numeric(emc.pixelMultiplier, 1);
 else
-  emc.pixelMultiplier = 1;
+  emc.pixelMultiplier = -1;
 end
 
 if isfield(emc, 'tomoCPR_random_subset')

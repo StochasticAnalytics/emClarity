@@ -42,23 +42,25 @@ __global__ void transformKernel_FWD(cudaTextureObject_t thisTexObj,
 
   float u,v,w,tu,tv,tw;
 
-  if (doFwdXform)
-  {
+  if (doFwdXform) {
 
     // First, put the origin at the center, rotate, then shift
-    u = (float)x - (float)(dims.x/2) + shifts.x; 
-    v = (float)y - (float)(dims.y/2) + shifts.y; 
-    w = (float)z - (float)(dims.z/2) + shifts.z;
+    // Effectively, we rotate the interpolant about the current origin, but then need to shift it
+    // by dx in the new coordinate system.
+    // R * (x - c) - R * dx
+    // R * (x - c - dx) = R ( x - (c -dx))
+    u = float(x - dims.x/2) - shifts.x; 
+    v = float(y - dims.y/2) - shifts.y; 
+    w = float(z - dims.z/2) - shifts.z;
     tu = u*rm_1.x + v*rm_1.y + w*rm_1.z + size_shift.x; 
     tv = u*rm_2.x + v*rm_2.y + w*rm_2.z + size_shift.y;
     tw = u*rm_3.x + v*rm_3.y + w*rm_3.z + size_shift.z;
   }
-  else  
-  {
+  else {
     // First, put the origin at the center, shift, then rotate
-    u = (float)x - (float)(dims.x/2); 
-    v = (float)y - (float)(dims.y/2); 
-    w = (float)z - (float)(dims.z/2);
+    u = float(x - dims.x/2); 
+    v = float(y - dims.y/2); 
+    w = float(z - dims.z/2);
     tu = u*rm_1.x + v*rm_1.y + w*rm_1.z + shifts.x + size_shift.x; 
     tv = u*rm_2.x + v*rm_2.y + w*rm_2.z + shifts.y + size_shift.y;
     tw = u*rm_3.x + v*rm_3.y + w*rm_3.z + shifts.z + size_shift.z;
@@ -68,22 +70,8 @@ __global__ void transformKernel_FWD(cudaTextureObject_t thisTexObj,
   tu /= (float)dims.x; 
   tv /= (float)dims.y; 
   tw /= (float)dims.z;
-  // Since we are
-  tu += 0.5f;
-  tv += 0.5f;
-  tw += 0.5f;
 
-//  if (tu < 0 | tv < 0 | tw < 0 | tu >= 1 - 1/(float)dims.x | tv >= 1 - 1/(float)dims.y | tw >= 1 - 1/(float)dims.z)
-//  {
-
-//    outputData[ (z*dims.y + y) * dims.x + x ] = extrapVal;
-//  }
-//  else
-//  {
-//    outputData[ (z*dims.y + y) * dims.x + x ] = tex3D<float>(thisTexObj, tu, tv, tw);
-//  }
-    // cudaAddressModeBorder returns 0.0 for out of bounds reads.
-    outputData[ (z*dims.y + y) * dims.x + x ] = tex3D<float>(thisTexObj, tu, tv, tw);
+  outputData[ (z*dims.y + y) * dims.x + x ] = tex3D<float>(thisTexObj, tu + 0.5f, tv + 0.5f, tw + 0.5f);
 }
 
 
@@ -157,15 +145,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
   float *ts = (float *) mxGetData(prhs[3]);
   doFwdXform = (bool *) mxGetData(prhs[4]);
 
-  if (*doFwdXform)
-  {
-    // transpose matrix
-    shifts = make_float3(-ts[0],-ts[1],-ts[2]);
-  }
-  else
-  {
+  // if (*doFwdXform)
+  // {
+  //   // transpose matrix
+  //   shifts = make_float3(-ts[0],-ts[1],-ts[2]);
+  // }
+  // else
+  // {
     shifts = make_float3(ts[0],ts[1],ts[2]);
-  }
+  // }
 
     rm_1   = make_float3(angles[0],angles[3],angles[6]);
     rm_2   = make_float3(angles[1],angles[4],angles[7]);

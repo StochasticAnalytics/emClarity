@@ -317,15 +317,15 @@ for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)};
 end
 
-try
-EMC_parpool(nGPUs)
-catch
-delete(gcp('nocreate'))
-EMC_parpool(nGPUs)
-end
+% try
+% EMC_parpool(nGPUs)
+% catch
+% delete(gcp('nocreate'))
+% EMC_parpool(nGPUs)
+% end
 
-parfor iGPU = 1:nGPUs
-% for iGPU = 1:nGPUs %%revert
+% parfor iGPU = 1:nGPUs
+for iGPU = 1:nGPUs %%revert
  
   for iTilt = iterList{gpuList(iGPU)}
     nTomos = 0;
@@ -384,8 +384,8 @@ end
 
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
-parfor iGPU = 1:nGPUs 
-% for iGPU = 1:nGPUs %%revert
+% parfor iGPU = 1:nGPUs 
+for iGPU = 1:nGPUs %%revert
 
   % for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));

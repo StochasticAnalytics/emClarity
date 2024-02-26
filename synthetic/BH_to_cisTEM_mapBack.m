@@ -290,7 +290,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   TLT = tiltGeometry.(tomoList{1});
   
   
-  iRawTltName = sprintf('%s/%s_align.rawtlt',mbOUT{1:2})
+  iRawTltName = sprintf('%s/%s_align.rawtlt',mbOUT{1:2});
   iTiltFile = fopen(iRawTltName, 'w');
   rawTLT = sortrows(TLT(:,[1,4]),1);
   fprintf(iTiltFile,'%f\n',rawTLT(:,2)');
@@ -390,7 +390,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});    
-    tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
+    tomo_origin_wrt_tilt_origin = [ reconGeometry.dX_specimen_to_tomo, ... 
                                     reconGeometry.dY_specimen_to_tomo, ...
                                     reconGeometry.dZ_specimen_to_tomo];              
     tomo_origin_in_tomo_frame = emc_get_origin_index([reconGeometry.NX, ...
@@ -434,8 +434,8 @@ for iTiltSeries = tiltStart:nTiltSeries
           % imod is indexing from zero
           zCoord = iPrj_nat;
           % For a positive angle, this will rotate the positive X axis farther from the focal plane (more underfocus)
-          rTilt = BH_defineMatrix([0,TLT(iPrj_nat,4),0],'SPIDER','inv');
-          % rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector') ;
+          % rTilt = BH_defineMatrix([0,TLT(iPrj_nat,4),0],'SPIDER','inv');
+          rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector') ;
 
           
           prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
@@ -468,11 +468,11 @@ for iTiltSeries = tiltStart:nTiltSeries
   fclose(coordOUT);
   fclose(coordSTART);
   
-  p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 ',...
+  p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 -ImageForCoordinates %s ',...
                 '%s/%s.coord %s/%s.3dfid'], ...
-                mbOUT{1:2},mbOUT{1:2});
+                  tilt_filepath, mbOUT{1:2},mbOUT{1:2});
   system(p2m);
-  
+
   taStr = [sprintf('%f',rawTLT(1,2))];
   for iTa = 2:length(rawTLT(:,2))
     taStr = [taStr sprintf(',%f',rawTLT(iTa,2))];
@@ -567,7 +567,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   
-  
   try
     fidList = load(sprintf('%s/%s.coordPrj',mbOUT{1:2}));
   catch
@@ -594,7 +593,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % Give every instance of each fiducial a unique identifier.
   fidList = [1:size(fidList,1);fidList']';
-  
   particlePad = 2.0;
   tileRadius = floor(particlePad.*particle_radius);
   tileSize = BH_multi_iterator((2.*tileRadius).*[1,1],'fourier2d');
@@ -671,7 +669,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     wrkFid = fidList(wrkPrjIDX,:);
     wrkPar = parList(wrkPrjIDX,:);
     wrkDefAngTilt = defList(wrkPrjIDX,[7,6,5]); % Confirming with David but this should include the local adjustments to tilt/in-plane angle
-    
+
     
     for iFid = 1:size(wrkFid,1)
       
@@ -687,7 +685,18 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       sx = pixelX - floor(pixelX);
       sy = pixelY - floor(pixelY);
-      
+
+            % With a pixel running from -0.5 to 0.5, the center of the pixel is at 0.0, to get the index we need to do this
+            % pixelX = floor(x_coord + 0.5);
+            % pixelY = floor(y_coord + 0.5);
+            
+            % x_start = pixelX - tileOrigin(1) + 1;
+            % y_start = pixelY - tileOrigin(2) + 1;
+            
+            % % The remainder is the result of the windowing operation
+            % sx = x_coord - pixelX;
+            % sy = y_coord - pixelY;
+     
       particle_was_skipped = false;
       if  ( x_start > 0 && y_start > 0 && x_start + tileSize(1) - 1 < sTX && y_start + tileSize(2) - 1 < sTY )
         output_particle_stack(:,:,iGpuDataCounter) = STACK(x_start:x_start+tileSize(1)-1,y_start:y_start+tileSize(2)-1,TLT(iPrj,1));
@@ -705,7 +714,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             % rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           
           %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
-          rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','fwdVector');
+          rTilt = BH_defineMatrix([-wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','fwdVector');
           
           rotFull = rTilt*reshape(wrkPar(iFid,7:15),3,3);
         end
@@ -740,9 +749,8 @@ for iTiltSeries = tiltStart:nTiltSeries
         particleGroup = wrkPar(iFid,3);
         preExposure = wrkPar(iFid,16);
         totalExposure = wrkPar(iFid,17);
-        pixelMultiplier = 0;
-        xShift = pixelMultiplier*sx*pixelSize;
-        yShift = pixelMultiplier*sy*pixelSize;
+        xShift = emc.pixelMultiplier*sx*pixelSize;
+        yShift = emc.pixelMultiplier*sy*pixelSize;
 
         % df1 = ( wrkPar(iFid,4) + wrkPar(iFid,5)) * 10;
         % df2 = ( wrkPar(iFid,4) - wrkPar(iFid,5)) * 10;
@@ -837,7 +845,7 @@ fprintf(recScript,[ ...
   'No\n', ...Dump intermediate arrays (merge later) [No]        :
   'dum_1.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
   'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
-  '%2.2d\n', ...Max. threads to use for calculation [36]           :
+  '%d\n', ...Max. threads to use for calculation [36]           :
   ], getenv('EMC_RECONSTRUCT3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
   symmetry,emc.pixel_size_angstroms, ...
   emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
