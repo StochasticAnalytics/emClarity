@@ -47,7 +47,16 @@ mRCImage = writeHeader(mRCImage);
 
 % Write out the volume if it is not already on the disk
 if mRCImage.flgVolume
-  modeStr = getModeString(mRCImage);
+  modeStr = getModeString(mRCImage);  
+  if strcmp(modeStr, 'half')
+     %PEETError('Sorry, writing half-precision files is not supported!')
+    
+    %  fwrite doesn't yet recognize "half"
+    %  typecast to uint16 before writing, then typecast back later
+    modeStr = 'uint16';
+    mRCImage.volume  = typecast(mRCImage.volume, 'uint16');
+    
+  end
   if strcmp(modeStr, 'int16*2') || strcmp(modeStr, 'float32*2')
     modeStr = modeStr(1 : end - 2);
     flgComplex = true;
@@ -91,10 +100,17 @@ if mRCImage.flgVolume
   else % normal (not complex) data
     count = fwrite(mRCImage.fid, mRCImage.volume, modeStr);
     if count ~= nElements
+      if mRCImage.header.mode == 12
+       mRCImage.volume = typecast(mRCImage.volume, 'half');
+      end
       fprintf('Matrix contains %d but only wrote %d elements\n', ...
               nElements, count);
       PEETError('Failed writing matrix!');
     end
   end
 end
+if mRCImage.header.mode == 12
+ mRCImage.volume = half.typecast(mRCImage.volume);
+end
+
 close(mRCImage);

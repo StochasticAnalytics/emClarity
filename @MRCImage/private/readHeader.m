@@ -59,6 +59,12 @@ if  mRCImage.header.nX < 0 || mRCImage.header.nY < 0 ||                ...
   [fname, perm, fileEndianFormat] = fopen(mRCImage.fid); %#ok<ASGLU>
   if strcmp('ieee-be', fileEndianFormat) == 1
     mRCImage.endianFormat = 'ieee-le';
+elseif strcmp('ieee-be.l64', fileEndianFormat) == 1
+    mRCImage.endianFormat = 'ieee-le.l64';
+  elseif strcmp('ieee-le', fileEndianFormat) == 1
+    mRCImage.endianFormat = 'ieee-be';
+  elseif strcmp('ieee-le.l64', fileEndianFormat) == 1
+    mRCImage.endianFormat = 'ieee-be.l64';
   else
     mRCImage.endianFormat = 'ieee-be';
   end
@@ -104,12 +110,8 @@ mRCImage.header.mapSections = fread(mRCImage.fid, 1, 'int32');
 mRCImage.header.minDensity = fread(mRCImage.fid, 1, 'float32');
 mRCImage.header.maxDensity = fread(mRCImage.fid, 1, 'float32');
 mRCImage.header.meanDensity = fread(mRCImage.fid, 1, 'float32');
-mRCImage.header.spaceGroup = fread(mRCImage.fid, 1, 'int16');
-mRCImage.header.nSymmetryBytes = fread(mRCImage.fid, 1, 'int16');
-if debug
-  fprintf(debugFD, 'nSymmetry bytes %d\n', mRCImage.header.nSymmetryBytes);
-end
-
+mRCImage.header.spaceGroup = fread(mRCImage.fid, 1, 'int32');
+% nBytesExtended is called nsymbt in the 2014 MRC Standard
 mRCImage.header.nBytesExtended = fread(mRCImage.fid, 1, 'int32');
 if debug
   fprintf(debugFD, 'nBytesExtended %d\n', mRCImage.header.nBytesExtended);
@@ -117,7 +119,7 @@ end
 
 % MRC EXTRA section
 mRCImage.header.creatorID = fread(mRCImage.fid, 1, 'int16');
-junk = fread(mRCImage.fid, 30, 'uchar'); %#ok<NASGU>
+mRCImage.header.extraInfo1 = fread(mRCImage.fid, 30, 'uchar');
 mRCImage.header.nBytesPerSection = fread(mRCImage.fid, 1, 'int16');
 if debug
   fprintf(debugFD, 'nBytesPerSection %d\n', mRCImage.header.nBytesPerSection);
@@ -126,7 +128,7 @@ mRCImage.header.serialEMType = fread(mRCImage.fid, 1, 'int16');
 if debug
   fprintf(debugFD, 'serialEMType %d\n', mRCImage.header.serialEMType);
 end
-junk = fread(mRCImage.fid, 20, 'uchar');   %#ok<NASGU>
+mRCImage.header.extraInfo2 = fread(mRCImage.fid, 20, 'uchar');
   
 % IMOD stamp / flags for deciding whether to read / write mode 0 files
 % as signed or unsigned bytes (added in PEET 1.8.0)

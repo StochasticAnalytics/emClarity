@@ -163,6 +163,11 @@ if strcmp(modeStr, 'int16*2') || strcmp(modeStr, 'float32*2')
 else
   flgComplex = 0;
 end  
+% fread doesn't yet recognize "half"
+% read as uint16 and then typecast to half later
+if strcmp(modeStr, 'half')
+  modeStr = 'uint16';
+end
 
 % Changed counters and index variables to be clear to me BAH 2017-11-22
 % l --> nSlice, k --> iSlice
@@ -292,6 +297,10 @@ end
 if (flgCloseFile)
   fclose(mRCImage.fid);
   mRCImage.fid = [];
+end
+
+if mRCImage.header.mode == 12
+  vol = half.typecast(vol);
 end
 
 end

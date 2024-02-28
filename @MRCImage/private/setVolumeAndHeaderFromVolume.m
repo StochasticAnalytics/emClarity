@@ -19,38 +19,45 @@ function mRCImage = setVolumeAndHeaderFromVolume(mRCImage, volume)
 
 if isa(volume, 'uint8')
   mRCImage.header.mode = 0;
-  mRCImage.volume = volume;
-end
-if isa(volume, 'int16')
+elseif isa(volume, 'int16')
   if isreal(volume)
     mRCImage.header.mode = 1;
   else
     mRCImage.header.mode = 3;
   end
-  mRCImage.volume = volume;
-end
-if isa(volume, 'single')
+elseif isa(volume, 'single')
   if isreal(volume)
     mRCImage.header.mode = 2;
   else
     mRCImage.header.mode = 4;
   end
-  mRCImage.volume = volume;
-end
-if isa(volume, 'double')
+elseif isa(volume, 'double')
   if ~isreal(volume)
-    PEETError('Double precision complex images are not supported!');
+    PEETError('Double precision complex volumes are not supported!');
   end
   mRCImage.header.mode = 2;
-  mRCImage.volume = single(volume);
+elseif isa(volume, 'uint16')
+  if isreal(volume)
+    mRCImage.header.mode = 6;
+  else
+    PEETError('Complex uint16 volumes are not supported!');
+  end
+elseif isa(volume, 'half')
+  if isreal(volume)
+    mRCImage.header.mode = 12;
+  else
+    PEETError('Complex half-precision volumes are not supported!');
+  end
+else
+  PEETError('Volume must be uint8, int16, unit16, half, single, or double!');
 end
 
-% Added BAH - setting mRCImage.volume is just a pointer UNTIL we work with it. 
-% The volume will be duplicated in memory later, so clear "volume" in order 
-% to avoid wasting large chunks of memory. Change subsequent references from 
-% "volume" to "mRCImage.volume"
-clear volume
-  
+
+if isa(volume, 'double')
+  mRCImage.volume = single(volume); % Store float*64 as float*32 
+else
+  mRCImage.volume = volume;
+end
 %  TODO: is this the correct/best way to set the values
 mRCImage.header.nX = size(mRCImage.volume, 1);
 mRCImage.header.nY = size(mRCImage.volume, 2);
@@ -79,8 +86,10 @@ writeBytesAsSigned = getWriteBytesAsSigned(mRCImage);
 mRCImage.header.imodFlags = writeBytesAsSigned;
 
 mRCImage.header.creatorID = int16(0);
+mRCImage.header.extraInfo1 = char(zeros(1, 30, 'uint8'));
 mRCImage.header.nBytesPerSection = int16(0);
 mRCImage.header.serialEMType = int16(0);
+mRCImage.header.extraInfo2 = char(zeros(1, 20, 'uint8'));
 mRCImage.header.idtype = 0;
 mRCImage.header.lens = 0;
 mRCImage.header.ndl = 0;

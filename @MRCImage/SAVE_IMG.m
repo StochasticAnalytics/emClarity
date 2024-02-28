@@ -38,7 +38,7 @@ mRCImage = varargin{1};
 if nargin > 1
   newFilename = varargin{2};
 
-    mRCImage = close(mRCImage);
+  mRCImage = close(mRCImage);
 
   mRCImage.filename = newFilename;
   % Check to see if the file exists
@@ -93,7 +93,12 @@ if mRCImage.flgVolume
   else
     flgComplex = false;
   end
-
+  % if isa(mRCImage.volume, 'half')
+  %   mrcImage.volume = typecast(mRCImage.volume, 'uint16');
+  % end
+  if strcmp(modeStr, 'half')
+    modeStr = 'uint16';
+  end
   nElements = numel(mRCImage.volume);
   
   if mRCImage.header.mode == 0 && getWriteBytesAsSigned(mRCImage)

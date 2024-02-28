@@ -39,7 +39,7 @@ outputPrefix = sprintf('%s_%s', cycleNumber, emc.('subTomoMeta'));
 
 if strcmpi(STAGEofALIGNMENT, 'RawAlignment')
   
-  if (emc.multi_reference_alignment)
+  if (emc.multi_reference_alignment || emc.classification)
     if (emc.classification)
       subTomoMeta.(cycleNumber).('RawAlign') = subTomoMeta.(cycleNumber).('ClusterClsGeom');
     else

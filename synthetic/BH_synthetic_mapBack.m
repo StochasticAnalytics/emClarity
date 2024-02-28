@@ -18,7 +18,9 @@ function [ ] = BH_synthetic_mapBack(PARAMETER_FILE, CYCLE, tiltStart)
 buildTomo=1;% % % % % % %
 
 
-
+% If false, this is faster, simplifies the code and permits defocus estimation
+% This will likely be removed in favor of deleting all the blockes under its control
+use_background_estimate = false;
 % Default true, we don't need this after projection
 delete_background_estimate = true;
 
@@ -246,22 +248,11 @@ for iTiltSeries = tiltStart:nTiltSeries
   skip_this_tilt_series_because_it_is_empty = false(nTomograms,1);
   
   % tomoList = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
-  tomoList = {};
-  tomoIDX = 1;
+  tomoList = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).tomoList;
   tilt_filename = sprintf('%saliStacks/%s_ali%d.fixed', CWD, tiltNameList{iTiltSeries}, mapBackIter + 1);
   [~, tltName, tltExt] = fileparts(tilt_filename);
   tilt_binned_filename = sprintf('%scache/%s_bin%d%s', CWD, tltName, samplingRate, tltExt);
-  fn = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
-  for iTomo = 1:numel(fn)
-    if strcmp(subTomoMeta.mapBackGeometry.tomoName.(fn{iTomo}).tiltName, tiltNameList{iTiltSeries})
-      % This is dumb, fix it to be explicit.
-      if (subTomoMeta.mapBackGeometry.tomoCoords.(fn{iTomo}).is_active)
-        tomoList{tomoIDX} = fn{iTomo};
-        % Only increment if values found.
-        tomoIDX = tomoIDX + 1;
-      end
-    end
-  end
+
   
   [~,tiltBaseName,~] = fileparts(tilt_filename);
   mbOUT{3} = tiltBaseName;
@@ -424,38 +415,41 @@ for iTiltSeries = tiltStart:nTiltSeries
   sprintf('[%d,%d]',maxZ,samplingRate);
   tiltNameList{iTiltSeries};
   
-  
-  backgroundName = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec',CWD,tiltNameList{iTiltSeries},1, samplingRate);
-  fprintf('In tomocpr, using background estimate %s\n\n',backgroundName);
-  send_backgroundLowPassResolution = 28;
+  if (use_background_estimate)
+    backgroundName = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec',CWD,tiltNameList{iTiltSeries},1, samplingRate);
+    fprintf('In tomocpr, using background estimate %s\n\n',backgroundName);
+    send_backgroundLowPassResolution = 28;
 
-  % TODO: investigate deviations from the default, which is to shut off the phakePhasePlate and to use a backgroundLowPassResolution of 28
-  % Default false, we don't apply this filter
-  % if enabled, it currently only saves the filtered background estimate for visualization in addition to the normal version
-  % if (emc.save_mapback_classes)
-  %   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3, tmpCache);
-  % end
-  % FIXME: calling like this does not use the surface fit for the background
-  send_phakePhasePlateOption = [0,0];
-  BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution, tmpCache);
+    % TODO: investigate deviations from the default, which is to shut off the phakePhasePlate and to use a backgroundLowPassResolution of 28
+    % Default false, we don't apply this filter
+    % if enabled, it currently only saves the filtered background estimate for visualization in addition to the normal version
+    % if (emc.save_mapback_classes)
+    %   BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, 1, 3, tmpCache);
+    % end
+    % FIXME: calling like this does not use the surface fit for the background
+    send_phakePhasePlateOption = [0,0];
+    BH_ctf_Correct3d(PARAMETER_FILE,sprintf('[%d,%d]',maxZ,samplingRate),tiltNameList{iTiltSeries}, send_phakePhasePlateOption, send_backgroundLowPassResolution, tmpCache);
+    
+    % re-initialize the parpool for each tilt series to free up mem.
+    delete(gcp('nocreate'))
+    EMC_parpool(nWorkers);
   
-  % re-initialize the parpool for each tilt series to free up mem.
-  delete(gcp('nocreate'))
-  EMC_parpool(nWorkers);
   
-  
-  avgTomo{1} = getVolume(MRCImage(backgroundName));
-  
-  if (delete_background_estimate)
-    system(sprintf('rm -f %s',backgroundName));
-  end
+    avgTomo{1} = getVolume(MRCImage(backgroundName));
+    avgTomo{1} = avgTomo{1} ./ (rmsScale*rms(avgTomo{1}(:)));
+    if (delete_background_estimate)
+      system(sprintf('rm -f %s',backgroundName));
+    end
+  else
+    avgTomo{1} = zeros(reconstruction_size, 'single');
+  end % if (use_background_estimate)
   
   for iRef = 1:nRefs
     refVol{1}{iRef} = gpuArray(refVol{1}{iRef});
     refVol{2}{iRef} = gpuArray(refVol{2}{iRef});
     particleMask{iRef} = gpuArray(particleMask{iRef});
   end
-  avgTomo{1} = avgTomo{1} ./ (rmsScale*rms(avgTomo{1}(:)));
+  
 
   
   if (emc.save_mapback_classes)
@@ -467,6 +461,10 @@ for iTiltSeries = tiltStart:nTiltSeries
     coordSTART = fopen(sprintf('%smapBack%d/%s.coord_start',mbOUT{1:3}),'w');
     if (emc.save_mapback_classes)
       coordCLASS = fopen(sprintf('%smapBack%d/%s.coord_class',mbOUT{1:3}),'w');
+      coordCLASS_perTomo = cell(nTomograms,1);
+      for iCoordClassPerTomo = 1:nTomograms
+        coordClass_perTomo{iCoordClassPerTomo} = fopen(sprintf('%smapBack%d/%s.coord_class',mbOUT{1:2},tomoList{iCoordClassPerTomo}),'w');
+      end
     end    
     defOUT   = fopen(sprintf('%smapBack%d/%s.defAng',mbOUT{1:3}),'w');
   end
@@ -518,7 +516,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     positionList = geometry.(tomoList{iTomo});
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
-    tiltName   = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
@@ -536,10 +533,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     sTY = floor(tiltHeader.nY );
     iTLT = floor(tiltHeader.nZ);
 
-    
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconGeometry = masterTM.mapBackGeometry.tomoCoords.(tomoList{iTomo});
+    reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
     tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
                                     reconGeometry.dY_specimen_to_tomo, ...
                                     reconGeometry.dZ_specimen_to_tomo];              
@@ -636,6 +632,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           iMaskResamp = BH_resample3d(particleMask{iRefIDX},subtomo_rot_matrix',shiftVAL,'Bah','GPU','forward');
           
           iAvgResamp = gather(iMaskResamp.*iAvgResamp);
+
           
           if (emc.save_mapback_classes)
             if ~(emc.save_mapback_classes)
@@ -674,7 +671,9 @@ for iTiltSeries = tiltStart:nTiltSeries
               1+padVAL(1,2):end-padVAL(2,2),...
               1+padVAL(1,3):end-padVAL(2,3));
           catch
-            fprintf('Warning, subTomo %d appears to be out of bounds in mapBack?\n');
+            fprintf('Warning, subTomo %d appears to be out of bounds in mapBack?\n', iSubTomo);
+            indVAL
+            size(avgTomo{1})
             continue
           end
           
@@ -688,6 +687,10 @@ for iTiltSeries = tiltStart:nTiltSeries
           % Save a non-rotated model with each class on its own object for visualization
           if (emc.save_mapback_classes)
             fprintf(coordCLASS,'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_wrt_tilt_origin'./samplingRate + binned_specimen_origin_in_specimen_frame'- emc.prjVectorShift');
+            % Also save one for each tomo
+            fprintf(coordClass_perTomo{iTomo},'%d 1 %0.4f %0.4f %0.4f\n', iClassIDX, subtomo_origin_in_tomo_frame'./samplingRate - emc.prjVectorShift');
+          
+            
           end
 
           for iPrj = 1:nPrjs
@@ -737,8 +740,14 @@ for iTiltSeries = tiltStart:nTiltSeries
         '%smapBack%d/%s.coord_class %smapBack%d/%s_classIdx.3dfid'], ...
         mbOUT{1:3},mbOUT{1:3});
       system(p2m);
+      for iCoordClassPerTomo = 1:nTomograms
+        fclose(coordClass_perTomo{iCoordClassPerTomo});
+        p2m = sprintf(['point2model -sphere 6 -thick 6 -scat  ',...
+          '%smapBack%d/%s.coord_class %smapBack%d/%s_classIdx.3dfid'], ...
+          mbOUT{1:2},tomoList{iCoordClassPerTomo},mbOUT{1:2},tomoList{iCoordClassPerTomo});
+        system(p2m);
+      end
     end
-    
     p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 ',...
                   '%smapBack%d/%s.coord %smapBack%d/%s.3dfid'], ...
                   mbOUT{1:3},mbOUT{1:3});

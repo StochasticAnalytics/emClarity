@@ -27,15 +27,19 @@ function nBytes = getModeBytes(mRCImage)
 
 switch  mRCImage.header.mode
  case 0
-  nBytes = 1;
+  nBytes = 1; % byte
  case 1
-  nBytes = 2;
+  nBytes = 2; % int16
  case 2
-  nBytes = 4;
+  nBytes = 4; % single
  case 3
-  nBytes = 4;
+  nBytes = 4; % complex int16
  case 4
-  nBytes = 8;
+  nBytes = 8; % complex single
+ case 6
+   nBytes = 2; % uint16
+ case 12
+   nBytes = 2; % half (16-bit float)
  otherwise
   nBytes = -1;
 end

@@ -51,7 +51,7 @@ mRCImage.fid = openWritable(mRCImage);
 status = fseek(mRCImage.fid, 0, 'bof');
 if status
   disp('Could not move the file pointer to the begining ');
-  PEETError('Could not seek to beginning of file id %d!', mRCImage.fid);
+  PEETError('Could not seek to beginning of file id %d', mRCImage.fid);
 end
 
 % Write out the dimensions of the data
@@ -78,20 +78,19 @@ writeAndCheck(mRCImage.fid, mRCImage.header.minDensity, 'float32');
 writeAndCheck(mRCImage.fid, mRCImage.header.maxDensity, 'float32');
 writeAndCheck(mRCImage.fid, mRCImage.header.meanDensity, 'float32');
 
-writeAndCheck(mRCImage.fid, mRCImage.header.spaceGroup, 'int16');
-writeAndCheck(mRCImage.fid, mRCImage.header.nSymmetryBytes, 'int16');
+writeAndCheck(mRCImage.fid, mRCImage.header.spaceGroup, 'int32');
 writeAndCheck(mRCImage.fid, mRCImage.header.nBytesExtended, 'int32');
 % MRC EXTRA section
 writeAndCheck(mRCImage.fid, mRCImage.header.creatorID, 'int16');
-writeAndCheck(mRCImage.fid, char(zeros(1, 30)), 'uchar');
+writeAndCheck(mRCImage.fid, mRCImage.header.extraInfo1, 'uchar');
   
 writeAndCheck(mRCImage.fid, mRCImage.header.nBytesPerSection, 'int16');
 writeAndCheck(mRCImage.fid, mRCImage.header.serialEMType, 'int16');
-writeAndCheck(mRCImage.fid, char(zeros(1, 20)), 'uchar');
+writeAndCheck(mRCImage.fid, mRCImage.header.extraInfo2, 'uchar');
   
 mRCImage.header.imodStamp = defaultIMODStamp();
 writeAndCheck(mRCImage.fid, mRCImage.header.imodStamp, 'int32');
-if getWriteBytesAsSigned(mRCImage);
+if getWriteBytesAsSigned(mRCImage)
   mRCImage.header.imodFlags =                                          ...
     int32(bitor(uint32(mRCImage.header.imodFlags), 1));
 end
@@ -126,12 +125,12 @@ for iLabel = 1:mRCImage.header.nLabels
 end
 
 % If there's room, add a label indicating writing by PEET
-%if mRCImage.header.nLabels < 10
-%  msg = ['Written by PEET / MatTomo ' datestr(now)];
-%  writeAndCheck(mRCImage.fid, msg, 'uchar');
-%  writeAndCheck(mRCImage.fid, char(blanks(80 - length(msg))), 'uchar');
-%  mRCImage.header.nLabels = mRCImage.header.nLabels + 1;
-%end
+if mRCImage.header.nLabels < 10
+msg = ['Written by PEET / MatTomo ' datestr(now)];
+writeAndCheck(mRCImage.fid, msg, 'uchar');
+writeAndCheck(mRCImage.fid, char(blanks(80 - length(msg))), 'uchar');
+mRCImage.header.nLabels = mRCImage.header.nLabels + 1;
+end
 
 % Use blank messages for the remainder
 for iJunk = mRCImage.header.nLabels+1:10
@@ -146,7 +145,11 @@ return
 % Simple error checking write
 function writeAndCheck(fid, matrix, precision)
   nElements = numel(matrix);
-  count = fwrite(fid, matrix, precision);
+  if strcmp(precision, 'half')
+    count = fwrite(fid, matrix, 'uint16');
+  else
+    count = fwrite(fid, matrix, precision);
+  end
   if count ~= nElements
     error('Matrix contains %d elements, but only wrote %d',nElements, count);
   end

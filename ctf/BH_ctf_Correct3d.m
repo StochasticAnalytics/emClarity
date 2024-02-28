@@ -317,15 +317,15 @@ for iGPU = 1:nGPUs
   iterList{gpuList(iGPU)};
 end
 
-% try
-% EMC_parpool(nGPUs)
-% catch
-% delete(gcp('nocreate'))
-% EMC_parpool(nGPUs)
-% end
+try
+EMC_parpool(nGPUs)
+catch
+delete(gcp('nocreate'))
+EMC_parpool(nGPUs)
+end
 
-% parfor iGPU = 1:nGPUs
-for iGPU = 1:nGPUs %%revert
+parfor iGPU = 1:nGPUs
+% for iGPU = 1:nGPUs %%revert
  
   for iTilt = iterList{gpuList(iGPU)}
     nTomos = 0;
@@ -384,8 +384,8 @@ end
 
 % All data is handled through disk i/o so everything unique created in the
 % parfor is also destroyed there as well.
-% parfor iGPU = 1:nGPUs 
-for iGPU = 1:nGPUs %%revert
+parfor iGPU = 1:nGPUs 
+% for iGPU = 1:nGPUs %%revert
 
   % for iGPU = 1:nGPUs
   gpuDevice(gpuList(iGPU));
@@ -462,19 +462,19 @@ for iGPU = 1:nGPUs %%revert
       iCoords = tiltRecGeom{iTilt};
       % iCoords will be a cell indexed by each tomo wwith a struct .tomoCoords
     else
-      nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
-      % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
-      iCoords = cell(nTomos,1);
-      for iCoordIdx = 1:nTomos
-        iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(iTomoList{iCoordIdx});
-      % FIXME
+      if (recon_for_tomoCPR)
+        nTomos = 1;
+        iCoords = {subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{1})};
+      else
+        nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
+        % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
+        iCoords = cell(nTomos,1);
+        for iCoordIdx = 1:nTomos
+          iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(iTomoList{iCoordIdx});
+        % FIXME
+        end
       end
-    % else
-    %   if (recon_for_tomoCPR)
-    %     nTomos = 1;
-    %   else
 
-    %   end
     end
 
     
@@ -494,7 +494,7 @@ for iGPU = 1:nGPUs %%revert
     maskedStack = single(getVolume(MRCImage(inputStack)));
     
     if (recon_for_subTomo)
-      [ ~, specimen_NX_nm, tomoIdx, ~ ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
+      [ ~, specimen_NZ_nm, tomoIdx, ~ ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
                                                   iTomoList,nTomos, emc.pixel_size_angstroms, ...
                                                   samplingRate, cycleNumber,...
                                                   0,1);
@@ -504,8 +504,9 @@ for iGPU = 1:nGPUs %%revert
         NY = size(maskedStack,2);
         
         %           NY = size(maskedStack,2)-1;
-        NZ = floor(reconstructionParameters(1))
-        specimen_NX_nm = NZ;
+        NZ = floor(reconstructionParameters(1));
+        specimen_NZ_nm = NZ * emc.pixel_size_angstroms / 10;
+      
         % iCoords = [NX,0,NY-1,NZ,0,0];
         tomoIdx = 1;
         % FIXME
@@ -518,7 +519,7 @@ for iGPU = 1:nGPUs %%revert
           iCoords{iCoordIdx}.tomoCoords.NZ = NZ * samplingRate;
         end
       else
-        [ ~, specimen_NX_nm, tomoIdx, ~ ] = calcAvgZ('dummy',iCoords,tiltList{iTilt}, ...
+        [ ~, specimen_NZ_nm, tomoIdx, ~ ] = calcAvgZ('dummy',iCoords,tiltList{iTilt}, ...
           iTomoList,nTomos, emc.pixel_size_angstroms, ...
           samplingRate, cycleNumber,...
           0,1);
@@ -527,7 +528,7 @@ for iGPU = 1:nGPUs %%revert
     
     if ( flg2dCTF || recon_for_tomoCPR)
       n_slabs_to_reconstruct = 1;
-      ctf3dDepth = specimen_NX_nm * 10 ^ -9;
+      ctf3dDepth = specimen_NZ_nm * 10 ^ -9;
     else
       % TODO: for very thick specimen, this may be preventing the avg from getting to high enough
       % resolution to be useful. So far, this is only optimized on in vitro samples.
@@ -536,7 +537,7 @@ for iGPU = 1:nGPUs %%revert
       [ ctf3dDepth ] = BH_ctfCalcError( samplingRate*mean(TLT(:,16)), ...
                                         TLT(1,17),TLT(1,18),abs(TLT(1,15)), ...
                                         2048, TLT(1,19), ...
-                                        resTarget,specimen_NX_nm*10, ...
+                                        resTarget,specimen_NZ_nm*10, ...
                                         dampeningMax,CYCLE);
       fprintf('\n\nCalculated a ctfDepth of %2.2f nm for %s\n\n',ctf3dDepth*10^9,tiltList{iTilt});
       if (ctf3dDepth > emc.max_ctf3dDepth)
@@ -547,7 +548,7 @@ for iGPU = 1:nGPUs %%revert
       % the mean defocus determination, although this could be corrected using
       % knowledge of particle positions given assurance that particles are the
       % primary source of signal (and not carbon for example).
-      n_slabs_to_reconstruct = ceil(specimen_NX_nm/(ctf3dDepth*10^9));
+      n_slabs_to_reconstruct = ceil(specimen_NZ_nm/(ctf3dDepth*10^9));
       % max odd number
       n_slabs_to_reconstruct = n_slabs_to_reconstruct + ~mod(n_slabs_to_reconstruct,2);
     end
@@ -560,7 +561,7 @@ for iGPU = 1:nGPUs %%revert
     
 
     if (recon_for_subTomo)
-      [ avgZ, specimen_NX_nm, tomoIdx, surfaceFit ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
+      [ avgZ, specimen_NZ_nm, tomoIdx, surfaceFit ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
         iTomoList,nTomos, emc.pixel_size_angstroms, ...
         samplingRate, cycleNumber,...
         slab_list, 0);
@@ -602,7 +603,7 @@ for iGPU = 1:nGPUs %%revert
         
         [ correctedStack ] = ctfMultiply_tilt(n_slabs_to_reconstruct,iSection,ctf3dDepth, ...
                                               avgZ,TLT,emc.pixel_size_angstroms,maskedStack,...
-                                              specimen_NX_nm*10/emc.pixel_size_angstroms,flgDampenAliasedFrequencies,...
+                                              specimen_NZ_nm*10/emc.pixel_size_angstroms,flgDampenAliasedFrequencies,...
                                               preCombDefocus,samplingRate,...
                                               applyExposureFilter,surfaceFit,...
                                               useSurfaceFit,invertDose,...
@@ -671,13 +672,13 @@ for iGPU = 1:nGPUs %%revert
           end
          
           % round down and then we'll add any extra needed to the final chunk
-          tiltChunkSize = floor(iCoords{thisTomo}.NY ./ samplingRate ./ emc.n_tilt_workers);
+          tiltChunkSize = floor(iCoords{iT}.NY ./ samplingRate ./ emc.n_tilt_workers);
           % This shoulid never happen, but to be safe
-          if (emc.n_tilt_workers > floor(iCoords{thisTomo}.NY ./ samplingRate))
+          if (emc.n_tilt_workers > floor(iCoords{iT}.NY ./ samplingRate))
             error('n_tilt_workers is greater than the number of slices in the tilt series');
           end
-          y_i = floor(iCoords{thisTomo}.y_i ./ samplingRate);
-          y_f = floor(iCoords{thisTomo}.y_f ./ samplingRate);
+          y_i = floor(iCoords{iT}.y_i ./ samplingRate);
+          y_f = floor(iCoords{iT}.y_f ./ samplingRate);
 
 
           tiltChunks = y_i:tiltChunkSize:y_f;
@@ -691,8 +692,7 @@ for iGPU = 1:nGPUs %%revert
             tiltChunks(1) = 0;
             n_slices_in_Y = tiltChunks(end) - tiltChunks(1) + 1;
           end
-          
-         
+
           rCMD = sprintf(['tilt %s %s -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
             '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
             super_sample, ... 
@@ -701,9 +701,9 @@ for iGPU = 1:nGPUs %%revert
             reconName, ...
             rawTLT, ...
             gpuList(iGPU), ...
-            floor(iCoords{thisTomo}.NX ./ samplingRate),... % WIDTH = NX
+            floor(iCoords{iT}.NX ./ samplingRate),... % WIDTH = NX
             floor(round(slab_list{iT}(iSection,5))), ... % THICKNESS = NZ
-            iCoords{thisTomo}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
+            iCoords{iT}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
             slab_list{iT}(iSection,6));
           
           
@@ -973,7 +973,7 @@ end
 
 function [correctedStack] = ctfMultiply_tilt(n_slabs_to_reconstruct,iSection,ctf3dDepth, ...
                                             avgZ,TLT,pixel_size_angstroms,maskedStack,...
-                                            specimen_NX_nm,flgDampenAliasedFrequencies,...
+                                            specimen_NZ_nm,flgDampenAliasedFrequencies,...
                                             preCombDefocus,samplingRate,...
                                             applyExposureFilter,surfaceFit,...
                                             useSurfaceFit,invertDose, ...
@@ -1051,8 +1051,7 @@ phi = [];
 
 if (filterProjectionsForTomoCPRBackground ~= 0)
   bpFilter = BH_bandpass3d(fastFTSize,0, 0, filterProjectionsForTomoCPRBackground, 'GPU',pixel_size_angstroms);
-  fprintf('Filtering input projections to %f angstroms with %f pixel size\n',bpFilter,pixel_size_angstroms);
-
+  % fprintf('Filtering input projections to %f angstroms with %f pixel size\n',bpFilter,pixel_size_angstroms);
 else
   bpFilter = 1;
 end
@@ -1060,7 +1059,7 @@ end
 
 for iPrj = 1:nPrjs
   
-  maxEval = cosd(TLT(iPrj,4)).*(d1/2) + specimen_NX_nm./2*abs(sind(TLT(iPrj,4)));
+  maxEval = cosd(TLT(iPrj,4)).*(d1/2) + specimen_NZ_nm./2*abs(sind(TLT(iPrj,4)));
   oX = emc_get_origin_index(d1);
   oY = emc_get_origin_index(d2);
   iEvalMask = floor(oX-maxEval):ceil(oX+maxEval);
@@ -1182,7 +1181,7 @@ end % end loop over projections
 clear tile Hqz
 end
 
-function [avgZ, specimen_NX_nm, tomoIdx,surfaceFit] = calcAvgZ(subTomoMeta, ...
+function [avgZ, specimen_NZ_nm, tomoIdx,surfaceFit] = calcAvgZ(subTomoMeta, ...
                                                                iCoords, ...
                                                                tiltName, ...
                                                                tomoList,...
@@ -1206,14 +1205,14 @@ else
   val_to_pass = 'dummy';
 end
 
-[ specimen_NX_nm, tomoIdx ] = emc_get_max_specimen_NZ(val_to_pass, ...
+[ specimen_NZ_pixels, tomoIdx ] = emc_get_max_specimen_NZ(val_to_pass, ...
                                                       iCoords, ...
                                                       tomoList, ...
                                                       nTomos, ...
                                                       samplingRate);
 
-specimen_NX_nm = specimen_NX_nm .* pixel_size_angstroms ./ 10;
-fprintf('combining the thickness and shift on tilt %s, found a specimen_NX_nm  %3.3f nm\n',tiltName,specimen_NX_nm);
+specimen_NZ_nm = specimen_NZ_pixels .* pixel_size_angstroms ./ 10;
+fprintf('combining the thickness and shift on tilt %s, found a specimen_NZ_nm  %3.3f nm\n',tiltName,specimen_NZ_nm);
 
 if (calcMaxZ)
   return;
@@ -1259,7 +1258,7 @@ for iT = 1:nTomos
 
   % X in the Y frame means a vector from the Y lower left to the X origin
   % X origin wrt Y origin is a vector from the origin of Y to the X origin
-  reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
+  reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iT});
   tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
                                 reconGeometry.dY_specimen_to_tomo, ...
                                 reconGeometry.dZ_specimen_to_tomo];              

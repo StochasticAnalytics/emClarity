@@ -160,7 +160,8 @@ if nArgs > 1 && ~(emcHelp || emcProgramHelp)
       multiGPUs = 0;
     case 'cleanTemplateSearch'
       multiGPUs = 0;
-      
+    case 'segment'
+      multiGPUs = 0;
     otherwise
       emc = emC_testParse(varargin{2});
   end
@@ -187,6 +188,7 @@ switch varargin{1}
       '\nhelp - this message\n',...
       '\n\t\t for more details, emClarity <program> help\n',...
       '\ncheck - system check for dependencies\n',...
+      '\nsegment - define subregions to reconstruct\n',...
       '\ninit - create a new project from template matching results.\n',...
       '\nautoAlign - align tilt-serie\n',...
       '\navg - average subtomograms\n',...
@@ -223,6 +225,13 @@ switch varargin{1}
       fprintf('check takes no arguments');
     else
       BH_checkInstall(getenv('BH_CHECKINSTALL'))
+    end
+  case 'segment'
+    if emcProgramHelp || ...
+        length(varargin) ~= 2
+      fprintf(['\nUsage:  emClarity segment build (make bin10 tomos)\n\tor\n\temClarify segment recon (convert model files)\n']);
+    else
+      recScript(varargin{2});
     end
   case 'init'
     if emcProgramHelp || ...

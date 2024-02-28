@@ -31,6 +31,11 @@ end
 
 nVoxels = mRCImage.header.nX * mRCImage.header.nY * mRCImage.header.nZ;
 modeStr = getModeString(mRCImage);
+% fread doesn't yet recognize "half"
+% read as uint16 and then typecast to half later
+if strcmp(modeStr, 'half')
+  modeStr = 'uint16';
+end
 if strcmp(modeStr, 'int16*2') || strcmp(modeStr, 'float32*2')
   % handle reading complex volume
   modeStr = modeStr(1 : end - 2);
@@ -62,7 +67,9 @@ end
   
 mRCImage.flgVolume = 1;
 
-
+if mRCImage.header.mode == 12
+  mRCImage.volume = half.typecast(mRCImage.volume);
+end
 mRCImage.volume = reshape(mRCImage.volume, ...
                           mRCImage.header.nX, ...
                           mRCImage.header.nY, ...

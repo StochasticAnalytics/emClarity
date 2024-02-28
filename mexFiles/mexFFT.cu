@@ -208,8 +208,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     mexMakeArrayPersistent(plhs[2]);
 
 
-
-
     if ( ! fwd_xform ) {
       mexErrMsgIdAndTxt("The cufft plan must be created on a forward transform.","womp");
     }

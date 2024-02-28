@@ -15,11 +15,12 @@ imgRMS = gather(rms(vol(:)));
 
 mRCImage = MRCImage(gather(vol));
 
-mRCImage.header.minDensity = imgMin;
-mRCImage.header.maxDensity = imgMax;
+% These are all expected to be singles
+mRCImage.header.minDensity = single(imgMin);
+mRCImage.header.maxDensity = single(imgMax);
 
-mRCImage.header.meanDensity = imgMean;
-mRCImage.header.densityRMS = imgRMS;
+mRCImage.header.meanDensity = single(imgMean);
+mRCImage.header.densityRMS = single(imgRMS);
 %   mRCImage.writeHeader(mRCImage);   Changed SAVE_IMG to write out the header no matter what.
 
 switch length(varargin)

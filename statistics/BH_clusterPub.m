@@ -10,8 +10,6 @@ cycleNumber = sprintf('cycle%0.3u', CYCLE);
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
-% Only used in PCA pub right now
-test_multi_ref_diffmap=true;
 
 %%% For general release, I've disabled class average alignment and
 %%% multi-reference alignment, so set the default to OFF. If either of
@@ -24,7 +22,6 @@ else
 end
 
 
-nRows = emc.n_scale_spaces;
 featureVector = cell(2,1);
 if flgGold
   featureVector{1,1} = emc.('Pca_coeffs_odd');
@@ -34,10 +31,7 @@ else
   featureVector{1,1}
 end
 
-nFeatures = size(featureVector{1,1});
-if (nFeatures(1) ~= nRows)
-  error('There should be a set of indices for each pca_scale_spaces, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
-end
+nFeatures = size(featureVector{1,1})
 
 nCores       = BH_multi_parallelWorkers(emc.('nCpuCores'));
 
@@ -128,9 +122,12 @@ for iGold = 1:1+flgGold
   end
   
   %%% experimental part of pcaMS
-  nScaleSpace = size(featureVector{iGold},1)
-  featureVector{1}
-  nFeatures = zeros(1,nScaleSpace)
+  nScaleSpace = size(coeffsUNTRIMMED,1);
+  nFeatures = zeros(1,nScaleSpace);
+  if (nFeatures(1) ~= nScaleSpace)
+    error('There should be a set of indices for each pca_scale_spaces, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
+  end
+  
   
   %   if length(relativeScale) ~= nScaleSpace
   %     error('relativeScale has %d elements for %d scaleSpaces', ...
@@ -143,7 +140,7 @@ for iGold = 1:1+flgGold
       nFeatures(iScale) = nnz(featureVector{iGold}(iScale,:));
     end
     coeffMat = zeros(sum(nFeatures), nJ, 'single');
-    nAdded = 0
+    nAdded = 0;
     for iScale = 1:nScaleSpace
       fV = featureVector{iGold}(iScale,:);
       fV = sort(fV(fV~=0))
