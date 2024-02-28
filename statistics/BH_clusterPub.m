@@ -124,9 +124,7 @@ for iGold = 1:1+flgGold
   %%% experimental part of pcaMS
   nScaleSpace = size(coeffsUNTRIMMED,1);
   nFeatures = zeros(1,nScaleSpace);
-  if (nFeatures(1) ~= nScaleSpace)
-    error('There should be a set of indices for each pca_scale_spaces, is Pca_coeffis using ; vs , to ensure a matrix vs vector?')
-  end
+
   
   
   %   if length(relativeScale) ~= nScaleSpace

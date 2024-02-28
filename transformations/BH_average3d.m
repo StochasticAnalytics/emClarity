@@ -1526,6 +1526,11 @@ if ~( flgEstSNR )
     end
     iOdd = iRef;
     iEve = iRef;
+
+    % Just in case we want to average without the shape mask after classification
+    if strcmpi(STAGEofALIGNMENT, 'Cluster')
+      mskParams{5} = emc.fsc_shape_mask;
+    end
     
     if (flgFinalAvg)
       % negative to combine but NOT apply the xform to the odd set
