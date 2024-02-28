@@ -3,6 +3,8 @@
 #include "gpu/mxGPUArray.h"
 #include "matrix.h"
 
+#include "ieee-754-half/half.hpp"
+
 // Cuda includes
 #include <cuda.h>
 #include <cuda_runtime.h>

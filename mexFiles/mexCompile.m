@@ -16,7 +16,7 @@ end
 if nargin > 0
   mexFILE = varargin;
 else
- mexFILE = {'mexCTF','mexFFT','mexXform3d','mexSF3D'};
+ mexFILE = {'mexCTF','mexFFT','mexXform3d','mexSF3D', 'mexFP16'};
 %  mexFILE = {'mexXform3d'};
 end
 % --extra-device-vectorization 

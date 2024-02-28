@@ -21,6 +21,21 @@ mRCImage.header.maxDensity = single(imgMax);
 
 mRCImage.header.meanDensity = single(imgMean);
 mRCImage.header.densityRMS = single(imgRMS);
+
+if (length(varargin) > 0)
+  if isa(varargin{1}, 'cell')
+    if strcmp(varargin{1}{2}, 'half')
+      mRCImage.header.mode = 12;
+      tmp_vol = zeros(size(vol), 'uint16');
+      mexFP16(single(vol), tmp_vol);
+      mRCImage.volume = tmp_vol;
+      varargin{1} = varargin{1}{1};
+    else
+      error('Unknown option for SAVE_IMG, should be {filename, half}');
+    end
+  end
+end
+
 %   mRCImage.writeHeader(mRCImage);   Changed SAVE_IMG to write out the header no matter what.
 
 switch length(varargin)
