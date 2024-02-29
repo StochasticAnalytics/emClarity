@@ -1,4 +1,4 @@
-function [nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, calcSize, flgAvg)
+function [nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, calcSize, flgAvg, varargin)
 
 
 % Rough Scaling of processes by mem available. Assuming all gpus are
@@ -20,6 +20,14 @@ elseif totMem > 12.8e9 && totMem < 17.2e9
   scaleMem = 1.3;
 else
   scaleMem = 2.2;
+end
+do_split = false;
+if nargin > 4
+  split_jobs = varargin{1};
+  do_split = true;
+  if (numel(split_jobs) ~= 2)
+    error('split_jobs must be a 2 element vector');
+  end
 end
 fprintf('found totalMem on GPU1 %3.3e, nWorkers %d, so scaling nProcs by %2.2f\n',totMem,pInfo.NumWorkers,scaleMem);
 % need to add restrainst on parpool size, and also try to balance based on number of tomograms.
@@ -66,13 +74,22 @@ if (flgAvg > 0)
   nParProcesses = min(nParProcesses,flgAvg);
 end
 
-nIters = min(nParProcesses,nTomograms);
+nWorkersPerGPU = min(nParProcesses,nTomograms);
 
 % fprintf('Using %d workers in %d batches\n',nParProcesses,(1+nTomograms)./nParProcesses);
 % Divide the tomograms up over each gpu
-iterList = cell(nIters,1);
-for iParProc = 1:nIters
-  iterList{iParProc} = iParProc:nIters:nTomograms;
+if (do_split)
+  gpu_id = split_jobs(1);
+  n_gpus = split_jobs(2);
+  iterList = cell(nWorkersPerGPU,1);
+  for iParProc = 0:nWorkersPerGPU-1
+    iterList{iParProc+1} = gpu_id + n_gpus*iParProc:nWorkersPerGPU*n_gpus:nTomograms;
+  end
+else
+  iterList = cell(nWorkersPerGPU,1);
+  for iParProc = 1:nWorkersPerGPU
+    iterList{iParProc} = iParProc:nWorkersPerGPU:nTomograms;
+  end
 end
 
 end

@@ -312,22 +312,20 @@ end
 iterList = cell(nGPUs,1);
 % If there is only one tilt, things break in a weird way
 nGPUs = min(nGPUs, nTilts);
-for iGPU = 1:nGPUs
-  iterList{gpuList(iGPU)} = iGPU+(tiltStart-1):nGPUs:nTilts;
-  iterList{gpuList(iGPU)};
-end
+
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTilts, nGPUs, 256, emc.nCpuCores);
 
 try
-EMC_parpool(nGPUs)
+  EMC_parpool(nParProcesses)
 catch
-delete(gcp('nocreate'))
-EMC_parpool(nGPUs)
+  delete(gcp('nocreate'))
+  EMC_parpool(nParProcesses)
 end
 
-parfor iGPU = 1:nGPUs
+parfor iParProc = 1:nParProcesses
 % for iGPU = 1:nGPUs %%revert
- 
-  for iTilt = iterList{gpuList(iGPU)}
+  iGPU = mod(iParProc,nGPUs);
+  for iTilt = iterList{iParProc}
     nTomos = 0;
     alreadyMade = 0;
     iTomoList = {};
@@ -337,7 +335,6 @@ parfor iGPU = 1:nGPUs
     % not present.
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
     TLT = load(TLTNAME);
-    % fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
 
 
     
@@ -383,14 +380,15 @@ parfor iGPU = 1:nGPUs
 end
 
 % All data is handled through disk i/o so everything unique created in the
-% parfor is also destroyed there as well.
-parfor iGPU = 1:nGPUs 
+parfor iParProc = 1:nParProcesses
+  % for iGPU = 1:nGPUs %%revert
+    iGPU = mod(iParProc,nGPUs);
 % for iGPU = 1:nGPUs %%revert
 
   % for iGPU = 1:nGPUs
-  gpuDevice(gpuList(iGPU));
+  gpuDevice(iGPU+1);
   % Loop over each tilt
-  for iTilt = iterList{gpuList(iGPU)}
+  for iTilt = iterList{iParProc}
     slab_list = {};
     
     % if (recon_for_subTomo)
@@ -420,7 +418,7 @@ parfor iGPU = 1:nGPUs
 
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt}, mapBackIter + 1 );
     TLT = load(TLTNAME);
-    fprintf('iGPU %d and iTilt %d using TLT %s\n', iGPU, iTilt, TLTNAME);
+    fprintf('iParProc %d and iTilt %d using TLT %s\n', iParProc, iTilt, TLTNAME);
 
   
     iTomoList = {};
@@ -700,7 +698,7 @@ parfor iGPU = 1:nGPUs
             outputStack, ...
             reconName, ...
             rawTLT, ...
-            gpuList(iGPU), ...
+            iGPU, ...
             floor(iCoords{iT}.NX ./ samplingRate),... % WIDTH = NX
             floor(round(slab_list{iT}(iSection,5))), ... % THICKNESS = NZ
             iCoords{iT}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
@@ -1251,6 +1249,7 @@ for iSection = 1:n_slabs_to_reconstruct
   zFull{iSection} = [];
 end
 
+use_subtomo_z_positions = true;
 
 for iT = 1:nTomos
 
@@ -1272,11 +1271,14 @@ for iT = 1:nTomos
   % shouldn't be any removed particles at this stage but later there would be.
   subtomo_origin_z_in_tomo_frame = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,13);
 
-  % We should not get to this point if all subtomograms have been removed.
+  % We may get here if we have split a data set into several small classes so skip the centering on average if needed
   if isempty(subtomo_origin_z_in_tomo_frame)
-    error('No subtomograms found for %s',iTomoName);
+    use_subtomo_z_positions = false;
+    fprintf('No subtomograms found for %s',iTomoName);
+    continue;
   end
 
+  
   % shift from lower left to centered and include the tomos offset from the
   subtomo_origin_wrt_specimen_origin = subtomo_origin_z_in_tomo_frame - tomo_origin_in_tomo_frame(3) + tomo_origin_wrt_tilt_origin(3);
   subtomo_origin_wrt_specimen_origin = subtomo_origin_wrt_specimen_origin ./ samplingRate;
@@ -1309,12 +1311,16 @@ for iT = 1:nTomos
 end % loop over tomos
 
 
-avgZ = totalZ / nSubTomos*pixel_size_angstroms / 10*10^-9;
+if (nSubTomos == 0)
+  avgZ = 0;
+else
+  avgZ = totalZ / nSubTomos*pixel_size_angstroms / 10*10^-9;
+end
 
 
 for iSection = 1:n_slabs_to_reconstruct
   
-  if length(xFull{iSection}) >= 6
+  if (use_subtomo_z_positions && length(xFull{iSection}) >= 6)
     surfaceFit{iSection} = fit([xFull{iSection}, yFull{iSection}],zFull{iSection},'poly22','Robust','on');
   else
     surfaceFit{iSection} = 0;

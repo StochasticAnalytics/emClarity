@@ -185,8 +185,11 @@ tomoList = tomoList(sortedTomoIDX);
   BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size  );
 
 
-
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, sizeCalc(1), emc.nCpuCores);
+if (flgStartThird)
+  [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, sizeCalc(1), emc.nCpuCores, [cycle_numerator,cycle_denominator]);
+else
+  [ nParProcesses, iterList] = BH_multi_parallelJobs(nTomograms, nGPUs, sizeCalc(1), emc.nCpuCores);
+end
 if ( flgReverseOrder )
   % Flip the order for reverse processing on a second machine. This will also disable saving of
   % of the metadata so there aren't conflicts.
@@ -194,19 +197,21 @@ if ( flgReverseOrder )
     iterList{iParProc} = flip(iterList{iParProc});
   end
   
-elseif ( flgStartThird )
+% elseif ( flgStartThird )
 
-  for iParProc = 1:nParProcesses
-    % Note the use of floor is more like ceiling here (rounds away from
-    % zero)
-    nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
-    fIDX = 1+(cycle_numerator - 1)*nParts;
-    lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
-    iterList{iParProc} = iterList{iParProc}(fIDX:lIDX);
-  end
+%   % Divide up the list in two parts,
+%   % for iParProc = 1:nParProcesses
+%   %   % Note the use of floor is more like ceiling here (rounds away from
+%   %   % zero)
+%   %   % FIXME: when combined with sorted list this is not doing what it should be.
+%   %   nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
+%   %   fIDX = 1+(cycle_numerator - 1)*nParts;
+%   %   lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
+%   %   iterList{iParProc} = iterList{iParProc}(fIDX:lIDX)
+%   % end
   
   
-else
+% else
 
 end
 
