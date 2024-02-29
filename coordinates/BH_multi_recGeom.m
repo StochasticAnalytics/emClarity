@@ -1,4 +1,4 @@
-function [ recGeom, tiltName, nTomos, tilt_geometry ] = BH_multi_recGeom( reconCoordName, mapBackIter )
+function [ recGeom, tiltName, tomoList, tilt_geometry ] = BH_multi_recGeom( reconCoordName, mapBackIter )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -48,6 +48,7 @@ end
 % Tomos may be ignored when cleaning template matching results, or later if set to be ignored
 % in geometryAnalysis or if there are zero sub-tomos left.
 recGeom = cell(nTomos,1);
+tiltList = cell(nTomos,1);
 for iTomo = 1:nTomos
   read_in_Coords = recCoords(1 + (iTomo-1)*6: 6 + (iTomo-1)*6);
   % This is not necessarily correct, e.,g you could have 4 bin10 tomos from one tilt, and not keep any model points
@@ -72,17 +73,19 @@ for iTomo = 1:nTomos
 
 
   tomoCoords = struct();
-  tomoCoords.('y_i') = (read_in_Coords(2));
-  tomoCoords.('y_f') = (read_in_Coords(3));
-  tomoCoords.('NX') = (read_in_Coords(1));
-  tomoCoords.('NY') = (read_in_Coords(3) - read_in_Coords( 2) + 1);
-  tomoCoords.('NZ') = (read_in_Coords(4));
-  tomoCoords.('dX_specimen_to_tomo') = read_in_Coords(5);
-  tomoCoords.('dY_specimen_to_tomo') = ...
-  (emc_get_origin_index(tomoCoords.('NY')) ...
-    + read_in_Coords(2)) ... % origin of the tomogram in the full tilt projection
-    - emc_get_origin_index(tilt_geometry(1,21));
+  tomoCoords.('is_active') = true;
+  tomoCoords.('NX')  = read_in_Coords(1);
+  tomoCoords.('NY')  = read_in_Coords(2);
+  tomoCoords.('NZ')  = read_in_Coords(3);
+  tomoCoords.('dX_specimen_to_tomo') = read_in_Coords(4);
+  tomoCoords.('dY_specimen_to_tomo') = read_in_Coords(5);
   tomoCoords.('dZ_specimen_to_tomo') = read_in_Coords(6);
+  tomoCoords.('tilt_NX') = tilt_geometry(1,20);
+  tomoCoords.('tilt_NY') = tilt_geometry(1,21);
+  y_i = floor(emc_get_origin_index(tilt_geometry(1,21)) + tomoCoords.('dY_specimen_to_tomo') - tomoCoords.('NY') ./ 2);
+  y_f = y_i + floor(tomoCoords.('NY')) - 1;
+  tomoCoords.('y_i') = y_i;
+  tomoCoords.('y_f') = y_f;
 
   % Check that NX, NY, NZ are all positive
   if tomoCoords.('NX') <= 0
@@ -95,8 +98,8 @@ for iTomo = 1:nTomos
     error('NZ is not positive for %s', tomoName);
   end
   
-
   recGeom{iTomo} = tomoCoords;  
+  tomoList{iTomo} = tomoName;
 end
 
 

@@ -149,7 +149,8 @@ nStacks = length(getCoords);
 % other concern is then linking each tomogram to the parent tilt-series.
 for iStack = 1:nStacks
   
-  [ recGeom, tiltName, nTomosPossible, tilt_geometry ] = BH_multi_recGeom( sprintf('recon/%s',getCoords(iStack).name), mapBackIter);
+  [ recGeom, tiltName, tmpTomoList, tilt_geometry ] = BH_multi_recGeom( sprintf('recon/%s',getCoords(iStack).name), mapBackIter);
+  nTomosPossible = length(tmpTomoList);
   % Initialize
   
   if (doImport)
@@ -158,6 +159,7 @@ for iStack = 1:nStacks
     iPath = dir(sprintf('convmap/%s_*.mod',tiltName));
   end
   
+
   nTomos = length(iPath);
   if nTomos > nTomosPossible
     error('The number of model files in convmap/*.mod is greater than the number in the recon/*.coords\n');

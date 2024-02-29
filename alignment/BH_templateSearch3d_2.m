@@ -183,7 +183,7 @@ mapPath = './cache';
 mapName = sprintf('%s_%d_bin%d',tomoName,tomoIdx,samplingRate);
 mapExt = '.rec';
 
-[ recGeom, ~, ~, ~] = BH_multi_recGeom( sprintf('recon/%s_recon.coords',tomoName), mapBackIter);
+% [ recGeom, ~, ~, ~] = BH_multi_recGeom( sprintf('recon/%s_recon.coords',tomoName), mapBackIter);
 
 
 bp_vals(2) = 2.*max(latticeRadius);

@@ -254,28 +254,18 @@ eraseRadius = ceil(1.5.*(emc.('beadDiameter')./emc.pixel_size_si.*0.5) / samplin
 nTomosPerTilt = 0;
 recGeom = 0;
 tiltRecGeom = 0;
+tomoList  = {};
+nTomos= 0;
 if (recon_for_subTomo)
-  [tiltList,nTilts] = BH_returnIncludedTilts(subTomoMeta.mapBackGeometry);
-  tomoList = fieldnames(subTomoMeta.mapBackGeometry.tomoName);
-  
+  [tiltList, nTilts] = BH_returnIncludedTilts(subTomoMeta.mapBackGeometry);  
 else  
   if (recon_for_tomoCPR)
     tiltList{1} = varargin{2};
     nTilts = 1;
-    % We just need on
-    %e valid subtomot
-    iTry = 1;
-    tomoList{1} = '';
-    while iTry < 25
-      if (isfield(subTomoMeta.mapBackGeometry.tomoName,sprintf('%s_%d',tiltList{1},iTry)))
-        tomoList{1} = sprintf('%s_%d',tiltList{1},iTry);
-        break;
-      end
-      iTry = iTry + 1;
+    if ~isfield(subTomoMeta.mapBackGeometry.(tiltList{1}).(tomoList))
+      error('Did not find any tomograms for tilt-series %s',tiltList{1});
     end
-    if isempty(tomoList{1})
-      error('Did not find a valid tomogram in the searchspace ->25');
-    end
+    tomoList = subTomoMeta.mapBackGeometry.(tiltList{1}).(tomoList);
   else
     % TODO set up a check on the recon folder to get what is needed for
     % templateSearch
@@ -285,24 +275,15 @@ else
       error('Did not find any tomogram coordinates in recon/TS*.coords');
     end
     tiltList = cell(nTilts,1);
-    nTomosTotal = 0;
-    nTomosPerTilt = cell(nTilts,1);
     tiltRecGeom = cell(nTilts,1);
+    tiltTomoList = cell(nTilts,1);
     for iStack = 1:nTilts
-      [ tiltRecGeom{iStack}, tiltName, nTomosPossible, tilt_geometry] = BH_multi_recGeom( sprintf('recon/%s',getCoords(iStack).name), mapBackIter);
-      nTomosTotal = nTomosTotal + nTomosPossible;
-      nTomosPerTilt{iStack} = nTomosPossible;
+      % Since we are calling this for templateSearch nTomosPossible == nTomos
+      % After template matching, there may be inactive tomos, but we'll have the same amount
+      [ tiltRecGeom{iStack}, tiltName, tiltTomoList{iStack}, tilt_geometry] = BH_multi_recGeom( sprintf('recon/%s',getCoords(iStack).name), mapBackIter);
       tiltList{iStack} = tiltName;
     end
-    
-    tomoList = cell(nTomosTotal,1);
-    nTomosAdd = 0;
-    for iStack = 1:nTilts
-      for iTomo = 1:nTomosPerTilt{iStack}
-        tomoList{nTomosAdd+1} = sprintf('%s_%d',tiltName,iTomo);
-        nTomosAdd = nTomosAdd +1;
-      end
-    end
+
     
   end
 end
@@ -315,20 +296,19 @@ nGPUs = min(nGPUs, nTilts);
 
 [ nParProcesses, iterList] = BH_multi_parallelJobs(nTilts, nGPUs, 256, emc.nCpuCores);
 
-try
-  EMC_parpool(nParProcesses)
-catch
-  delete(gcp('nocreate'))
-  EMC_parpool(nParProcesses)
-end
+% try
+%   EMC_parpool(nParProcesses)
+% catch
+%   delete(gcp('nocreate'))
+%   EMC_parpool(nParProcesses)
+% end
 
-parfor iParProc = 1:nParProcesses
-% for iGPU = 1:nGPUs %%revert
-  iGPU = mod(iParProc,nGPUs);
+% parfor iParProc = 1:nParProcesses
+for iParProc = 1:nParProcesses %%revert
+  % iGPU = mod(iParProc,nGPUs);
   for iTilt = iterList{iParProc}
     nTomos = 0;
     alreadyMade = 0;
-    iTomoList = {};
     
     % For now, since the tilt geometry is not necessarily updated (it is manual)
     % in the subTomoMeta, check that newer (possible perTilt refined) data is
@@ -336,28 +316,37 @@ parfor iParProc = 1:nParProcesses
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
     TLT = load(TLTNAME);
 
-
-    
     % Get all the tomogram names that belong to a given tilt-series.
     % FIXME: I'm not sure it makes sense to restrict this block to for_subTomo
-    if (recon_for_subTomo)
-      for iTomo = 1:length(tomoList)
-        if strcmp(tiltList{iTilt}, subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
-          iTomoList{nTomos+1} = tomoList{iTomo};
-          nTomos = nTomos + 1;
-        end
+    if (recon_for_subTomo || recon_for_templateMatching)
+      if (recon_for_subTomo)
+        % List of all possible tomos, some may be "in-active" since this is post-template matching
+        tomoList = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).(tomoList);
+      else
+        % List of all possible tomos, all are "active" since this is pre-template matching
+        tomoList = tiltTomoList{iTilt};
+      end
+      nTomos = length(tomoList);
+      if (bh_global_turn_on_phase_plate(1))
+        filtered = '_filtered';
+      else
+        filtered = '';
+      end
+
+      for iTomo = 1:nTomos
         % The order of tomo num could be off but only if all are present do we
         % skip.
-        if (bh_global_turn_on_phase_plate(1))
-          filtered = '_filtered';
-        else
-          filtered = '';
-        end
-        checkRecon = sprintf('cache/%s_%d_bin%d%s.rec', ...
-          tiltList{iTilt},iTomo,samplingRate,filtered);
+        checkRecon = sprintf('cache/%s_%d_bin%d%s.rec', tiltList{iTilt}, iTomo, samplingRate, filtered);
         if exist(checkRecon, 'file')
-          fprintf('found %s to already exits\n',checkRecon);
-          alreadyMade = alreadyMade +1;
+          try 
+            % Could have a corrupt file
+            testread = MRCImage(checkRecon,0);
+            fprintf('found %s to already exits\n',checkRecon);
+            alreadyMade = alreadyMade + 1
+          catch
+            fprintf('found %s to already exits but it is corrupt\n',checkRecon);
+            system(sprintf('rm %s',checkRecon));
+          end
         end
         
       end
@@ -368,20 +357,21 @@ parfor iParProc = 1:nParProcesses
       end
     end
     
-    
-    
-    preBinStacks(TLT, tiltList{iTilt}, mapBackIter,1,...
-      samplingRate,...
-      PosControl2d,...
-      tiltWeight,...
-      flgMedianFilter);
+    preBinStacks(TLT, ...
+                tiltList{iTilt}, ...
+                mapBackIter,...
+                1,...
+                samplingRate,...
+                PosControl2d,...
+                tiltWeight,...
+                flgMedianFilter);
     
   end
 end
 
 % All data is handled through disk i/o so everything unique created in the
-parfor iParProc = 1:nParProcesses
-  % for iGPU = 1:nGPUs %%revert
+% parfor iParProc = 1:nParProcesses
+  for iParProc = 1:nParProcesses %%revert
     iGPU = mod(iParProc,nGPUs);
 % for iGPU = 1:nGPUs %%revert
 
@@ -391,85 +381,45 @@ parfor iParProc = 1:nParProcesses
   for iTilt = iterList{iParProc}
     slab_list = {};
     
-    % if (recon_for_subTomo)
-    %   nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
-    %   iCoords = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).coords;
-    %   % FIXME
-    % else
-    %   if (recon_for_tomoCPR)
-    %     nTomos = 1;
-    %   else
-    %     % templaterch
-    %     nTomos  = nTomosPerTilt{iTilt};
-    %     iCoords = tiltRecGeom{iTilt};
-    %   end
-    % end
-    
-    
-    % if (recon_for_subTomo || recon_for_templateMatching))
-    %   targetSizeY = diff(floor(iCoords(:,2:3)),1,2)+1;
-    %   iCoords = iCoords ./ samplingRate;
-    %   iCoords(:,1:4) = floor(iCoords(:,1:4));
-    %   iCoords(:,3) = iCoords(:,3) - (diff(floor(iCoords(:,2:3)),1,2)+1 - floor(targetSizeY./samplingRate));
-    % end
-    % iTomoList = cell(nTomos,1);
-    
-    
-
     TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt}, mapBackIter + 1 );
     TLT = load(TLTNAME);
     fprintf('iParProc %d and iTilt %d using TLT %s\n', iParProc, iTilt, TLTNAME);
 
-  
-    iTomoList = {};
-    if (recon_for_subTomo)
-      % Get all the tomogram names that belong to a given tilt-series.
-      nTomos = 0;
-      alreadyMade = 0;
-      for iTomo = 1:length(tomoList)
-        if strcmp(tiltList{iTilt},subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName)
-          iTomoList{nTomos+1} = tomoList{iTomo};
-          nTomos = nTomos + 1;
-        end
-        % The order of tomo num could be off but only if all are present do we
-        % skip.
-        if (bh_global_turn_on_phase_plate(1))
-          filtered = '_filtered';
-        else
-          filtered = '';
-        end
-        checkRecon = sprintf('cache/%s_%d_bin%d%s.rec', ...
-          tiltList{iTilt},iTomo,samplingRate,filtered);
-        if exist(checkRecon, 'file')
-          fprintf('found %s to already exits\n',checkRecon);
-          alreadyMade = alreadyMade +1;
-        end
-        
+    if (recon_for_subTomo || recon_for_templateMatching)
+      if (recon_for_subTomo)
+        % List of all possible tomos, some may be "in-active" since this is post-template matching
+        tomoList = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).(tomoList);
+      else
+        % List of all possible tomos, all are "active" since this is pre-template matching
+        tomoList = tiltTomoList{iTilt};
       end
-      
-      if alreadyMade == nTomos
-        fprintf('All tomos 1-%d found to exist for tilt-series %s\n',nTomos,tiltList{iTilt});
-        continue
-      end
+      % else tomoCPR, nTilts = 1 and tomoList is already set
     end
+    nTomos = length(tomoList);
 
+    iCoords = cell(nTomos,1);
     if (recon_for_templateMatching)
-      % templaterch
-      nTomos  = nTomosPerTilt{iTilt};
       % tiltRecGeom is a cell with each value being a cell returned by multi_recGeom 
-      iCoords = tiltRecGeom{iTilt};
-      % iCoords will be a cell indexed by each tomo wwith a struct .tomoCoords
+      % each element of this cell is a struct tomoCoords, we effectively create an anonymous struct
+      % accessed through iCoords.
+      for iCoordIdx = 1:nTomos
+        % each element of this cell is a struct tomoCoords
+        iCoords{iCoordIdx} = tiltRecGeom{iTilt}{iCoordIdx};
+      end
     else
       if (recon_for_tomoCPR)
-        nTomos = 1;
-        iCoords = {subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{1})};
+        % Get a copy of the tomoCoords (all tomodata will be deleted and only the tilt info kept for tomoCPR)
+        % place in a cell for consistency
+        
+        iCoords{1} = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{1});
+        iCoords{1}.is_active = 1;
+        iCoords{1}.dX_specimen_to_tomo = 0;
+        iCoords{1}.dY_specimen_to_tomo = 0;
+        iCoords{1}.dZ_specimen_to_tomo = 0;
       else
-        nTomos = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).nTomos;
-        % subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.tomoCoords.dX_specimen_to_tomo;
-        iCoords = cell(nTomos,1);
         for iCoordIdx = 1:nTomos
-          iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(iTomoList{iCoordIdx});
-        % FIXME
+          % each element of this cell is a struct tomoCoords
+          iCoords{iCoordIdx} = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iCoordIdx});
         end
       end
 
@@ -477,23 +427,20 @@ parfor iParProc = 1:nParProcesses
 
     
     if samplingRate > 1
-      fullStack = sprintf('%aliStacks/%s_ali%d.fixed', ...
-        tiltList{iTilt},mapBackIter+1);
-      inputStack = sprintf('cache/%s_ali%d_bin%d.fixed',...
-        tiltList{iTilt},mapBackIter+1,samplingRate);
-      if ~exist(inputStack, 'file')
+      fullStack = sprintf('%aliStacks/%s_ali%d.fixed', tiltList{iTilt}, mapBackIter + 1);
+      inputStack = sprintf('cache/%s_ali%d_bin%d.fixed', tiltList{iTilt}, mapBackIter + 1, samplingRate);
+      if ~emc_check_for_valid_image_file(inputStack)
         BH_multi_loadOrBin(fullStack, samplingRate, 2, false);
       end
     else
-      inputStack = sprintf('aliStacks/%s_ali%d.fixed',...
-        tiltList{iTilt},mapBackIter+1);
+      inputStack = sprintf('aliStacks/%s_ali%d.fixed', tiltList{iTilt}, mapBackIter + 1);
     end
     
     maskedStack = OPEN_IMG('single', inputStack);
     
     if (recon_for_subTomo)
-      [ ~, specimen_NZ_nm, tomoIdx, ~ ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
-                                                  iTomoList,nTomos, emc.pixel_size_angstroms, ...
+      [ ~, specimen_NZ_nm, ~ ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
+                                                  tomoList, nTomos, emc.pixel_size_angstroms, ...
                                                   samplingRate, cycleNumber,...
                                                   0,1);
     else
@@ -505,22 +452,19 @@ parfor iParProc = 1:nParProcesses
         NZ = floor(reconstructionParameters(1));
         specimen_NZ_nm = NZ * emc.pixel_size_angstroms / 10;
       
-        % iCoords = [NX,0,NY-1,NZ,0,0];
-        tomoIdx = 1;
-        % FIXME
+        if (nTomos ~= 1)
+          error('For tomoCPR, only one tomo can be reconstructed at a time');
+        end
         for iCoordIdx = 1:nTomos
-          iCoords{iCoordIdx}.tomoCoords.dX_specimen_to_tomo = 0;
-          iCoords{iCoordIdx}.tomoCoords.dY_specimen_to_tomo = 0;
-          iCoords{iCoordIdx}.tomoCoords.dZ_specimen_to_tomo = 0;
           iCoords{iCoordIdx}.tomoCoords.NX = NX * samplingRate;
           iCoords{iCoordIdx}.tomoCoords.NY = NY * samplingRate;
           iCoords{iCoordIdx}.tomoCoords.NZ = NZ * samplingRate;
         end
       else
-        [ ~, specimen_NZ_nm, tomoIdx, ~ ] = calcAvgZ('dummy',iCoords,tiltList{iTilt}, ...
-          iTomoList,nTomos, emc.pixel_size_angstroms, ...
-          samplingRate, cycleNumber,...
-          0,1);
+        [ ~, specimen_NZ_nm, ~ ] = calcAvgZ('dummy',iCoords,tiltList{iTilt}, ...
+                                            tomoList,nTomos, emc.pixel_size_angstroms, ...
+                                            samplingRate, cycleNumber,...
+                                            0,1);
       end
     end
     
@@ -555,14 +499,14 @@ parfor iParProc = 1:nParProcesses
     % For each tomo create a list of slices that are to be reconstructed
     % for every section section.
     
-    [ slab_list ] = calc_slab_boundaries(iCoords, tomoIdx, emc.pixel_size_angstroms, n_slabs_to_reconstruct, tiltList{iTilt}, ctf3dDepth, samplingRate);
+    [ slab_list ] = calc_slab_boundaries(iCoords, tomoList, emc.pixel_size_angstroms, n_slabs_to_reconstruct, tiltList{iTilt}, ctf3dDepth, samplingRate);
     
 
     if (recon_for_subTomo)
-      [ avgZ, specimen_NZ_nm, tomoIdx, surfaceFit ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
-        iTomoList,nTomos, emc.pixel_size_angstroms, ...
-        samplingRate, cycleNumber,...
-        slab_list, 0);
+      [ avgZ, specimen_NZ_nm, surfaceFit ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
+                                                      tomoList,nTomos, emc.pixel_size_angstroms, ...
+                                                      samplingRate, cycleNumber,...
+                                                      slab_list, 0);
     else
       avgZ = 0;
       surfaceFit = 0;
@@ -582,10 +526,10 @@ parfor iParProc = 1:nParProcesses
       defFitFull = '';
       preCombDefocus = 0;
       if (mapBackIter)
-        defFitFull = sprintf('mapBack%d/%s_ali%d_ctf.defFidFull',mapBackIter, tiltList{iTilt},mapBackIter);
+        defFitFull = sprintf('mapBack%d/%s_ali%d_ctf.defFidFull',mapBackIter, tiltList{iTilt}, mapBackIter);
         if exist(defFitFull,'file')
           preCombDefocus = load(defFitFull);
-          fprintf('3dCTF using pre calc combined per tilt defocus %s\n',defFitFull);
+          fprintf('3dCTF using pre calc combined per tilt defocus %s\n', defFitFull);
         end
       end
       
@@ -617,18 +561,15 @@ parfor iParProc = 1:nParProcesses
       end
       
       
-      outputStack = sprintf('%s/%s_ali%d_%d.fixed', tmpCache,tiltList{iTilt},mapBackIter+1,iSection);
-      SAVE_IMG(correctedStack,{outputStack, 'half'}, emc.pixel_size_angstroms);
+      outputStack = sprintf('%s/%s_ali%d_%d.fixed', tmpCache, tiltList{iTilt}, mapBackIter+1, iSection);
+      SAVE_IMG(correctedStack, {outputStack, 'half'}, emc.pixel_size_angstroms);
       correctedStack = [];
       
       % Loop over tomos reconstructing section and appending a file to
-      for iT = 1:nTomos
+      for iTomo = 1:nTomos
         
-        thisTomo = tomoIdx(iT);
-        
-        if (slab_list{iT}(iSection,1))
-          reconName = sprintf('%s/%s_ali%d_%d_%d.rec', ...
-            tmpCache,tiltList{iTilt},mapBackIter+1,thisTomo,iSection);
+        if (slab_list{iTomo}(iSection,1))
+          reconName = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, iTomo, iSection);
             
           if (recon_for_tomoCPR)
             TA = sortrows(subTomoMeta.tiltGeometry.(tomoList{1}),1);
@@ -636,7 +577,7 @@ parfor iParProc = 1:nParProcesses
           end
 
           if (recon_for_subTomo)
-            TA = sortrows(subTomoMeta.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},thisTomo)),1);
+            TA = sortrows(subTomoMeta.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},iTomo)),1);
             TA = TA(:,4);
           end
           
@@ -651,7 +592,7 @@ parfor iParProc = 1:nParProcesses
             end
           end
           
-          rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},thisTomo);
+          rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},iTomo);
           rawTLT_file = fopen(rawTLT, 'w');
           fprintf(rawTLT_file,'%f\n', TA');
           fclose(rawTLT_file);
@@ -670,13 +611,14 @@ parfor iParProc = 1:nParProcesses
           end
          
           % round down and then we'll add any extra needed to the final chunk
-          tiltChunkSize = floor(iCoords{iT}.NY ./ samplingRate ./ emc.n_tilt_workers);
+          tiltChunkSize = floor(iCoords{iTomo}.NY ./ samplingRate ./ emc.n_tilt_workers);
           % This shoulid never happen, but to be safe
-          if (emc.n_tilt_workers > floor(iCoords{iT}.NY ./ samplingRate))
+          if (emc.n_tilt_workers > floor(iCoords{iTomo}.NY ./ samplingRate))
             error('n_tilt_workers is greater than the number of slices in the tilt series');
           end
-          y_i = floor(iCoords{iT}.y_i ./ samplingRate);
-          y_f = floor(iCoords{iT}.y_f ./ samplingRate);
+
+          y_i = floor(iCoords{iTomo}.y_i ./ samplingRate);
+          y_f = floor(iCoords{iTomo}.y_f ./ samplingRate);
 
 
           tiltChunks = y_i:tiltChunkSize:y_f;
@@ -699,10 +641,10 @@ parfor iParProc = 1:nParProcesses
             reconName, ...
             rawTLT, ...
             iGPU, ...
-            floor(iCoords{iT}.NX ./ samplingRate),... % WIDTH = NX
-            floor(round(slab_list{iT}(iSection,5))), ... % THICKNESS = NZ
-            iCoords{iT}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
-            slab_list{iT}(iSection,6));
+            floor(iCoords{iTomo}.NX ./ samplingRate),... % WIDTH = NX
+            floor(round(slab_list{iTomo}(iSection,5))), ... % THICKNESS = NZ
+            iCoords{iTomo}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
+            slab_list{iTomo}(iSection,6));
           
           
           reconScaling = 1;
@@ -746,12 +688,12 @@ parfor iParProc = 1:nParProcesses
           % monitor. For symmetrical padding this doesn't matter, but keep
           % in mind. /dev/null
           trimCMD = sprintf('trimvol -mode 12 -rx -y %d,%d %s.TMPPAD %s > /dev/null  ' , ...
-                            1,floor(round(slab_list{iT}(iSection,5))),reconName,reconName);
+                            1,floor(round(slab_list{iTomo}(iSection,5))),reconName,reconName);
           [msg,~]= system(trimCMD);
           if (msg)
             fprintf('%d from trimCMD\n',msg)
             trimCMDPrintError = sprintf('trimvol -mode 12 -rx -y %d,%d %s.TMPPAD %s', ...
-                                         1,floor(round(slab_list{iT}(iSection,5))),reconName,reconName);
+                                         1,floor(round(slab_list{iTomo}(iSection,5))),reconName,reconName);
             system(trimCMDPrintError);
             error('error during trimvol');
           end
@@ -769,19 +711,15 @@ parfor iParProc = 1:nParProcesses
     evalMask = [];
     maskedStack = [];
     
-    for iT = 1:nTomos
-      thisTomo = tomoIdx(iT);
+    for iTomo = 1:nTomos
       % Note that bh_global_turn_on_phase_plate could be true for any of the recon_for_stage bools, so it must
       % be checked first.
       if (bh_global_turn_on_phase_plate(1))
-        reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', ...
-          tiltList{iTilt},thisTomo,samplingRate);
+        reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', tiltList{iTilt}, iTomo, samplingRate);
       elseif recon_for_tomoCPR
-        reconNameFull = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec', ...
-          CWD,tiltList{iTilt},thisTomo,samplingRate);
+        reconNameFull = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec', CWD,tiltList{iTilt},iTomo,samplingRate);
       else
-        reconNameFull = sprintf('cache/%s_%d_bin%d.rec', ...
-          tiltList{iTilt},thisTomo,samplingRate);
+        reconNameFull = sprintf('cache/%s_%d_bin%d.rec', tiltList{iTilt},iTomo,samplingRate);
       end
       fprintf('in ctf3d reconNameFull is %s\n\n',reconNameFull);
           
@@ -789,13 +727,13 @@ parfor iParProc = 1:nParProcesses
       % Get the total number of sections for this tomo
       n_total_sections = 0;
       for iSection = 1:n_slabs_to_reconstruct
-        if(slab_list{iT}(iSection,1))
+        if(slab_list{iTomo}(iSection,1))
           n_total_sections = n_total_sections + 1;
         end
       end
 
       if (n_total_sections == 0)
-        fprintf('no sections for tomo %d\n',thisTomo);
+        fprintf('no sections for tomo %d\n',iTomo);
         continue
       end
 
@@ -811,11 +749,11 @@ parfor iParProc = 1:nParProcesses
       % end
       % for iSection = 1:n_slabs_to_reconstruct
       for iSection = slab_order
-        if (slab_list{iT}(iSection,1))
-          this_slab = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, thisTomo, iSection);
+        if (slab_list{iTomo}(iSection,1))
+          this_slab = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, iTomo, iSection);
           cleanup3 = sprintf('%s %s',cleanup3,this_slab);
           fprintf(recombineCMD, '%s\n', this_slab);
-          fprintf(recombineCMD, '1-%d\n',floor(round(slab_list{iT}(iSection,5))));
+          fprintf(recombineCMD, '1-%d\n',floor(round(slab_list{iTomo}(iSection,5))));
         end
       end
       fclose(recombineCMD);
@@ -850,11 +788,14 @@ end
 
 end
 
-function [] = preBinStacks(TLT, STACK_PRFX, mapBackIter,usableArea,...
-  samplingRate,...
-  PosControl2d,...
-  tiltWeight,...
-  flgMedianFilter)
+function [] = preBinStacks(TLT, ...
+                          STACK_PRFX, ...
+                          mapBackIter, ...
+                          usableArea,...
+                          samplingRate,...
+                          PosControl2d,...
+                          tiltWeight,...
+                          flgMedianFilter)
 
 
 
@@ -866,12 +807,10 @@ else
   suffix = '';
 end
 
-
-fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', ...
-  prefix,STACK_PRFX,mapBackIter+1,suffix);
-inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed',...
-  STACK_PRFX,mapBackIter+1,suffix,samplingRate);
-if ~exist(inputStack, 'file')
+% TODO: this could all be in loadOrBin
+fullStack = sprintf('%sStacks/%s_ali%d%s.fixed', prefix,STACK_PRFX, mapBackIter+1, suffix);
+inputStack = sprintf('cache/%s_ali%d%s_bin%d.fixed', STACK_PRFX, mapBackIter+1, suffix, samplingRate);
+if ~emc_check_for_valid_image_file(inputStack)
   BH_multi_loadOrBin(fullStack, samplingRate, 2, false);
 end
 
@@ -879,10 +818,10 @@ end
 end
 
 
-function  [ slab_list ] = calc_slab_boundaries(iCoords, tomoIdx, pixel_size_angstroms, n_slabs_to_reconstruct, tiltName, ctf_3d_depth_si, samplingRate, use_inverted_newstack)
+function  [ slab_list ] = calc_slab_boundaries(iCoords, tomoList, pixel_size_angstroms, n_slabs_to_reconstruct, tiltName, ctf_3d_depth_si, samplingRate, use_inverted_newstack)
 
   %%% This function is to produce a list of z indices, starting from 1, to pass to imod for tilt based reconstruction
-nTomos = length(tomoIdx);
+nTomos = length(tomoList);
 slab_list = cell(nTomos,1);
 for iTomo = 1:nTomos
   % min and max in absolute pixels min and max from 1:nZrecon
@@ -895,16 +834,23 @@ slab_size_pixels = floor(ctf_3d_depth_si * 10^10 / pixel_size_angstroms);
 slab_size_pixels = slab_size_pixels + ~mod(slab_size_pixels,2);
 oS = emc_get_origin_index(slab_size_pixels);
 
-for iT = 1:length(tomoIdx)
-  iTomo = tomoIdx(iT);
+for iTomo = 1:nTomos
   % Origin + originshift
-  tomo_origin_wrt_tilt_origin = iCoords{iT}.dZ_specimen_to_tomo ./ samplingRate;              
-  tomo_origin_in_tomo_frame = emc_get_origin_index(iCoords{iT}.NZ ./ samplingRate); 
+
+  if ~(iCoords{iTomo}.is_active)
+    % Nothing to do, the first column in this row of slab_list is already zero, but we can set it 
+    % explicitly in case the code changes in the future
+    slab_list{iTomo}(:,1) = 0;
+    continue;
+  end
+
+  tomo_origin_wrt_tilt_origin = iCoords{iTomo}.dZ_specimen_to_tomo ./ samplingRate;              
+  tomo_origin_in_tomo_frame = emc_get_origin_index(iCoords{iTomo}.NZ ./ samplingRate); 
                                                     
   fraction_origin_shift = tomo_origin_wrt_tilt_origin - round(tomo_origin_wrt_tilt_origin);
   
   tomogram_lower_bound = floor((tomo_origin_wrt_tilt_origin - tomo_origin_in_tomo_frame));
-  recon_range_z_in_specimen_frame = tomogram_lower_bound : tomogram_lower_bound + ceil(iCoords{iT}.NZ./samplingRate) - 1;
+  recon_range_z_in_specimen_frame = tomogram_lower_bound : tomogram_lower_bound + ceil(iCoords{iTomo}.NZ./samplingRate) - 1;
   % For each slab see if this tomogram has any sections in it
   for iSlab = 1:n_slabs_to_reconstruct
   
@@ -917,13 +863,13 @@ for iT = 1:length(tomoIdx)
     is_in_range = ismember(recon_range_z_in_specimen_frame, slab_range);
     valid_indices = recon_range_z_in_specimen_frame(is_in_range);
 
-    slab_list{iT}(iSlab,5) = length(valid_indices);
-    if (slab_list{iT}(iSlab,5) > 0)
-      slab_list{iT}(iSlab,1) = 1;
+    slab_list{iTomo}(iSlab,5) = length(valid_indices);
+    if (slab_list{iTomo}(iSlab,5) > 0)
+      slab_list{iTomo}(iSlab,1) = 1;
     else
       continue;
     end
-    valid_region_origin = emc_get_origin_index(slab_list{iT}(iSlab,5));
+    valid_region_origin = emc_get_origin_index(slab_list{iTomo}(iSlab,5));
     % This is a vector from the origin of the sample to the origin of the slab.
     % The shift passed to imod-tilt moves the reconstructed area in the opposite sense.
     % All slabs need to be shifted to the specimen origin (0) from tilts perspective, and then the are assembled into the final volume.
@@ -932,33 +878,33 @@ for iT = 1:length(tomoIdx)
     % I know ... this is a shit show.
     dZ_for_reconstructed_slab = (valid_indices(valid_region_origin) + fraction_origin_shift);
 
-    slab_list{iT}(iSlab,6) = dZ_for_reconstructed_slab; %dZ
+    slab_list{iTomo}(iSlab,6) = dZ_for_reconstructed_slab; %dZ
   end
 
   % Check to ensure we don't have any tiny slabs leftover, if so, merge them into a neighboring slab
-  biggest_slab = max(slab_list{iT}(:,5));
+  biggest_slab = max(slab_list{iTomo}(:,5));
   for iSlab = 1:n_slabs_to_reconstruct
-    if (slab_list{iT}(iSlab,1) && slab_list{iT}(iSlab, 5) / biggest_slab < 0.1)
-      if (iSlab > 1 && slab_list{iT}(iSlab-1,1))
-        delta = slab_list{iT}(iSlab,5);
-        slab_list{iT}(iSlab-1,5) = slab_list{iT}(iSlab-1,5) + delta;
-        slab_list{iT}(iSlab,1) = 0;
+    if (slab_list{iTomo}(iSlab,1) && slab_list{iTomo}(iSlab, 5) / biggest_slab < 0.1)
+      if (iSlab > 1 && slab_list{iTomo}(iSlab-1,1))
+        delta = slab_list{iTomo}(iSlab,5);
+        slab_list{iTomo}(iSlab-1,5) = slab_list{iTomo}(iSlab-1,5) + delta;
+        slab_list{iTomo}(iSlab,1) = 0;
         % we are adding slices from above the specimen in Z so the z shift is positive
-        slab_list{iT}(iSlab-1,6) = (slab_list{iT}(iSlab-1,6) + delta);
-      elseif (iSlab < n_slabs_to_reconstruct && slab_list{iT}(iSlab+1,1))
-        delta = slab_list{iT}(iSlab,5);
-        slab_list{iT}(iSlab+1,5) = slab_list{iT}(iSlab+1,5) + slab_list{iT}(iSlab,5);
-        slab_list{iT}(iSlab,1) = 0;
+        slab_list{iTomo}(iSlab-1,6) = (slab_list{iTomo}(iSlab-1,6) + delta);
+      elseif (iSlab < n_slabs_to_reconstruct && slab_list{iTomo}(iSlab+1,1))
+        delta = slab_list{iTomo}(iSlab,5);
+        slab_list{iTomo}(iSlab+1,5) = slab_list{iTomo}(iSlab+1,5) + slab_list{iTomo}(iSlab,5);
+        slab_list{iTomo}(iSlab,1) = 0;
         % we are adding slices from below the specimen in Z so the z shift is negative
-        slab_list{iT}(iSlab+1,6) = (slab_list{iT}(iSlab+1,6) - delta);
+        slab_list{iTomo}(iSlab+1,6) = (slab_list{iTomo}(iSlab+1,6) - delta);
       end
     end
   end
 
   % TroubleShoot
   tSHT = fopen(sprintf('.tblSht_%s_i%d.txt',tiltName,iTomo),'w');
-  fprintf(tSHT,'%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f\n',  iCoords{iT}.NX, iCoords{iT}.NY, iCoords{iT}.NZ, iCoords{iT}.dX_specimen_to_tomo, iCoords{iT}.dY_specimen_to_tomo, iCoords{iT}.dZ_specimen_to_tomo);
-  fprintf(tSHT,'%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f\n', slab_list{iT}');
+  fprintf(tSHT,'%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f\n',  iCoords{iTomo}.NX, iCoords{iTomo}.NY, iCoords{iTomo}.NZ, iCoords{iTomo}.dX_specimen_to_tomo, iCoords{iTomo}.dY_specimen_to_tomo, iCoords{iTomo}.dZ_specimen_to_tomo);
+  fprintf(tSHT,'%2.2f %2.2f %2.2f %2.2f %2.2f %2.2f\n', slab_list{iTomo}');
   fclose(tSHT);
 end % end loop over tomos
 
@@ -1179,16 +1125,16 @@ end % end loop over projections
 clear tile Hqz
 end
 
-function [avgZ, specimen_NZ_nm, tomoIdx,surfaceFit] = calcAvgZ(subTomoMeta, ...
-                                                               iCoords, ...
-                                                               tiltName, ...
-                                                               tomoList,...
-                                                               nTomos,  ...
-                                                               pixel_size_angstroms,...
-                                                               samplingRate, ...
-                                                               cycleNumber,...
-                                                               slab_list, ...
-                                                               calcMaxZ)
+function [avgZ, specimen_NZ_nm, surfaceFit] = calcAvgZ(subTomoMeta, ...
+                                                        iCoords, ...
+                                                        tiltName, ...
+                                                        tomoList,...
+                                                        nTomos,  ...
+                                                        pixel_size_angstroms,...
+                                                        samplingRate, ...
+                                                        cycleNumber,...
+                                                        slab_list, ...
+                                                        calcMaxZ)
 
 % Calculate the maximum extensions in Z and then how many separate sections
 % need to be corrected.
@@ -1197,20 +1143,15 @@ surfaceFit = '';
 avgZ = 0;
 
 
-if isa(subTomoMeta,'struct')
-  val_to_pass =  subTomoMeta.mapBackGeometry.tomoName;
-else
-  val_to_pass = 'dummy';
-end
 
-[ specimen_NZ_pixels, tomoIdx ] = emc_get_max_specimen_NZ(val_to_pass, ...
-                                                      iCoords, ...
-                                                      tomoList, ...
-                                                      nTomos, ...
-                                                      samplingRate);
+[ specimen_NZ_pixels ] = emc_get_max_specimen_NZ( ...
+                                                  iCoords, ...
+                                                  tomoList, ...
+                                                  nTomos, ...
+                                                  samplingRate);
 
 specimen_NZ_nm = specimen_NZ_pixels .* pixel_size_angstroms ./ 10;
-fprintf('combining the thickness and shift on tilt %s, found a specimen_NZ_nm  %3.3f nm\n',tiltName,specimen_NZ_nm);
+fprintf('combining the thickness and shift on tilt %s, found a specimen_NZ_nm  %3.3f nm\n', tiltName, specimen_NZ_nm);
 
 if (calcMaxZ)
   return;
@@ -1251,13 +1192,14 @@ end
 
 use_subtomo_z_positions = true;
 
-for iT = 1:nTomos
+for iTomo = 1:nTomos
 
-  iTomo = tomoIdx(iT);
-
+  if ~(subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo}).is_active)
+    continue;
+  end
   % X in the Y frame means a vector from the Y lower left to the X origin
   % X origin wrt Y origin is a vector from the origin of Y to the X origin
-  reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iT});
+  reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
   tomo_origin_wrt_tilt_origin = [reconGeometry.dX_specimen_to_tomo, ...
                                 reconGeometry.dY_specimen_to_tomo, ...
                                 reconGeometry.dZ_specimen_to_tomo];              
@@ -1265,16 +1207,15 @@ for iT = 1:nTomos
                                                     reconGeometry.NY, ...
                                                     reconGeometry.NZ]); 
  
-  iTomoName = sprintf('%s_%d',tiltName,iTomo);
   
   % Get the z-coordinates of the origin for all included subtomograms relative to the lower left of the tomogram
   % shouldn't be any removed particles at this stage but later there would be.
-  subtomo_origin_z_in_tomo_frame = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,13);
+  subtomo_origin_z_in_tomo_frame = initGeom.(tomoList{iTomo})(initGeom.(tomoList{iTomo})(:,26)~=-9999,13);
 
   % We may get here if we have split a data set into several small classes so skip the centering on average if needed
   if isempty(subtomo_origin_z_in_tomo_frame)
     use_subtomo_z_positions = false;
-    fprintf('No subtomograms found for %s',iTomoName);
+    fprintf('No subtomograms found for %s', tomoList{iTomo});
     continue;
   end
 
@@ -1284,21 +1225,21 @@ for iT = 1:nTomos
   subtomo_origin_wrt_specimen_origin = subtomo_origin_wrt_specimen_origin ./ samplingRate;
   totalZ = totalZ + sum(subtomo_origin_wrt_specimen_origin);
   fprintf('%s tomo has %d subTomos with mean Z %3.3f nm\n', ...
-    iTomoName, length(subtomo_origin_wrt_specimen_origin), ...
+    tomoList{iTomo}, length(subtomo_origin_wrt_specimen_origin), ...
     mean(subtomo_origin_wrt_specimen_origin) * pixel_size_angstroms ./ 10);
 
   nSubTomos = nSubTomos + length(subtomo_origin_wrt_specimen_origin);
 
   for iSection = 1:n_slabs_to_reconstruct
     
-    iSecOrigin = slab_list{iT}(iSection,6);
-    iSecRadius = slab_list{iT}(iSection,5)/2;
+    iSecOrigin = slab_list{iTomo}(iSection,6);
+    iSecRadius = slab_list{iTomo}(iSection,5)/2;
     inSectionIDX = subtomo_origin_wrt_specimen_origin >  iSecOrigin - iSecRadius & subtomo_origin_wrt_specimen_origin <= iSecOrigin + iSecRadius;
     
     
-    x = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,11);
+    x = initGeom.(tomoList{iTomo})(initGeom.(tomoList{iTomo})(:,26)~=-9999,11);
     x = (x - tomo_origin_in_tomo_frame(1) + tomo_origin_wrt_tilt_origin(1))./samplingRate;
-    y = initGeom.(iTomoName)(initGeom.(iTomoName)(:,26)~=-9999,12);
+    y = initGeom.(tomoList{iTomo})(initGeom.(tomoList{iTomo})(:,26)~=-9999,12);
     y = (y - tomo_origin_in_tomo_frame(2) + tomo_origin_wrt_tilt_origin(2))./samplingRate;
     
     

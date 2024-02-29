@@ -192,6 +192,11 @@ xOffset = (iIndex(1) - 1 ) * nModeBytes;
 
 wordLength = (flgComplex*1 + 1) .* [nImageElements];
 flgReCast = 1;
+
+readX = length(iIndex);
+readY = length(jIndex);
+imgSize = readX*readY;
+
 switch mode
   % Make a string to tell fread how long each "value is. BAH 2017-11-22
   case 0
@@ -204,7 +209,7 @@ switch mode
 
     
   case 1
-     precisionString = 'int16';
+    precisionString = 'int16';
     nToRead = sprintf('%d*int16=>int16',wordLength);
     nToSkip = 2*nPixelsBetween * (flgComplex*1 + 1);
     %  Allocate the output matrix - NOTE: always single precision at end
@@ -220,11 +225,15 @@ switch mode
     % 2x as fast to recast the whole array, than to either read in as
     % single or to recast each slice.
   case 6
-     precisionString = 'uint16';
+    precisionString = 'uint16';
+    nToRead = sprintf('%d*uint16=>uint16',wordLength);
+    nToSkip = 2*nPixelsBetween * (flgComplex*1 + 1);
+
+  case 12
+    precisionString = 'uint16';
     nToRead = sprintf('%d*uint16=>uint16',wordLength);
     nToSkip = 2*nPixelsBetween * (flgComplex*1 + 1);
   otherwise
-
     error('did not recognize mode value %d\n', mode)
 end
 
@@ -239,9 +248,6 @@ else
   vol = zeros(length(iIndex), length(jIndex), length(kIndex), precisionString);
 end
 
-readX = length(iIndex);
-readY = length(jIndex);
-imgSize = readX*readY;
 nSlice = 1;
 
 for iSlice = kIndex
@@ -284,7 +290,11 @@ if ( flgReCast )
   if ( flgComplex )
     vol = complex(single(vol{1}),single(vol{2}));
   else
-    vol = single(vol);
+    if mRCImage.header.mode == 12
+      vol = half.typecast(vol);
+    else
+      vol = single(vol);
+    end
   end
 else
   if ( flgComplex )
@@ -299,9 +309,7 @@ if (flgCloseFile)
   mRCImage.fid = [];
 end
 
-if mRCImage.header.mode == 12
-  vol = half.typecast(vol);
-end
+
 
 end
   
