@@ -2,7 +2,7 @@ function [] = mexCompile(varargin)
 
 fprintf("\n\nCompile here\n\n");
 mexPATH = '/sa_shared/git/emClarity/mexFiles';
-CUDA_LIB = '-L/usr/local/cuda/lib64 ';   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
+CUDA_LIB = '-L/usr/local/cuda/lib64';   ... % NOTE if you leave a space at the end of this string, MATLAB does not parse the option correctly (which wouldn't matter in a normal compile line!)
 getenv('MW_NVCC_PATH')
 getenv('CUDA_HOME')
 

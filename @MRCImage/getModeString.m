@@ -35,7 +35,7 @@ switch  mRCImage.header.mode
     modeString = 'int16*2';   % used for complex short ints
   case 4
     modeString = 'float32*2'; % used for complex floating point
-case 6
+  case 6
     modeString = 'uint16';
   case 12
     modeString = 'half';      % 16-bit floating point 

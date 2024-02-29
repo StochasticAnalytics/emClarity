@@ -68,7 +68,8 @@ end
 mRCImage.flgVolume = 1;
 
 if mRCImage.header.mode == 12
-  mRCImage.volume = half.typecast(mRCImage.volume);
+  % FIXME: should the header mode be changed?
+  mRCImage.volume = emc_halfcast(mRCImage.volume);
 end
 mRCImage.volume = reshape(mRCImage.volume, ...
                           mRCImage.header.nX, ...

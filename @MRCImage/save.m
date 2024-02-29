@@ -100,9 +100,9 @@ if mRCImage.flgVolume
   else % normal (not complex) data
     count = fwrite(mRCImage.fid, mRCImage.volume, modeStr);
     if count ~= nElements
-      if mRCImage.header.mode == 12
-       mRCImage.volume = typecast(mRCImage.volume, 'half');
-      end
+      % if mRCImage.header.mode == 12
+      %  mRCImage.volume = typecast(mRCImage.volume, 'half');
+      % end
       fprintf('Matrix contains %d but only wrote %d elements\n', ...
               nElements, count);
       PEETError('Failed writing matrix!');
@@ -110,7 +110,8 @@ if mRCImage.flgVolume
   end
 end
 if mRCImage.header.mode == 12
- mRCImage.volume = half.typecast(mRCImage.volume);
+    % FIXME: should the header mode be changed?
+    mRCImage.volume = emc_halfcast(mRCImage.volume);
 end
 
 close(mRCImage);

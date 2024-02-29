@@ -286,14 +286,13 @@ end
 %  vol(~topHalf) = vol(~topHalf) - 128;
 %end
 
+
 if ( flgReCast )
   if ( flgComplex )
     vol = complex(single(vol{1}),single(vol{2}));
   else
     if mRCImage.header.mode == 12
-      vol = half.typecast(vol);
-    else
-      vol = single(vol);
+      vol = emc_halfcast(vol);
     end
   end
 else
