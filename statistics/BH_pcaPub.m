@@ -344,7 +344,7 @@ for iGold = 1:2
   end
   if (flgLoadMask) && (iGold == 1)
     fprintf('\n\nLoading external mask\n');
-    externalMask = getVolume(MRCImage(sprintf('%s-pcaMask',subTomoMeta.(cycleNumber).(imgNAME){1})));
+    externalMask = OPEN_IMG('single',sprintf('%s-pcaMask',subTomoMeta.(cycleNumber).(imgNAME){1}));
   end
 end
 
@@ -424,7 +424,7 @@ if (flgVarianceMap)
         outputPrefix, eigsFound, halfSet, iScale);
       
       prevVarianceMaps.(sprintf('h%d',iGold)).(sprintf('s%d',iScale)) = ...
-        getVolume(MRCImage(fname)).^flgStdDev;
+        OPEN_IMG('single', fname).^flgStdDev;
     end
     clear v coeffs eigsFound idxList
   end
@@ -432,8 +432,7 @@ end
 
 
 if (PREVIOUS_PCA)
-  volumeMask = gpuArray(getVolume(MRCImage( ...
-    sprintf('%s_pcaVolMask.mrc',outputPrefix))));
+  volumeMask = gpuArray(OPEN_IMG('single', sprintf('%s_pcaVolMask.mrc',outputPrefix)));
 else
   
   if (emc.Pca_constrain_symmetry)
@@ -782,14 +781,14 @@ for iGold = 1:1+flgGold
             if (emc.flgCutOutVolumes)
               
               particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak+1);
-              iParticle = gpuArray(getVolume(MRCImage(particleOUT_name),...
+              iParticle = gpuArray(OPEN_IMG('single',particleOUT_name,...
                 [indVAL(1,1),indVAL(2,1)], ...
                 [indVAL(1,2),indVAL(2,2)], ...
                 [indVAL(1,3),indVAL(2,3)],'keep'));
               
             else
               
-              iParticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
+              iParticle = gpuArray(OPEN_IMG('single', volumeData,[indVAL(1,1),indVAL(2,1)], ...
                 [indVAL(1,2),indVAL(2,2)], ...
                 [indVAL(1,3),indVAL(2,3)],'keep'));
             end

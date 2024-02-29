@@ -400,7 +400,7 @@ for i = 1:d3
   % of the odd output here we can just read it in this way, unlike super res.
   
   iProjection = ...
-    single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,23),'keep'));
+    OPEN_IMG('single', iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,23),'keep');
   
   iProjection = real(ifftn(fftn(iProjection).* BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh')));
   

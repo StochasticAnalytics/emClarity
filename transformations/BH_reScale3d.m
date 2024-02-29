@@ -40,7 +40,7 @@ elseif ischar(inputVol)
   else
     pixelSize = pixelSizeX;
   end
-  inputVol = {getVolume(mrcImage')};
+  inputVol = {OPEN_IMG('single', mrcImage')};
   writeOut = true;
   outPutArray = false;
   

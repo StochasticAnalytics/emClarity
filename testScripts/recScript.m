@@ -25,8 +25,8 @@ if strcmpi(wanted_op, 'build')
 
     parfor iStack = 1:length(stack_names)
         fprintf('Working on stack %s\n', stack_names{iStack});
-        bin_cmd = sprintf('newstack -bin %d aliStacks/%s bin10/%s_bin10.fixed', modBin, stack_names{iStack}, stack_names{iStack}(1:end-11));
-                           rec_cmd = sprintf('tilt -input bin10/%s_bin10.fixed -output bin10/%s_bin10.rec -TILTFILE fixedStacks/%s.tlt -RADIAL 0.15,0.05 -UseGPU 0 -THICKNESS %d -RotateBy90',  ...
+        bin_cmd = sprintf('newstack -mode 12 -bin %d aliStacks/%s bin10/%s_bin10.fixed', modBin, stack_names{iStack}, stack_names{iStack}(1:end-11));
+                           rec_cmd = sprintf('tilt -MODE 12 -input bin10/%s_bin10.fixed -output bin10/%s_bin10.rec -TILTFILE fixedStacks/%s.tlt -RADIAL 0.15,0.05 -UseGPU 0 -THICKNESS %d -RotateBy90',  ...
          stack_names{iStack}(1:end-11), stack_names{iStack}(1:end-11), stack_names{iStack}(1:end-11), modThick);
         errmsg = system(sprintf('%s > /dev/null', bin_cmd));
         if errmsg

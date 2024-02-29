@@ -63,7 +63,7 @@ if ~isnumeric(STACK)
   else
     inputStack = sprintf('aliStacks/%s_ali%d%s.fixed',STACK,mapBackIter+1,suffix);
   end
-  STACK = single(getVolume(MRCImage(inputStack)));
+  STACK = OPEN_IMG('single',inputStack);
 end
 
 [d1,d2,d3] = size(STACK);

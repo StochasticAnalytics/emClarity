@@ -489,7 +489,7 @@ parfor iParProc = 1:nParProcesses
         tiltList{iTilt},mapBackIter+1);
     end
     
-    maskedStack = single(getVolume(MRCImage(inputStack)));
+    maskedStack = OPEN_IMG('single', inputStack);
     
     if (recon_for_subTomo)
       [ ~, specimen_NZ_nm, tomoIdx, ~ ] = calcAvgZ(subTomoMeta,iCoords,tiltList{iTilt}, ...
@@ -618,7 +618,7 @@ parfor iParProc = 1:nParProcesses
       
       
       outputStack = sprintf('%s/%s_ali%d_%d.fixed', tmpCache,tiltList{iTilt},mapBackIter+1,iSection);
-      SAVE_IMG(correctedStack,outputStack,emc.pixel_size_angstroms);
+      SAVE_IMG(correctedStack,{outputStack, 'half'}, emc.pixel_size_angstroms);
       correctedStack = [];
       
       % Loop over tomos reconstructing section and appending a file to
@@ -691,7 +691,7 @@ parfor iParProc = 1:nParProcesses
             n_slices_in_Y = tiltChunks(end) - tiltChunks(1) + 1;
           end
 
-          rCMD = sprintf(['tilt %s %s -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
+          rCMD = sprintf(['tilt %s %s -MODE 12 -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
             '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
             super_sample, ... 
             expand_lines, ...
@@ -745,12 +745,12 @@ parfor iParProc = 1:nParProcesses
           % Z coords (y in this orientation) are decreasing into the
           % monitor. For symmetrical padding this doesn't matter, but keep
           % in mind. /dev/null
-          trimCMD = sprintf('trimvol -rx -y %d,%d %s.TMPPAD %s > /dev/null  ' , ...
+          trimCMD = sprintf('trimvol -mode 12 -rx -y %d,%d %s.TMPPAD %s > /dev/null  ' , ...
                             1,floor(round(slab_list{iT}(iSection,5))),reconName,reconName);
           [msg,~]= system(trimCMD);
           if (msg)
             fprintf('%d from trimCMD\n',msg)
-            trimCMDPrintError = sprintf('trimvol -rx -y %d,%d %s.TMPPAD %s', ...
+            trimCMDPrintError = sprintf('trimvol -mode 12 -rx -y %d,%d %s.TMPPAD %s', ...
                                          1,floor(round(slab_list{iT}(iSection,5))),reconName,reconName);
             system(trimCMDPrintError);
             error('error during trimvol');
@@ -820,7 +820,7 @@ parfor iParProc = 1:nParProcesses
       end
       fclose(recombineCMD);
       pause(1);
-      recCMD = sprintf('newstack -fromone -FileOfInputs %s -output %s\n', file_of_outputs, reconNameFull);
+      recCMD = sprintf('newstack -mode 12 -fromone -FileOfInputs %s -output %s\n', file_of_outputs, reconNameFull);
     
       [err_msg, ~] = system(sprintf('%s > /dev/null ',recCMD)); %/dev/null
       if (err_msg)

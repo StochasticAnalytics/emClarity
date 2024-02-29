@@ -143,6 +143,11 @@ calcCTF = emc.('tomo_cpr_defocus_refine');
 
 [tiltNameList, nTiltSeries] = BH_returnIncludedTilts( subTomoMeta.mapBackGeometry );
 
+% if (multi_node_run)
+%   [ nParProcesses, iterList] = BH_multi_parallelJobs(nTiltSeries, nGPUs, sizeCalc(1), emc.nCpuCores, [cycle_numerator,cycle_denominator]);
+% else
+%   [ nParProcesses, iterList] = BH_multi_parallelJobs(nTiltSeries, nGPUs, sizeCalc(1), emc.nCpuCores);
+% end
 
 if (multi_node_run && ~skip_to_the_end_and_run)
   nParts = ceil(nTiltSeries ./ cycle_denominator);
@@ -435,7 +440,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     EMC_parpool(nWorkers);
   
   
-    avgTomo{1} = getVolume(MRCImage(backgroundName));
+    avgTomo{1} = OPEN_IMG('single',backgroundName);
     avgTomo{1} = avgTomo{1} ./ (rmsScale*rms(avgTomo{1}(:)));
     if (delete_background_estimate)
       system(sprintf('rm -f %s',backgroundName));
@@ -556,7 +561,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     % % TODO need to update this.
     % if (emc.save_mapback_classes)
-    %   colorMap = single(getVolume(MRCImage(COLOR_MAP)));
+    %   colorMap = OPEN_IMG('single',COLOR_MAP);
     %   % should be the same size as the average
       
     %   if any(size(refVol{1})-size(colorMap))
@@ -1186,7 +1191,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     tic
     while toc < 300
       try
-        dataPrj = single(getVolume(iMrcObj,[1,sTX],[1,sTY],iPrj,'keep'));
+        dataPrj = OPEN_IMG('single', iMrcObj,[1,sTX],[1,sTY],iPrj,'keep');
         break
       catch
         pause(1e-1)
@@ -1204,7 +1209,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     tic
     while toc < 300
       try
-        refPrj  = single(getVolume(iMrcObjRef,[1,sTX],[1,sTY],iPrj,'keep'));
+        refPrj  = OPEN_IMG('single', iMrcObjRef,[1,sTX],[1,sTY],iPrj,'keep');
         break
       catch
         pause(1e-1)
@@ -1222,7 +1227,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     tic
     while toc < 300
       try
-        samplingMask  = gpuArray(single(getVolume(iMrcObjSamplingMask,[],[],iPrj,'keep')));
+        samplingMask  = gpuArray(OPEN_IMG('single', iMrcObjSamplingMask,[],[],iPrj,'keep'));
         break
       catch
         pause(1e-1)

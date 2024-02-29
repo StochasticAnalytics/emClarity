@@ -196,23 +196,6 @@ if ( flgReverseOrder )
   for iParProc = 1:nParProcesses
     iterList{iParProc} = flip(iterList{iParProc});
   end
-  
-% elseif ( flgStartThird )
-
-%   % Divide up the list in two parts,
-%   % for iParProc = 1:nParProcesses
-%   %   % Note the use of floor is more like ceiling here (rounds away from
-%   %   % zero)
-%   %   % FIXME: when combined with sorted list this is not doing what it should be.
-%   %   nParts = ceil(length(iterList{iParProc}) ./ cycle_denominator);
-%   %   fIDX = 1+(cycle_numerator - 1)*nParts;
-%   %   lIDX = min(cycle_numerator*nParts,length(iterList{iParProc}));
-%   %   iterList{iParProc} = iterList{iParProc}(fIDX:lIDX)
-%   % end
-  
-  
-% else
-
 end
 
 if any(peakSearch > maskRadius)
@@ -818,7 +801,7 @@ parfor iParProc = parVect
                 % first!!! TODO add a flag to check this.
                 try
                   particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
-                  iparticle = gpuArray(getVolume(MRCImage(particleOUT_name),[indVAL(1,1),indVAL(2,1)], ...
+                  iparticle = gpuArray(OPEN_IMG('single',particleOUT_name,[indVAL(1,1),indVAL(2,1)], ...
                     [indVAL(1,2),indVAL(2,2)], ...
                     [indVAL(1,3),indVAL(2,3)],'keep'));
                 catch
@@ -829,9 +812,9 @@ parfor iParProc = parVect
                 end
               else
 
-                iparticle = gpuArray(getVolume(volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                  [indVAL(1,2),indVAL(2,2)], ...
-                  [indVAL(1,3),indVAL(2,3)],'keep'));
+                iparticle = gpuArray(OPEN_IMG('single', volumeData, [indVAL(1,1),indVAL(2,1)], ...
+                                                                    [indVAL(1,2),indVAL(2,2)], ...
+                                                                    [indVAL(1,3),indVAL(2,3)],'keep'));
               end
               [ iparticle ] = BH_padZeros3d(iparticle,  padVAL(1,1:3), ...
                 padVAL(2,1:3), 'GPU', 'singleTaper');

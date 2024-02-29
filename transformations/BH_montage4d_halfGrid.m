@@ -39,7 +39,7 @@ nVolumes = length(IMAGES);
 
 
 if ischar(IMAGES{1})
-  img1 = getVolume(MRCImage(IMAGES{1}));
+  img1 = OPEN_IMG('single', IMAGES{1));
 else
   img1 = IMAGES{1};
 end
@@ -58,7 +58,7 @@ for iIMG = 1:nVolumes
     IMAGES{iIMG} = [];
   else
     
-    MONTAGE(1 + (iIMG-1)*dx:dx + (iIMG-1)*dx,:,:) =  getVolume(MRCImage(IMAGES{iIMG}));
+    MONTAGE(1 + (iIMG-1)*dx:dx + (iIMG-1)*dx,:,:) =  OPEN_IMG('single', IMAGES{iIMG});
     
   end
   

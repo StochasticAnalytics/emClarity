@@ -21,7 +21,7 @@ bgVal = 0;
 edgeVal = 4;
 beadVal = -4;
 
-input_ts = gpuArray(getVolume(MRCImage(img_name)));
+input_ts = gpuArray(OPEN_IMG('single', img_name));
 system(sprintf('model2point -contour %s %s.txt',input_name,input_name));
 input_pos= gpuArray(load(sprintf('%s.txt',input_name)));
 output_pos = zeros(size(input_pos),'single');

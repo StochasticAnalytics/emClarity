@@ -14,7 +14,7 @@ randPrfx = sprintf('%s_%d',tltName,randi(1e6,[1,1]));
 ctfFindPath = getenv('EMC_CTFFIND');
 
 fprintf('%s\n',ctfFindPath);% split the stack up
-fullStack = getVolume(MRCImage(stackName));
+fullStack = OPEN_IMG('single', stackName);
 [d1,d2,d3] = size(fullStack); % FIXME d1 assumed to equal d2 Add check in saving
 
 for iPrj = 1:d3

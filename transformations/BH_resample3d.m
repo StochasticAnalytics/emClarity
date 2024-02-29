@@ -80,7 +80,7 @@ end
 
 if ischar(IMAGE)
   % Read in the image
-  IMAGE = getVolume(MRCImage(IMAGE));
+  IMAGE = OPEN_IMG('single', IMAGE);
 end
 
 flgComplex = 0;

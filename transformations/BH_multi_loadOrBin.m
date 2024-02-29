@@ -79,7 +79,7 @@ if samplingRate > 1
         binSize = [binSize,iHeader.nZ];
         newStack = zeros(binSize,'single');
         for iPrj = 1:binSize(3)
-          iProjection = gpuArray(getVolume(tiltObj,[],[],iPrj,'keep'));
+          iProjection = gpuArray(OPEN_IMG('single',tiltObj,[],[],iPrj,'keep'));
           
           if (iPrj == 1)
             bhF = fourierTransformer(iProjection,'OddSizeOversampled');
@@ -92,7 +92,7 @@ if samplingRate > 1
           newStack(:,:,iPrj) = gather(iProjection);
         end
         
-        SAVE_IMG(newStack,outputName,iPixelHeader,iOriginHeader);
+        SAVE_IMG(newStack,{outputName,'half'},iPixelHeader,iOriginHeader);
         clear newStack bpFilt iProjection
         %        system(sprintf('newstack -shrink %d -antialias 6 %s cache/%s_bin%d%s > /dev/null', ...
         %                                     samplingRate,input_tilt_series_filename, imgName, samplingRate,imgExt));
@@ -116,7 +116,7 @@ if samplingRate > 1
         m = MRCImage(sprintf(...
           'cache/%s_bin%d%s', imgName, samplingRate,imgExt));
         fprintf('Loaded the MRCImage\n');
-        IMG_OUT =getVolume(m);
+        IMG_OUT = OPEN_IMG('single', m);
         fprintf('Loaded the volume\n');
         IMG_OUT = single(IMG_OUT);
         fprintf('Volume --> single\n');
@@ -133,7 +133,7 @@ else
   % but throw a warning.
   fprintf('\n\nYou requested a sampling of -1 Nonsense!! loading anyway.\n\n');
   
-  IMG_OUT = single(getVolume(MRCImage(input_tilt_series_filename)));
+  IMG_OUT = OPEN_IMG('single', input_tilt_series_filename);
 end
 
 

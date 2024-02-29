@@ -652,7 +652,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     fullXform = load(iXFName_inv);
   end
   
-  STACK = single(getVolume(MRCImage(tilt_filepath)));
+  STACK = OPEN_IMG('single',tilt_filepath);
   
   for iPrj = 1:nPrjs
     

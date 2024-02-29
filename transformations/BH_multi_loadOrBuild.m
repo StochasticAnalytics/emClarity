@@ -68,7 +68,7 @@ else
       m = MRCImage(sprintf('%s', recon),0);
       % fprintf('Loaded the MRCImage\n');
       if ( flgLoad )
-        IMG_OUT = single(getVolume(m));
+        IMG_OUT = OPEN_IMG('single', m);
         % fprintf('Loaded the volume\n');
       else
         IMG_OUT = m;

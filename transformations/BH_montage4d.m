@@ -36,7 +36,7 @@ nDim = ceil(sqrt(nVolumes));
 
 
 if ischar(IMAGES{1})
-  img1 = getVolume(MRCImage(IMAGES{1}));
+  img1 = OPEN_IMG('single', IMAGES{1});
 else
   img1 = IMAGES{1};
   
@@ -61,7 +61,7 @@ for iIMG = 1:nVolumes
     img = IMAGES{iIMG};
     
   else
-    img = getVolume(MRCImage(IMAGES{iIMG}));
+    img = OPEN_IMG('single', IMAGES{iIMG});
     
   end
   

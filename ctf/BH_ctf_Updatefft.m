@@ -346,7 +346,7 @@ parfor iGPU = 1:nGPUs
       % of the odd output here we can just read it in this way, unlike super res.
       
       iProjection = ...
-        single(getVolume(iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep'));
+        OPEN_IMG('single', iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep');
       
       iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
       

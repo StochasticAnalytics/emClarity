@@ -33,7 +33,7 @@ function [ STACK_OUT ] = BH_unStackMontage4d(  IMAGES , NAME, LOCATIONS, sizeWIN
 
 
 
-montage = getVolume(MRCImage(NAME));
+montage = OPEN_IMG('single', MRCImage(NAME);
 ind = LOCATIONS;
 
 

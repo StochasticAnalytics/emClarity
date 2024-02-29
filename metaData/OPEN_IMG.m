@@ -1,6 +1,11 @@
 function [ vol ] = OPEN_IMG(precision, filename, varargin)
 
-    vol = getVolume(MRCImage(filename, precision), varargin{:});
+    if isa(filename, 'MRCImage')
+        vol = getVolume(filename, varargin{:});
+    else 
+        vol = getVolume(MRCImage(filename), varargin{:});
+    end
+
     if strcmp(precision, 'single')
         vol = single(vol);
     elseif strcmp(precision, 'double')

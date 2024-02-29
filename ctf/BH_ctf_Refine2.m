@@ -116,7 +116,7 @@ end
 
 for iStack = 1%stacksFound
   
-  STACK = single(getVolume(MRCImage(INPUT_CELL{iStack,2})));
+  STACK = OPEN_IMG('single',INPUT_CELL{iStack,2});
   % The pixel size should be previously set correctly, but if it is not, then we
   % must maintain whatever is there in case beads are to be erased. The model
   % used for this process depends on the pixel size in the header when it was

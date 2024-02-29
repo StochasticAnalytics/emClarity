@@ -314,7 +314,7 @@ switch varargin{1}
     else
       switch length(varargin)
         case 5
-          maskVol = getVolume(MRCImage(varargin{3}));
+          maskVol = OPEN_IMG('single', varargin{3});
           pixelSize = EMC_str2double(varargin{5});
           maskVol = BH_mask3d(maskVol,EMC_str2double(varargin{5}),'','');
           SAVE_IMG(MRCImage(gather(maskVol)),varargin{4},pixelSize);

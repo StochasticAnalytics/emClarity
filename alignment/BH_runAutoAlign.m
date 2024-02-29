@@ -100,7 +100,7 @@ TILT_OPTION = 0;
 
 fprintf("Stack in is %s\n",stackIN);
 inputMRC = MRCImage(stackIN,0);
-inputStack = single(getVolume(inputMRC));
+inputStack = OPEN_IMG('single', inputMRC);
 
 skip_tilts_logical = [];
 if (skip_tilts)
@@ -199,7 +199,7 @@ if (switch_axes)
     % Once we've done this, we want to work as if this is how the stack
     % came off the scope.
     system(sprintf('newstack -fromone -secs %d -rotate 90 fixedStacks/%s.fixed %s >/dev/null',iPrj,baseName,tmpFile));
-    rotStack(:,:,iPrj) = getVolume(MRCImage(sprintf('%s',tmpFile)));
+    rotStack(:,:,iPrj) = OPEN_IMG('single', sprintf('%s',tmpFile));
     
     system(sprintf('rm %s',tmpFile));
   end

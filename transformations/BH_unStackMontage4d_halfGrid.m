@@ -33,7 +33,7 @@ function [ STACK_OUT ] = BH_unStackMontage4d_halfGrid(  IMAGES , NAME, totalNumb
 
 
 
-montage = getVolume(MRCImage(NAME));
+montage = OPEN_IMG('single', NAME);
 
 nVolumes = numel(IMAGES);
 

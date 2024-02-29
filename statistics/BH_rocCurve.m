@@ -18,11 +18,8 @@ switch symmetry
     error('did not understand C1 or O from your symmetry %s\n',symmetry)
 end
 
-% 89411 % for 2.5, 1.5
-% 163863 % for 2 deg 1.25 deg
-% 178451 % for 2.5 0.75
 
-mip = getVolume(MRCImage(mip_name));
+mip = OPEN_IMG('single',mip_name);
 % Search peaks first
 [d1,d2] = size(mip);
 ox = floor(d1/2)+1;

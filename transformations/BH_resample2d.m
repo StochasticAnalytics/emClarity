@@ -1,6 +1,6 @@
 function [ TRANS_IMAGE ] = BH_resample2d( IMAGE, ANGLES, SHIFTS, ...
-  CONVENTION, METHOD, DIRECTION, ...
-  MAG, SIZEOUT, varargin)
+                                          CONVENTION, METHOD, DIRECTION, ...
+                                          MAG, SIZEOUT, varargin)
 %Transform an image in 3d.
 %
 %
@@ -87,7 +87,7 @@ end
 
 if ischar(IMAGE)
   % Read in the image
-  stackIN = getVolume(MRCImage(IMAGE),[],[],[]);
+  stackIN = OPEN_IMG('single',IMAGE,[],[],[]);
 else
   stackIN = IMAGE; clear IMAGE
 end
