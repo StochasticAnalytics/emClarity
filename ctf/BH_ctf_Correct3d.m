@@ -32,35 +32,27 @@ end
 
 % Test David's new super sampling in reconstruction. No check that this
 % version (currently 4.10.40) is properly sourced.
-try
-  super_sample = emc.('super_sample');
-  if (super_sample > 0)
-    [~,v] = system('cat $IMOD_DIR/VERSION');
-    v = split(v,'.');
-    if (EMC_str2double(v{1}) < 4 || (EMC_str2double(v{2}) <= 10 && EMC_str2double(v{3}) < 42))
-      fprintf('Warning: imod version is too old for supersampling\n');
-      super_sample = '';
-    else
-      super_sample = sprintf(' -SuperSampleFactor %d',super_sample);
-    end
-  else
+
+super_sample = emc.('super_sample');
+if (super_sample > 0)
+  [~,v] = system('cat $IMOD_DIR/VERSION');
+  v = split(v,'.');
+  if (EMC_str2double(v{1}) < 4 || (EMC_str2double(v{2}) <= 10 && EMC_str2double(v{3}) < 42))
+    fprintf('Warning: imod version is too old for supersampling\n');
     super_sample = '';
+  else
+    super_sample = sprintf(' -SuperSampleFactor %d',super_sample);
   end
-  
-catch
+else
   super_sample = '';
 end
+  
 
-
-try
-  expand_lines = emc.('expand_lines');
-  if isempty(super_sample) || expand_lines == false
-    expand_lines = '';
-  else
-    expand_lines = ' -ExpandInputLines';
-  end
-catch
+expand_lines = emc.('expand_lines');
+if isempty(super_sample) || expand_lines == false
   expand_lines = '';
+else
+  expand_lines = ' -ExpandInputLines';
 end
 
 fprintf('\n Superampling in imod is [%s] with expandLines [%s]\n',super_sample ,expand_lines);
@@ -912,11 +904,7 @@ for iTomo = 1:nTomos
 
     if (slab_list{iTomo}(iSlab,1) > 0 && mod(slab_list{iTomo}(iSlab,5),2) == 0)
       slab_list{iTomo}(iSlab,5) = slab_list{iTomo}(iSlab,5) + 1;
-      if (slab_idx > 0)
-        slab_list{iTomo}(iSlab,3) = slab_list{iTomo}(iSlab,3) + 1;
-      else
-        slab_list{iTomo}(iSlab,4) = slab_list{iTomo}(iSlab,4) + 1;
-      end
+      slab_list{iTomo}(iSlab,4) = slab_list{iTomo}(iSlab,4) + 1;
     end
   end
 

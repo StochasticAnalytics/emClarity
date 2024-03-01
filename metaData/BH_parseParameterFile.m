@@ -590,7 +590,15 @@ else
   emc.max_ctf3dDepth = 100*10^-9;
 end
 
+if isfield(emc, 'expand_lines')
+  EMC_assert_boolean(emc.expand_lines);
+else
+  emc.expand_lines = true;
+end
 
-
+if isfield(emc, 'super_sample')
+  EMC_assert_numeric(emc.super_sample, 3, [2, 5]);
+else
+  emc.super_sample = 3;
 end
 
