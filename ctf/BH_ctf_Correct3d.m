@@ -313,7 +313,7 @@ for iParProc = 1:nParProcesses %%revert
     % For now, since the tilt geometry is not necessarily updated (it is manual)
     % in the subTomoMeta, check that newer (possible perTilt refined) data is
     % not present.
-    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt},mapBackIter+1);
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt', tiltList{iTilt}, mapBackIter+1);
     TLT = load(TLTNAME);
 
     % Get all the tomogram names that belong to a given tilt-series.
@@ -321,7 +321,7 @@ for iParProc = 1:nParProcesses %%revert
     if (recon_for_subTomo || recon_for_templateMatching)
       if (recon_for_subTomo)
         % List of all possible tomos, some may be "in-active" since this is post-template matching
-        tomoList = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).(tomoList);
+        tomoList = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).tomoList;
       else
         % List of all possible tomos, all are "active" since this is pre-template matching
         tomoList = tiltTomoList{iTilt};
@@ -336,7 +336,7 @@ for iParProc = 1:nParProcesses %%revert
       for iTomo = 1:nTomos
         % The order of tomo num could be off but only if all are present do we
         % skip.
-        checkRecon = sprintf('cache/%s_%d_bin%d%s.rec', tiltList{iTilt}, iTomo, samplingRate, filtered);
+        checkRecon = sprintf('cache/%s_bin%d%s.rec',  tomoList{iTomo}, samplingRate, filtered);
         if exist(checkRecon, 'file')
           try 
             % Could have a corrupt file
@@ -381,14 +381,14 @@ end
   for iTilt = iterList{iParProc}
     slab_list = {};
     
-    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt',tiltList{iTilt}, mapBackIter + 1 );
+    TLTNAME = sprintf('fixedStacks/ctf/%s_ali%d_ctf.tlt', tiltList{iTilt}, mapBackIter + 1 );
     TLT = load(TLTNAME);
     fprintf('iParProc %d and iTilt %d using TLT %s\n', iParProc, iTilt, TLTNAME);
 
     if (recon_for_subTomo || recon_for_templateMatching)
       if (recon_for_subTomo)
         % List of all possible tomos, some may be "in-active" since this is post-template matching
-        tomoList = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).(tomoList);
+        tomoList = subTomoMeta.mapBackGeometry.(tiltList{iTilt}).tomoList;
       else
         % List of all possible tomos, all are "active" since this is pre-template matching
         tomoList = tiltTomoList{iTilt};
@@ -569,7 +569,8 @@ end
       for iTomo = 1:nTomos
         
         if (slab_list{iTomo}(iSection,1))
-          reconName = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, iTomo, iSection);
+          this_tomo_idx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+          reconName = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, this_tomo_idx, iSection);
             
           if (recon_for_tomoCPR)
             TA = sortrows(subTomoMeta.tiltGeometry.(tomoList{1}),1);
@@ -577,7 +578,7 @@ end
           end
 
           if (recon_for_subTomo)
-            TA = sortrows(subTomoMeta.tiltGeometry.(sprintf('%s_%d',tiltList{iTilt},iTomo)),1);
+            TA = sortrows(subTomoMeta.tiltGeometry.(tomoList{iTomo}),1);
             TA = TA(:,4);
           end
           
@@ -586,21 +587,21 @@ end
             if (mapBackIter)
               % FIXME: I don't think this block should work, it should only be the tilt angles!
               error('THis block should not be reached.')
-              TA = load(sprintf('%smapBack%d/%s_ali%d_ctf.tlt',CWD,mapBackIter,tiltList{iTilt}, mapBackIter));
+              TA = load(sprintf('%smapBack%d/%s_ali%d_ctf.tlt', CWD, mapBackIter, tiltList{iTilt}, mapBackIter));
             else
-              TA = load(sprintf('%sfixedStacks/%s.tlt',CWD,tiltList{iTilt}));
+              TA = load(sprintf('%sfixedStacks/%s.tlt', CWD, tiltList{iTilt}));
             end
           end
           
-          rawTLT = sprintf('cache/%s_%d.rawtlt',tiltList{iTilt},iTomo);
+          rawTLT = sprintf('cache/%s.rawtlt', tomoList{iTomo});
           rawTLT_file = fopen(rawTLT, 'w');
           fprintf(rawTLT_file,'%f\n', TA');
           fclose(rawTLT_file);
           
           if (mapBackIter)
-            LOCAL = sprintf('%smapBack%d/%s_ali%d_ctf.local',CWD,mapBackIter,tiltList{iTilt}, mapBackIter);
+            LOCAL = sprintf('%smapBack%d/%s_ali%d_ctf.local', CWD, mapBackIter, tiltList{iTilt}, mapBackIter);
           else
-            LOCAL = sprintf('%sfixedStacks/%s.local',CWD,tiltList{iTilt});
+            LOCAL = sprintf('%sfixedStacks/%s.local', CWD, tiltList{iTilt});
           end
 
           if exist(LOCAL,'file')
@@ -650,9 +651,9 @@ end
           reconScaling = 1;
           % Explicitly set Radial to Nyquist
           if (flgLocal)
-            rCMD = [rCMD sprintf('-LOCALFILE %s -RADIAL 0.5,.05 -MODE 2 -SCALE 0,%d',LOCAL,reconScaling)];
+            rCMD = [rCMD sprintf('-LOCALFILE %s -RADIAL 0.5,.05 -MODE 2 -SCALE 0,%d', LOCAL, reconScaling)];
           else
-            rCMD = [rCMD sprintf('-RADIAL 0.5,.05 -MODE 2 -SCALE 0,%d',reconScaling)];
+            rCMD = [rCMD sprintf('-RADIAL 0.5,.05 -MODE 2 -SCALE 0,%d', reconScaling)];
           end
           
           if isfile(sprintf('%s.sh',reconName))
@@ -661,7 +662,7 @@ end
           
           recScript = fopen(sprintf('%s.sh',reconName),'w');
           fprintf(recScript,'#!/bin/bash\n\n');
-          fprintf(recScript,'%s -SLICE -1,-1 -TOTALSLICES %d,%d\n',rCMD,totalSlices);
+          fprintf(recScript,'%s -SLICE -1,-1 -TOTALSLICES %d,%d\n', rCMD, totalSlices);
 
           iShift = 1;
           for iChunk = 1:length(tiltChunks)-1
@@ -677,23 +678,23 @@ end
           fprintf(recScript,'\n\nwait\n\n');
           fclose(recScript);
           pause(1);
-          system(sprintf('chmod a=wrx %s.sh',reconName));
+          system(sprintf('chmod a=wrx %s.sh', reconName));
           
-          [recError,~] = system(sprintf('%s.sh > /dev/null',reconName)); % /dev/null 
+          [recError,~] = system(sprintf('%s.sh > /dev/null', reconName)); % /dev/null 
           if (recError)
             system(sprintf('%s.sh',reconName));
-            error('\n\nerror during reconstruction %s\n\n',reconName);
+            error('\n\nerror during reconstruction %s\n\n', reconName);
           end
           % Z coords (y in this orientation) are decreasing into the
           % monitor. For symmetrical padding this doesn't matter, but keep
           % in mind. /dev/null
           trimCMD = sprintf('trimvol -mode 12 -rx -y %d,%d %s.TMPPAD %s > /dev/null  ' , ...
-                            1,floor(round(slab_list{iTomo}(iSection,5))),reconName,reconName);
+                            1,floor(round(slab_list{iTomo}(iSection,5))), reconName, reconName);
           [msg,~]= system(trimCMD);
           if (msg)
             fprintf('%d from trimCMD\n',msg)
             trimCMDPrintError = sprintf('trimvol -mode 12 -rx -y %d,%d %s.TMPPAD %s', ...
-                                         1,floor(round(slab_list{iTomo}(iSection,5))),reconName,reconName);
+                                         1+slab_list{iTomo}(iSection,3),floor(round(slab_list{iTomo}(iSection,5)))-slab_list{iTomo}(iSection,4), reconName, reconName);
             system(trimCMDPrintError);
             error('error during trimvol');
           end
@@ -715,11 +716,11 @@ end
       % Note that bh_global_turn_on_phase_plate could be true for any of the recon_for_stage bools, so it must
       % be checked first.
       if (bh_global_turn_on_phase_plate(1))
-        reconNameFull = sprintf('cache/%s_%d_bin%d_filtered.rec', tiltList{iTilt}, iTomo, samplingRate);
+        reconNameFull = sprintf('cache/%s_bin%d_filtered.rec', tomoList{iTomo}, samplingRate);
       elseif recon_for_tomoCPR
-        reconNameFull = sprintf('%scache/%s_%d_bin%d_backgroundEst.rec', CWD,tiltList{iTilt},iTomo,samplingRate);
+        reconNameFull = sprintf('%scache/%s_bin%d_backgroundEst.rec', CWD, tomoList{iTomo}, samplingRate);
       else
-        reconNameFull = sprintf('cache/%s_%d_bin%d.rec', tiltList{iTilt},iTomo,samplingRate);
+        reconNameFull = sprintf('cache/%s_bin%d.rec', tomoList{iTomo},samplingRate);
       end
       fprintf('in ctf3d reconNameFull is %s\n\n',reconNameFull);
           
@@ -750,10 +751,11 @@ end
       % for iSection = 1:n_slabs_to_reconstruct
       for iSection = slab_order
         if (slab_list{iTomo}(iSection,1))
-          this_slab = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, iTomo, iSection);
+          this_tomo_idx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+          this_slab = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, this_tomo_idx, iSection);
           cleanup3 = sprintf('%s %s',cleanup3,this_slab);
           fprintf(recombineCMD, '%s\n', this_slab);
-          fprintf(recombineCMD, '1-%d\n',floor(round(slab_list{iTomo}(iSection,5))));
+          fprintf(recombineCMD, '%d-%d\n',1+slab_list{iTomo}(iSection,3),floor(round(slab_list{iTomo}(iSection,5)))-slab_list{iTomo}(iSection,4));
         end
       end
       fclose(recombineCMD);
@@ -848,13 +850,14 @@ for iTomo = 1:nTomos
   tomo_origin_in_tomo_frame = emc_get_origin_index(iCoords{iTomo}.NZ ./ samplingRate); 
                                                     
   fraction_origin_shift = tomo_origin_wrt_tilt_origin - round(tomo_origin_wrt_tilt_origin);
-  
-  tomogram_lower_bound = floor((tomo_origin_wrt_tilt_origin - tomo_origin_in_tomo_frame));
-  recon_range_z_in_specimen_frame = tomogram_lower_bound : tomogram_lower_bound + ceil(iCoords{iTomo}.NZ./samplingRate) - 1;
+  wanted_NZ = ceil(iCoords{iTomo}.NZ./samplingRate);
+
+  tomogram_lower_bound = floor((tomo_origin_wrt_tilt_origin - tomo_origin_in_tomo_frame)) + 1;
+  recon_range_z_in_specimen_frame = tomogram_lower_bound : tomogram_lower_bound + wanted_NZ - 1;
   % For each slab see if this tomogram has any sections in it
   for iSlab = 1:n_slabs_to_reconstruct
-  
-    slab_origin_in_specimen_frame = ((n_slabs_to_reconstruct-1)/-2+(iSlab-1)) * slab_size_pixels;
+    slab_idx = ((n_slabs_to_reconstruct-1)/-2+(iSlab-1));
+    slab_origin_in_specimen_frame = slab_idx * slab_size_pixels;
     
     slab_lower_bound = slab_origin_in_specimen_frame - oS + 1;
     slab_upper_bound = slab_origin_in_specimen_frame + oS - 1;
@@ -864,6 +867,7 @@ for iTomo = 1:nTomos
     valid_indices = recon_range_z_in_specimen_frame(is_in_range);
 
     slab_list{iTomo}(iSlab,5) = length(valid_indices);
+
     if (slab_list{iTomo}(iSlab,5) > 0)
       slab_list{iTomo}(iSlab,1) = 1;
     else
@@ -876,30 +880,61 @@ for iTomo = 1:nTomos
     % This means a slab at Z > 0 needs to be shifted in the negative direction, which means supplying 
     % a shift that is also > 0, moving the volume "up" in the rotated coordinate system (imod -Z)
     % I know ... this is a shit show.
-    dZ_for_reconstructed_slab = (valid_indices(valid_region_origin) + fraction_origin_shift);
-
+    slab_list{iTomo}(iSlab,2) = fraction_origin_shift;
+    
+    dZ_for_reconstructed_slab = (valid_indices(valid_region_origin) - fraction_origin_shift);
     slab_list{iTomo}(iSlab,6) = dZ_for_reconstructed_slab; %dZ
   end
 
   % Check to ensure we don't have any tiny slabs leftover, if so, merge them into a neighboring slab
   biggest_slab = max(slab_list{iTomo}(:,5));
   for iSlab = 1:n_slabs_to_reconstruct
-    if (slab_list{iTomo}(iSlab,1) && slab_list{iTomo}(iSlab, 5) / biggest_slab < 0.1)
+    if (slab_list{iTomo}(iSlab,1) && (~mod(slab_list{iTomo}(iSlab, 5),2) || slab_list{iTomo}(iSlab, 5) / biggest_slab < 0.2))
       if (iSlab > 1 && slab_list{iTomo}(iSlab-1,1))
         delta = slab_list{iTomo}(iSlab,5);
         slab_list{iTomo}(iSlab-1,5) = slab_list{iTomo}(iSlab-1,5) + delta;
         slab_list{iTomo}(iSlab,1) = 0;
         % we are adding slices from above the specimen in Z so the z shift is positive
-        slab_list{iTomo}(iSlab-1,6) = (slab_list{iTomo}(iSlab-1,6) + delta);
+        slab_list{iTomo}(iSlab-1,6) = (slab_list{iTomo}(iSlab-1,6) + floor(delta/2));
       elseif (iSlab < n_slabs_to_reconstruct && slab_list{iTomo}(iSlab+1,1))
         delta = slab_list{iTomo}(iSlab,5);
         slab_list{iTomo}(iSlab+1,5) = slab_list{iTomo}(iSlab+1,5) + slab_list{iTomo}(iSlab,5);
         slab_list{iTomo}(iSlab,1) = 0;
         % we are adding slices from below the specimen in Z so the z shift is negative
-        slab_list{iTomo}(iSlab+1,6) = (slab_list{iTomo}(iSlab+1,6) - delta);
+        slab_list{iTomo}(iSlab+1,6) = (slab_list{iTomo}(iSlab+1,6) - floor(delta/2));
       end
     end
   end
+
+  % The only time we should have an even Z dimension now is if there is only one slab. if so, pad the top end for reconstruction and trim it off later
+  for iSlab = 1:n_slabs_to_reconstruct
+    slab_idx = ((n_slabs_to_reconstruct-1)/-2+(iSlab-1));
+
+    if (mod(slab_list{iTomo}(iSlab,5),2) == 0)
+      slab_list{iTomo}(iSlab,5) = slab_list{iTomo}(iSlab,5) + 1;
+      if (slab_idx > 0)
+        slab_list{iTomo}(iSlab,3) = 1;
+      else
+        slab_list{iTomo}(iSlab,4) = 1;
+      end
+    end
+  end
+
+  % % If the slab thickness is even, we need to account for the difference in definition of imod origin, this can happen at the boundaries
+  % % the origin in imod is -0.5 for even images, but we are applying a shift to the image, so we add +0.5
+  % for iSlab = 1:n_slabs_to_reconstruct
+  %   if (slab_list{iTomo}(iSlab,1))
+  %     if (mod(slab_list{iTomo}(iSlab,5),2) == 0)
+  %       % if (slab_list{iTomo}(iSlab,5) < 0)
+  %       %   slab_list{iTomo}(iSlab,6) = slab_list{iTomo}(iSlab,6) - 0.5;
+  %       % else
+  %         slab_list{iTomo}(iSlab,6) = slab_list{iTomo}(iSlab,6) - 0.5;
+  %       % end
+  %     end
+  %   end
+  %   slab_list{iTomo}(iSlab,6) = slab_list{iTomo}(iSlab,6) + 1;
+  % end
+
 
   % TroubleShoot
   tSHT = fopen(sprintf('.tblSht_%s_i%d.txt',tiltName,iTomo),'w');

@@ -170,8 +170,9 @@ for iStack = 1:nStacks
   subTomoMeta.('mapBackGeometry').(tiltName).('nTomos') = nTomos;
   subTomoMeta.('mapBackGeometry').(tiltName).('tomoCprRePrjSize') = 512;
   stm_tomoList = cell(nTomos,1);
+
+  n_skipped = 0;
   for iTomo = 1:nTomos
-    
     if (doImport)
       modName = strsplit(iPath(iTomo).name,'.csv');
       modName = strsplit(modName{1},'_');
@@ -180,32 +181,47 @@ for iStack = 1:nStacks
       modName = strsplit(iPath(iTomo).name,'_');
       tomoIdx = EMC_str2double(modName{end-1});
     end
-
-    % We are storing this info to make it available when checking for duplicates
-    tomoName = sprintf('%s_%d', tiltName,tomoIdx);
-    fileInfo{n_tomos_added,1} = tiltName;
-    fileInfo{n_tomos_added,2} = tomoName;
+    tomoName = sprintf('%s_%d', tiltName, tomoIdx);
     stm_tomoList{iTomo} = tomoName;
-    fileInfo{n_tomos_added,3} = sprintf('%s_%d_bin%d',tiltName, tomoIdx, dupSampling);
     
-    
-    subTomoMeta.('tiltGeometry').(fileInfo{n_tomos_added,2}) = tilt_geometry;
-    n_tomos_added = n_tomos_added + 1;
-    
-    % Store a reference to the parent tilt-series for every tomogram
-    subTomoMeta.('mapBackGeometry').('tomoName').(tomoName).('tiltName') = tiltName;
-    % Store the tomoIdx for every tomogram, currently used to refer back to recGEom, but I'm going to put this into a struct
-    subTomoMeta.('mapBackGeometry').('tomoName').(tomoName).('tomoIdx') = tomoIdx;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('is_active') = true;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_i') = recGeom{tomoIdx}.y_i;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_f') = recGeom{tomoIdx}.y_f;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NX')  = recGeom{tomoIdx}.NX;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NY')  = recGeom{tomoIdx}.NY;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NZ')  = recGeom{tomoIdx}.NZ;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = recGeom{tomoIdx}.dX_specimen_to_tomo;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dY_specimen_to_tomo') = recGeom{tomoIdx}.dY_specimen_to_tomo;
-    subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dZ_specimen_to_tomo') = recGeom{tomoIdx}.dZ_specimen_to_tomo;
-  end 
+    isMemberList = ismember(tmpTomoList, tomoName);
+    if sum(isMemberList) > 1
+      error('Found more than one match for %s in the recon/*.coords file\n',tomoName);
+    elseif sum(isMemberList) == 1
+      iCoords = recGeom{isMemberList};
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('is_active') = true;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_i') = iCoords.y_i;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('y_f') = iCoords.y_f;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NX')  = iCoords.NX;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NY')  = iCoords.NY;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('NZ')  = iCoords.NZ;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dX_specimen_to_tomo') = iCoords.dX_specimen_to_tomo;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dY_specimen_to_tomo') = iCoords.dY_specimen_to_tomo;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('dZ_specimen_to_tomo') = iCoords.dZ_specimen_to_tomo;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('tilt_NX') = iCoords.tilt_NX;
+      subTomoMeta.('mapBackGeometry').('tomoCoords').(tomoName).('tilt_NY') = iCoords.tilt_NY;    
+      
+            % We are storing this info to make it available when checking for duplicates
+      fileInfo{n_tomos_added,1} = tiltName;
+      fileInfo{n_tomos_added,2} = tomoName;
+      fileInfo{n_tomos_added,3} = sprintf('%s_bin%d', tomoName, dupSampling);
+      
+      subTomoMeta.('tiltGeometry').(fileInfo{n_tomos_added,2}) = tilt_geometry;
+          % Store a reference to the parent tilt-series for every tomogram
+      subTomoMeta.('mapBackGeometry').('tomoName').(tomoName).('tiltName') = tiltName;
+      % Store the tomoIdx for every tomogram, currently used to refer back to recGEom, but I'm going to put this into a struct
+      subTomoMeta.('mapBackGeometry').('tomoName').(tomoName).('tomoIdx') = tomoIdx;
+
+      n_tomos_added = n_tomos_added + 1;
+    else
+      n_skipped = n_skipped + 1;
+    end
+  end
+  if (n_skipped)
+    fprintf('nTomosPossible = %d, nTomos = %d, n_skipped = %d\n',nTomosPossible,nTomos,n_skipped);
+    error('The number of model files in convmap/*.mod is not equal to the number in the recon/*.coords\n');
+  end
+
     subTomoMeta.('mapBackGeometry').(tiltName).('tomoList') =  stm_tomoList;
 end % end of loop over stacks
 
