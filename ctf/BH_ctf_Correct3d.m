@@ -889,19 +889,19 @@ for iTomo = 1:nTomos
   % Check to ensure we don't have any tiny slabs leftover, if so, merge them into a neighboring slab
   biggest_slab = max(slab_list{iTomo}(:,5));
   for iSlab = 1:n_slabs_to_reconstruct
-    if (slab_list{iTomo}(iSlab,1) && (~mod(slab_list{iTomo}(iSlab, 5),2) || slab_list{iTomo}(iSlab, 5) / biggest_slab < 0.2))
+    if (slab_list{iTomo}(iSlab,1) && (slab_list{iTomo}(iSlab, 5) / biggest_slab < 0.2))
       if (iSlab > 1 && slab_list{iTomo}(iSlab-1,1))
         delta = slab_list{iTomo}(iSlab,5);
         slab_list{iTomo}(iSlab-1,5) = slab_list{iTomo}(iSlab-1,5) + delta;
         slab_list{iTomo}(iSlab,1) = 0;
         % we are adding slices from above the specimen in Z so the z shift is positive
-        slab_list{iTomo}(iSlab-1,6) = (slab_list{iTomo}(iSlab-1,6) + floor(delta/2));
+        slab_list{iTomo}(iSlab-1,6) = (slab_list{iTomo}(iSlab-1,6) + ceil(delta/2));
       elseif (iSlab < n_slabs_to_reconstruct && slab_list{iTomo}(iSlab+1,1))
         delta = slab_list{iTomo}(iSlab,5);
         slab_list{iTomo}(iSlab+1,5) = slab_list{iTomo}(iSlab+1,5) + slab_list{iTomo}(iSlab,5);
         slab_list{iTomo}(iSlab,1) = 0;
         % we are adding slices from below the specimen in Z so the z shift is negative
-        slab_list{iTomo}(iSlab+1,6) = (slab_list{iTomo}(iSlab+1,6) - floor(delta/2));
+        slab_list{iTomo}(iSlab+1,6) = (slab_list{iTomo}(iSlab+1,6) - ceil(delta/2));
       end
     end
   end
@@ -910,12 +910,12 @@ for iTomo = 1:nTomos
   for iSlab = 1:n_slabs_to_reconstruct
     slab_idx = ((n_slabs_to_reconstruct-1)/-2+(iSlab-1));
 
-    if (mod(slab_list{iTomo}(iSlab,5),2) == 0)
+    if (slab_list{iTomo}(iSlab,1) > 0 && mod(slab_list{iTomo}(iSlab,5),2) == 0)
       slab_list{iTomo}(iSlab,5) = slab_list{iTomo}(iSlab,5) + 1;
       if (slab_idx > 0)
-        slab_list{iTomo}(iSlab,3) = 1;
+        slab_list{iTomo}(iSlab,3) = slab_list{iTomo}(iSlab,3) + 1;
       else
-        slab_list{iTomo}(iSlab,4) = 1;
+        slab_list{iTomo}(iSlab,4) = slab_list{iTomo}(iSlab,4) + 1;
       end
     end
   end
