@@ -86,9 +86,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     if (numel_input == 1)
     {
 //      mexPrintf("Destroying the plans\n");
-      cufftDestroy(*plan);
-      cufftDestroy(*planInv);
-      mxGPUDestroyGPUArray(inputArray);
+      if ( mxGPUIsValidGPUData(prhs[2]))
+        cufftDestroy(*plan);
+      // else
+      //   mexPrintf("The fwd plan is not valid in destructor\n");
+      if ( mxGPUIsValidGPUData(prhs[3]))
+        cufftDestroy(*planInv);
+      // else
+      //   mexPrintf("The inv plan is not valid in destructor\n");
+      if (mxGPUIsValidGPUData(prhs[0]) )
+        mxGPUDestroyGPUArray(inputArray);
+      // else
+      //   mexPrintf("The inputArray is not valid in destructor\n");
       return;
     }
   } 

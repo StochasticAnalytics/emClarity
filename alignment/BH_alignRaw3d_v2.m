@@ -663,7 +663,7 @@ parfor iParProc = parVect
       end
       
       
-      sprintf('\nWorking on %d/%d volumes',iTomo,nTomograms)
+      % sprintf('\nWorking on %d/%d volumes',iTomo,nTomograms)
       tic;
       
       % Load the tomo into gpu

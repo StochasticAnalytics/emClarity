@@ -756,14 +756,13 @@ function [ emc  ] = emC_testParse( paramTest )
     bh_global_ram_disk = '/dev/shm';
   end
   
-  testFileName = sprintf('%s/thisEmCDiskCheck123456.txt',bh_global_ram_disk);
-  [writeError] = system(sprintf('echo a > %s',testFileName));
-  if (writeError)
-    fprintf('\nRan into an error trying to write to the fastScatchDisk %s\n',bh_global_ram_disk);
-    bh_global_ram_disk = '';
-  else
+  [status , fileAttributes] = fileattrib(bh_global_ram_disk);
+  if (status && fileAttributes.UserWrite)
     fprintf('Found and using your ramDisk\n');
-    system(sprintf('rm %s',testFileName));
+  else
+    fprintf('\nRan into an error trying to write to the fastScatchDisk %s\n',bh_global_ram_disk);
+    fprintf('Please check that it exists and is writable status (%d) UserWrite (%d)\n', status, fileAttributes.UserWrite);
+    bh_global_ram_disk = '';
   end
   
   

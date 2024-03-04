@@ -10,6 +10,9 @@ function [ max_specimen_nz ] = emc_get_max_specimen_NZ(subTomoMeta_coords, tomo_
         if isa(subTomoMeta_coords,'cell')
             nZ = subTomoMeta_coords{iTomo}.NZ;
             dZ = subTomoMeta_coords{iTomo}.dZ_specimen_to_tomo;
+        elseif isa(subTomoMeta_coords,'struct')
+            nZ = subTomoMeta_coords.(tomo_name_list{iTomo}).NZ;
+            dZ = subTomoMeta_coords.(tomo_name_list{iTomo}).dZ_specimen_to_tomo;
         else
             error('The field NZ or the field %s is not present in the subTomoMeta_coords', tomo_name_list{iTomo});
         end

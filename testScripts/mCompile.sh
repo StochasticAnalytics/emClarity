@@ -78,7 +78,7 @@ else
 fi
 
 # NOTE: warnings are disabled to ensure that failed builds are caught. Ideally they would be addressed and removed.
-${MATLAB_FOR_COMPILING} -nosplash -nodisplay -nojvm -r " ${mexCompile} mcc -w disable -w off -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
+${MATLAB_FOR_COMPILING} -nosplash -nodisplay -nojvm -r " ${mexCompile} mcc -w disable -m  ${mFile} -a fitInMap.py -a ../alignment/emC_autoAlign -a ../alignment/emC_findBeads -a ../metaData/BH_checkInstall -R -nodisplay -o "$(basename ${mFile} .m)_${binaryOutName}" ; exit" &
           
 wait
 

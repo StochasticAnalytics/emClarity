@@ -389,8 +389,8 @@ for iTiltSeries = tiltStart:nTiltSeries
         
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
-    reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});    
-    tomo_origin_wrt_tilt_origin = [ reconGeometry.dX_specimen_to_tomo, ... 
+    reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
+    tomo_origin_wrt_specimen_origin = [ reconGeometry.dX_specimen_to_tomo, ... 
                                     reconGeometry.dY_specimen_to_tomo, ...
                                     reconGeometry.dZ_specimen_to_tomo];              
     tomo_origin_in_tomo_frame = emc_get_origin_index([reconGeometry.NX, ...
@@ -408,21 +408,19 @@ for iTiltSeries = tiltStart:nTiltSeries
       continue;
     end
 
-    modelRot = BH_defineMatrix([0,90,0],'Bah','fwdVector');
-    
+    modelRot = BH_defineMatrix([0,0,0],'Bah','fwdVector');
+
     for iSubTomo = 1:nSubTomos
       
       subtomo_rot_matrix = reshape(positionList(iSubTomo,17:25),3,3);
       subtomo_origin_in_tomo_frame = (positionList(iSubTomo,11:13));
-      subtomo_origin_wrt_tilt_origin = subtomo_origin_in_tomo_frame - tomo_origin_in_tomo_frame + tomo_origin_wrt_tilt_origin;
+      subtomo_origin_wrt_specimen_origin = subtomo_origin_in_tomo_frame - tomo_origin_in_tomo_frame + tomo_origin_wrt_specimen_origin;
         
       % This extra shift came from experiments with real data but is both anny_starting and not understood.
-      subtomo_origin_wrt_tilt_origin = subtomo_origin_wrt_tilt_origin - emc.flgPreShift;
+      subtomo_origin_wrt_specimen_origin = subtomo_origin_wrt_specimen_origin - emc.flgPreShift;
 
-      % subTomo origin relative to reconLowerLeft
-      subtomo_origin_in_sample = originRec + subtomo_origin_wrt_tilt_origin; 
       % Reproject using tilt, so just save the 3d coords.
-      fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_tilt_origin' + [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,3,2])', fidIDX);
+      fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_specimen_origin' + [originRec(1),originRec(2),originRec(3)]'- emc.prjVectorShift([1,3,2])', fidIDX);
       
       nPrjsIncluded = 0;
       for iPrj = 1:nPrjs
@@ -438,13 +436,13 @@ for iTiltSeries = tiltStart:nTiltSeries
           rTilt = BH_defineMatrix(TLT(iPrj_nat,4),'TILT','fwdVector') ;
 
           
-          prjCoords = rTilt*subtomo_origin_wrt_tilt_origin';
+          prjCoords = rTilt*subtomo_origin_wrt_specimen_origin';
           
           % I think this is for comparison with the values obtained from projecting using IMOD: FIXME
           fprintf(defOUT,'%d %d %6.6e\n', fidIDX, zCoord, abs(TLT(iPrj_nat,15)) - prjCoords(3).*pixel_size.*10^-10);
           
           % Defocus value adjusted for Z coordinate in the tomogram. nm
-          d1 = (abs(TLT(iPrj_nat,15)) - subtomo_origin_wrt_tilt_origin(3).*pixel_size.*10^-10) * 10^9;
+          d1 = (abs(TLT(iPrj_nat,15)) - subtomo_origin_wrt_specimen_origin(3).*pixel_size.*10^-10) * 10^9;
           d2 = TLT(iPrj_nat,12)*10^9; % half astigmatism value
           
           fprintf(coordSTART,'%d %d %d %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %3.3f %d\n', ...
@@ -467,8 +465,10 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   fclose(coordOUT);
   fclose(coordSTART);
-  
-  p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -values -1 -ImageForCoordinates %s ',...
+  % p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -scat -values 1 ',...
+  %   '%s/%s.coord %s/%s.3dfid'], ...
+  %      mbOUT{1:2},mbOUT{1:2});
+  p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -scat -values 1 -ImageForCoordinates %s ',...
                 '%s/%s.coord %s/%s.3dfid'], ...
                   tilt_filepath, mbOUT{1:2},mbOUT{1:2});
   system(p2m);
@@ -506,12 +506,12 @@ for iTiltSeries = tiltStart:nTiltSeries
   iSave = 1;
   reModFileName = sprintf('%s/%s_%d_reMod.sh',mbOUT{1:2},iSave);
   reModFile = fopen(reModFileName,'w');
-  invertTiltAngles = 0;
   fprintf(reModFile,['#!/bin/bash\n\n',...
     'tilt -StandardInput << EOF\n',...
     'input %s\n', ...
     'output %s/%s.fid\n', ...
     'COSINTERP 0\n', ...
+    'RotateBy90 \n',...
     'THICKNESS %d\n', ...
     'TILTFILE %s/%s_align.rawtlt\n', ...
     'DefocusFile %s/%s_align.defocus\n', ...
@@ -530,7 +530,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     mbOUT{1:2},...
     mbOUT{1:2},...
     mbOUT{1:2},...
-    lastLine1,lastLine2,...
+    lastLine1,...
+    lastLine2,...
     lastLine3);
   
   fclose(reModFile);
@@ -714,7 +715,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             % rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           
           %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
-          rTilt = BH_defineMatrix([-wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','fwdVector');
+          rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','fwdVector');
           
           rotFull = rTilt*reshape(wrkPar(iFid,7:15),3,3);
         end
@@ -856,7 +857,7 @@ fclose(recScript);
 system(sprintf('chmod a=wrx %s_rec.sh',output_prefix));
 system(sprintf('./%s_rec.sh',output_prefix));
 
-
+error('NO REFINE')
 %%%%%%%%%%%%%%%%%%%%%%%%%
 % Refine
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%

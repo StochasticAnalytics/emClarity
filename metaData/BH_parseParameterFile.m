@@ -597,7 +597,8 @@ else
 end
 
 if isfield(emc, 'super_sample')
-  EMC_assert_numeric(emc.super_sample, 3, [2, 5]);
+  emc.super_sample
+  EMC_assert_numeric(emc.super_sample, 1, [2, 5]);
 else
   emc.super_sample = 3;
 end

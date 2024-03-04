@@ -248,6 +248,8 @@ recGeom = 0;
 tiltRecGeom = 0;
 tomoList  = {};
 nTomos= 0;
+tiltRecGeom = {};
+tiltTomoList = {};
 if (recon_for_subTomo)
   [tiltList, nTilts] = BH_returnIncludedTilts(subTomoMeta.mapBackGeometry);  
 else  
@@ -286,17 +288,22 @@ iterList = cell(nGPUs,1);
 % If there is only one tilt, things break in a weird way
 nGPUs = min(nGPUs, nTilts);
 
-[ nParProcesses, iterList] = BH_multi_parallelJobs(nTilts, nGPUs, 256, emc.nCpuCores);
+% For now, limit the number of processes to avoid memory issues
+% TODO: determine something more precise
+n_cores_wanted = min(emc.nCpuCores, floor(emc.pixel_size_angstroms*0.7)*nGPUs);
+[ nParProcesses, iterList] = BH_multi_parallelJobs(nTilts, nGPUs, 256, n_cores_wanted);
 
-% try
-%   EMC_parpool(nParProcesses)
-% catch
-%   delete(gcp('nocreate'))
-%   EMC_parpool(nParProcesses)
-% end
+try
+  EMC_parpool(nParProcesses)
+catch
+  delete(gcp('nocreate'))
+  EMC_parpool(nParProcesses)
+end
 
-% parfor iParProc = 1:nParProcesses
-for iParProc = 1:nParProcesses %%revert
+
+
+parfor iParProc = 1:nParProcesses
+% for iParProc = 1:nParProcesses %%revert
   % iGPU = mod(iParProc,nGPUs);
   for iTilt = iterList{iParProc}
     nTomos = 0;
@@ -362,8 +369,8 @@ for iParProc = 1:nParProcesses %%revert
 end
 
 % All data is handled through disk i/o so everything unique created in the
-% parfor iParProc = 1:nParProcesses
-  for iParProc = 1:nParProcesses %%revert
+parfor iParProc = 1:nParProcesses
+  % for iParProc = 1:nParProcesses %%revert
     iGPU = mod(iParProc,nGPUs);
 % for iGPU = 1:nGPUs %%revert
 
@@ -561,7 +568,12 @@ end
       for iTomo = 1:nTomos
         
         if (slab_list{iTomo}(iSection,1))
-          this_tomo_idx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+          if (recon_for_templateMatching)
+            this_tomo_idx = iTomo;
+          else
+            this_tomo_idx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+          end
+
           reconName = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, this_tomo_idx, iSection);
             
           if (recon_for_tomoCPR)
@@ -636,7 +648,7 @@ end
             iGPU, ...
             floor(iCoords{iTomo}.NX ./ samplingRate),... % WIDTH = NX
             floor(round(slab_list{iTomo}(iSection,5))), ... % THICKNESS = NZ
-            iCoords{iTomo}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X
+            -iCoords{iTomo}.dX_specimen_to_tomo ./ samplingRate, ... % SHIFT X is negative dX which describes the vector from the specimen origin to the tomo origin
             slab_list{iTomo}(iSection,6));
           
           
@@ -743,7 +755,11 @@ end
       % for iSection = 1:n_slabs_to_reconstruct
       for iSection = slab_order
         if (slab_list{iTomo}(iSection,1))
-          this_tomo_idx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+          if (recon_for_templateMatching)
+            this_tomo_idx = iTomo;
+          else
+            this_tomo_idx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
+          end
           this_slab = sprintf('%s/%s_ali%d_%d_%d.rec', tmpCache, tiltList{iTilt}, mapBackIter+1, this_tomo_idx, iSection);
           cleanup3 = sprintf('%s %s',cleanup3,this_slab);
           fprintf(recombineCMD, '%s\n', this_slab);
