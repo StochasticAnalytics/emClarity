@@ -1064,7 +1064,7 @@ for iPrj = 1:nPrjs
   
   iProjection = BH_padZeros3d(maskedStack(:,:,TLT(iPrj,1)),padVal(1,:),padVal(2,:),'GPU','singleTaper');
   iProjectionFT = fftn(iProjection).*iExposureFilter; clear iExposureFilter
-  correctedPrj = zeros([d1,d2],'single','gpuArray');
+    correctedPrj = zeros([d1,d2],'single','gpuArray');
   
   % Gridvectors for the specimen plane
   [rX,rY,~] = BH_multi_gridCoordinates([d1,d2],'Cartesian','GPU',{'none'},0,1,0);
@@ -1139,8 +1139,8 @@ for iPrj = 1:nPrjs
     else
       tmpCorrection = BH_padZeros3d(real(ifftn(iProjectionFT.*Hqz)),trimVal(1,:),trimVal(2,:),'GPU','single');
     end
-    
-    tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
+
+        tmpMask = (tZ > iDefocus - ctf3dDepth/2 & tZ <= iDefocus + ctf3dDepth/2);
     
     linearIDX =  unique(sub2ind([d1,d2],tX(tmpMask),tY(tmpMask)));
     
