@@ -530,6 +530,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     tiltHeader = getHeader(MRCImage(tiltName,0));
     
+    % FIXME, this isn't necessarily going to be the correct size
     fullTiltSizeXandY = [tiltHeader.nX,tiltHeader.nY].*samplingRate;
     
     
@@ -858,7 +859,11 @@ for iTiltSeries = tiltStart:nTiltSeries
         nChunks = length(inc)-1;
         
         for iChunk = 1:nChunks
-          
+          if iChunk == nChunks
+            extend_by = 1;
+          else
+            extend_by = 0;
+          end
           if iChunk == 1
             if exist(outputStackName,'file')
               fprintf('removing %s\n',outputStackName);
@@ -928,11 +933,10 @@ for iTiltSeries = tiltStart:nTiltSeries
             mbOUT{1:3},...
             taStr, mbOUT{1:3},iSave,... 
             0,sTY-1,...  
-            inc(iChunk),inc(iChunk+1)-1,...
+            inc(iChunk),inc(iChunk+1)-1+extend_by,...
             lastLine1,lastLine2,...
             lastLine3);
-            inc(iChunk)
-            inc(iChunk+1)-1
+  
           fclose(reProjFile);
           system(sprintf('chmod a=wrx %s',rePrjFileName));
           
@@ -1623,7 +1627,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     % The model ends up seeing the pixel size as 1, so even though it loads
   % properly on the full aligned stack, these coords need to be scaled by
   % the pixel size since this is the input to tiltalign.
-  fFull(:,2:3) = fFull(:,2:3).*pixel_size;
+  % fFull(:,2:3) = fFull(:,2:3).*pixel_size;
+
+  fFull(:,2:3) = (samplingRate.*(fFull(:,2:3) - emc_get_origin_index(fullTiltSizeXandY./samplingRate)) + emc_get_origin_index(fullTiltSizeXandY));
   
   fprintf(fidCombine,'%d %4.4f %4.4f %d\n',fCombine');
   fclose(fidCombine);
@@ -1647,6 +1653,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     final_line1 =  'ShiftZFromOriginal';
     final_line2 =  'AxisZShift 0.0';
     final_line3 =  'LocalOutputOptions 1,1,1';
+
+    
   else
     final_line3 =  '';
     final_line2 =  '';
@@ -1661,6 +1669,12 @@ for iTiltSeries = tiltStart:nTiltSeries
     tilt_script_name = sprintf('cache/mapBack%d/%s%s',mbOUT{2},tn2,tn3);
   end
   
+  % TODO: It looks like the output model file (3dmod) is the solved positions,
+  % but is saved at a pixel size of 1. Scaling by the sampling rate in all dimensions
+  % and then adding the origin (only for Z) places the coordinates back into the bin6 model
+  % I think we could get shifts from this
+  % TODO: could use ImageOriginXandY to accound for a diffence in origin due to binning
+  % as ImageSizeXandY given as binned size*sampling rate, which may not equal full size
   fprintf(aliCom,['#!/bin/bash\n\n',...
     '#iTiltSeries %d\n',...
     'tiltalign -StandardInput << EOF\n',...
@@ -1783,7 +1797,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   %%%system(sprintf('grep -A %d  " At minimum tilt" ./mapBack/%s_ta.log >  tmp.log',nPrjs+2,TN));
   %%%system(sprintf('awk ''{if(NR >3) print $5}'' tmp.log > mapBack/%s.mag',TN));
   %%%end %uf cibdutuib
-  error('early exit')
 end % loop over tilts
 
 
