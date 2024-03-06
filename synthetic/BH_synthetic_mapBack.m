@@ -241,7 +241,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
 
   
-  mapBackRePrjSize = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).('tomoCprRePrjSize');
+  mapBackRePrjSize = min(256,subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).('tomoCprRePrjSize'));
   % % %   iViewGroup = subTomoMeta.mapBackGeometry.viewGroups.(tiltNameList{iTiltSeries});
   nTomograms = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).nTomos
   if nTomograms == 0
@@ -901,7 +901,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             if (failedToRun)
               error('failed to initialize reporojection %s\n',outputStackName);
             end
-          end
+          end % if iChunk == 1, initialize the projection
           
      
           fprintf('Reprojecting volume %d/%d with size %d\n',...
@@ -928,10 +928,11 @@ for iTiltSeries = tiltStart:nTiltSeries
             mbOUT{1:3},...
             taStr, mbOUT{1:3},iSave,... 
             0,sTY-1,...  
-            inc(iChunk),inc(iChunk+1),...
+            inc(iChunk),inc(iChunk+1)-1,...
             lastLine1,lastLine2,...
             lastLine3);
-          
+            inc(iChunk)
+            inc(iChunk+1)-1
           fclose(reProjFile);
           system(sprintf('chmod a=wrx %s',rePrjFileName));
           
@@ -939,7 +940,6 @@ for iTiltSeries = tiltStart:nTiltSeries
           
           
           [failedToRun,~] = system(sprintf('%s',rePrjFileName));
- 
           if (failedToRun)
             % Reduce size
             switch mapBackRePrjSize
@@ -1002,7 +1002,6 @@ for iTiltSeries = tiltStart:nTiltSeries
       'input %s\n', ...
       'output %smapBack%d/%s.fid\n', ...
       'COSINTERP 0\n', ...
-      'RotateBy90\n',...
       'THICKNESS %d\n', ...
       'TILTFILE %smapBack%d/%s_align.rawtlt \n', ...
       'DefocusFile %smapBack%d/%s_align.defocus \n', ...
@@ -1065,8 +1064,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % Give every instance of each fiducial a unique identifier.
   fidList = [1:size(fidList,1);fidList']';
-  
-  error('check')
+
   % for center of mass
   COM = 3;
   [bx,by] = ndgrid(-COM:COM,-COM:COM);
@@ -1785,7 +1783,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   %%%system(sprintf('grep -A %d  " At minimum tilt" ./mapBack/%s_ta.log >  tmp.log',nPrjs+2,TN));
   %%%system(sprintf('awk ''{if(NR >3) print $5}'' tmp.log > mapBack/%s.mag',TN));
   %%%end %uf cibdutuib
-  
+  error('early exit')
 end % loop over tilts
 
 
