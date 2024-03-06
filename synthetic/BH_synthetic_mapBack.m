@@ -585,7 +585,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       % We need to rotate the model 90 degrees around X to match the "natural" reconstruction reference frame of imod
       % that is [x,z,-y]
-      modelRot = BH_defineMatrix([0,0,0],'Bah','fwdVector');
+      modelRot = BH_defineMatrix([0,90,0],'Bah','fwdVector');
       
       for iSubTomo = 1:nSubTomos
 
@@ -684,7 +684,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           % Reproject using tilt, so just save the 3d coords.
     
           fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', (modelRot * subtomo_origin_wrt_tilt_origin')./samplingRate + ...
-                                                    [binned_specimen_origin_in_specimen_frame(1),binned_specimen_origin_in_specimen_frame(2),binned_specimen_origin_in_specimen_frame(3)]' - ...
+                                                    [binned_specimen_origin_in_specimen_frame(1),binned_specimen_origin_in_specimen_frame(3),binned_specimen_origin_in_specimen_frame(2)]' - ...
                                                     emc.prjVectorShift([1,2,3])', ...
                                                     fidIDX);
           
