@@ -34,6 +34,9 @@ volTight = 0;
 flgCOM = 0;
 flg3d = 1;
 
+global emc_debug_print;
+
+
 global bh_global_binary_mask_low_pass
 global bh_global_binary_mask_threshold
 global bh_global_vol_est_scaling
@@ -428,8 +431,10 @@ if strcmpi(mShape, 'BINARY')
     maskVolume = sum(currentMask(:)>0);
     particleVolEstimate = particleVolEstimate ./ localParticleScaling;
     particleFraction = particleVolEstimate ./ maskVolume .* powerReduction;
-    fprintf('Estimated partVol, %d voxels\nmaskVol %d voxels\npwrReduction %2.3f\npartFract %2.3f\n',...
-      particleVolEstimate, maskVolume, powerReduction,particleFraction);
+    if (emc_debug_print)
+      fprintf('Estimated partVol, %d voxels\nmaskVol %d voxels\npwrReduction %2.3f\npartFract %2.3f\n',...
+        particleVolEstimate, maskVolume, powerReduction,particleFraction);
+    end
     
     % Should probably use varargout, but for now, returning the center of
     % mass is not done at the same stage as a particle volume estimate.

@@ -83,10 +83,11 @@ function [MASK, varargout] = EMC_maskReference(IMAGE, PIXEL, OPTION)
 %
 
 % Global verbosity.
-global EMC_gp_verbose
-if isempty(EMC_gp_verbose)
-    EMC_gp_verbose = true;
-end
+global emc_debug_print
+
+% if isempty(emc_debug_print)
+%     emc_debug_print = true;
+% end
 
 %% MAIN
 [SIZE, OPTION, flg, tofloat] = checkIN(IMAGE, PIXEL, OPTION);
@@ -199,7 +200,7 @@ if OPTION.fsc
     % to take into account the power reduction due to the taper).
     FRACTION = maskVolume ./ (particleVolEstimate .* powerReduction);
     
-    if EMC_gp_verbose
+    if emc_debug_print
         fprintf(['FSC mask: Estimated particule volume : %d voxels\n', ...
             '               Estimated mask volume : %d voxels\n', ...
             '                     Power reduction : %2.3f\n', ...

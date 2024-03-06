@@ -638,7 +638,7 @@ parfor iParProc = 1:nParProcesses
             n_slices_in_Y = tiltChunks(end) - tiltChunks(1) + 1;
           end
 
-          rCMD = sprintf(['tilt %s %s -MODE 12 -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
+          rCMD = sprintf(['tilt %s %s -input %s -output %s.TMPPAD -TILTFILE %s -UseGPU %d ', ...
             '-WIDTH %d -COSINTERP 0 -THICKNESS %d -SHIFT %f,%f '],...
             super_sample, ... 
             expand_lines, ...
@@ -655,9 +655,9 @@ parfor iParProc = 1:nParProcesses
           reconScaling = 1;
           % Explicitly set Radial to Nyquist
           if (flgLocal)
-            rCMD = [rCMD sprintf('-LOCALFILE %s -RADIAL 0.5,.05 -MODE 2 -SCALE 0,%d', LOCAL, reconScaling)];
+            rCMD = [rCMD sprintf('-LOCALFILE %s -RADIAL 0.5,.05 -MODE 12 -SCALE 0,%d', LOCAL, reconScaling)];
           else
-            rCMD = [rCMD sprintf('-RADIAL 0.5,.05 -MODE 2 -SCALE 0,%d', reconScaling)];
+            rCMD = [rCMD sprintf('-RADIAL 0.5,.05 -MODE 12 -SCALE 0,%d', reconScaling)];
           end
           
           if isfile(sprintf('%s.sh',reconName))

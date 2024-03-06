@@ -148,7 +148,8 @@ iCell = 0;
 output_cell = {};
 newstack_file = sprintf('%s/temp_particle_stack.newstack',mbOUT{1});
 newstack_file_handle = fopen(newstack_file,'w');
-
+skip_to_end = false;
+if ~(skip_to_end)
 
 for iTiltSeries = tiltStart:nTiltSeries
   n_particles_added_to_stack = 0;
@@ -567,7 +568,7 @@ for iTiltSeries = tiltStart:nTiltSeries
                 mbOUT{1:2}, mbOUT{1:2}))
   end
   
-  
+  error('test')
   try
     fidList = load(sprintf('%s/%s.coordPrj',mbOUT{1:2}));
   catch
@@ -802,6 +803,7 @@ fclose(fh);
 system(sprintf('cat %s >> %s', newstack_file, newstack_file_with_n_stacks));
 system(sprintf('newstack -FileOfInputs %s %s.mrc > /dev/null', newstack_file_with_n_stacks, output_prefix));
 
+end % skip to here
 % SAVE_IMG(cat(3,output_cell{:}),sprintf('%s.mrc',output_prefix),pixelSize);
 
 maxThreads = emc.('nCpuCores');
@@ -857,7 +859,6 @@ fclose(recScript);
 system(sprintf('chmod a=wrx %s_rec.sh',output_prefix));
 system(sprintf('./%s_rec.sh',output_prefix));
 
-error('NO REFINE')
 %%%%%%%%%%%%%%%%%%%%%%%%%
 % Refine
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%

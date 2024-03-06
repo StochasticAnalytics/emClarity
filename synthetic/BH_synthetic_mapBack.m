@@ -520,7 +520,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     fclose(iXF);
     
     positionList = geometry.(tomoList{iTomo});
-    tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     
     positionList = positionList(positionList(:,26) ~= -9999,:);
     nFidsTotal = nFidsTotal + size(positionList,1);
@@ -586,7 +585,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       % We need to rotate the model 90 degrees around X to match the "natural" reconstruction reference frame of imod
       % that is [x,z,-y]
-      modelRot = BH_defineMatrix([0,90,0],'Bah','fwdVector');
+      modelRot = BH_defineMatrix([0,0,0],'Bah','fwdVector');
       
       for iSubTomo = 1:nSubTomos
 
@@ -685,8 +684,8 @@ for iTiltSeries = tiltStart:nTiltSeries
           % Reproject using tilt, so just save the 3d coords.
     
           fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', (modelRot * subtomo_origin_wrt_tilt_origin')./samplingRate + ...
-                                                    [binned_specimen_origin_in_specimen_frame(1),binned_specimen_origin_in_specimen_frame(3),binned_specimen_origin_in_specimen_frame(2)]' - ...
-                                                    emc.prjVectorShift([1,3,2])', ...
+                                                    [binned_specimen_origin_in_specimen_frame(1),binned_specimen_origin_in_specimen_frame(2),binned_specimen_origin_in_specimen_frame(3)]' - ...
+                                                    emc.prjVectorShift([1,2,3])', ...
                                                     fidIDX);
           
           % Save a non-rotated model with each class on its own object for visualization
@@ -759,13 +758,13 @@ for iTiltSeries = tiltStart:nTiltSeries
     system(p2m);
     
     for iSave = 1
-      SAVE_IMG(MRCImage(gather(avgTomo{iSave})),sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave),pixel_size);
+      SAVE_IMG(avgTomo{iSave},{sprintf('%smapBack%d/%s.tmpTomo%d', mbOUT{1:3},iSave), 'half'},pixel_size);
       avgTomo{iSave} = [];
     end
     clear avgTomo
     
     if (emc.save_mapback_classes || flgClassAvg)
-      SAVE_IMG(MRCImage(gather(avgColor)),sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),pixel_size);
+      SAVE_IMG(avgColor,{sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),'half'},pixel_size);
       clear avgColor
     end
 
@@ -787,11 +786,12 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       system(rotCMD);
       
-      system(sprintf('rm %smapBack%d/%s.tmpTomo%d',  mbOUT{1:3},iSave));
+      % system(sprintf('rm %smapBack%d/%s.tmpTomo%d',  mbOUT{1:3},iSave));
     end
     
     clear avgTomo{1}  wgt
   end
+
   % % %   % It may be faster to work with a rotated vol since the reading in may cause
   % % %   % problems, but the projection is so slow, that this isn't worth dealing with
   % % %   % now.
@@ -823,10 +823,8 @@ for iTiltSeries = tiltStart:nTiltSeries
     if (localFile)
       lastLine1 = sprintf('LOCALFILE %s', localFile)
       % Used if GPU fails
-      cpuLastLine = lastLine1;
     else
       lastLine1 = '';
-      cpuLastLine = '';
     end
     
     if strcmpi('GPU', 'GPU')
@@ -905,8 +903,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             end
           end
           
-          % Special case, initialize the full sized volume and the
-          % header but don't actually reproject anything.
+     
           fprintf('Reprojecting volume %d/%d with size %d\n',...
             iChunk,nChunks,mapBackRePrjSize);
           rePrjFileName = sprintf('%smapBack%d/%s_%d_rePrj.sh',mbOUT{1:3},iSave);
@@ -921,16 +918,16 @@ for iTiltSeries = tiltStart:nTiltSeries
             'THICKNESS %d\n', ...
             'TILTFILE %smapBack%d/%s_align.rawtlt\n', ...
             'REPROJECT %s\n', ...
-            'RecFileToReproject %smapBack%d/%s.tmpRot%d\n',...
-            'TOTALSLICES %d,%d\n',...
+            'RecFileToReproject %smapBack%d/%s.tmpRot%d\n',... 
+            'TOTALSLICES %d,%d\n',... 
             'ZMinAndMaxReproj %d,%d\n',...
             '%s\n', ...
             '%s\n', ...
             '%s\n',...
             'EOF'],tilt_binned_filename ,outputStackName, maxZ, ...
             mbOUT{1:3},...
-            taStr, mbOUT{1:3},iSave,...
-            0,sTY-1,...
+            taStr, mbOUT{1:3},iSave,... 
+            0,sTY-1,...  
             inc(iChunk),inc(iChunk+1),...
             lastLine1,lastLine2,...
             lastLine3);
@@ -942,7 +939,7 @@ for iTiltSeries = tiltStart:nTiltSeries
           
           
           [failedToRun,~] = system(sprintf('%s',rePrjFileName));
-          
+ 
           if (failedToRun)
             % Reduce size
             switch mapBackRePrjSize
@@ -979,10 +976,10 @@ for iTiltSeries = tiltStart:nTiltSeries
             system(sprintf('mv %s %s.tmp',rePrjFileName,rePrjFileName));
             system(sprintf('cp %s.tmp %s',rePrjFileName,rePrjFileName));
             system(sprintf('rm %s.tmp %s',rePrjFileName,rePrjFileName));
-            %               system(sprintf('%s',rePrjFileName));
+                          system(sprintf('%s',rePrjFileName));
             
-            % Break out to next iter of while loop, recalculating the
-            % chunk size at reduced depth.
+            Break out to next iter of while loop, recalculating the
+            chunk size at reduced depth.
             
             break
             
@@ -1005,6 +1002,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       'input %s\n', ...
       'output %smapBack%d/%s.fid\n', ...
       'COSINTERP 0\n', ...
+      'RotateBy90\n',...
       'THICKNESS %d\n', ...
       'TILTFILE %smapBack%d/%s_align.rawtlt \n', ...
       'DefocusFile %smapBack%d/%s_align.defocus \n', ...
@@ -1047,10 +1045,10 @@ for iTiltSeries = tiltStart:nTiltSeries
     
   end
   
-  for iSave = 1
-    % Remove the full size tomo
-    system(sprintf('rm %smapBack%d/%s.tmpRot%d',mbOUT{1:3},iSave));
-  end
+  % for iSave = 1 FIXME revert
+  %   % Remove the full size tomo
+  %   system(sprintf('rm %smapBack%d/%s.tmpRot%d',mbOUT{1:3},iSave));
+  % end
   
   fidList = load(sprintf('%smapBack%d/%s.coordPrj',mbOUT{1:3}));
   parList = load(sprintf('%smapBack%d/%s.coord_start',mbOUT{1:3}));
@@ -1068,7 +1066,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % Give every instance of each fiducial a unique identifier.
   fidList = [1:size(fidList,1);fidList']';
   
-  
+  error('check')
   % for center of mass
   COM = 3;
   [bx,by] = ndgrid(-COM:COM,-COM:COM);
@@ -1174,8 +1172,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   % FIXME revert
-  for iPrj = 1:nPrjs
-  % parfor iPrj = 1:nPrjs
+  % for iPrj = 1:nPrjs
+  parfor iPrj = 1:nPrjs
     
     %   	    % For some reason if these mrc objects are created before the parfor
     % loop begins, they fail to load. It is fine as a regular for loop

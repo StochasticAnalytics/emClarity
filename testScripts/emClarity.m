@@ -748,8 +748,9 @@ function [ emc  ] = emC_testParse( paramTest )
     bh_global_fast_scratch_disk='';
   end
   
-  
-  
+  global emc_debug_print
+  emc_debug_print = emc.('debug_print');
+
   try
     bh_global_ram_disk = emc.('ramDisk');
   catch

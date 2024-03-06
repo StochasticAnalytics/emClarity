@@ -919,8 +919,8 @@ parfor iParProc = parVect
               else
 
                 iParticle = gpuArray(OPEN_IMG('single', volumeData,[indVAL(1,1),indVAL(2,1)], ...
-                  [indVAL(1,2),indVAL(2,2)], ...
-                  [indVAL(1,3),indVAL(2,3)],'keep'));
+                                                                    [indVAL(1,2),indVAL(2,2)], ...
+                                                                    [indVAL(1,3),indVAL(2,3)],'keep'));
               end
               
               
@@ -937,7 +937,7 @@ parfor iParProc = parVect
                 
                 
                 particleOUT_name = sprintf('cache/subtomo_%0.7d_%d.mrc',positionList(iSubTomo,4),iPeak);
-                positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+ceil((sizeWindow+1)./2);
+                positionList(iSubTomo,[11:13]+26*(iPeak-1)) = shiftVAL+CUTPADDING+emc_get_origin_index(sizeWindow);
                 if (emc.projectVolumes)
                   SAVE_IMG(sum(iParticle,3),particleOUT_name,emc.pixel_size_angstroms);
                 else
