@@ -102,14 +102,14 @@ n_surfaces=1;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 try
-  use_PCF =  emc.('use_PCF');
+  use_PCF =  emc.('use_PCF')
 catch
-  use_PCF = 0;
+  use_PCF = 0
 end
 
-if (use_PCF)
-  error('The PCF scaling is not working correctly, please set use_PCF=0');
-end
+% if (use_PCF)
+%   error('The PCF scaling is not working correctly, please set use_PCF=0');
+% end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -1083,13 +1083,13 @@ for iTiltSeries = tiltStart:nTiltSeries
   CTFSIZE = BH_multi_iterator([2.*tileSize,1], 'fourier');
   
   CTFSIZE = CTFSIZE(1:2);
-  ctfOrigin = floor(CTFSIZE./2) + 1;
+  ctfOrigin = emc_get_origin_index(CTFSIZE);
   
   padCTF = BH_multi_padVal(tileSize,CTFSIZE);
   ctfMask = BH_mask3d('sphere',CTFSIZE,ctfOrigin-7,[0,0],'2d');
   
   if (eraseMask)
-    peakMask = BH_mask3d(eraseMaskType,CTFSIZE,eraseMaskRadius,[0,0],'2d');
+    peakMask = BH_mask3d(eraseMaskType,CTFSIZE,3.*eraseMaskRadius,[0,0],'2d');
   else
     peakMask = BH_mask3d('sphere',CTFSIZE,peak_search_radius,[0,0],'2d');
   end
@@ -1109,7 +1109,9 @@ for iTiltSeries = tiltStart:nTiltSeries
   
   % Any large shifts should be obvious in the original alignment, so only
   % look around +/- this value
-  globalPeak = max(2,ceil(10/pixel_size));
+  % globalPeak = max(2,ceil(10/pixel_size));
+  % globalPeak = globalPeak + mod(globalPeak,2);
+  globalPeak = floor(max(sTX,sTY).*0.25);
   globalPeak = globalPeak + mod(globalPeak,2);
   
   globalPeakMask = zeros([sTX,sTY,1],'single');
@@ -1174,8 +1176,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
   
   % FIXME revert
-  % for iPrj = 1:nPrjs
-  parfor iPrj = 1:nPrjs
+  for iPrj = 1:nPrjs
+  % parfor iPrj = 1:nPrjs
     
     %   	    % For some reason if these mrc objects are created before the parfor
     % loop begins, they fail to load. It is fine as a regular for loop
@@ -1317,11 +1319,14 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     
     
-    cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).* abs(HqzUnMod).*...
-      conj(fftn(refPrj).*Hqz))));
+    cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).*conj(fftn(refPrj).*Hqz))));
     %      cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).*...
-    %                              conj(fftn(refPrj).*Hqz))));
-    
+    %    
+    %                           conj(fftn(refPrj).*Hqz))));
+    if (use_PCF)
+      cccPrj = cccPrj .* cccPrj ./ (abs(cccPrj) + 0.1);
+    end
+
     cccPrj = (cccPrj-min(cccPrj(:))) .* globalPeakMask;
     [~,maxPRJ] = max(cccPrj(:));
     [mRx, mRy] = ind2sub(size(cccPrj), maxPRJ);
@@ -1339,16 +1344,22 @@ for iTiltSeries = tiltStart:nTiltSeries
     comPRJX = sum(sum(bx.*cccPRJ))./sum(cccPRJ(:));
     comPRJY = sum(sum(by.*cccPRJ))./sum(cccPRJ(:));
     
+  
     
-    
-    
-    estPeak = [mRx, mRy] - binned_specimen_origin_in_specimen_frame(1:2) + [comPRJX, comPRJY];
+    % max index - origin + fraxtional COM
+    estimated_global_offset = [mRx, mRy] - binned_specimen_origin_in_specimen_frame(1:2) + [comPRJX, comPRJY];
     glbList = fopen(sprintf('%smapBack%d/%s_%03d.global',mbOUT{1:3},iPrj),'w');
     % Add unique indicies to prevent ambiquity when comparing with paral
-    fprintf(glbList,'%f  degree tilt at %f %f\n', TLT(iPrj,4),estPeak);
-    dataPrj = BH_resample2d(dataPrj,[0,0,0],[estPeak,0],'Bah','GPU','inv',1,size(dataPrj));
+    fprintf(glbList,'%f  degree tilt at %f %f\n', TLT(iPrj,4),estimated_global_offset);
+    dataPrj = BH_resample2d(dataPrj,[0,0,0],[estimated_global_offset,0],'Bah','GPU','inv',1,size(dataPrj));
     %mapBack%d, imshow3D(gather(fftshift(real(ifftn(fftn(dataPrj).*conj(fftn(refPrj)))))));
     
+    cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).* abs(HqzUnMod).*...
+      conj(fftn(refPrj).*Hqz))));
+    %      cccPrj = fftshift(real(ifftn(bandPassPrj.*fftn(dataPrj).*...
+    %    
+    %                           conj(fftn(refPrj).*Hqz))));
+
     
     %     figure, imshow3D(gather(cccPrj));
     
@@ -1371,7 +1382,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     coordOUT = fopen(sprintf('%smapBack%d/%s_%03d.coordFIT',mbOUT{1:3},iPrj),'w');
     
-    
+    tmpOut = zeros([CTFSIZE,size(wrkFid,1)],'single','gpuArray');
     
     for iFid = 1:size(wrkFid,1)
       
@@ -1380,14 +1391,19 @@ for iTiltSeries = tiltStart:nTiltSeries
         continue
       end
       
-      pixelX = wrkFid(iFid,3) - emc.pixelShift + emc.flgPostShift(1);
-      pixelY = wrkFid(iFid,4) - emc.pixelShift + emc.flgPostShift(2);
+      % pixelX = wrkFid(iFid,3) - emc.pixelShift + emc.flgPostShift(1);
+      % pixelY = wrkFid(iFid,4) - emc.pixelShift + emc.flgPostShift(2);
+      pixelX = wrkFid(iFid,3);
+      pixelY = wrkFid(iFid,4);
       
-      ox = floor(pixelX) - tileRadius;
-      oy = floor(pixelY) - tileRadius;
+      ox = floor(pixelX+0.5) - tileRadius;
+      oy = floor(pixelY+0.5) - tileRadius;
+
+      sx = (pixelX - ox);
+      sy = (pixelY - oy);
       
-      sx = emc.pixelMultiplier*(pixelX - floor(pixelX));
-      sy = emc.pixelMultiplier*(pixelY - floor(pixelY));
+      % sx = emc.pixelMultiplier*(pixelX - floor(pixelX));
+      % sy = emc.pixelMultiplier*(pixelY - floor(pixelY));
       
       %         ox = floor(wrkFid(iFid,3)) - tileRadius;
       %         oy = floor(wrkFid(iFid,4)) - tileRadius;
@@ -1426,6 +1442,8 @@ for iTiltSeries = tiltStart:nTiltSeries
       
       dataTile = dataTile./rms(dataTile(:));
       refTile = refTile ./ rms(refTile(:));
+
+
       
       dataTile = ctfMask.*BH_padZeros3d(dataTile,'fwd',padCTF, ...
         'GPU','singleTaper');
@@ -1451,22 +1469,30 @@ for iTiltSeries = tiltStart:nTiltSeries
       bestScore = -inf;
       bestCTF = 1;
       for deltaCTF = 1:nDefTotal
-        
+        SAVE_IMG(real(bhF.invFFT(conj(refFT))), 'refFT.mrc');
+        SAVE_IMG(real(mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate*TLT(iPrj,16)*10^10), ...
+          single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
+          single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)))), 'iCTF.mrc');
         iRefCTF = refFT .* ...
           mexCTF(true,false,int16(CTFSIZE(1)),int16(CTFSIZE(2)),single(samplingRate*TLT(iPrj,16)*10^10), ...
                 single(TLT(iPrj,18)*10^10),single(TLT(iPrj,17)*10^3),...
                 single(df1 + defShiftVect(deltaCTF)),single(df2 + defShiftVect(deltaCTF)),single(dfA),single(TLT(iPrj,18)));
-        
+        SAVE_IMG(real(bhF.invFFT(conj(iRefCTF))), 'iRefCTF.mrc');
         %           try
         iRefCTF = iRefCTF ./ sqrt(2.*sum(abs(iRefCTF(1:end-bhF.invTrim,:)).^2,'all'));
-        
+        SAVE_IMG(real(bhF.invFFT(iRefCTF)), 'iRefCTF2.mrc');
         cccMap = dataFT .* iRefCTF;
+        SAVE_IMG(real(bhF.invFFT(cccMap)), 'cccMap.mrc')
         if (use_PCF)
           cccMap = cccMap .* cccMap ./ (abs(cccMap) + 0.1);
         end
+        SAVE_IMG(real(bhF.invFFT(cccMap)), 'cccMap2.mrc');
+        error('sdf')
         cccMap = peakMask.*real(bhF.invFFT(cccMap));
         
-        
+        tmpOut(:,:,iFid) = cccMap;
+        dXY = [1,1];
+        continue;
         
         [maxVal,maxMap] = max(cccMap(:));
         defocusCCC{iPrj}(deltaCTF,iFid) = maxVal;
@@ -1494,11 +1520,11 @@ for iTiltSeries = tiltStart:nTiltSeries
               
               % peak in Map is where query is relative to ref, dXY then is the shift
               % needed to move the predicted position to the measured.
-              % Data moved from a position of estPeak, so add this to dXY
+              % Data moved from a position of estimated_global_offset, so add this to dXY
               
-              dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak - [sx,sy];
+              dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estimated_global_offset + [sx,sy];
             catch
-              dXY = estPeak - [sx,sy]; % TODO double check me
+              dXY = estimated_global_offset + [sx,sy]; % TODO double check me
             end
             
           end
@@ -1544,13 +1570,14 @@ for iTiltSeries = tiltStart:nTiltSeries
         
         % peak in Map is where query is relative to ref, dXY then is the shift
         % needed to move the predicted position to the measured.
-        % Data moved from a position of estPeak, so add this to dXY
+        % Data moved from a position of estimated_global_offset, so add this to dXY
         
-        dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estPeak - [sx,sy];
+        dXY = [mMx,mMy]+[comMapX,comMapY] - ctfOrigin(1:2)+ estimated_global_offset + [sx,sy];
       end
       fprintf(coordOUT,'%d %d %0.4f %0.4f %d\n', wrkFid(iFid,1:2), dXY, wrkFid(iFid,5));
     end % end of loop over fiducials
-    
+    SAVE_IMG(tmpOut,'tmpOut.mrc',pixel_size);
+    error('tmpOut');
     if (calcCTF)
       [~,imDefC] = max(defocusCCC{iPrj},[],1);
       expectedDefocus = mean(defShiftVect(imDefC));
@@ -1560,7 +1587,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     evalMaskCell{iPrj} = uint8(evalMask); evalMask = [];
     fclose(coordOUT);
   end % end of the parfor loop
-  
+
   if ( calcCTF )
     
     save(sprintf('%smapBack%d/%s%s.defShiftsMat',mbOUT{1:3},outCTF),'defocusShifts');
@@ -1629,7 +1656,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   % the pixel size since this is the input to tiltalign.
   % fFull(:,2:3) = fFull(:,2:3).*pixel_size;
 
-  fFull(:,2:3) = (samplingRate.*(fFull(:,2:3) - emc_get_origin_index(fullTiltSizeXandY./samplingRate)) + emc_get_origin_index(fullTiltSizeXandY));
+  % fFull(:,2:3) = (samplingRate.*(fFull(:,2:3) - emc_get_origin_index(fullTiltSizeXandY./samplingRate)) + emc_get_origin_index(fullTiltSizeXandY));
   
   fprintf(fidCombine,'%d %4.4f %4.4f %d\n',fCombine');
   fclose(fidCombine);
@@ -1638,11 +1665,11 @@ for iTiltSeries = tiltStart:nTiltSeries
   fclose(fidFull);
   % convert to model
   system(sprintf(['point2model -zero -circle 3 -color 0,0,255 ',...
-    '%smapBack%d/%s.coordCombine %smapBack%d/%s_fit-comb.fid'],mbOUT{1:3},mbOUT{1:3}));
-  system(sprintf(['point2model -zero -circle 3 -color 0,0,255 ',...
-    '%smapBack%d/%s.coordFull %smapBack%d/%s_fit-full.fid'],mbOUT{1:3},mbOUT{1:3}));
-  system(sprintf(['point2model -zero -circle 3 -color 0,0,255 ',...
-    '%smapBack%d/%s.coordBin%d %smapBack%d/%s_fit-bin%d.fid'],mbOUT{1:3},samplingRate,mbOUT{1:3},samplingRate));
+    '%smapBack%d/%s.coordCombine %smapBack%d/%s_fit-comb.fid -ImageForCoordinates %smapBack%d/%s_1_mapBack.st '],mbOUT{1:3},mbOUT{1:3},mbOUT{1:3}));
+  system(sprintf(['point2model -zero -circle 3 -color 0,0,255 -ImageForCoordinates %smapBack%d/%s_1_mapBack.st ',...
+    '%smapBack%d/%s.coordFull %smapBack%d/%s_fit-full.fid'],mbOUT{1:3},mbOUT{1:3},mbOUT{1:3}));
+  system(sprintf(['point2model -zero -circle 3 -color 0,0,255 -ImageForCoordinates %smapBack%d/%s_1_mapBack.st ',...
+    '%smapBack%d/%s.coordBin%d %smapBack%d/%s_fit-bin%d.fid'],mbOUT{1:3},samplingRate,mbOUT{1:3},samplingRate,mbOUT{1:3}));
   % write the com script for running tiltalign
   TN =tiltBaseName
   RotDef = 5;
@@ -1675,13 +1702,15 @@ for iTiltSeries = tiltStart:nTiltSeries
   % I think we could get shifts from this
   % TODO: could use ImageOriginXandY to accound for a diffence in origin due to binning
   % as ImageSizeXandY given as binned size*sampling rate, which may not equal full size
+  % fullTiltSizeXandY,...
+  %   unsampled_pixel_size,unsampled_pixel_size,...
+    % 'ImageSizeXandY %d,%d\n',...
+    %   'ImagePixelSizeXandY %f,%f\n',...
   fprintf(aliCom,['#!/bin/bash\n\n',...
     '#iTiltSeries %d\n',...
     'tiltalign -StandardInput << EOF\n',...
     'ModelFile %smapBack%d/%s_fit-full.fid\n',...
-    'ImageSizeXandY %d,%d\n',...
-    'ImagePixelSizeXandY %f,%f\n',...
-    'ImagesAreBinned 1\n',...
+    'ImagesAreBinned %d\n',...
     'OutputModelFile %smapBack%d/%s%s.3dmod\n',...
     'OutputResidualFile %smapBack%d/%s%s.resid\n',...
     'OutputFidXYZFile	%smapBack%d/%s%s.xyz\n',...
@@ -1718,9 +1747,13 @@ for iTiltSeries = tiltStart:nTiltSeries
     '%s\n',...
     '%s\n',...
     '%s\n',...
-    'EOF'],iTiltSeries,mbOutAlt{1:3},fullTiltSizeXandY,...
-    unsampled_pixel_size,unsampled_pixel_size,...
-    mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,...
+    'EOF'],...
+    iTiltSeries,...
+    mbOutAlt{1:3},... % for ModelFile
+    samplingRate, ...
+    mbOutAlt{1:3},...
+    outCTF,...
+    mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,...
     mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF,mbOutAlt{1:3},outCTF, ...
     tilt_script_name,n_surfaces, ...
     emc.rot_option_global, ...
@@ -1797,6 +1830,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   %%%system(sprintf('grep -A %d  " At minimum tilt" ./mapBack/%s_ta.log >  tmp.log',nPrjs+2,TN));
   %%%system(sprintf('awk ''{if(NR >3) print $5}'' tmp.log > mapBack/%s.mag',TN));
   %%%end %uf cibdutuib
+  error('early exit')
 end % loop over tilts
 
 
