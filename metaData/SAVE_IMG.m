@@ -13,6 +13,8 @@ imgMax = gather(max(vol(:)));
 imgMean = gather(mean(vol(:)));
 imgRMS = gather(rms(vol(:)));
 
+vol = gather(vol);
+
 mRCImage = MRCImage(gather(vol));
 
 % These are all expected to be singles

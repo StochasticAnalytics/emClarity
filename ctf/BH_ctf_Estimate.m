@@ -204,7 +204,7 @@ if exist(stackNameIN, 'file')
       TLT(:,1) = tltOrder(:,1);
       TLT(:,12)  = (tltOrder(:,4)-tltOrder(:,5))./2 .* 10^-10;
       TLT(:,13)  =  tltOrder(:,6) .* (pi / 180);
-      TLT(:,15)  = -1.*(tltOrder(:,4)+tltOrder(:,5))./2 .* 10^-10;
+      TLT(:,15)  = 1.*(tltOrder(:,4)+tltOrder(:,5))./2 .* 10^-10;
       TLT(:,14) = tltOrder(:,3);
       sorted_dose = sortrows(tltOrder,2);
       cummul_dose = cumsum(sorted_dose(:,3));

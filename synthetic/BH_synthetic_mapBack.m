@@ -1386,7 +1386,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     coordOUT = fopen(sprintf('%smapBack%d/%s_%03d.coordFIT',mbOUT{1:3},iPrj),'w');
     
     tmpOut = zeros([CTFSIZE,size(wrkFid,1)],'single','gpuArray');
-    
+    dXY = [0,0];
     for iFid = 1:size(wrkFid,1)
       
       if wrkFid(iFid,2) == -9999

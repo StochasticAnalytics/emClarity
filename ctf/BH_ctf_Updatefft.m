@@ -1,7 +1,6 @@
 function [  ] = BH_ctf_Updatefft( PARAMETER_FILE, STACK_PRFX, applyFullorUpdate)
 
 
-global bh_global_do_2d_fourier_interp;
 
 emc = BH_parseParameterFile(PARAMETER_FILE);
 
@@ -74,6 +73,8 @@ end
 % For some reason matlab was geeking out about calling this in the parfor
 % loop, getting confused about whether it is a variable or a function.
 parfor iGPU = 1:nGPUs
+% for iGPU = 1:nGPUs
+
   %  for iTilt = 1:length(ITER_LIST{iGPU})
   
   if ( flgParallel )
@@ -216,9 +217,9 @@ parfor iGPU = 1:nGPUs
     gradientAliasMask = BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh');
     
     TLT = INPUT_CELL{iStack,1};
-    pathName = INPUT_CELL{iStack,3}
-    fileName = INPUT_CELL{iStack,4}
-    extension = INPUT_CELL{iStack,5}
+    pathName = INPUT_CELL{iStack,3};
+    fileName = INPUT_CELL{iStack,4};
+    extension = INPUT_CELL{iStack,5};
     
     
     % Optionally address magnification changes.
@@ -252,7 +253,7 @@ parfor iGPU = 1:nGPUs
     
     if ( emc.eucentric_fit && mapBackIter )
       toFit = abs(mbTLT) > emc.eucentric_maxTilt;
-      
+      error('eucentric fit not implemented')
       % For now take the mean, but it would probably be better to fit a line,
       % use the Y intercept, and use the deviation from 0 of the slope as a
       % measure of quality.
@@ -302,31 +303,70 @@ parfor iGPU = 1:nGPUs
     sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
     sizeCropped(3) = d3;
     
-    STACK = zeros(sizeCropped,'single');
-    samplingMaskStack = zeros(sizeCropped,'single');
     
+    if (mapBackIter)
+      tmp_xf = tempname;
+      tmp_xf_fd = fopen(tmp_xf,"w");
+      for i = 1:d3
+        fprintf(tmp_xf_fd,"%f %f %f %f %f %f\n",tlt_tmp{i}([7,8,9,10,2,3]));
+      end
+      fclose(tmp_xf_fd);
+      tmp_combined_xf = tempname;
+      cmd_base = sprintf('xfproduct %s %s.tltxf %s', tmp_xf, mapBackPrfx, tmp_combined_xf);
+      [ xfprod_err ] = system(sprintf('%s > /dev/null',cmd_base));
+      if (xfprod_err)
+        system(cmd_base);
+        error('xfprod failed');
+      else
+        mbEST = load(tmp_combined_xf, '-ascii');
+      end
+    else
+      error('Why would we get here?')
+    end
+
+    
+    base_cmd = sprintf('newstack -mode 12 -meansd 0,1 -xf %s %s %s',tmp_combined_xf,INPUT_CELL{iStack,2},outputStackName);
+    [ newstack_err ] = system(sprintf('%s > /dev/null',base_cmd));
+    if (newstack_err)
+      system(base_cmd);
+      error('newstack failed');
+    end
+    samplingMaskStack = ones(sizeCropped,'single');
+    SAVE_IMG(samplingMaskStack,{sprintf('%s.samplingMask_pre',outputStackName), 'half'}, iPixelHeader,iOriginHeader);
+    
+    base_cmd = sprintf('newstack -mode 12 -fill 0 -xf %s %s.samplingMask_pre %s.samplingMask',tmp_combined_xf,outputStackName,outputStackName);
+    [ newstack_err ] = system(sprintf('%s > /dev/null',base_cmd));
+    if (newstack_err)
+      system(base_cmd);
+      error('newstack failed');
+    end
+
+    system(sprintf('rm %s.samplingMask_pre',outputStackName));
+    system(sprintf('rm %s %s',tmp_xf,tmp_combined_xf));
+
     for i = 1:d3
       
       updateScale = 1;
       
       if (mapBackIter)
         
-        % Stored in row order as output by imod, st transpose is needed. Inversion
-        % of the xform is handled in resample2d.
-        origXF = reshape(tlt_tmp{i}(7:10),2,2)';
-        newXF = reshape(mbEST(i,1:4),2,2)';
+        % % Stored in row order as output by imod, st transpose is needed. Inversion
+        % % of the xform is handled in resample2d.
+        % origXF = reshape(tlt_tmp{i}(7:10),2,2)';
+        % newXF = reshape(mbEST(i,1:4),2,2)';
         
-        
-        dXYZ  = [(newXF*tlt_tmp{i}(2:3)')' + mbEST(i,5:6).*updateScale , 0];
-        if ~isvector(dXYZ)
-          % In case some implicit expansion were to happen for whatever reason.
-          error('dXYZ is a matrix and should be a vector');
-        end
+        % dXYZ  = [(newXF*tlt_tmp{i}(2:3)')' + mbEST(i,5:6).*updateScale , 0];
+        % if ~isvector(dXYZ)
+        %   % In case some implicit expansion were to happen for whatever reason.
+        %   error('dXYZ is a matrix and should be a vector');
+        % end
+        dXYZ(1:2) = tlt_tmp{i}(2:3);
+        combinedXF = tlt_tmp{i}(7:10);
         tlt_tmp{i}(2:3) = dXYZ(1:2);
         
         
         
-        combinedXF = reshape((newXF*origXF)',1,4);
+        % combinedXF = reshape((newXF*origXF)',1,4);
         tlt_tmp{i}(7:10) = combinedXF;
       else
         combinedXF = tlt_tmp{i}(7:10);
@@ -338,122 +378,11 @@ parfor iGPU = 1:nGPUs
       % alignment.flgSkipUpdate
       dXYZ = dXYZ ./ updateScale;
       
-      
-      % Pad the projection prior to xforming in Fourier space.
-      sizeODD = [d1,d2]-[osX,osY];
-      
-      % If it is even sized, shift up one pixel so that the origin is in the middle
-      % of the odd output here we can just read it in this way, unlike super res.
-      
-      iProjection = ...
-        OPEN_IMG('single', iMrcObj,[1+osX,d1],[1+osY,d2],tlt_tmp{i}(23),'keep');
-      
-      iProjection = real(ifftn(fftn(iProjection).*gradientAliasMask));
-      
-      largeOutliersMean= mean(iProjection(:));
-      
-      largeOutliersSTD = std(iProjection(:));
-      largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
-        iProjection > largeOutliersMean + 6*largeOutliersSTD);
-      iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
-      
-      % Because the rotation/scaling and translation are done separately,
-      % we must use a square transform; otherwise, a rotation angle dependent
-      % anisotropic distortion (like mag distortion) is introduced.
-      sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp.*0.25).*max(sizeODD));
-      
-      
-      padVal  = BH_multi_padVal(sizeODD,sizeSQ);
-      trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
-      
-      iProjection = iProjection - mean(iProjection(:));
-      iProjection = iProjection ./ std(iProjection(:));
-      
-      
-      iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
-        'GPU','singleTaper');
-      
-      if (i == 1 && bh_global_do_2d_fourier_interp)
-        bhF = fourierTransformer(iProjection,'OddSizeOversampled');
-      end
-      
-      
-      if (flgApplyFullXform)
-        % Do the phase shift after rotating - need to invert the scaling since
-        % we are in reciprocal space
-        [imodMAG, imodStretch, imodSkewAngle, imodRot] = ...
-          BH_decomposeIMODxf(combinedXF);
-        % Assuming stretch and skew are not fit, leave defined for possible
-        % later consideration.
-        
-        
-        if (bh_global_do_2d_fourier_interp)
-          if (i == 1)
-            fprintf('resampling at 2x padding with fourier interp\n');
-          end
-          %       combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
-          combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
-          combinedInverted = combinedInverted([1,2,4,5]);
-          
-          
-          iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
-        else
-          if (i == 1)
-            fprintf('resampling at 1x padding with linear interp\n');
-          end
-          % Real space, do not invert mag
-          combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
-          combinedInverted = combinedInverted([1,2,4,5]);
-          iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',1.0,size(iProjection));
-        end
-        
-        iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),combinedXF,dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);
-        
-      else
-        [imodMAG, imodStretch, imodSkewAngle, imodRot] = ...
-          BH_decomposeIMODxf(mbEST(i,1:4));
-        % Assuming stretch and skew are not fit, leave defined for possible
-        % later consideration.
-        
-        % NOTE mag is ignored when the rotation matrix has 4 elements (IMOD)
-        
-        if (bh_global_do_2d_fourier_interp)
-          if (i == 1)
-            fprintf('resampling at 2x padding with fourier interp\n');
-          end
-          %         mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
-          mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
-          mbEstInverted = mbEstInverted([1,2,4,5]);
-          iProjection = BH_resample2d(iProjection,mbEstInverted,dXYZ(1:2),'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
-        else
-          if (i == 1)
-            fprintf('resampling at 1x padding with linear interp\n');
-          end
-          mbEstInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
-          mbEstInverted = mbEstInverted([1,2,4,5]);
-          iProjection = BH_resample2d(iProjection,mbEstInverted,dXYZ(1:2),'Bah','GPU','forward',1.0,size(iProjection));
-        end
-        iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),mbEST(i,1:4),dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);
-      end
-      
-      
-      
-      STACK(:,:,i)  = gather(real(BH_padZeros3d(iProjection, ...
-        trimVal(1,:),trimVal(2,:),...
-        'GPU','single')));
-      
-      iSamplingMask(isnan(iSamplingMask(:))) = 0;
-      samplingMaskStack(:,:,i) = (gather(real(iSamplingMask)));
-      iSamplingMask = [];
-      %
-      %   end
-      
-    end
-    
-    for i= 1:d3
+
       TLT(i,:) = tlt_tmp{i};
       %     STACK(:,:,TLT(i,1)) = out_tmp{i};
     end
+    
     
     out_tmp = [];
     
@@ -481,24 +410,23 @@ parfor iGPU = 1:nGPUs
         '%07.7f\t%07.7f\t%5e\t%5e\t%5e\t%7e\t%5e\t%5e\t%5e\t%5e\t%5e\t',...
         '%d\t%d\t%d\t%3.2f\n'], TLT');
       
-      
+      STACK = gpuArray(OPEN_IMG('single',outputStackName));
       if ( flgEraseBeads  )
         STACK = BH_eraseBeads(STACK,eraseRadius, fileName, updateScale,mapBackIter,sortrows(TLT,1));
       end
       
       
       
-      fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',...
-        THICKNESS, STACK_PRFX);
+      fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',THICKNESS, STACK_PRFX);
       
       [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,emc.pixel_size_angstroms,gpuArray(samplingMaskStack));
-      SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
-      SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName));
+      SAVE_IMG(STACK,{outputStackName,'half'},iPixelHeader,iOriginHeader);
       
       xShift= []; yShift = []; scale = []; angleShift = [];
       dZ = [];  recZ= []; rotMat = []; angX = []; angY = [];
     else
       
+      error('This branch is deprecated and should not be reached.');
       if ( flgEraseBeads )
         STACK = BH_eraseBeads(STACK,eraseRadius, fileName, updateScale,mapBackIter,sortrows(TLT,1));
       end
@@ -527,6 +455,7 @@ end % end of par for loop
 
 %
 if (emc.eucentric_fit && mapBackIter)
+  error('eucentric fit not implemented')
   % Update the sub tomo z coords with an estimate of the shift
   cycle_to_update = subTomoMeta.('tomoCPR_run_in_cycle')(find(subTomoMeta.('tomoCPR_run_in_cycle')(:,1) == subTomoMeta.currentTomoCPR),2);
   for iGPU = 1:nGPUs
