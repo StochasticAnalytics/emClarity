@@ -137,11 +137,15 @@ end
         doNorm = 0;
       end
       
-      
+      % FIXME: inputVol ends up being modified, even though the pointers ar to read only memory%
+      % I checked the addresses of input/output and the are far enough apart that it doesn't seem like overlap.
+      % Force a copy of the inputVol.
+      ft = inputVol;
+      ft(1) = 0.9999999999999999999.*ft(1);
       if isempty([obj.plan_FWD,obj.plan_INV])
-        [ ft, obj.plan_FWD, obj.plan_INV ] = mexFFT(inputVol,obj.invTrim);
+        [ ft, obj.plan_FWD, obj.plan_INV ] = mexFFT(ft,obj.invTrim);
       else
-        [ ft ] = mexFFT(inputVol,obj.invTrim,obj.plan_FWD, obj.plan_INV);
+        [ ft ] = mexFFT(ft,obj.invTrim,obj.plan_FWD, obj.plan_INV);
       end
       
       
@@ -170,7 +174,12 @@ end
         doNorm = 0;
       end
       
-      [ ft ] = mexFFT(inputVol,obj.invTrim,obj.plan_FWD, obj.plan_INV);
+      % FIXME: inputVol ends up being modified, even though the pointers ar to read only memory%
+      % I checked the addresses of input/output and the are far enough apart that it doesn't seem like overlap.
+      % Force a copy of the inputVol.
+      ft = inputVol;
+      ft(1) = 0.9999999999999999999.*ft(1);
+      [ ft ] = mexFFT(ft,obj.invTrim,obj.plan_FWD, obj.plan_INV);
       
       % For some reason calling this is OUTRAGEOUSLY slow, add option to jsut pass it in to the mexFFT
       if (doNorm)

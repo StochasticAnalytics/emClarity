@@ -85,12 +85,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
     if (numel_input == 1)
     {
+      size_t dummy;
 //      mexPrintf("Destroying the plans\n");
-      if ( mxGPUIsValidGPUData(prhs[2]))
+      if (cufftGetSize(*plan, &dummy) != CUFFT_INVALID_PLAN)
         cufftDestroy(*plan);
       // else
       //   mexPrintf("The fwd plan is not valid in destructor\n");
-      if ( mxGPUIsValidGPUData(prhs[3]))
+      if (cufftGetSize(*planInv, &dummy) != CUFFT_INVALID_PLAN)
         cufftDestroy(*planInv);
       // else
       //   mexPrintf("The inv plan is not valid in destructor\n");
@@ -146,9 +147,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
 
 
 
-  int xFormRank;
+  // int xFormRank;
   int fft_dims[input_dims];
-  int batchSize;
+  // int batchSize;
   
   if (input_dims > 2) 
   { fft_dims[2] = (int) input_size[0];
@@ -161,14 +162,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[])
     fft_dims[0] = (int) input_size[1];
   }
 
-  if (input_dims > 2) 
-  {
-    if (fft_dims[2] > 1) { xFormRank = 3; batchSize = fft_dims[2]; } else { xFormRank = 2; batchSize = fft_dims[1]; }
-  }
-  else
-  {
-    if (fft_dims[1] > 1) { xFormRank = 2; batchSize = fft_dims[1]; } else { xFormRank = 1; batchSize = 1;}
-  }
+  // if (input_dims > 2) 
+  // {
+  //   if (fft_dims[2] > 1) { xFormRank = 3; batchSize = fft_dims[2]; } else { xFormRank = 2; batchSize = fft_dims[1]; }
+  // }
+  // else
+  // {
+  //   if (fft_dims[1] > 1) { xFormRank = 2; batchSize = fft_dims[1]; } else { xFormRank = 1; batchSize = 1;}
+  // }
 
   outputArray = mxGPUCreateGPUArray(input_dims,
                               output_size,
