@@ -14,13 +14,15 @@ function [ ] = BH_to_cisTEM_mapBack(PARAMETER_FILE, CYCLE, output_prefix, symmet
 % directlyCT
 % by the users (private methods-ish)
 
-
+skip_to_end = false;
 emc = BH_parseParameterFile(PARAMETER_FILE);
 MAX_EXPOSURE = EMC_str2double(MAX_EXPOSURE)
 if isnan(MAX_EXPOSURE)
   error('MAX_EXPOSURE is nan - if running from an interactive matlab session, did you enter as a string?');
 end
 
+% For trouble shooting on tilted images.
+MIN_EXPOSURE = 0;
 % Ideally, we would transform fully and go back to the non-rotated stack. I think with the apoferritin test set,
 % The resolution will be high-enough to sort this out.
 useFixedNotAliStack = false;
@@ -148,7 +150,7 @@ iCell = 0;
 output_cell = {};
 newstack_file = sprintf('%s/temp_particle_stack.newstack',mbOUT{1});
 newstack_file_handle = fopen(newstack_file,'w');
-skip_to_end = false;
+
 if ~(skip_to_end)
 
 for iTiltSeries = tiltStart:nTiltSeries
@@ -391,7 +393,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     tomoIdx = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tomoIdx;
     tiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoList{iTomo}).tiltName;
     reconGeometry = subTomoMeta.mapBackGeometry.tomoCoords.(tomoList{iTomo});
-    tomo_origin_wrt_specimen_origin = [ reconGeometry.dX_specimen_to_tomo, ... 
+    tomo_origin_wrt_specimen_origin = [reconGeometry.dX_specimen_to_tomo, ... 
                                     reconGeometry.dY_specimen_to_tomo, ...
                                     reconGeometry.dZ_specimen_to_tomo];              
     tomo_origin_in_tomo_frame = emc_get_origin_index([reconGeometry.NX, ...
@@ -409,7 +411,7 @@ for iTiltSeries = tiltStart:nTiltSeries
       continue;
     end
 
-    modelRot = BH_defineMatrix([0,0,0],'Bah','fwdVector');
+    modelRot = BH_defineMatrix([0,90,0],'Bah','fwdVector');
 
     for iSubTomo = 1:nSubTomos
       
@@ -421,13 +423,14 @@ for iTiltSeries = tiltStart:nTiltSeries
       subtomo_origin_wrt_specimen_origin = subtomo_origin_wrt_specimen_origin - emc.flgPreShift;
 
       % Reproject using tilt, so just save the 3d coords.
-      fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_specimen_origin' + [originRec(1),originRec(2),originRec(3)]'- emc.prjVectorShift([1,3,2])', fidIDX);
+      fprintf(coordOUT,'%0.4f %0.4f %0.4f %d\n', modelRot * subtomo_origin_wrt_specimen_origin' + ...
+                    [originRec(1),originRec(3),originRec(2)]'- emc.prjVectorShift([1,2,3])', fidIDX);
       
       nPrjsIncluded = 0;
       for iPrj = 1:nPrjs
         
         iPrj_nat = find(TLT(:,1) == iPrj);
-        if (abs(TLT(iPrj_nat,11)) <= MAX_EXPOSURE)
+        if (MIN_EXPOSURE < abs(TLT(iPrj_nat,11)) && abs(TLT(iPrj_nat,11)) <= MAX_EXPOSURE)
           nPrjsIncluded = nPrjsIncluded + 1;
           
           % imod is indexing from zero
@@ -469,9 +472,8 @@ for iTiltSeries = tiltStart:nTiltSeries
   % p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -scat -values 1 ',...
   %   '%s/%s.coord %s/%s.3dfid'], ...
   %      mbOUT{1:2},mbOUT{1:2});
-  p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -scat -values 1 -ImageForCoordinates %s ',...
-                '%s/%s.coord %s/%s.3dfid'], ...
-                  tilt_filepath, mbOUT{1:2},mbOUT{1:2});
+  p2m = sprintf(['point2model -zero -circle 3 -color 0,0,255 -scat -values -1 ', '%s/%s.coord %s/%s.3dfid'], ...
+                  mbOUT{1:2},mbOUT{1:2});
   system(p2m);
 
   taStr = [sprintf('%f',rawTLT(1,2))];
@@ -512,7 +514,6 @@ for iTiltSeries = tiltStart:nTiltSeries
     'input %s\n', ...
     'output %s/%s.fid\n', ...
     'COSINTERP 0\n', ...
-    'RotateBy90 \n',...
     'THICKNESS %d\n', ...
     'TILTFILE %s/%s_align.rawtlt\n', ...
     'DefocusFile %s/%s_align.defocus\n', ...
@@ -568,7 +569,6 @@ for iTiltSeries = tiltStart:nTiltSeries
                 mbOUT{1:2}, mbOUT{1:2}))
   end
   
-  error('test')
   try
     fidList = load(sprintf('%s/%s.coordPrj',mbOUT{1:2}));
   catch
@@ -688,20 +688,18 @@ for iTiltSeries = tiltStart:nTiltSeries
       sx = pixelX - floor(pixelX);
       sy = pixelY - floor(pixelY);
 
-            % With a pixel running from -0.5 to 0.5, the center of the pixel is at 0.0, to get the index we need to do this
-            % pixelX = floor(x_coord + 0.5);
-            % pixelY = floor(y_coord + 0.5);
-            
-            % x_start = pixelX - tileOrigin(1) + 1;
-            % y_start = pixelY - tileOrigin(2) + 1;
-            
-            % % The remainder is the result of the windowing operation
-            % sx = x_coord - pixelX;
-            % sy = y_coord - pixelY;
+      % pixelX = wrkFid(iFid,3);
+      % pixelY = wrkFid(iFid,4);
+      
+      % x_start = floor(pixelX+0.5) - tileOrigin(1) + 1;
+      % y_start = floor(pixelY+0.5) - tileOrigin(2) + 1;
+
+      % sx = (pixelX - floor(pixelX+0.5));
+      % sy = (pixelY - floor(pixelY+0.5));
      
       particle_was_skipped = false;
       if  ( x_start > 0 && y_start > 0 && x_start + tileSize(1) - 1 < sTX && y_start + tileSize(2) - 1 < sTY )
-        output_particle_stack(:,:,iGpuDataCounter) = STACK(x_start:x_start+tileSize(1)-1,y_start:y_start+tileSize(2)-1,TLT(iPrj,1));
+        output_particle_stack(:,:,iGpuDataCounter) = STACK(x_start:x_start+tileSize(1) - 1,y_start:y_start+tileSize(2) - 1,TLT(iPrj,1));
       
         % The trasformation of the particle is e1,e2,e3,esym  into it's postion in the tomogram frame, then
         % the tomogram is tilted about the original Y axis and then the original Z
@@ -716,7 +714,7 @@ for iTiltSeries = tiltStart:nTiltSeries
             % rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           
           %           rTilt = BH_defineMatrix([0,wrkDefAngTilt(iFid,3),wrkDefAngTilt(iFid,2)],'SPIDER','forwardVector');
-          rTilt = BH_defineMatrix([wrkDefAngTilt(iFid,2),wrkDefAngTilt(iFid,3),0],'SPIDER','fwdVector');
+          rTilt = BH_defineMatrix([emc.tmp_scan(1)*wrkDefAngTilt(iFid,2),emc.tmp_scan(2)*wrkDefAngTilt(iFid,3),emc.tmp_scan(3)*wrkDefAngTilt(iFid,2)],'SPIDER','fwdVector');
           
           rotFull = rTilt*reshape(wrkPar(iFid,7:15),3,3);
         end
@@ -806,13 +804,43 @@ system(sprintf('newstack -FileOfInputs %s %s.mrc > /dev/null', newstack_file_wit
 end % skip to here
 % SAVE_IMG(cat(3,output_cell{:}),sprintf('%s.mrc',output_prefix),pixelSize);
 
+outputHeader = getHeader(MRCImage(sprintf('%s.mrc',output_prefix),0));
+outputSizeXandY = [outputHeader.nX,outputHeader.nY];
+outputNumberOfSlices = outputHeader.nZ;
+fprintf('The output stack has %d slices and is %d x %d\n',outputNumberOfSlices,outputSizeXandY(1),outputSizeXandY(2));
+
 maxThreads = emc.('nCpuCores');
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%
+split_into_n_procs = 4;
+% Make sure we have at least enough threads for 1 / proc
+n_recon_procs = min(maxThreads, split_into_n_procs);
+n_threads_per_proc = floor(maxThreads/n_recon_procs) .* ones(1,n_recon_procs);
+% Use all available threads, even if some processors have more than others
+leftover_threads = maxThreads - n_threads_per_proc(1)*n_recon_procs;
+thread_counter = 1;
+while (leftover_threads > 0)
+  this_proc = mod(thread_counder,4)+1;
+  n_threads_per_proc(this_proc) = n_threads_per_proc(this_proc) + 1;
+  leftover_threads = leftover_threads - 1;
+end
+
+% Divide the stack into n_recon_procs parts
+stack_boundaries = 1:floor((outputNumberOfSlices+n_recon_procs)/n_recon_procs):outputNumberOfSlices;
+
+if length(stack_boundaries) == n_recon_procs
+  stack_boundaries(n_recon_procs+1) = outputNumberOfSlices+1
+else
+  stack_boundaries(end) = outputNumberOfSlices+1;
+end
+
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%
 % Initial reconstruction
-%%%%%%%%%%%%%%%%%%%%%%%%%%%
-system(sprintf('rm -f %s_rec.sh',output_prefix));
-recScript = fopen(sprintf('%s_rec.sh',output_prefix), 'w');
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%
+for iProc = 1:n_recon_procs
+system(sprintf('rm -f %s_rec_%d.sh',output_prefix, iProc));
+recScript = fopen(sprintf('%s_rec_%d.sh',output_prefix, iProc), 'w');
 fprintf(recScript,[ ...
   '#!/bin/bash\n\n', ...
   '%s << eof\n', ...
@@ -824,8 +852,8 @@ fprintf(recScript,[ ...
   '%s_recFilt.mrc\n',...
   '%s_stats.txt\n',...
   '%s\n', ...
-  '1\n', ...
-  '0\n', ...
+  '%d\n', ...
+  '%d\n', ...
   '%3.3f\n', ... pixel size
   '%4.4f\n', ... molecularMass'
   '%3.3f\n', ... inermask ang
@@ -845,25 +873,71 @@ fprintf(recScript,[ ...
   'No\n', ...Center mass [No]                                   :
   'No\n', ...Apply likelihood blurring [No]                     :
   'No\n', ...Threshold input reconstruction [No]                :
-  'No\n', ...Dump intermediate arrays (merge later) [No]        :
-  'dum_1.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
-  'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
-  '%d\n', ...Max. threads to use for calculation [36]           :
+  'Yes\n', ...Dump intermediate arrays (merge later) [No]        :
+  '%s/dump_1_%d.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
+  '%s/dump_2_%d.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
+  '%d\n', ... Max. threads to use for calculation [36]           :
   ], getenv('EMC_RECONSTRUCT3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
-  symmetry,emc.pixel_size_angstroms, ...
-  emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
+  symmetry,stack_boundaries(iProc),stack_boundaries(iProc+1)-1 ,emc.pixel_size_angstroms, ...
+  emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), tmpCache, iProc,tmpCache,iProc, n_threads_per_proc(iProc));
 
-fprintf(recScript, '\neof\n');
+fprintf(recScript, 'eof\n');
 
 fclose(recScript);
-system(sprintf('chmod a=wrx %s_rec.sh',output_prefix));
-system(sprintf('./%s_rec.sh',output_prefix));
+system(sprintf('chmod a=wrx %s_rec_%d.sh',output_prefix, iProc));
+pause(1);
+if (iProc < n_recon_procs)
+  system(sprintf('./%s_rec_%d.sh  2>&1 > /dev/null &',output_prefix, iProc));
+else
+  system(sprintf('./%s_rec_%d.sh && wait',output_prefix, iProc));
+end
+
+end
+
+
+
+merge3d_name = sprintf('%s_merge3d.sh',output_prefix);
+system(sprintf('rm -f %s',merge3d_name));
+merge3dScript = fopen(sprintf('%s',merge3d_name), 'w');
+
+fprintf(merge3dScript,[ ...
+  '#!/bin/bash\n\n', ...
+  '%s << eof\n', ...
+  '%s_rec1.mrc\n',...
+  '%s_rec2.mrc\n',...
+  '%s_recFilt.mrc\n',...
+  '%s_stats.txt\n',...
+  '%4.4f\n', ... molecularMass'
+  '%3.3f\n', ... inermask ang
+  '%3.3f\n', ... outermas ang
+  '%s/dump_1_.dat\n', ...
+  '%s/dump_2_.dat\n', ...
+  '%d\n'], ... Number of dump files [8]                           :
+  getenv('EMC_MERGE3D'), ...
+  output_prefix, output_prefix, output_prefix, output_prefix, ...
+  emc.('particleMass')*10^3, ...
+  0.0, mean(emc.('Ali_mRadius')), ...
+  tmpCache, tmpCache, n_recon_procs);
+
+
+fprintf(merge3dScript, 'eof\n');
+fclose(merge3dScript);
+system(sprintf('chmod a=wrx %s',merge3d_name));
+pause(1)
+system(sprintf('./%s',merge3d_name));
+% clean up dumps
+system(sprintf('rm %s/dump_?_*.dat',tmpCache));
+
+% Get the FSC cutoff for refinement
+fsc = importdata(sprintf('%s_stats.txt',output_prefix),' ',12);
+fsc_cutoff = fsc.data(find(fsc.data(:,5) < 0.5,1),2)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 % Refine
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-system(sprintf('rm -f %s_ref.sh',output_prefix));
-refineScript = fopen(sprintf('%s_ref.sh',output_prefix), 'w');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%r
+refine_shifts = sprintf('%s_ref_shifts.sh',output_prefix);
+system(sprintf('rm -f %s',refine_shifts));
+refineScript = fopen(sprintf('%s',refine_shifts), 'w');
 fprintf(refineScript,[ ...
   '#!/bin/bash\n\n', ...
   '%s << eof\n', ...
@@ -885,7 +959,7 @@ fprintf(refineScript,[ ...
   '%3.3f\n', ... outermas ang
   '300.0\n',...Low resolution limit (A) [300.0]                   :
   '%3.3f\n',...High resolution limit (A) [8.0]                    :
-  '0.0\n',...Resolution limit for signed CC (A) (0.0 = max [0.0]                                              :
+  '0.0\n',...Resolution limit for signerecon_21_25_17_stats_refined.txtd CC (A) (0.0 = max [0.0]                                              :
   '0.0\n',...Res limit for classification (A) (0.0 = max) [0.0] :
   '0.0\n',...Mask radius for global search (A) (0.0 = max)[100.0]                                            :
   '%3.3f\n',...Approx. resolution limit for search (A) [8]        :
@@ -919,68 +993,450 @@ fprintf(refineScript,[ ...
   ],  getenv('EMC_REFINE3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
   symmetry,emc.pixel_size_angstroms, ...
   emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), ...
-  resForFitting,resForFitting,maxThreads);
+    fsc_cutoff,fsc_cutoff,maxThreads);
 
 fprintf(refineScript, '\neof\n');
 fclose(refineScript);
-pause(3);
-system(sprintf('chmod a=wrx %s_ref.sh',output_prefix));
-system(sprintf('./%s_ref.sh',output_prefix));
+pause(1);
+system(sprintf('chmod a=wrx %s',refine_shifts));
+pause(1);
+system(sprintf('./%s',refine_shifts));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Reconstruct refined
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-system(sprintf('rm -f %s_rec2.sh',output_prefix));
-recScript = fopen(sprintf('%s_rec2.sh',output_prefix), 'w');
-fprintf(recScript,[ ...
+for iProc = 1:n_recon_procs
+  system(sprintf('rm -f %s_rec_%d.sh',output_prefix, iProc));
+  recScript = fopen(sprintf('%s_rec_%d.sh',output_prefix, iProc), 'w');
+  fprintf(recScript,[ ...
+    '#!/bin/bash\n\n', ...
+    '%s << eof\n', ...
+    '%s.mrc\n', ... sprintf('%s.mrc',output_prefix)
+    '%s_refined.star\n', ... sprintf('%s.star',output_prefix)
+    'none.mrc\n', ...
+    '%s_rec1.mrc\n',...
+    '%s_rec2.mrc\n',...
+    '%s_recFilt_refined.mrc\n',...
+    '%s_stats_refined.txt\n',...
+    '%s\n', ...
+    '%d\n', ...
+    '%d\n', ...
+    '%3.3f\n', ... pixel size
+    '%4.4f\n', ... molecularMass'
+    '%3.3f\n', ... inermask ang
+    '%3.3f\n', ... outermas ang
+    '0.0\n', ... rec res limit
+    '0.0\n', ... ref res limit
+    '5.0\n', ... Particle weighting factor (A^2) [5.0]
+    '1.0\n', ... Score threshold (<= 1 = percentage) [1.0]
+    '1.0\n', ...Tuning parameter: smoothing factor [1.0]           :
+    '1.0\n', ...Tuning parameters: padding factor [1.0]            :
+    'Yes\n', ...Normalize particles [Yes]                          :
+    'No\n', ...Adjust scores for defocus dependence [no]          :
+    'No\n', ...Invert particle contrast [No]                      :
+    'Yes\n', ...Exclude images with blank edges [yes]              :
+    'No\n', ...Crop particle images [no]                          :
+    'Yes\n', ...FSC calculation with even/odd particles [Yes]      :
+    'No\n', ...Center mass [No]                                   :
+    'No\n', ...Apply likelihood blurring [No]                     :
+    'No\n', ...Threshold input reconstruction [No]                :
+    'Yes\n', ...Dump intermediate arrays (merge later) [No]        :
+    '%s/dump_1_%d.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
+    '%s/dump_2_%d.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
+    '%d\n', ... Max. threads to use for calculation [36]           :
+    ], getenv('EMC_RECONSTRUCT3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
+    symmetry,stack_boundaries(iProc),stack_boundaries(iProc+1)-1 ,emc.pixel_size_angstroms, ...
+    emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')),tmpCache, iProc,tmpCache,iProc, n_threads_per_proc(iProc));
+  
+  fprintf(recScript, 'eof\n');
+  
+  fclose(recScript);
+  system(sprintf('chmod a=wrx %s_rec_%d.sh',output_prefix, iProc));
+  pause(1);
+  if (iProc < n_recon_procs)
+    system(sprintf('./%s_rec_%d.sh  2>&1 > /dev/null &',output_prefix, iProc));
+  else
+    system(sprintf('./%s_rec_%d.sh && wait',output_prefix, iProc));
+  end
+  
+end
+  
+
+merge3d_name = sprintf('%s_merge3d.sh',output_prefix);
+system(sprintf('rm -f %s',merge3d_name));
+merge3dScript = fopen(sprintf('%s',merge3d_name), 'w');
+
+fprintf(merge3dScript,[ ...
   '#!/bin/bash\n\n', ...
   '%s << eof\n', ...
-  '%s.mrc\n', ... sprintf('%s.mrc',output_prefix)
-  '%s_refined.star\n', ... sprintf('%s.star',output_prefix)
-  'none.mrc\n', ...
   '%s_rec1.mrc\n',...
   '%s_rec2.mrc\n',...
   '%s_recFilt_refined.mrc\n',...
   '%s_stats_refined.txt\n',...
-  '%s\n', ...
-  '1\n', ...
-  '0\n', ...
+  '%4.4f\n', ... molecularMass'
+  '%3.3f\n', ... inermask ang
+  '%3.3f\n', ... outermas ang
+  '%s/dump_1_.dat\n', ...
+  '%s/dump_2_.dat\n', ...
+  '%d\n'], ... Number of dump files [8]                           :
+  getenv('EMC_MERGE3D'), ...
+  output_prefix, output_prefix, output_prefix, output_prefix, ...
+  emc.('particleMass')*10^3, ...
+  0.0, mean(emc.('Ali_mRadius')), ...
+  tmpCache, tmpCache, n_recon_procs);
+
+
+fprintf(merge3dScript, 'eof\n');
+fclose(merge3dScript);
+system(sprintf('chmod a=wrx %s',merge3d_name));
+pause(1)
+system(sprintf('./%s',merge3d_name));
+
+system(sprintf('rm %s/dump_?_*.dat',tmpCache));
+
+% Get the FSC cutoff for refinement
+fsc = importdata(sprintf('%s_stats_refined.txt',output_prefix),' ',12);
+fsc_cutoff = fsc.data(find(fsc.data(:,5) < 0.5,1),2)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+% Refine
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%r
+refine_angles = sprintf('%s_ref_angles.sh',output_prefix);
+system(sprintf('rm -f %s',refine_angles));
+refineScript = fopen(sprintf('%s',refine_angles), 'w');
+fprintf(refineScript,[ ...
+  '#!/bin/bash\n\n', ...
+  '%s << eof\n', ...
+  '%s.mrc\n', ... sprintf('%s.mrc',output_prefix)
+  '%s.star\n', ... sprintf('%s.star',output_prefix)
+  '%s_recFilt_refined.mrc\n',...
+  '%s_stats_refined.txt\n',...
+  'yes\n',... Use statistics [Yes]                               :
+  'my_projection_stack.mrc\n',... not going to be used                       :
+  '%s_refined2.star\n', ...
+  '%s_changes2.star\n', ...Output parameter changes
+  '%s\n',... Particle symmetry [C1]                             :
+  '1\n', ...First particle to refine (0 = first in stack) [1]  :
+  '0\n', ...Last particle to refine (0 = last in stack) [0]    :
+  '1.0\n',...Percent of particles to use (1 = all) [1.0]        :
   '%3.3f\n', ... pixel size
   '%4.4f\n', ... molecularMass'
   '%3.3f\n', ... inermask ang
   '%3.3f\n', ... outermas ang
-  '0.0\n', ... rec res limit
-  '0.0\n', ... ref res limit
-  '5.0\n', ... Particle weighting factor (A^2) [5.0]
-  '1.0\n', ... Score threshold (<= 1 = percentage) [1.0]
-  '1.0\n', ...Tuning parameter: smoothing factor [1.0]           :
-  '1.0\n', ...Tuning parameters: padding factor [1.0]            :
-  'Yes\n', ...Normalize particles [Yes]                          :
-  'No\n', ...Adjust scores for defocus dependence [no]          :
-  'No\n', ...Invert particle contrast [No]                      :
-  'Yes\n', ...Exclude images with blank edges [yes]              :
-  'No\n', ...Crop particle images [no]                          :
-  'Yes\n', ...FSC calculation with even/odd particles [Yes]      :
-  'No\n', ...Center mass [No]                                   :
-  'No\n', ...Apply likelihood blurring [No]                     :
-  'No\n', ...Threshold input reconstruction [No]                :
-  'No\n', ...Dump intermediate arrays (merge later) [No]        :
-  'dum_1.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
-  'dum_2.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
+  '300.0\n',...Low resolution limit (A) [300.0]                   :
+  '%3.3f\n',...High resolution limit (A) [8.0]                    :
+  '0.0\n',...Resolution limit for signed CC (A) (0.0 = max [0.0]                                              :
+  '0.0\n',...Res limit for classification (A) (0.0 = max) [0.0] :
+  '0.0\n',...Mask radius for global search (A) (0.0 = max)[100.0]                                            :
+  '%3.3f\n',...Approx. resolution limit for search (A) [8]        :
+  '0.0\n',...Angular step (0.0 = set automatically) [0.0]       :
+  '20\n',...Number of top hits to refine [20]                  :
+  '10\n',...Search range in X (A) (0.0 = 0.5 * mask radius)[12]                                               :
+  '10\n',...[12]                                               :
+  '100.0\n',...2D mask X coordinate (A) [100.0]                   :
+  '100.0\n',...2D mask Y coordinate (A) [100.0]                   :
+  '100.0\n',...2D mask Z coordinate (A) [100.0]                   :
+  '100.0\n',...2D mask radius (A) [100.0]                         :
+  '500.0\n',...Defocus search range (A) [500.0]                   :
+  '50.0\n',...Defocus step (A) [50.0]                            :
+  '1.0\n',...Tuning parameters: padding factor [1.0]            :
+  'no\n',...Global search [No]                                 :
+  'yes\n',...  Local refinement [Yes]                             :
+  'yes\n',...Refine Psi [no]                                    :
+  'yes\n',...Refine Theta [no]                                  :
+  'yes\n',...Refine Phi [no]                                    :
+  'yes\n',...Refine ShiftX [Yes]                                :
+  'yes\n',...Refine ShiftY [Yes]                                :
+  'no\n',...Calculate matching projections [No]                :
+  'no\n',...Apply 2D masking [No]                              :
+  'no\n',...Refine defocus [No]                                :
+  'yes\n',...Normalize particles [Yes]                          :
+  'no\n',...Invert particle contrast [No]                      :
+  'yes\n',...Exclude images with blank edges [Yes]              :
+  'yes\n',...Normalize input reconstruction [Yes]               :
+  'no\n',...Threshold input reconstruction [No]                :
   '%2.2d\n', ...Max. threads to use for calculation [36]           :
-  ], getenv('EMC_RECONSTRUCT3D'), output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
+  ],  getenv('EMC_REFINE3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
   symmetry,emc.pixel_size_angstroms, ...
-  emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), maxThreads);
+  emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), ...
+    fsc_cutoff,fsc_cutoff,maxThreads);
 
-fprintf(recScript, '\neof\n');
+fprintf(refineScript, '\neof\n');
+fclose(refineScript);
+pause(1);
+system(sprintf('chmod a=wrx %s',refine_angles));
+pause(1);
+system(sprintf('./%s',refine_angles));
 
-fclose(recScript);
-pause(2)
-system(sprintf('chmod a=wrx %s_rec2.sh',output_prefix));
-pause(2)
-system(sprintf('./%s_rec2.sh',output_prefix));
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Reconstruct refined
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+for iProc = 1:n_recon_procs
+  system(sprintf('rm -f %s_rec_%d.sh',output_prefix, iProc));
+  recScript = fopen(sprintf('%s_rec_%d.sh',output_prefix, iProc), 'w');
+  fprintf(recScript,[ ...
+    '#!/bin/bash\n\n', ...
+    '%s << eof\n', ...
+    '%s.mrc\n', ... sprintf('%s.mrc',output_prefix)
+    '%s_refined2.star\n', ... sprintf('%s.star',output_prefix)
+    'none.mrc\n', ...
+    '%s_rec1.mrc\n',...
+    '%s_rec2.mrc\n',...
+    '%s_recFilt_refined2.mrc\n',...
+    '%s_stats_refined2.txt\n',...
+    '%s\n', ...
+    '%d\n', ...
+    '%d\n', ...
+    '%3.3f\n', ... pixel size
+    '%4.4f\n', ... molecularMass'
+    '%3.3f\n', ... inermask ang
+    '%3.3f\n', ... outermas ang
+    '0.0\n', ... rec res limit
+    '0.0\n', ... ref res limit
+    '5.0\n', ... Particle weighting factor (A^2) [5.0]
+    '1.0\n', ... Score threshold (<= 1 = percentage) [1.0]
+    '1.0\n', ...Tuning parameter: smoothing factor [1.0]           :
+    '1.0\n', ...Tuning parameters: padding factor [1.0]            :
+    'Yes\n', ...Normalize particles [Yes]                          :
+    'No\n', ...Adjust scores for defocus dependence [no]          :
+    'No\n', ...Invert particle contrast [No]                      :
+    'Yes\n', ...Exclude images with blank edges [yes]              :
+    'No\n', ...Crop particle images [no]                          :
+    'Yes\n', ...FSC calculation with even/odd particles [Yes]      :
+    'No\n', ...Center mass [No]                                   :
+    'No\n', ...Apply likelihood blurring [No]                     :
+    'No\n', ...Threshold input reconstruction [No]                :
+    'Yes\n', ...Dump intermediate arrays (merge later) [No]        :
+    '%s/dump_1_%d.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
+    '%s/dump_2_%d.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
+    '%d\n', ... Max. threads to use for calculation [36]           :
+    ], getenv('EMC_RECONSTRUCT3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
+    symmetry,stack_boundaries(iProc),stack_boundaries(iProc+1)-1 ,emc.pixel_size_angstroms, ...
+    emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), tmpCache, iProc,tmpCache,iProc, n_threads_per_proc(iProc));
+  
+  fprintf(recScript, 'eof\n');
+  
+  fclose(recScript);
+  system(sprintf('chmod a=wrx %s_rec_%d.sh',output_prefix, iProc));
+  pause(1);
+  if (iProc < n_recon_procs)
+    system(sprintf('./%s_rec_%d.sh  2>&1 > /dev/null &',output_prefix, iProc));
+  else
+    system(sprintf('./%s_rec_%d.sh && wait',output_prefix, iProc));
+  end
+  
+end
+  
+
+merge3d_name = sprintf('%s_merge3d.sh',output_prefix);
+system(sprintf('rm -f %s',merge3d_name));
+merge3dScript = fopen(sprintf('%s',merge3d_name), 'w');
+
+fprintf(merge3dScript,[ ...
+  '#!/bin/bash\n\n', ...
+  '%s << eof\n', ...
+  '%s_rec1.mrc\n',...
+  '%s_rec2.mrc\n',...
+  '%s_recFilt_refined2.mrc\n',...
+  '%s_stats_refined2.txt\n',...
+  '%4.4f\n', ... molecularMass'
+  '%3.3f\n', ... inermask ang
+  '%3.3f\n', ... outermas ang
+  '%s/dump_1_.dat\n', ...
+  '%s/dump_2_.dat\n', ...
+  '%d\n'], ... Number of dump files [8]                           :
+  getenv('EMC_MERGE3D'), ...
+  output_prefix, output_prefix, output_prefix, output_prefix, ...
+  emc.('particleMass')*10^3, ...
+  0.0, mean(emc.('Ali_mRadius')), ...
+  tmpCache, tmpCache, n_recon_procs);
+
+
+fprintf(merge3dScript, 'eof\n');
+fclose(merge3dScript);
+system(sprintf('chmod a=wrx %s',merge3d_name));
+pause(1)
+system(sprintf('./%s',merge3d_name));
+
+system(sprintf('rm %s/dump_?_*.dat',tmpCache));
+
+% Get the FSC cutoff for refinement
+fsc = importdata(sprintf('%s_stats_refined2.txt',output_prefix),' ',12);
+fsc_cutoff = fsc.data(find(fsc.data(:,5) < 0.5,1),2)
+fsc_res = fsc.data(find(fsc.data(:,5) < 0.143,1),2)
+
+% TODO dfocus refine if res high enough
+% if (fsc_cutoff < 6.0)
+if (false)
+%%%%%%%%%%%%%%%%%%%%%%%%%
+% Refine
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%r
+refine_def = sprintf('%s_ref_def.sh',output_prefix);
+system(sprintf('rm -f %s',refine_def));
+refineScript = fopen(sprintf('%s',refine_def), 'w');
+fprintf(refineScript,[ ...
+  '#!/bin/bash\n\n', ...
+  '%s << eof\n', ...
+  '%s.mrc\n', ... sprintf('%s.mrc',output_prefix)
+  '%s.star\n', ... sprintf('%s.star',output_prefix)
+  '%s_recFilt_refined.mrc\n',...
+  '%s_stats_refined.txt\n',...
+  'yes\n',... Use statistics [Yes]                               :
+  'my_projection_stack.mrc\n',... not going to be used                       :
+  '%s_refined3.star\n', ...
+  '%s_changes3.star\n', ...Output parameter changes
+  '%s\n',... Particle symmetry [C1]                             :
+  '1\n', ...First particle to refine (0 = first in stack) [1]  :
+  '0\n', ...Last particle to refine (0 = last in stack) [0]    :
+  '1.0\n',...Percent of particles to use (1 = all) [1.0]        :
+  '%3.3f\n', ... pixel size
+  '%4.4f\n', ... molecularMass'
+  '%3.3f\n', ... inermask ang
+  '%3.3f\n', ... outermas ang
+  '300.0\n',...Low resolution limit (A) [300.0]                   :
+  '%3.3f\n',...High resolution limit (A) [8.0]                    :
+  '0.0\n',...Resolution limit for signed CC (A) (0.0 = max [0.0]                                              :
+  '0.0\n',...Res limit for classification (A) (0.0 = max) [0.0] :
+  '0.0\n',...Mask radius for global search (A) (0.0 = max)[100.0]                                            :
+  '%3.3f\n',...Approx. resolution limit for search (A) [8]        :
+  '0.0\n',...Angular step (0.0 = set automatically) [0.0]       :
+  '20\n',...Number of top hits to refine [20]                  :
+  '10\n',...Search range in X (A) (0.0 = 0.5 * mask radius)[12]                                               :
+  '10\n',...[12]                                               :
+  '100.0\n',...2D mask X coordinate (A) [100.0]                   :
+  '100.0\n',...2D mask Y coordinate (A) [100.0]                   :
+  '100.0\n',...2D mask Z coordinate (A) [100.0]                   :
+  '100.0\n',...2D mask radius (A) [100.0]                         :
+  '5000.0\n',...Defocus search range (A) [500.0]                   :
+  '50.0\n',...Defocus step (A) [50.0]                            :
+  '1.0\n',...Tuning parameters: padding factor [1.0]            :
+  'no\n',...Global search [No]                                 :
+  'yes\n',...  Local refinement [Yes]                             :
+  'no\n',...Refine Psi [no]                                    :
+  'no\n',...Refine Theta [no]                                  :
+  'no\n',...Refine Phi [no]                                    :
+  'no\n',...Refine ShiftX [Yes]                                :
+  'no\n',...Refine ShiftY [Yes]                                :
+  'no\n',...Calculate matching projections [No]                :
+  'no\n',...Apply 2D masking [No]                              :
+  'yes\n',...Refine defocus [No]                                :
+  'yes\n',...Normalize particles [Yes]                          :
+  'no\n',...Invert particle contrast [No]                      :
+  'yes\n',...Exclude images with blank edges [Yes]              :
+  'yes\n',...Normalize input reconstruction [Yes]               :
+  'no\n',...Threshold input reconstruction [No]                :
+  '%2.2d\n', ...Max. threads to use for calculation [36]           :
+  ],  getenv('EMC_REFINE3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
+  symmetry,emc.pixel_size_angstroms, ...
+  emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), ...
+    fsc_cutoff,fsc_cutoff,maxThreads);
+
+fprintf(refineScript, '\neof\n');
+fclose(refineScript);
+pause(1);
+system(sprintf('chmod a=wrx %s',refine_def));
+pause(1);
+system(sprintf('./%s',refine_def));
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Reconstruct refined
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+for iProc = 1:n_recon_procs
+  system(sprintf('rm -f %s_rec_%d.sh',output_prefix, iProc));
+  recScript = fopen(sprintf('%s_rec_%d.sh',output_prefix, iProc), 'w');
+  fprintf(recScript,[ ...
+    '#!/bin/bash\n\n', ...
+    '%s << eof\n', ...
+    '%s.mrc\n', ... sprintf('%s.mrc',output_prefix)
+    '%s_refined3.star\n', ... sprintf('%s.star',output_prefix)
+    'none.mrc\n', ...
+    '%s_rec1.mrc\n',...
+    '%s_rec2.mrc\n',...
+    '%s_recFilt_refined3.mrc\n',...
+    '%s_stats_refined3.txt\n',...
+    '%s\n', ...
+    '%d\n', ...
+    '%d\n', ...
+    '%3.3f\n', ... pixel size
+    '%4.4f\n', ... molecularMass'
+    '%3.3f\n', ... inermask ang
+    '%3.3f\n', ... outermas ang
+    '0.0\n', ... rec res limit
+    '0.0\n', ... ref res limit
+    '5.0\n', ... Particle weighting factor (A^2) [5.0]
+    '1.0\n', ... Score threshold (<= 1 = percentage) [1.0]
+    '1.0\n', ...Tuning parameter: smoothing factor [1.0]           :
+    '1.0\n', ...Tuning parameters: padding factor [1.0]            :
+    'Yes\n', ...Normalize particles [Yes]                          :
+    'No\n', ...Adjust scores for defocus dependence [no]          :
+    'No\n', ...Invert particle contrast [No]                      :
+    'Yes\n', ...Exclude images with blank edges [yes]              :
+    'No\n', ...Crop particle images [no]                          :
+    'Yes\n', ...FSC calculation with even/odd particles [Yes]      :
+    'No\n', ...Center mass [No]                                   :
+    'No\n', ...Apply likelihood blurring [No]                     :
+    'No\n', ...Threshold input reconstruction [No]                :
+    'Yes\n', ...Dump intermediate arrays (merge later) [No]        :
+    '%s/dump_1_%d.dat\n', ...Output dump filename for odd particle [dump_file_1.dat]                                  :
+    '%s/dump_2_%d.dat\n', ...Output dump filename for even particle [dump_file_2.dat]                                  :
+    '%d\n', ... Max. threads to use for calculation [36]           :
+    ], getenv('EMC_RECONSTRUCT3D'),output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, output_prefix, ...
+    symmetry,stack_boundaries(iProc),stack_boundaries(iProc+1)-1 ,emc.pixel_size_angstroms, ...
+    emc.('particleMass')*10^3, 0.0, mean(emc.('Ali_mRadius')), tmpCache, iProc,tmpCache,iProc, n_threads_per_proc(iProc));
+  
+  fprintf(recScript, 'eof\n');
+  
+  fclose(recScript);
+  system(sprintf('chmod a=wrx %s_rec_%d.sh',output_prefix, iProc));
+  pause(1);
+  if (iProc < n_recon_procs)
+    system(sprintf('./%s_rec_%d.sh  2>&1 > /dev/null &',output_prefix, iProc));
+  else
+    system(sprintf('./%s_rec_%d.sh && wait',output_prefix, iProc));
+  end
+  
+end
+  
+
+merge3d_name = sprintf('%s_merge3d.sh',output_prefix);
+system(sprintf('rm -f %s',merge3d_name));
+merge3dScript = fopen(sprintf('%s',merge3d_name), 'w');
+
+fprintf(merge3dScript,[ ...
+  '#!/bin/bash\n\n', ...
+  '%s << eof\n', ...
+  '%s_rec1.mrc\n',...
+  '%s_rec2.mrc\n',...
+  '%s_recFilt_refined3.mrc\n',...
+  '%s_stats_refined3.txt\n',...
+  '%4.4f\n', ... molecularMass'
+  '%3.3f\n', ... inermask ang
+  '%3.3f\n', ... outermas ang
+  '%s/dump_1_.dat\n', ...
+  '%s/dump_2_.dat\n', ...
+  '%d\n'], ... Number of dump files [8]                           :
+  getenv('EMC_MERGE3D'), ...
+  output_prefix, output_prefix, output_prefix, output_prefix, ...
+  emc.('particleMass')*10^3, ...
+  0.0, mean(emc.('Ali_mRadius')), ...
+  tmpCache, tmpCache, n_recon_procs);
+
+
+fprintf(merge3dScript, 'eof\n');
+fclose(merge3dScript);
+system(sprintf('chmod a=wrx %s',merge3d_name));
+pause(1)
+system(sprintf('./%s',merge3d_name));
+
+system(sprintf('rm %s/dump_?_*.dat',tmpCache));
+
+fsc = importdata(sprintf('%s_stats_refined3.txt',output_prefix),' ',12);
+fsc_cutoff = fsc.data(find(fsc.data(:,5) < 0.5,1),2)
+fsc_res = fsc.data(find(fsc.data(:,5) < 0.143,1),2)
+end
 
 end
 

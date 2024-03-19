@@ -399,7 +399,7 @@ end
 if isfield(emc, 'flgPostShift')
   EMC_assert_numeric(emc.flgPostShift, 2);
 else
-  emc.flgPostShift = 0.*[1.0,-1.0];
+  emc.flgPostShift = 1.*[1.0,-1.0];
 end
 
 if isfield(emc, 'prjVectorShift')
@@ -607,4 +607,10 @@ if isfield(emc, 'debug_print')
   EMC_assert_boolean(emc.debug_print);
 else
   emc.debug_print = false;
+end
+
+if isfield(emc, 'tmp_scan')
+  EMC_assert_numeric(emc.tmp_scan, 3, [-1, 1]);
+else
+  emc.tmp_scan = [1,1,0];
 end
