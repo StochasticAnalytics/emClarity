@@ -9,7 +9,7 @@ function []  = BH_templateSearch3d_2( PARAMETER_FILE,...
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
+test_half = false;
 
 ctf3dNoSubTomoMeta = true;
 if length(varargin) == 1
@@ -402,6 +402,11 @@ end
 
 test_local
 scale_mip
+
+wanted_storage_precision = 'single';
+if (test_half)
+  wanted_storage_precision = 'half';
+end
 
 tomoStack = zeros([sizeChunk,nTomograms], 'single');
 if test_local
