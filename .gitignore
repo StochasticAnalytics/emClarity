@@ -1,6 +1,3 @@
-mexFiles/
-!mexFiles/*.cu
-!mexFiles/*.cpp
 mexFiles/compiled
 !mexFiles/compiled/emC_autoAlign.sh
 bin/
