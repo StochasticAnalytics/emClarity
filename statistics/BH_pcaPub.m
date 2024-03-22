@@ -901,12 +901,9 @@ for iGold = 1:1+flgGold
         nIgnored = nIgnored + 1;
         if ~(emc.Pca_randSubset)
           fprintf('Ignoring outside subtomo %d from %s\n',particleIDX, tomoList{iTomo});
+          eraseIDX = subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(:,4) == particleIDX;
+          subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(eraseIDX, 26+iPeak*26) = -9999;
         end
-        % This could also probably go in the above not random_subset clause, but also
-        % i don't think will change anthything downstream as it shoul dbe ignored on the full run.
-        % Leaving it this way means the intermediate metadata is more accurately reflecting the process.
-        eraseIDX = subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(:,4) == particleIDX;
-        subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(eraseIDX, 26+iPeak*26) = -9999;
       end % end of ignore if statment from extracted window out of bounds (ischar(indVAL))
       if ~rem(iSubTomo,100)
         fprintf('\nworking on %d/%d subTomo peak %d/%d from %d/%d Tomo\n', ...
