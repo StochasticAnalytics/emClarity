@@ -205,11 +205,11 @@ if (switch_axes)
   end
   inputStack = rotStack; clear rotStack
   imgRotation = imgRotation + 90;
-  SAVE_IMG(inputStack,sprintf('fixedStacks/%s.fixed',baseName),iPixelHeader,iOriginHeader);
+  SAVE_IMG(inputStack,{sprintf('fixedStacks/%s.fixed',baseName),'half'},iPixelHeader,iOriginHeader);
 elseif ( skip_tilts)
   % Originally saved in the skip_tilts block, but that is redundant if we
   % save in the switch_axes block in the new implementation.
-  SAVE_IMG(inputStack,sprintf('fixedStacks/%s.fixed',baseName),iPixelHeader,iOriginHeader);
+  SAVE_IMG(inputStack,{sprintf('fixedStacks/%s.fixed',baseName),'half'},iPixelHeader,iOriginHeader);
 else
   % No modifications, so just link to the original stack
   cd('fixedStacks');
@@ -240,7 +240,7 @@ for iPrj = 1:nZ
   inputStack(:,:,iPrj) = gather(tmpPrj);
 end
 
-SAVE_IMG(inputStack,fixedName,emc.pixel_size_angstroms);
+SAVE_IMG(inputStack,{fixedName,'half'},emc.pixel_size_angstroms);
 fprintf('finished preprocessing tilt-series\n');
 
 clear tmpPrj inputStack

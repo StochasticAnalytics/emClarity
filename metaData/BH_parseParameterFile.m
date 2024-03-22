@@ -420,12 +420,26 @@ else
   emc.pixelMultiplier = -1;
 end
 
+if isfield(emc, 'tomoCprLowPass')
+  EMC_assert_numeric(emc.tomoCprLowPass, 1);
+  if (emc.tomoCprLowPass < 20 || emc.tomoCprLowPass > 44)
+    fprintf('\n\n\tWARNING: tomoCprLowPass is outside the range of 20 to 44, this may be okay, but ... maybe not.\n\n');
+  end
+else
+  emc.tomoCprLowPass = 22;
+end
+
 if isfield(emc, 'tomoCPR_random_subset')
   EMC_assert_numeric(emc.tomoCPR_random_subset, 1);
 else
   emc.tomoCPR_random_subset = -1;
 end
 
+if isfield(emc, 'tomoCPR_target_n_patches_x_y')
+  EMC_assert_numeric(emc.tomoCPR_target_n_patches_x_y, 2, [0, 100]);
+else
+  emc.tomoCPR_target_n_patches_x_y = [0,0];
+end
 % I think this has been removed
 if isfield(emc, 'probabilityPeakiness')
   EMC_assert_numeric(emc.probabilityPeakiness, 1);

@@ -84,6 +84,12 @@ if (nargin ~= 3)
 end
 
 
+
+
+
+
+
+
 % FIXME:
 % To test seeding the classification with existing classes, rather than always reverting to the global average,
 % use the mechanism in place to handle  multiple references at different length scales derived from the global average,
@@ -727,7 +733,7 @@ for iGold = 1:1+flgGold
       % classification will be done at a later stage after reducing to some
       % subset of peaks. FIXME
       includeParticle = positionList(iSubTomo, 8);
-      
+      particleIDX = positionList(iSubTomo, 4); % Same for all peaks
       iPeak=0; % make sure this exists if we are no including the particle
       if (includeParticle)
         make_sf3d = true;
@@ -771,7 +777,6 @@ for iGold = 1:1+flgGold
           end
           
           using_this_subtomo = true;
-          particleIDX = positionList(iSubTomo, 4); % Same for all peaks
           if ~ischar(indVAL)
             % Read in and interpolate at single precision as the local values
             % in the interpolant suffer from any significant round off errors.
@@ -894,7 +899,12 @@ for iGold = 1:1+flgGold
         end % end of loop over peaks
       else
         nIgnored = nIgnored + 1;
-        fprintf('Ignoring outside subtomo %d from %s\n',particleIDX, tomoList{iTomo});
+        if ~(emc.Pca_randSubset)
+          fprintf('Ignoring outside subtomo %d from %s\n',particleIDX, tomoList{iTomo});
+        end
+        % This could also probably go in the above not random_subset clause, but also
+        % i don't think will change anthything downstream as it shoul dbe ignored on the full run.
+        % Leaving it this way means the intermediate metadata is more accurately reflecting the process.
         eraseIDX = subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(:,4) == particleIDX;
         subTomoMeta.(cycleNumber).(geom_name).(tomoList{iTomo})(eraseIDX, 26+iPeak*26) = -9999;
       end % end of ignore if statment from extracted window out of bounds (ischar(indVAL))

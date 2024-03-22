@@ -320,174 +320,104 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if ( resample_stack)
+  fprintf('Combining tranformations\n\n');
+  % Load in the mapBack alignment
+  mbEST = load(sprintf('%s.xf',mapBackPrfx));
+  mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
 
-fprintf('Combining tranformations\n\n');
-% Load in the mapBack alignment
-mbEST = load(sprintf('%s.xf',mapBackPrfx));
-mbTLT = load(sprintf('%s.tlt',mapBackPrfx));
+  outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension);
 
-outputStackName = sprintf('aliStacks/%s%s',stackNameOUT,extension);
-
-try
-  erase_beads_after_ctf = emc.('erase_beads_after_ctf');
-catch
-  erase_beads_after_ctf = false;
-end
-
-if (erase_beads_after_ctf)
-  flgEraseBeads = 0;
-else
-  if exist(sprintf('%s.erase',mapBackPrfx),'file')
-    flgEraseBeads = 1;
-  else
-    flgEraseBeads = 0;
-    fprintf('\nDid not find the gold bead file (%s) for erasing, will skip\n\n',sprintf('%s.erase',mapBackPrfx));
+  try
+    erase_beads_after_ctf = emc.('erase_beads_after_ctf');
+  catch
+    erase_beads_after_ctf = false;
   end
-end
 
-sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
-sizeCropped(3) = d3;
+  if (erase_beads_after_ctf)
+    flgEraseBeads = 0;
+  else
+    if exist(sprintf('%s.erase',mapBackPrfx),'file')
+      flgEraseBeads = 1;
+    else
+      flgEraseBeads = 0;
+      fprintf('\nDid not find the gold bead file (%s) for erasing, will skip\n\n',sprintf('%s.erase',mapBackPrfx));
+    end
+  end
 
-STACK = zeros(sizeCropped,'single');
-samplingMaskStack = zeros(sizeCropped,'single');
+  sizeCropped = [d1,d2,d3]-(1-mod([d1,d2,d3],2));
+  sizeCropped(3) = d3;
 
-
-
-if (flgReOrderMapBack)
-  TLT = sortrows(TLT,1);
-end
-
-% if any([d1,d2] > 4096)
-%   shiftMETHOD = 'cpu';
-%   fprintf('transforming on cpu b/c > 4096\n')
-% else
-shiftMETHOD = 'GPU';
-% end
-
-% Redefine d3 incase views are ignored
-d3 = size(TLT,1);
-
-osX = 1-mod(d1,2); osY = 1-mod(d2,2);
+  if (flgReOrderMapBack)
+    TLT = sortrows(TLT,1);
+  end
 
 
+  shiftMETHOD = 'GPU';
 
+  % Redefine d3 incase views are ignored
+  d3 = size(TLT,1);
 
-for i = 1:d3
-  %  fprintf('Transforming prj %d in fourier space oversampled by 2x physical Nyquist\n',i);
-  
-  
-  % Stored in row order as output by imod, st transpose is needed. Inversion
-  % of the xform is handled in resample2d.
-  origXF = [1,0;0,1];
-  
-  newXF = reshape(mbEST(TLT(i,23),1:4),2,2)';
-  
-  
-  dXYZ  = [(newXF*TLT(i,2:3)')' + mbEST(TLT(i,23),5:6) , 0];
-  TLT(i,2:3) = dXYZ(1:2);
-  dXYZ = dXYZ ./ scalePixelsBy;
-  
-  combinedXF = reshape((newXF*origXF)',1,4);
-  TLT(i,7:10) = combinedXF;
-  
-  
-  
-  
+  osX = 1-mod(d1,2); osY = 1-mod(d2,2);
+
+  for i = 1:d3
+    %  fprintf('Transforming prj %d in fourier space oversampled by 2x physical Nyquist\n',i);
+    origXF = [1,0;0,1];
+    
+    newXF = reshape(mbEST(TLT(i,23),1:4),2,2)';
+    
+    
+    dXYZ  = [(newXF*TLT(i,2:3)')' + mbEST(TLT(i,23),5:6) , 0];
+    TLT(i,2:3) = dXYZ(1:2);
+    dXYZ = dXYZ ./ scalePixelsBy;
+    
+    combinedXF = reshape((newXF*origXF)',1,4);
+    TLT(i,7:10) = combinedXF;
   
   sizeODD = [d1,d2]-[osX,osY];
   
-  % If it is even sized, shift up one pixel so that the origin is in the middle
-  % of the odd output here we can just read it in this way, unlike super res.
-  
-  iProjection = ...
-    OPEN_IMG('single', iMrcObj,[1+osX,d1],[1+osY,d2],TLT(i,23),'keep');
-  
-  iProjection = real(ifftn(fftn(iProjection).* BH_bandpass3d(1.*[d1-osX,d2-osY,1],0,0,0,'GPU','nyquistHigh')));
-  
-  largeOutliersMean= mean(iProjection(:));
-  largeOutliersSTD = std(iProjection(:));
-  largeOutliersIDX = (iProjection < largeOutliersMean - 6*largeOutliersSTD | ...
-    iProjection > largeOutliersMean + 6*largeOutliersSTD);
-  iProjection(largeOutliersIDX) = (3*largeOutliersSTD).*randn([gather(sum(largeOutliersIDX(:))),1],'single');
-  
-  largeOutliersIDX = [];
-  
-  
-  % Padding to avoid interpolation artifacts. For K3 images this can push
-  % a 2080 close to or over the limit, so it is been reduced to 1/4 (from
-  % 1) i.e. the image is paded to 1.25 x unless useFourierInterp is set >
-  % 1;
-  sizeSQ = floor(([1,1]+bh_global_do_2d_fourier_interp*0.25).*max(sizeODD));
-  %         sizeSQ = floor(([1,1]).*max(sizeODD));
-  
-  padVal  = BH_multi_padVal(sizeODD,sizeSQ);
-  trimVal = BH_multi_padVal(sizeSQ,sizeCropped(1:2));
-  
-  
-  iProjection = iProjection - mean(iProjection(:));
-  
-
-  iProjection = BH_padZeros3d(iProjection,padVal(1,:),padVal(2,:), ...
-    shiftMETHOD,'singleTaper');
-  
-  if (i == 1 && bh_global_do_2d_fourier_interp)
-    bhF = fourierTransformer(iProjection,'OddSizeOversampled');
-  end
-  
-  
-  
-  % Do the phase shift after rotating - need to invert the scaling since
-  % we are in reciprocal space
-  [imodMAG, imodStretch, imodSkewAngle, imodRot] = ...
-    BH_decomposeIMODxf(combinedXF);
-  
-  
-  
-  if (bh_global_do_2d_fourier_interp)
-    %   combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(1/imodMAG);
-    combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward');
-    combinedInverted = combinedInverted([1,2,4,5]);
+    % If it is even sized, shift up one pixel so that the origin is in the middle
+    % of the odd output here we can just read it in this way, unlike super res.
     
-    iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2), ...
-    'Bah','GPU','forward',imodMAG,size(iProjection),bhF);
-  else
-    combinedInverted = BH_defineMatrix([imodRot,0,0],'Bah','forward').*(imodMAG);
-    combinedInverted = combinedInverted([1,2,4,5]);
-    iProjection = BH_resample2d(iProjection,combinedInverted,dXYZ(1:2),'Bah','GPU','forward',1.0,size(iProjection));
   end
-  
-  iSamplingMask = BH_resample2d(ones(sizeCropped(1:2),'single','gpuArray'),combinedXF,dXYZ(1:2),'Bah','GPU','forward',1.0,sizeCropped(1:2),NaN);
-  
-  iSamplingMask(isnan(iSamplingMask(:))) = 0;
-  samplingMaskStack(:,:,i) = (gather(real(iSamplingMask)));
-  iSamplingMask = [];
-  
-  % % % % %    iProjection = real(fftshift(ifftn(ifftshift(iProjection))));
-  STACK(:,:,i)  = gather(real(BH_padZeros3d(iProjection, ...
-    trimVal(1,:),trimVal(2,:),...
-    shiftMETHOD,'single')));
-  
-  
+
+  base_cmd = sprintf('newstack -mode 12 -meansd 0,1 -xf %s.xf %s %s', mapBackPrfx, stackNameIN, outputStackName);
+  [ newstack_err ] = system(sprintf('%s > /dev/null',base_cmd));
+  if (newstack_err)
+    system(base_cmd);
+    error('newstack failed');
+  end
+
+  samplingMaskStack = ones(sizeCropped,'single');
+  SAVE_IMG(samplingMaskStack,{sprintf('%s.samplingMask_pre',outputStackName), 'half'}, iPixelHeader,iOriginHeader);
+
+  base_cmd = sprintf('newstack -mode 12 -fill 0 -xf %s.xf %s.samplingMask_pre %s.samplingMask',mapBackPrfx,outputStackName,outputStackName);
+  [ newstack_err ] = system(sprintf('%s > /dev/null',base_cmd));
+  if (newstack_err)
+    system(base_cmd);
+    error('newstack failed');
+  end
+
+  system(sprintf('rm %s.samplingMask_pre',outputStackName));
 end
 
+STACK = gpuArray(OPEN_IMG('single',outputStackName));
 if ( flgEraseBeads )
   STACK = BH_eraseBeads(STACK,eraseRadius, fileName, scalePixelsBy,0,sortrows(TLT,1));
 end
-
+samplingMaskStack = gpuArray(OPEN_IMG('single',sprintf('%s.samplingMask',outputStackName)));
 [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',100,emc.pixel_size_si*10^10,samplingMaskStack);
 
+STACK = gather(STACK);
+samplingMaskStack = gather(samplingMaskStack);
+SAVE_IMG(STACK,{outputStackName, 'half'},iPixelHeader,iOriginHeader);
+SAVE_IMG(samplingMaskStack,{sprintf('%s.samplingMask',outputStackName),'half'},iPixelHeader,iOriginHeader);
 
-SAVE_IMG(MRCImage(STACK),outputStackName,iPixelHeader,iOriginHeader);
-SAVE_IMG(MRCImage(samplingMaskStack),sprintf('%s.samplingMask',outputStackName),iPixelHeader,iOriginHeader);
-
-end
 
 if ~(flgSkip)
   
   gpuDevice(gpuIDX)
   [d1,d2,d3] = size(STACK);
   if (emc.pixel_size_si*10^10 < 0)
-    
     flgCrop = 1;
     [croppedIMG,pixelOUT] = cropIMG(STACK(:,:,1),emc.pixel_size_si*10^10);
     [d1C,d2C] = size(croppedIMG); clear croppedIMG
@@ -498,15 +428,12 @@ if ~(flgSkip)
     % keep the optino for cropping.
     FIXED_FIRSTZERO =  pixelOUT / 70 ;
     highCutoff = (pixelOUT*10^-10)/emc.('defCutOff');
-    
   else
-    
     flgCrop = 0;
     pixelOUT = emc.pixel_size_si*10^10;
     d1C = d1;
     d2C = d2;
     tltForExp = TLT;
-    
   end
   
   d3 = size(STACK,3); 
@@ -600,16 +527,16 @@ if ~(flgSkip)
             tmpTile(:,:,3) = tmpTile(:,:,3) + thisTile;
           end
           
-        end
-      end
-    end
+        end % end of j
+      end % end of if iEvalMask
+    end % end of i
     fprintf('%d tiles at dZ= 0\t%d tiles at dZ > 0\t%d tiles at dZ < 0, after tilt %d\n',nT,nT2,nT3,k);
     
     % Apply the dose filter to the sum of each projection to save a bunch of
     % multiplicaiton
     psTile = psTile + tmpTile;
     
-  end
+  end % end of k 
   clear tmpTile
   toc
   
@@ -623,11 +550,7 @@ if ~(flgSkip)
   clear psTile
   
   if ~(skipFitting)
-    % % % %   for iTile = 1:3
-    % % % %     rotAvgPowerSpec(:,:,iTile) = (fftshift(rotAvgPowerSpec(:,:,iTile)));
-    % % % %   end
     AvgPowerSpec = rotAvgPowerSpec;
-    
     % TODO make a better rotational averaging funciton
     [rot1, rot2, ~, r1,r2, ~] = BH_multi_gridCoordinates(paddedSize.*[1,1], ...
       'Cartesian','GPU', ...
@@ -649,7 +572,6 @@ if ~(flgSkip)
     % for rotational averaging.
     rotAvgPowerSpec = rotAvgPowerSpec ./ (720); clear a
     % rotAvgPowerSpec = rotAvgPowerSpec ./ (720.*(sqrt(fftshift(radialForCTF{1}.*(pixelOUT.*10^-10))))); clear a
-    
     
     is_a_bummer = ~isfinite(rotAvgPowerSpec);
     if sum(is_a_bummer,'all') > 0.5*numel(rotAvgPowerSpec)

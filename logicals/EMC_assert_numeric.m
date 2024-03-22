@@ -43,7 +43,7 @@ function  EMC_assert_numeric(input_val, varargin)
     end
     
     if ( assert_passed == false )
-        error('EMC_assert_numeric: input is not numeric or has wrong number of elements');
+        error('EMC_assert_numeric: input is not numeric or has wrong number of elements or is out of range');
     end
     
 

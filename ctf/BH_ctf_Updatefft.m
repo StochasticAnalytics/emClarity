@@ -418,7 +418,7 @@ parfor iGPU = 1:nGPUs
       
       
       fprintf('Using an estimated thickenss of %3.3f nm for tilt-series %s\n',THICKNESS, STACK_PRFX);
-      
+      samplingMaskStack = gpuArray(OPEN_IMG('single',sprintf('%s.samplingMask',outputStackName)));
       [ STACK ] = BH_multi_loadAndMaskStack(STACK,TLT,'',THICKNESS,emc.pixel_size_angstroms,gpuArray(samplingMaskStack));
       SAVE_IMG(STACK,{outputStackName,'half'},iPixelHeader,iOriginHeader);
       

@@ -60,24 +60,6 @@ catch
   tmpDecoy = 0
 end
 
-try
-  super_sample = emc.('super_sample');
-  if (super_sample > 0)
-    [~,v] = system('cat $IMOD_DIR/VERSION');
-    v = split(v,'.');
-    if (EMC_str2double(v{1}) < 4 || (EMC_str2double(v{2}) <= 10 && EMC_str2double(v{3}) < 42))
-      fprintf('Warning: imod version is too old for supersampling\n');
-      super_sample = '';
-    else
-      super_sample = sprintf(' -SuperSampleFactor %d',super_sample);
-    end
-  else
-    super_sample = '';
-  end
-catch
-  super_sample = '';
-  expand_lines = '';
-end
 
 
 peakThreshold = emc.('Tmp_threshold');
@@ -1065,16 +1047,16 @@ system(sprintf('mv temp_%s.mrc %s',convTMPNAME,convTMPNAME));
 resultsOUT = sprintf('./%s/%s_convmap.mrc',convTMPNAME,mapName);
 anglesOUT  = sprintf('./%s/%s_angles.mrc',convTMPNAME,mapName);
 angleListOUT = sprintf('./%s/%s_angles.list',convTMPNAME,mapName);
-SAVE_IMG(MRCImage(mag),resultsOUT);
+SAVE_IMG(mag,{resultsOUT,'half'});
 % SAVE_IMG(MRCImage(RESULTS_angle),anglesOUT);
 if ( tmpDecoy )
   decoyOUT = sprintf('./%s/%s_decoy.mrc',convTMPNAME,mapName);
-  SAVE_IMG(MRCImage((RESULTS_decoy)),decoyOUT);
+  SAVE_IMG(RESULTS_decoy,{decoyOUT,'half'});
   diffOUT = sprintf('./%s/%s_convmap-decoy.mrc',convTMPNAME,mapName);
   decoyLogical = mag < RESULTS_decoy;
   mag(decoyLogical) = 0;
   mag(~decoyLogical) = mag(~decoyLogical) - RESULTS_decoy(~decoyLogical); clear RESULTS_decoy
-  SAVE_IMG(MRCImage((mag)),diffOUT);
+  SAVE_IMG(mag,{diffOUT,'half'});
 end
 angleFILE = fopen(angleListOUT,'w');
 fprintf(angleFILE,'%2.2f\t%2.2f\t%2.2f\n', ANGLE_LIST');

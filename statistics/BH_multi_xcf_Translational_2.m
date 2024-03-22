@@ -96,24 +96,26 @@ if (~isnan(gather(maxVal)) && (maxVal ~= 0))
         boX = iCCCmap(peakLOW(1):peakTOP(1), ...
           peakLOW(2):peakTOP(2), ...
           peakLOW(3):peakTOP(3));
+                
+        cMass = [ sum(sum(sum(boX.*cmX))) ; ...
+          sum(sum(sum(boX.*cmY))) ; ...
+          sum(sum(sum(boX.*cmZ))) ] ./ sum(boX(:));
+        
+        PEAK_COORD = peakCoord + cMass';
       catch
-        peakCOM = gather(peakCOM);
-        peakCoord = gather(peakCoord);
-        peakLOW = gather(peakLOW);
-        peakTOP = gather(peakTOP);
-        iCCCmap = gather(iCCCmap);
-        peakMask = gather(peakMask);
-        save('xfcCalcErr.mat','peakCOM','peakCoord','peakLOW','peakTOP',...
-          'iCCCmap','peakMask');
-        error('failed to box out COM calc, saving troubleshooting variables in xfcClacErr.mat')
+        PEAK_COORD = peakCoord;
+        % peakCOM = gather(peakCOM);
+        % peakCoord = gather(peakCoord);
+        % peakLOW = gather(peakLOW);
+        % peakTOP = gather(peakTOP);
+        % iCCCmap = gather(iCCCmap);
+        % peakMask = gather(peakMask);
+        % save('xfcCalcErr.mat','peakCOM','peakCoord','peakLOW','peakTOP',...
+        %   'iCCCmap','peakMask');
+        % error('failed to box out COM calc, saving troubleshooting variables in xfcClacErr.mat')
       end
       
-      
-      cMass = [ sum(sum(sum(boX.*cmX))) ; ...
-        sum(sum(sum(boX.*cmY))) ; ...
-        sum(sum(sum(boX.*cmZ))) ] ./ sum(boX(:));
-      
-      PEAK_COORD = peakCoord + cMass';
+
       
     end
   end

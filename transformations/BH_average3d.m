@@ -610,20 +610,9 @@ if (emc.flgQualityWeight)
     %       fprintf('From %d possible volumes the total weight is %3.3e\n',nVolumes,addedWeight);
   end
   avgCCC = mean(cccVect);
-  
-  
-  
-  mean(wgtVect)
-  std(wgtVect)
+
   maxCCC = max(cccVect);
-  mean(wgtVect)
-  median(wgtVect)
-  
-  %     figure, hist(cccVect,29)
-  %     figure, hist(wgtVect,29)
-  %     figure, hist((wgtVect./median(wgtVect)).^weightScale,29)
-  %     error('asdf')
-  
+
   if (emc.track_stats)
     fprintf('Avgerage score is %3.3f, using a quality weight of %2.2f\n\n',avgCCC,emc.flgQualityWeight);
   else
