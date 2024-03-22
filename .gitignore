@@ -1,4 +1,5 @@
 mexFiles/compiled
+mexFiles/logFile/
 !mexFiles/compiled/emC_autoAlign.sh
 bin/
 lib/
