@@ -242,7 +242,8 @@ for iTiltSeries = tiltStart:nTiltSeries
 
 
   
-  mapBackRePrjSize = min(256,subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).('tomoCprRePrjSize'));
+  mapBackRePrjSize = min(64,subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).('tomoCprRePrjSize'))
+  
   % % %   iViewGroup = subTomoMeta.mapBackGeometry.viewGroups.(tiltNameList{iTiltSeries});
   nTomograms = subTomoMeta.mapBackGeometry.(tiltNameList{iTiltSeries}).nTomos
   if nTomograms == 0
@@ -350,6 +351,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   end
 
   system(sprintf('mkdir -p %smapBack%d',tmpCache,mapBackIter+1));
+  system(sprintf('mkdir -p cache/mapBack%d',mapBackIter+1));
   
   % re-initialize the parpool for each tilt series to free up mem.
   if ~isempty(gcp('nocreate'))
@@ -530,7 +532,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     
     if any(emc.tomoCPR_target_n_patches_x_y)
       % This will be re-calculated once the tilt-series size is known.
-      targetPatchSize = floor([tiltHeader.nX,tiltHeader.nY] ./ emc.tomoCPR_target_n_patches_x_y);
+      targetPatchSize = floor([tiltHeader.nX,tiltHeader.nY].*samplingRate ./ emc.tomoCPR_target_n_patches_x_y);
       fprintf('\nUsing targetPatchSize of [%d,%d] for %s\n',targetPatchSize, tomoList{iTomo});
     end
     
@@ -796,10 +798,10 @@ for iTiltSeries = tiltStart:nTiltSeries
   % % %   % It may be faster to work with a rotated vol since the reading in may cause
   % % %   % problems, but the projection is so slow, that this isn't worth dealing with
   % % %   % now.
-  if (nWorkers > 1)
-    chunkSize = ceil(sTY./nWorkers);
-    chunkInc = zeros(nWorkers,3);
-    for iWorker = 1:nWorkers-1
+  if (emc.n_tilt_workers > 1)
+    chunkSize = ceil(sTY./emc.n_tilt_workers);
+    chunkInc = zeros(emc.n_tilt_workers,3);
+    for iWorker = 1:emc.n_tilt_workers-1
       chunkInc(iWorker,:) = [iWorker,(iWorker-1)*chunkSize+1,iWorker*chunkSize];
     end
     iWorker = iWorker +1 ;
@@ -809,7 +811,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     chunkInc = [1,1,sTY];
   end
   
-  
+
   % % % % % % %
   if (buildTomo)
     
@@ -998,7 +1000,6 @@ for iTiltSeries = tiltStart:nTiltSeries
         end % end of for loop over chunks
       end % end of while loop
     end % loop over error and masked tomo
-    
     
     
     fprintf(reModFile,['#!/bin/bash\n\n',...
@@ -1683,8 +1684,6 @@ for iTiltSeries = tiltStart:nTiltSeries
   % write the com script for running tiltalign
   RotDef = 5;
   TltDef = 4;
-  aliCom_name = sprintf('%smapBack%d/%s.align',mbOUT{1:3});
-  aliCom = fopen(aliCom_name,'w');
   
   if (emc.shift_z_to_to_centroid)
     final_line1 =  'ShiftZFromOriginal';
@@ -1705,6 +1704,9 @@ for iTiltSeries = tiltStart:nTiltSeries
     [~,tn2,tn3] = fileparts(iRawTltName);
     tilt_script_name = sprintf('cache/mapBack%d/%s%s',mbOUT{2},tn2,tn3);
   end
+
+  aliCom_name = sprintf('%smapBack%d/%s.align',mbOutAlt{1:3});
+  aliCom = fopen(aliCom_name,'w');
 
   % Testing local alignment with optimized parameters using the new imod options for leave out
   fprintf(aliCom,['%smapBack%d/%s_fit-full.fid\n',... %1
@@ -1732,8 +1734,8 @@ for iTiltSeries = tiltStart:nTiltSeries
                   tilt_script_name,...
                   emc.k_factor_scaling, ...
                   mbOutAlt{1:3},outCTF, ...
-                  targetPatchSize, ...
-                  targetPatchSize,...
+                  targetPatchSize(1), ...
+                  targetPatchSize(2),...
                   nFiducialsPerPatch, ...
                   floor(nFiducialsPerPatch/3),...
                   emc.min_overlap, ...
@@ -1849,7 +1851,8 @@ for iTiltSeries = tiltStart:nTiltSeries
       fOUT = fopen(sprintf('%smapBack%d/runAlignments.sh',mbOUT{1:2}),'w');
       fprintf(fOUT,'#!/bin/bash\n\n');
     end
-    fprintf(fOUT,'cat %s | /scratch/etna/master_align.sh `xargs` &\n',aliCom_name);
+    % fprintf(fOUT,'cat %s | /scratch/etna/master_align.sh `xargs` &\n',aliCom_name);
+    fprintf(fOUT,'%s\n',aliCom_name);
 
     % Since we send to the background in a shell, makes sure the
     % function waits on children.
@@ -1867,7 +1870,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     % fprintf(fOUT,['%smapBack%d/%s.align > ',...
     %   '%smapBack%d/%s.align_ta.log &\n'], ...
     %   mbOutAlt{1:3},mbOutAlt{1:3});
-    fprintf(fOUT,'cat %s | /scratch/etna/master_align.sh `xargs` &\n',aliCom_name);
+    fprintf(fOUT,'%s\n',aliCom_name);
   
     % Since we send to the background in a shell, makes sure the
     % function waits on children.
@@ -1887,6 +1890,7 @@ for iTiltSeries = tiltStart:nTiltSeries
   %%%system(sprintf('grep -A %d  " At minimum tilt" ./mapBack/%s_ta.log >  tmp.log',nPrjs+2,TN));
   %%%system(sprintf('awk ''{if(NR >3) print $5}'' tmp.log > mapBack/%s.mag',TN));
   %%%end %uf cibdutuib
+
 end % loop over tilts
 
 
@@ -1896,20 +1900,21 @@ if ( flgRunAlignments )
   altFiles = sprintf('%smapBack%d/runAlignments_*.sh',mbOUT{1:2});
   
   if (multi_node_run)
-    fOUT = fopen(mainFile,'w');
-    fprintf(fOUT,'#!/bin/bash\n\n');
-    fclose(fOUT);
-    
+    % fOUT = fopen(mainFile,'w');
+    % fprintf(fOUT,'#!/bin/bash\n\n');
+    % fclose(fOUT);
+    system(sprintf('rm %s && touch %s',mainFile,mainFile));
     fprintf('Combining Results from alt and main\n');
     system(sprintf('cat %s >> %s',altFiles,mainFile));
   end
   
-  fOUT = fopen(mainFile,'a');
-  fprintf(fOUT,'\nwait\n');
-  fclose(fOUT);
+  % fOUT = fopen(mainFile,'a');
+  % fprintf(fOUT,'\nwait\n');
+  % fclose(fOUT);
   
-  system(sprintf('chmod a=wrx %smapBack%d/runAlignments.sh', mbOUT{1:2}));
-  system(sprintf('%smapBack%d/runAlignments.sh', mbOUT{1:2}));
+  % system(sprintf('chmod a=wrx %smapBack%d/runAlignments.sh', mbOUT{1:2}));
+  % system(sprintf('%smapBack%d/runAlignments.sh', mbOUT{1:2}));
+  system(sprintf('cat %smapBack%d/runAlignments.sh | parallel -j%d "cat {} | /scratch/etna/master_align.sh `xargs`"', mbOUT{1:2}, emc.nCpuCores))
 end
 
 if ( conserveDiskSpace )

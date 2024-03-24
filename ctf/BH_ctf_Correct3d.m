@@ -746,7 +746,7 @@ parfor iParProc = 1:nParProcesses
       recombineCMD = fopen(file_of_outputs,'w');
       fprintf(recombineCMD,'%d\n', n_total_sections);
 
-      cleanup3 = sprintf('rm %s',file_of_outputs);
+      cleanup3 = sprintf('rm -f %s',file_of_outputs);
       % if (use_inverted_newstack)
         % slab_order = n_slabs_to_reconstruct:-1:1;
       % else

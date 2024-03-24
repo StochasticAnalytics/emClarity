@@ -4,6 +4,10 @@ function [output_vol] =  emc_halfcast(input_vol, swap_host_device)
         swap_host_device = false;
     end
 
+    % I'm not sure why, but this breaks when numel == 1
+    if ~(numel(input_vol) > 1)
+       error('Input volume to emc_halfcast must have more than one element\n');
+    end
     to_gpu = false;
     to_cpu = false;
     to_half = false;
@@ -52,9 +56,9 @@ function [output_vol] =  emc_halfcast(input_vol, swap_host_device)
         mexFP16(input_vol, output_vol, to_half, int64(numel(input_vol)));
     else 
         if (to_gpu)
-            output_vol = zeros(size(input_vol), 'single', 'gpuArray')+2;
+            output_vol = zeros(size(input_vol), 'single', 'gpuArray');
         else
-            output_vol = zeros(size(input_vol), 'single') +1;
+            output_vol = zeros(size(input_vol), 'single');
         end
         mexFP16(output_vol, input_vol, to_half, int64(numel(input_vol)));
     end

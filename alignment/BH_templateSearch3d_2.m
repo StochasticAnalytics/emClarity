@@ -405,12 +405,12 @@ scale_mip
 
 wanted_storage_precision = 'single';
 if (test_half)
-  wanted_storage_precision = 'half';
+  wanted_storage_precision = 'uint16';
 end
 
-tomoStack = zeros([sizeChunk,nTomograms], 'single');
+tomoStack = zeros([sizeChunk,nTomograms], wanted_storage_precision);
 if test_local
-  localStack = zeros([sizeChunk,nTomograms], 'single');
+  localStack = zeros([sizeChunk,nTomograms], wanted_storage_precision);
 end
 % tomoNonZero = zeros(nTomograms,6,'uint64');
 
@@ -489,42 +489,13 @@ for  iX = 1:nIters(1)
       rmsMask =  BH_movingAverage_2(tomoChunk.^2, statsRadius(1));
       rmsMask = sqrt(rmsMask - averageMask.^2);
       
-      % SAVE_IMG(BH_padZeros3d(real(single(...
-      %   (rmsMask))),...
-      %   trimValid(1,:),trimValid(2,:),'GPU','single'),'rmsMask.mrc');
-      % SAVE_IMG(templateMask,'templateMask.mrc');
-      % tempPADMask = zeros(size(tomoChunk),'single','gpuArray');
-      % tempPADMask(padBIN(1,1)+1: end - padBIN(2,1), ...
-      %             padBIN(1,2)+1: end - padBIN(2,2), ...
-      %             padBIN(1,3)+1: end - padBIN(2,3)) = templateMask;
-      % tempPADMask = tempPADMask ./ sum(tempPADMask(:));
-      % SAVE_IMG(tempPADMask,'tempPADMaskPre.mrc');
-      % tempPADMask = (conj(bhF.fwdFFT(bhF.normalization_factor.^-1 .* tempPADMask )));% ./ (sum(tempPADMask > 0.01)./sum(tempPADMask(:)))));
-      % SAVE_IMG(bhF.invFFT(conj(tempPADMask)),'tempPADMask.mrc');
-      % ms = real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor.^3 .*tomoChunk.^2.*validCalcMask),'fwd').*tempPADMask));
-      % ma = real(bhF.invFFT(bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor.^3 .*tomoChunk.*validCalcMask),'fwd').*tempPADMask)).^2;
-      % md = BH_padZeros3d(real(single(...
-      %                       (ms-ma))),...
-      %                       trimValid(1,:),trimValid(2,:),'GPU','single');
-      % SAVE_IMG(md,'md.mrc');
-      % SAVE_IMG(sqrt(md), 'smd.mrc')
-      % SAVE_IMG(BH_padZeros3d(real(single(...
-      %   ms)),...
-      %   trimValid(1,:),trimValid(2,:),'GPU','single'),'ms.mrc');
-      % SAVE_IMG(BH_padZeros3d(real(single(...
-      %   (ma))),...
-      %   trimValid(1,:),trimValid(2,:),'GPU','single'),'ma.mrc');
-      % error('asdf')
-      % correctedRMS = (ms - ma);
-      % correctedRMS = sqrt(BH_padZeros3d(real(single(...
-      %   correctedRMS)),...%./(tomoNorm.*tempNorm))))),...
-      %                     trimValid(1,:),trimValid(2,:),'GPU','single'));
-      % mean(correctedRMS(:))
-      % 1/mean(correctedRMS(:))
-      % SAVE_IMG(correctedRMS,'correctedRMS.mrc');
-      % error('asdf')
+
       if (test_local)
-        localStack(:,:,:,tomoIDX) = gather(rmsMask);
+        if (test_half)
+          localStack(:,:,:,tomoIDX) = emc_halfcast(rmsMask, true);
+        else
+          localStack(:,:,:,tomoIDX) = gather(rmsMask);
+        end
       else
         if ~(scale_mip)
           tomoChunk = (tomoChunk - averageMask) ./ rmsMask;
@@ -532,11 +503,7 @@ for  iX = 1:nIters(1)
       end
       clear rmsMask averageMask
       
-      
-      
       tomoChunk = gather(tomoChunk .*validCalcMask);
-      
-      
       
       tmp_sum = sum(tomoChunk(validCalcMask > 0.1)); % REVERT
       % tmp_sum = sum(tomoChunk(:));
@@ -545,8 +512,12 @@ for  iX = 1:nIters(1)
       fullX2 = fullX2 + gather(tmp_sum.^2);
       fullnX = fullnX + gather(prod(sizeChunk));
       
-      
-      tomoStack(:,:,:,tomoIDX) = tomoChunk;
+      if (test_half)
+        % The default is to return uint16 on the same device (host in this case)
+        tomoStack(:,:,:,tomoIDX) = emc_halfcast(tomoChunk);
+      else
+        tomoStack(:,:,:,tomoIDX) = tomoChunk;
+      end
       
       tomoCoords(tomoIDX,:) = [cutX,cutY,cutZ];
       tomoIDX = tomoIDX + 1;
@@ -558,11 +529,7 @@ end % end of loop over X chunks
 
 % Normalize the global variance
 globalVariance = (fullX2/fullnX) - (fullX/fullnX)^2;
-%fprintf('After local normalization, scaling also the global variance %3.3e\n',globalVariance);
 
-% for iChunk = 1:tomoIDX-1
-%   tomoStack(:,:,:,iChunk) = tomoStack(:,:,:,iChunk) ./sqrt(globalVariance);
-% end
 
 
 clear tomoWedgeMask validCalcMask  bandpassFilter statBinary  tomoChunk
@@ -580,19 +547,7 @@ nComplete = 0;
 totalTime = 0;
 firstLoopOverTomo = true;
 
-% Center the spectrum by multiplication not swapping (this should just
-% be in the fourierTransformer class if it isn't already)
-% % swapPhase(obj, inputVol, direction) with fwd should do it
-% [dU,dV,dW] = BH_multi_gridCoordinates(size(tomoStack(:,:,:,1)),...
-%                                      'Cartesian','GPU', ...
-%                                       {'none'},1,1,0);
 
-% swapQuadrants = exp((-2i*pi).*(dU.*(floor(size(dU,1)/2)+1) + ...
-%                               (dV.*(floor(size(dV,2)/2)+1) + ...
-%                               (dW.*(floor(size(dW,3)/2)+1)))));
-% clear dU dV dW
-
-% swapQuadrants = swapQuadrants(1:floor(size(swapQuadrants,1)/2)+1,:,:);
 
 if (emc.use_new_grid_search)
   theta_search = 1:gridSearch.number_of_out_of_plane_angles;
@@ -659,10 +614,20 @@ for iAngle = theta_search
         ,iAngle,size(angleStep,1), tomoIDX,nTomograms);
     end
     
-    
-    tomoFou = gpuArray(tomoStack(:,:,:,tomoIDX));
+    if (test_half)
+      % Convert and return on GPU
+      tomoFou = emc_halfcast(tomoStack(:,:,:,tomoIDX), true);
+    else
+      tomoFou = gpuArray(tomoStack(:,:,:,tomoIDX));
+    end
+
     if test_local
-      localFou = BH_padZeros3d(localStack(:,:,:,tomoIDX),trimValid(1,:),trimValid(2,:),'GPU','single');
+      if (test_half)
+        localFou = BH_padZeros3d(emc_halfcast(localStack(:,:,:,tomoIDX), true),trimValid(1,:),trimValid(2,:),'GPU','single');
+      else
+        localFou = BH_padZeros3d(localStack(:,:,:,tomoIDX),trimValid(1,:),trimValid(2,:),'GPU','single');
+      end
+      
       %                              localStack(:,:,:,tomoIDX));
     end
     % % profile on
@@ -672,15 +637,7 @@ for iAngle = theta_search
     
     
     tomoFou = bhF.swapPhase(bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou)), 'fwd');
-    
-    
-    % profile on
-    % if (scale_mip)
-    %   tomoFou_2 = swapQuadrants.*bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou.^2));
-    % end
-    
-    
-    % tomoFou = swapQuadrants.*bhF.fwdFFT(bhF.normalization_factor^3.*(tomoFou));
+
     
     
     
@@ -727,8 +684,6 @@ for iAngle = theta_search
         if (scale_mip)
           %  I should probaly switch to using the SF3D masked reference, but that also changes the baseline implementation
           %  so I'll leave it for now.
-          
-          
           
           tempPADMask  = tempPADMask .* 0;
           

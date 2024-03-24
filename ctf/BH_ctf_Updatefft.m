@@ -182,6 +182,7 @@ parfor iGPU = 1:nGPUs
       INPUT_CELL{1,7} = ctfPath;
     else
       if ~exist(tlt{1}, 'file')
+        error('The file %s is not found.', tlt{1});
         fprintf('\nignoring %s, because the file is not found.\n', tlt{1});
       end
       if ~exist(PRJ_STACK{1}, 'file')
@@ -319,6 +320,9 @@ parfor iGPU = 1:nGPUs
         error('xfprod failed');
       else
         mbEST = load(tmp_combined_xf, '-ascii');
+        for i = 1:d3
+          tlt_tmp{i}([7,8,9,10,2,3]) = mbEST(i,:);
+        end
       end
     else
       error('Why would we get here?')
@@ -360,14 +364,13 @@ parfor iGPU = 1:nGPUs
         %   % In case some implicit expansion were to happen for whatever reason.
         %   error('dXYZ is a matrix and should be a vector');
         % end
+        % This is now updated above
         dXYZ(1:2) = tlt_tmp{i}(2:3);
         combinedXF = tlt_tmp{i}(7:10);
-        tlt_tmp{i}(2:3) = dXYZ(1:2);
-        
         
         
         % combinedXF = reshape((newXF*origXF)',1,4);
-        tlt_tmp{i}(7:10) = combinedXF;
+        % tlt_tmp{i}(7:10) = combinedXF;
       else
         combinedXF = tlt_tmp{i}(7:10);
         dXYZ = [tlt_tmp{i}(2:3),0];

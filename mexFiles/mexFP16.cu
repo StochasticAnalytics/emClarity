@@ -1,5 +1,6 @@
 
 #include "include/core_headers.cuh"
+#include <memory>
 
 // #define mexFP16_DEBUG_PRINT(args) mexPrintf("%s\n", args)
 #define mexFP16_DEBUG_PRINT(...)
@@ -76,8 +77,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
   // To avoid a copy but still get a pointer we can cast the const away.
   // This seems dodgy as fuck
   if (single_array_is_on_gpu) {
+    // mexEvalString("pause(3)");
     mxGPUArray const * inputArray  = mxGPUCreateFromMxArray(prhs[0]);
     input_single =  (float *) mxGPUGetData((mxGPUArray *)inputArray);
+    // if we don't destroy this array we have a bad memory leak, yet it also doesn't seem like more memory is allocated
+    // inside this block based on pausing and watching.
+    mxGPUDestroyGPUArray(inputArray);
   }
   else
     input_single =  (float *) mxGetData(prhs[0]);
@@ -85,6 +90,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
   if (half_array_is_on_gpu) {
     mxGPUArray const * inputArray  = mxGPUCreateFromMxArray(prhs[1]);
     input_uint16 = (uint16_t *) mxGPUGetData((mxGPUArray *)inputArray);
+    mxGPUDestroyGPUArray(inputArray);
   }
   else
     input_uint16 = (uint16_t *) mxGetData(prhs[1]);
@@ -92,6 +98,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
   bool* cast_to_fp16 = (bool *) mxGetData(prhs[2]);
   size_t* n_elements = (size_t *) mxGetData(prhs[3]);
 
+  const size_t threads = 1024;
+  const size_t blocks = (threads / *n_elements + 1024 - 1) /threads;
 
 
   // First, we need to take care of any data conversion needed.
@@ -112,7 +120,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
         checkCudaErrors(cudaMallocAsync(&temporary_single, *n_elements * sizeof(float), cudaStreamPerThread));
         checkCudaErrors(cudaMemcpyAsync(temporary_single, input_single, *n_elements  * sizeof(float), cudaMemcpyHostToDevice, cudaStreamPerThread));
       }
-      convert_fp32_to_fp16<<<1, 1, 0, cudaStreamPerThread>>>(temporary_single, temporary_uint16, *n_elements);
+      
+      convert_fp32_to_fp16<<<threads, blocks, 0, cudaStreamPerThread>>>(temporary_single, temporary_uint16, *n_elements);
 
       if (!single_array_is_on_gpu)
         checkCudaErrors(cudaFreeAsync(temporary_single, cudaStreamPerThread));
@@ -126,7 +135,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
       if (single_array_is_on_gpu) {
         mexFP16_DEBUG_PRINT("Copying single to host\n");
         checkCudaErrors(cudaMallocHost(&temporary_single, *n_elements * sizeof(float)));
-        checkCudaErrors(cudaMemcpyAsync(temporary_single, input_single, *n_elements  * sizeof(float), cudaMemcpyDeviceToHost, cudaStreamPerThread));
+        checkCudaErrors(cudaMemcpy(temporary_single, input_single, *n_elements  * sizeof(float), cudaMemcpyDeviceToHost));
         checkCudaErrors(cudaStreamSynchronize(cudaStreamPerThread));
       } 
       else 
@@ -156,7 +165,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
         checkCudaErrors(cudaMallocAsync(&temporary_uint16, *n_elements * sizeof(uint16_t), cudaStreamPerThread));
         checkCudaErrors(cudaMemcpyAsync(temporary_uint16, input_uint16, *n_elements  * sizeof(uint16_t), cudaMemcpyHostToDevice, cudaStreamPerThread));
       }
-      convert_fp16_to_fp32<<<1024, 32, 0, cudaStreamPerThread>>>(temporary_uint16, temporary_single, *n_elements);
+      convert_fp16_to_fp32<<<threads, blocks, 0, cudaStreamPerThread>>>(temporary_uint16, temporary_single, *n_elements);
 
       if (!half_array_is_on_gpu)
         checkCudaErrors(cudaFreeAsync(temporary_uint16, cudaStreamPerThread));
@@ -170,7 +179,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, mxArray const *prhs[]) {
       if (half_array_is_on_gpu) {
         mexFP16_DEBUG_PRINT("Copying half to host\n");
         checkCudaErrors(cudaMallocHost(&temporary_uint16, *n_elements * sizeof(uint16_t)));
-        checkCudaErrors(cudaMemcpyAsync(temporary_uint16, input_uint16, *n_elements  * sizeof(uint16_t), cudaMemcpyDeviceToHost, cudaStreamPerThread));
+        checkCudaErrors(cudaMemcpy(temporary_uint16, input_uint16, *n_elements  * sizeof(uint16_t), cudaMemcpyDeviceToHost));
         checkCudaErrors(cudaStreamSynchronize(cudaStreamPerThread));
         half_ptr = (half_float::half *)(temporary_uint16);
       } 
