@@ -159,7 +159,9 @@ end
 nReferences(1:2) = [length(unique(refGroup{1})),length(unique(refGroup{1}))];
 nReferences = nReferences .* [~isempty(refGroup{1}),~isempty(refGroup{2})];
 
-
+if (nReferences(1) ~= length(refVector{1}))
+  error('Number of references does not match the number of unique groups in the classVector')
+end
 nRefOut(1:2) = [length(unique(refGroup{1})) + sum(( refSym{1} < 0 )),...
   length(unique(refGroup{2})) + sum(( refSym{2} < 0 ))];
 
@@ -182,7 +184,8 @@ tomoList = tomoList(sortedTomoIDX);
   BH_multi_maskCheck(emc, 'Ali', emc.pixel_size_angstroms);
 
 [ sizeWindow, sizeCalc, sizeMask, padWindow, padCalc ] = ...
-  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size  );
+  BH_multi_validArea( maskSize, maskRadius, emc.scale_calc_size  )
+
 
 
 if (flgStartThird)
@@ -415,11 +418,11 @@ for iGold = 1:2
   refOUT = cell(2.*nReferences(iGold),2);
   
   for iRef = 1:nReferences(iGold)
-    
-    refTMP_2 = refIMG{iGold}{iRef}; refIMG{iGold}{iRef} = [];
-    refTMP = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
-      padWindow(1,2) + 1: end - padWindow(2,2), ...
-      padWindow(1,3) + 1: end - padWindow(2,3));
+
+
+    refTMP = refIMG{iGold}{iRef}(padWindow(1,1) + 1: end - padWindow(2,1), ...
+                                padWindow(1,2) + 1: end - padWindow(2,2), ...
+                                padWindow(1,3) + 1: end - padWindow(2,3));
     
     
     % if not using a weighted average (adapted SPW filter), apply an
@@ -432,34 +435,34 @@ for iGold = 1:2
     
     
     
-    ref_FT2{iGold}{iRef} = gather(refTMP_2);
+    % ref_FT2{iGold}{iRef} = gather(refTMP_2);
     % Trim for output reference
-    refTMP_2 = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
-      padWindow(1,2) + 1: end - padWindow(2,2), ...
-      padWindow(1,3) + 1: end - padWindow(2,3));
+    % refTMP_2 = refTMP_2(padWindow(1,1) + 1: end - padWindow(2,1), ...
+    %   padWindow(1,2) + 1: end - padWindow(2,2), ...
+    %   padWindow(1,3) + 1: end - padWindow(2,3));
     
     % Overwrite a copy of the filtered, bandpassed ref for output
-    refOUT{nOut} = real(ifftn(conj(ref_FT1{iGold}{iRef})));
-    refOUT{nOut} = gather(refOUT{nOut}(padCalc(1,1) + 1: end - padCalc(2,1), ...
-      padCalc(1,2) + 1: end - padCalc(2,2), ...
-      padCalc(1,3) + 1: end - padCalc(2,3)) .* volMask);
+    % refOUT{nOut} = real(ifftn(conj(ref_FT1{iGold}{iRef})));
+    % refOUT{nOut} = gather(refOUT{nOut}(padCalc(1,1) + 1: end - padCalc(2,1), ...
+    %   padCalc(1,2) + 1: end - padCalc(2,2), ...
+    %   padCalc(1,3) + 1: end - padCalc(2,3)) .* volMask);
     
     
     
-    refOUT{nOut} = refOUT{nOut}.*volMask;
+    % refOUT{nOut} = refOUT{nOut}.*volMask;
     
-    refOUT{nOut+1} = real(ifftn(BH_bandLimitCenterNormalize(...
-      refTMP_2, '', '', padCalc, 'single')));
-    refOUT{nOut+1} = gather(refOUT{nOut+1}(padCalc(1,1) + 1: end - padCalc(2,1), ...
-      padCalc(1,2) + 1: end - padCalc(2,2), ...
-      padCalc(1,3) + 1: end - padCalc(2,3)) );
-    nOut = nOut + 2;
+    % refOUT{nOut+1} = real(ifftn(BH_bandLimitCenterNormalize(...
+    %   refTMP_2, '', '', padCalc, 'single')));
+    % refOUT{nOut+1} = gather(refOUT{nOut+1}(padCalc(1,1) + 1: end - padCalc(2,1), ...
+    %   padCalc(1,2) + 1: end - padCalc(2,2), ...
+    %   padCalc(1,3) + 1: end - padCalc(2,3)) );
+    % nOut = nOut + 2;
     
-    refOUT{nOut} = refOUT{nOut} - mean(refOUT{nOut}(:));
-    refOUT{nOut} = refOUT{nOut} ./ rms(refOUT{nOut}(:));
+    % refOUT{nOut} = refOUT{nOut} - mean(refOUT{nOut}(:));
+    % refOUT{nOut} = refOUT{nOut} ./ rms(refOUT{nOut}(:));
     
-    refOUT{nOut+1} = refOUT{nOut+1} - mean(refOUT{nOut+1}(:));
-    refOUT{nOut+1} = refOUT{nOut+1} ./ rms(refOUT{nOut+1}(:));
+    % refOUT{nOut+1} = refOUT{nOut+1} - mean(refOUT{nOut+1}(:));
+    % refOUT{nOut+1} = refOUT{nOut+1} ./ rms(refOUT{nOut+1}(:));
   end
   
   
@@ -545,14 +548,13 @@ geometryResults   = cell(nParProcesses,1);
 
 
 
-try
-  EMC_parpool(nParProcesses+1)
-catch
-  delete(gcp('nocreate'))
-  EMC_parpool(nParProcesses+1)
-end
+% try
+%   EMC_parpool(nParProcesses+1)
+% catch
+%   delete(gcp('nocreate'))
+%   EMC_parpool(nParProcesses+1)
+% end
 
-size(ref_FT2)
 
 system('mkdir -p alignResume');
 
@@ -566,7 +568,9 @@ particle_symmetry = emc.symmetry;
 if (emc.force_no_symmetry)
   particle_symmetry = 'C1';
 end
-parfor iParProc = parVect
+for iParProc = parVect
+
+% parfor iParProc = parVect
   symmetry = emc.symmetry;
 
   bestAngles_tmp = struct();
@@ -589,6 +593,7 @@ parfor iParProc = parVect
       bestAngles_tmp.(tomoList{iTomo}) = load(previousAlignment);
       fprintf('Using existing alignment info for %s\n', tomoList{iTomo});
     else
+      fprintf('In the else\n');
       % There is some memory leak somewhere that I haven't been able to figure
       % out. I am clearing all vars but output in the children functions ... this
       % isn't ideal, but for now is an acceptable stop gap.
@@ -597,26 +602,11 @@ parfor iParProc = parVect
       % shake up the random number generator for phi and theta
       rng('shuffle');
       
-      bandpassFilt_tmp = cell(nReferences(1),1);
-      bandpassFiltREF_tmp = cell(nReferences(1),1);
-      for iRef = 1:nReferences(1)
-        if emc.multi_reference_alignment <= 2
-          bandpassFilt_tmp{iRef} = gpuArray(bandpassFilt{iRef});
-          bandpassFiltREF_tmp{iRef} = gpuArray(bandpassFiltREF{iRef});
-        else
-          bandpassFilt_tmp{iRef} = (bandpassFilt{iRef});
-          bandpassFiltREF_tmp{iRef} = (bandpassFiltREF{iRef});
-        end
-      end
+      bandpassFilt_tmp = cell(1,1);
+      bandpassFiltREF_tmp = cell(1,1);
+
       
-      
-      
-      ref_FT1_tmp = cell(2,1);
-      ref_FT2_tmp = cell(2,1);
-      ref_WGT_tmp = cell(2,1);
-      ref_WGT_rot = cell(2,1);
-      
-      
+  
       volMask_tmp = gpuArray(volMask);
       volBinary_tmp = single(find( volMask_tmp > 0.01 ));
       peakMaskInterpolator  = '';
@@ -627,10 +617,7 @@ parfor iParProc = parVect
         mip.('mask') = gpuArray(stat_mask);
       end
       
-      
       wCCC_tmp = cell(length(wCCC));
-      
-      
       
       for iRef = 1:nReferences(1)
         for iWccc = 1:length(wCCC{iRef})
@@ -643,26 +630,6 @@ parfor iParProc = parVect
         end
       end
       
-      
-      
-      for iGold = 1:2
-        for iRef = 1:nReferences(iGold)
-          if emc.multi_reference_alignment <= 2
-            ref_FT1_tmp{iGold}{iRef} = gpuArray(ref_FT1{iGold}{iRef});
-            ref_FT2_tmp{iGold}{iRef} = gpuArray(ref_FT2{iGold}{iRef});
-            ref_WGT_tmp{iGold}{iRef} = gpuArray(refWGT{iGold}{iRef});
-            ref_WGT_rot{iGold}{iRef} = gpuArray(refWgtROT{iGold}{iRef});
-          else
-            % Temp workaround, six big ribo refs crashing
-            ref_FT1_tmp{iGold}{iRef} = (ref_FT1{iGold}{iRef});
-            ref_FT2_tmp{iGold}{iRef} = (ref_FT2{iGold}{iRef});
-            ref_WGT_tmp{iGold}{iRef} = (refWGT{iGold}{iRef});
-            ref_WGT_rot{iGold}{iRef} = (refWgtROT{iGold}{iRef});
-          end
-        end
-      end
-      
-      
       % sprintf('\nWorking on %d/%d volumes',iTomo,nTomograms)
       tic;
       
@@ -672,16 +639,13 @@ parfor iParProc = parVect
       tiltGeometry = subTomoMeta.tiltGeometry.(tomoList{iTomo});
       % Load in the geometry for the tomogram, and get number of subTomos.
       positionList = geometry_tmp.(tomoList{iTomo});
-      
+      fprintf("line %d\n", 641);
 
       binShift = [0,0,0];
       nSubTomos = size(positionList,1);
       
       
-      
       iTiltName = subTomoMeta.mapBackGeometry.tomoName.(tomoName).tiltName;
-      
-      
       
       % Can't clear inside the parfor, but make sure we don't have two tomograms
       % in memory at once.
@@ -704,7 +668,6 @@ parfor iParProc = parVect
          volHeader = getHeader(volumeData);
       end
       
-      
       % For now, set up for full grid-search only, as I intend to just do
       % translational and in-plane searches for now anyhow.
       
@@ -715,61 +678,77 @@ parfor iParProc = parVect
       iv1 = []; iv2 = []; iv3 = [];
       cccStorageBest = cell(emc.nPeaks,1);
       cccStorageRefine = cell(emc.nPeaks,1);
+      cccStorage2 = cell(emc.nPeaks,1);
+      cccStorageTrans= zeros(1,10, 'single', 'gpuArray');
+      cccInitial_arr = zeros(nSubTomos,10, 'single', 'gpuArray');
+      cccInitial_arr(:,6) = -9999;
+
       for iPeak = 1:emc.nPeaks
-        cccStorageBest{iPeak} = zeros(nSubTomos,10);
-        cccStorageRefine{iPeak}= zeros(nSubTomos,10);
+        cccStorageBest{iPeak} = zeros(nSubTomos,10, 'single');
+        cccStorageRefine{iPeak}= zeros(nSubTomos,10, 'single');
+        cccStorage2{iPeak} = zeros(nSubTomos,10, 'single', 'gpuArray');
       end
       % reset for each tomogram
       wdgIDX = 0;
-      
-      for iSubTomo = 1:nSubTomos
-        
-        
-        make_SF3D = true;
-        breakPeak = 0; % for try catch on cut out vols
-        
-        for iPeak = 1:emc.nPeaks
-          
-          if (emc.track_stats)
-            measure_noise = true;
-            mip.('x') = {};
-            mip.('x2') = {};
-            mip.('N') = 0;
-          end
-          if (breakPeak)
-            continue;
-          end
-          getInitialCCC = 1;
-          cccInitial = zeros(nReferences(1),10,flgPrecision, 'gpuArray');
-          cccStorage2= zeros(nAngles(1).*nReferences(1),10,'gpuArray');
-          
-          % Used in refinment loop
-          angCount = 1;
-          
-          % Check that the given subTomo is not to be ignored
-          classIDX = positionList(iSubTomo, 26+26*(iPeak-1));
-          particleIDX = positionList(iSubTomo, 4);
-          half_set = positionList(iSubTomo, 7);
-          
-          
-          % if classVector{half_set}(1,:) == 0
-          %   classPosition = 1;
-          %   flgAllClasses = true;
-          % else
-          %   classPosition = find(classVector{half_set}(1,:) == classIDX);
-          %   flgAllClasses = false;
-          % end
-          % Align all valid subtomos, even if the do not belong to the classes we've selected as references.
-          % To ignore particles, remove them with geometry RemoveClases.m
-          % FIXME: what was this for?
-          flgAllClasses = true;
-          
-          
-          
-          if (classIDX ~= -9999) && ... % All previously ignored particles
-              ( flgAllClasses ||  ismember(classIDX, classVector{half_set}(1,:)) )
+      fprintf('nRefs %d\n',nReferences(1));
+      for iRefIdx = 1:nReferences(1);
+        fprintf('iRefIdx %d\n',iRefIdx);
+        % Just use C1 to initialize, whether or not this is the final
+        refInterpolator = {2,1};
+        refWdgInterpolator= {2,1};
+        for iHalfSet = 1:2
+          ref_FT1{iHalfSet}{iRefIdx} = gpuArray(ref_FT1{iHalfSet}{iRefIdx});
+          refWgtROT{iHalfSet}{iRefIdx} = gpuArray(refWgtROT{iHalfSet}{iRefIdx});
+          refInterpolator{iHalfSet} = interpolator(ifftn(ref_FT1{iHalfSet}{iRefIdx}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+          refWdgInterpolator{iHalfSet} = interpolator(refWgtROT{iHalfSet}{iRefIdx},[0,0,0],[0,0,0],'Bah','forward','C1',false);
+        end
+        bandpassFilt_tmp{1} = gpuArray(bandpassFilt{iRefIdx});
+        bandpassFiltREF_tmp{1} = gpuArray(bandpassFiltREF{iRefIdx});
             
+        for iSubTomo = 1:nSubTomos
+          fprintf('iSubTomo %d\n',iSubTomo);
+          make_SF3D = true;
+          breakPeak = 0; % for try catch on cut out vols
+          
+          for iPeak = 1:emc.nPeaks
             
+            if (emc.track_stats)
+              measure_noise = true;
+              mip.('x') = {};
+              mip.('x2') = {};
+              mip.('N') = 0;
+            end
+            if (breakPeak)
+              continue;
+            end
+            getInitialCCC = 1;
+            
+            % Check that the given subTomo is not to be ignored
+            classIDX = positionList(iSubTomo, 26+26*(iPeak-1));
+            particleIDX = positionList(iSubTomo, 4);
+            half_set = positionList(iSubTomo, 7);
+
+            if (classIDX == -9999)
+              continue;
+            end
+            
+            % In the case we are only aligning refs to those classes they came from, we
+            % need to check to see if we duck out here.
+            if(  emc.multi_reference_alignment == 2 )
+                refToAlign = find(classIDX ==  classVector{half_set}(1,:));
+                if isempty(refToAlign)
+                  fprintf('WARNING: wanted class %d not found in classVector\n',classIDX);
+                  for i = 1:size(classVector{half_set},2)
+                    fprintf('%d ',classVector{half_set}(1,i));
+                  end
+                  error('classIDX not found in classVector');
+                end
+                if (refToAlign ~= iRefIdx)
+                  continue;
+                end
+            end
+            
+              
             center = positionList(iSubTomo,[11:13]+26*(iPeak-1))./samplingRate + binShift;
             angles = positionList(iSubTomo,[17:25]+26*(iPeak-1));
             
@@ -786,16 +765,11 @@ parfor iParProc = parVect
                 sizeWindow,maskRadius, center);
             end
             
-            
-            
-            
             if ischar(indVAL)
               fprintf('\nnow ignoring particle %d from tomo %d', iSubTomo,iTomo)
               nIgnored = nIgnored + 1;
               geometry_tmp.(tomoList{iTomo})(iSubTomo, 26) = -9999;
             else
-              
-              
               if (emc.flgCutOutVolumes)
                 % Test with some generic padding , only to be used on bin 1 at
                 % first!!! TODO add a flag to check this.
@@ -819,7 +793,6 @@ parfor iParProc = parVect
               [ iparticle ] = BH_padZeros3d(iparticle,  padVAL(1,1:3), ...
                 padVAL(2,1:3), 'GPU', 'singleTaper');
               
-              
               if (make_SF3D)
                 make_SF3D = false;
                 % For now excluding the soften weight.
@@ -829,14 +802,9 @@ parfor iParProc = parVect
                 % needed
                 [imgWdgInterpolator, ~] = interpolator(iMaxWedgeIfft,[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
                 iMaxWedgeIfft =ifftshift(iMaxWedgeIfft);
-                
-                % Just use C1 to initialize, whether or not this is the final
-                refInterpolator = '';
-                refWdgInterpolator= '';
+
                 particleInterpolator= '';
                 
-                [refInterpolator, ~] = interpolator(gpuArray(ref_FT2_tmp{1}{1}),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
-                refWdgInterpolator   = interpolator(gpuArray(ref_WGT_rot{half_set}{iRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
                 particleInterpolator = interpolator(gpuArray(iparticle),[0,0,0],[0,0,0], 'Bah', 'inv', 'C1', false);
               end
               
@@ -862,7 +830,6 @@ parfor iParProc = parVect
                   phiInc = angleStep(iAngle,3);
                   thetaInc = angleStep(iAngle,4);
                   numRefIter = angleStep(iAngle,2)*length(inPlaneSearch)+1;
-                  
                 end
                 
                 % To prevent only searching the same increments each time in a limited
@@ -871,11 +838,8 @@ parfor iParProc = parVect
                 
                 azimuthalRandomizer = (rand(1)-0.5)*phiInc;
                 
-                
                 % Calculate the increment in phi so that the azimuthal sampling is
                 % consistent and equal to the out of plane increment.
-                
-                
                 
                 if (emc.use_new_grid_search)
                   % FIXME randomizer passed as bool to eulerSearch
@@ -883,7 +847,6 @@ parfor iParProc = parVect
                 else
                   phi_search = 0:angleStep(iAngle,2);
                 end
-                
                 
                 for iAzimuth = phi_search
                   
@@ -893,25 +856,16 @@ parfor iParProc = parVect
                   else
                     phi = rem((phiInc * iAzimuth)+azimuthalRandomizer,360);
                     psiInc = angleStep(iAngle,5);
-                    
                   end
-                  
                   
                   for iInPlane = inPlaneSearch
                     psi    = iInPlane;
-                    %[phi,theta,psi-phi];
-                    
                     
                     RotMat = BH_defineMatrix([phi, theta, psi - phi],rotConvention, 'inv');
                     RotMat = reshape(angles,3,3) * RotMat;
-                    
-                    cccStorageTrans= zeros(1.*nReferences(1),10,'gpuArray');
-                    
+                                        
                     for alignLoop = 1:2
-                      
-                      
                       switch alignLoop
-                        
                         case 1
                           % This takes care of non-inter shift in the origin that is
                           % ignored during the windowing of the particle.
@@ -921,14 +875,10 @@ parfor iParProc = parVect
                             iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
                             padWindow(1,2) + 1:end - padWindow(2,2) , ...
                             padWindow(1,3) + 1:end - padWindow(2,3) );
-                          
                         case 2
                           
-                          bestOfRefs = sortrows(gather(cccStorageTrans), -6);
-                          %sortrows(gather(cccStorage1(angCount:angCount+nReferences(1)-1,:)),-6);
-                          
-                          estPeakCoord = bestOfRefs(1,8:10);
-                         
+                          estPeakCoord = gather(cccStorageTrans(1,8:10));
+                        
                           [ iTrimParticle ] = particleInterpolator.interp3d(...
                             RotMat,...
                             estPeakCoord,rotConvention ,...
@@ -952,508 +902,458 @@ parfor iParProc = parVect
                             'inv',particle_symmetry);
                       end % switch on align loop
                       
-                      
-                      switch emc.multi_reference_alignment
-                        case 0
-                          refToAlign = 1;
+                      switch alignLoop
                         case 1
-                          refToAlign = 1:max(nReferences(:));
-                        case 2
-                          refToAlign = classIDX;
-                        otherwise
-                          error('emc.multi_reference_alignment is not 0,1,2')
-                      end
-                      
-                      for iRef = refToAlign
-                        
-                        switch alignLoop
+                          % use transpose of RotMat
                           
-                          case 1
-                            % use transpose of RotMat
+                          [ iRotRef ] = refInterpolator{iHalfSet}.interp3d(...
+                            RotMat',...
+                            estPeakCoord,rotConvention ,...
+                            'forward','C1');
+                          
+                          [ iRotWdg ] = refWdgInterpolator{iHalfSet}.interp3d(...
+                            RotMat',...
+                            [0,0,0],rotConvention ,...
+                            'forward','C1');
+                          
+                          [ iRotMask ] = peakMaskInterpolator.interp3d(...
+                            RotMat',...
+                            [0,0,0],rotConvention ,...
+                            'forward','C1');
+                          
+                          % maybe I should be rotating peak mask here in case it has
+                          % an odd shape, since we are leaving the proper frame
+                          
+                          iRotRef = BH_bandLimitCenterNormalize(...
+                            iRotRef,...
+                            bandpassFiltREF_tmp{1} ,'',...
+                            [0,0,0;0,0,0],flgPrecision);
+                          
+                          rotPart_FT = BH_bandLimitCenterNormalize(...
+                            iTrimParticle,...
+                            bandpassFilt_tmp{1} ,'',padCalc,flgPrecision);
+                          
+                          if (emc.track_stats && measure_noise)
                             
-                            [ iRotRef ] = refInterpolator.interp3d(...
-                              RotMat',...
-                              estPeakCoord,rotConvention ,...
-                              'forward','C1');
+                            [ ~, mip ] =  BH_multi_xcf_Translational_2( ...
+                              rotPart_FT, ...
+                              conj(iRotRef),...
+                              ifftshift(iRotWdg),...
+                              iMaxWedgeIfft,...
+                              iRotMask, peakCOM,...
+                              mip);
                             
-                            
-                            
-                            [ iRotWdg ] = refWdgInterpolator.interp3d(...
-                              RotMat',...
-                              [0,0,0],rotConvention ,...
-                              'forward','C1');
-                            
-                            
-                            [ iRotMask ] = peakMaskInterpolator.interp3d(...
-                              RotMat',...
-                              [0,0,0],rotConvention ,...
-                              'forward','C1');
-                            
-                            
-                            
-                            
-                            % maybe I should be rotating peak mask here in case it has
-                            % an odd shape, since we are leaving the proper frame
-                            
-                            iRotRef = BH_bandLimitCenterNormalize(...
-                              iRotRef,...
-                              bandpassFiltREF_tmp{iRef} ,'',...
-                              padCalc,flgPrecision);
-                            
-                            rotPart_FT = BH_bandLimitCenterNormalize(...
-                              iTrimParticle,...
-                              bandpassFilt_tmp{iRef} ,'',padCalc,flgPrecision);
-                            
-                            if (emc.track_stats && measure_noise)
-                              
-                              
-                              [ ~, mip ] =  BH_multi_xcf_Translational_2( ...
-                                rotPart_FT, ...
-                                conj(iRotRef),...
-                                ifftshift(iRotWdg),...
-                                iMaxWedgeIfft,...
-                                iRotMask, peakCOM,...
-                                mip);
-                              
-                              
-                            end
-                            [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                              rotPart_FT.*ifftshift(iRotWdg), ...
-                              conj(iRotRef).*iMaxWedgeIfft,...
-                              iRotMask, peakCOM);
-                            
-                            
-                            cccStorageTrans(iRef,:) = [iRef, particleIDX, ...
-                              phi, theta, psi - phi, ...
-                              0, 0, ...
-                              peakCoord + estPeakCoord];
-                          case 2
-                            
-                            % get starting point
-                            if (getInitialCCC)
-                              
-                              initialRotPart_FT = BH_bandLimitCenterNormalize(...
-                                iTrimInitial.*volMask_tmp,...
-                                bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
-                              
-                              
-                              
-                              [ iCCC, ~ ] = ...
-                                BH_multi_xcf_Rotational( initialRotPart_FT, ...
-                                ref_FT1_tmp{half_set}{iRef}, ...
-                                ifftshift(iWedgeInitial),...
-                                ref_WGT_tmp{half_set}{iRef}, ...
-                                wCCC_tmp{iRef});
-                              
-                              
-                              
-                              
-                              cccInitial(iRef,:) = [iRef, particleIDX, ...
-                                0,0,0, ...
-                                iCCC, 1, ...
-                                shiftVAL];
-                              
-                              
-                              initialRotPart_FT = [];
-                              
-                              
-                            end
-                            
-                            rotPart_FT = BH_bandLimitCenterNormalize(...
-                              iTrimParticle.*volMask_tmp,...
-                              bandpassFilt_tmp{iRef} ,volBinary_tmp,padCalc,flgPrecision);
-                            
-                            
-                            
+                          end
+                          [ peakCoord ] =  BH_multi_xcf_Translational( ...
+                                            rotPart_FT.*ifftshift(iRotWdg), ...
+                                            conj(iRotRef).*iMaxWedgeIfft,...
+                                            iRotMask, peakCOM);
+                          
+                          cccStorageTrans(1,:) = [iRefIdx, particleIDX, ...
+                                                  phi, theta, psi - phi, ...
+                                                  0, 0, ...
+                                                  peakCoord + estPeakCoord];
+                        case 2
+                          % get starting point
+                          if (getInitialCCC)
+                            initialRotPart_FT = BH_bandLimitCenterNormalize(...
+                              iTrimInitial.*volMask_tmp,...
+                              bandpassFilt_tmp{1} ,volBinary_tmp,padCalc,flgPrecision);
                             
                             [ iCCC, ~ ] = ...
-                              BH_multi_xcf_Rotational( rotPart_FT, ...
-                              ref_FT1_tmp{half_set}{iRef},...
-                              ifftshift(iWedgeMask),...
-                              ref_WGT_tmp{half_set}{iRef}, ...
-                              wCCC_tmp{iRef});
+                              BH_multi_xcf_Rotational( initialRotPart_FT, ...
+                              ref_FT1{half_set}{iRefIdx}, ...
+                              ifftshift(iWedgeInitial),...
+                              refWGT{half_set}{iRefIdx}, ...
+                              wCCC_tmp{iRefIdx});
                             
-                            
-                            
-                            
-                            
-                            
-                            % Note that no new translational estimate is made, so no
-                            % need to multiply by RotMat
-                            cccStorage2(angCount,:) = ...
-                              [iRef, particleIDX, ...
-                              phi, theta, psi , ...
-                              iCCC, 1, ...
-                              estPeakCoord];
-                            
-                            
-                            angCount = angCount + 1;
-                        end
-                        
-                        
-                      end % loop over references.
-                      
-                      
-                      
-                    end
-                    % This volume won't be needed until the next subTomo is considered,
-                    % which is also where getInitialCCC Boolean is set to True again.
-                    iTrimInitial = [];
-                    getInitialCCC = 0;
-                    
-                  end % in plane angles
-                end % azimuth
-              end % polar
+                              if ( iCCC > cccInitial_arr(iSubTomo,6))
+                                cccInitial_arr(iSubTomo,:) =  [iRefIdx, particleIDX, ...
+                                                          0,0,0, ...
+                                                          iCCC, 1, ...
+                                                          shiftVAL];
+                                                        initialRotPart_FT = [];
+                              end
+                          end
+                          
+                          rotPart_FT = BH_bandLimitCenterNormalize(...
+                            iTrimParticle.*volMask_tmp,...
+                            bandpassFilt_tmp{1} ,volBinary_tmp,padCalc,flgPrecision);
+                          
+                          [ iCCC, ~ ] = ...
+                            BH_multi_xcf_Rotational( rotPart_FT, ...
+                            ref_FT1{half_set}{iRefIdx},...
+                            ifftshift(iWedgeMask),...
+                            refWGT{half_set}{iRefIdx}, ...
+                            wCCC_tmp{iRefIdx});
+                          
+                          % Note that no new translational estimate is made, so no
+                          % need to multiply by RotMat
+                          if (iCCC > cccStorage2{iPeak}(iSubTomo,6) )
+
+                            cccStorage2{iPeak}(iSubTomo,:) = ...
+                                                        [iRefIdx, particleIDX, ...
+                                                          phi, theta, psi , ...
+                                                          iCCC, 1, ...
+                                                          estPeakCoord];
+                          end
+                        end %case
+                      end % switch
+                      % This volume won't be needed until the next subTomo is considered,
+                      % which is also where getInitialCCC Boolean is set to True again.
+                      iTrimInitial = [];
+                      getInitialCCC = 0; % FIXME is this still right with the loop inversion
+                    end % alignLoop (trans then rotation)
+                  end % in plane angles (psi)
+                end % azimuth (phi)
+              end % polar (theta)
+          end % peak loop
+        end % subTomo loop
+        % Gather the ref back to the CPU as we'll need in in the subsequent alignment blocks
+        for iHalfSet = 1:2
+          ref_FT1{iHalfSet}{iRefIdx} = gather(ref_FT1{iHalfSet}{iRefIdx});
+          refWgtROT{iHalfSet}{iRefIdx} = gather(refWgtROT{iHalfSet}{iRefIdx});
+        end
+      end % loop over references
+
+      % Now we'll loop over the subtomos and peaks just grabbing the 
+      nSubTomos
+      for iSubTomo = 1:nSubTomos
+        cccInitial = gather( cccInitial_arr(iSubTomo,:) );
+        for iPeak = 1:emc.nPeaks  
+          cccPreRefineSort =  gather(cccStorage2{iPeak}(iSubTomo,:));
+          if cccInitial(1,6 ) > cccPreRefineSort(1,6)
+            cccPreRefineSort(1,:) = cccInitial(1,:);
+          end
+          
+          % This only seems to be a problem with cut out volumes.
+          % Normalization maybe?
+          if ~any(cccPreRefineSort(1,:))
+            cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
+            fprintf('all Zeros in PreRefine search, revert on subtomo %d peak %d\n',iSubTomo,iPeak);
+            continue
+          end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
+          if (flgRefine)
+            % Get the results from just this subTomo and sort on CCC
+            rRef  = cccPreRefineSort(1,1);
+            rPart = cccPreRefineSort(1,2);
+            rPhi  = cccPreRefineSort(1,3);
+            rPhiInc = phiInc / 4;
+            rTheta= cccPreRefineSort(1,4);
+            rTheInc = thetaInc /2;
+            rPsi  = cccPreRefineSort(1,5);
+            rPsiInc = psiInc /2;
+            % Confirm shiftVAL is doing what it should be
+            rXYZest  = cccPreRefineSort(1,8:10);
+
+            bandpassFilt_tmp{1} = gpuArray(bandpassFilt{rRef});
+            bandpassFiltREF_tmp{1} = gpuArray(bandpassFiltREF{rRef});
+            refInterpolator = {2,1};
+            refWdgInterpolator= {2,1};
+            for iHalfSet = 1:2
+              refInterpolator{iHalfSet} = interpolator(ifftn(gpuArray(ref_FT1{iHalfSet}{rRef})),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+              refWdgInterpolator{iHalfSet} = interpolator(gpuArray(refWgtROT{iHalfSet}{rRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
+            end
+                
+            if (rTheInc)
+              % For a larger out of plane step, search a larger range in plane
+              psiRefineStep = floor(sqrt(rTheInc));
+            else
+              psiRefineStep = 1;
+            end
+            
+            thetaRefineStep =1;
+            phiRefineStep=2;
+            totalRefineStep = [psiRefineStep, thetaRefineStep, phiRefineStep];
+            totalRefineStep = prod((2.*totalRefineStep)+1);
               
-              % % %         fprintf('Power ratio is  %3.3f\n',powerOut./powerInitial);
-              
-              cccPreRefineSort =  sortrows(gather(cccStorage2),-6);
-              
-              if (length(refToAlign) > 1)
-                cccInitial = sortrows(gather(cccInitial), -6);
-                cccInitial = cccInitial(1,:);
-              else
-                cccInitial = gather(cccInitial(refToAlign,:));
-                
-              end
-              
-              if cccInitial(1,6 ) > cccPreRefineSort(1,6)
-                cccPreRefineSort(1,:) = cccInitial(1,:);
-              end
-              
-              
-              
-              % This only seems to be a problem with cut out volumes.
-              % Normalization maybe?
-              if ~any(cccPreRefineSort(1,:))
-                cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
-                fprintf('all Zeros in PreRefine search, revert on subtomo %d peak %d\n',iSubTomo,iPeak);
-                continue
-              end
-              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-              
-              if (flgRefine)
-                
-                
-                
-                % Get the results from just this subTomo and sort on CCC
-                
-                rRef  = cccPreRefineSort(1,1);
-                rPart = cccPreRefineSort(1,2);
-                rPhi  = cccPreRefineSort(1,3);
-                rPhiInc = phiInc / 4;
-                rTheta= cccPreRefineSort(1,4);
-                rTheInc = thetaInc /2;
-                rPsi  = cccPreRefineSort(1,5);
-                rPsiInc = psiInc /2;
-                % Confirm shiftVAL is doing what it should be
-                rXYZest  = cccPreRefineSort(1,8:10);
-                
-                if (rTheInc)
-                  % For a larger out of plane step, search a larger range in plane
-                  psiRefineStep = floor(sqrt(rTheInc));
-                else
-                  psiRefineStep = 1;
-                end
-                
-                thetaRefineStep =1;
-                phiRefineStep=2;
-                totalRefineStep = [psiRefineStep, thetaRefineStep, phiRefineStep];
-                totalRefineStep = prod((2.*totalRefineStep)+1);
-                
-                cccStorage3 = zeros(totalRefineStep,10,'gpuArray');
-                
-                if (rPsiInc == 0)
-                  inPlaneRefine = rPsi - psiRefineStep*rTheInc./2:rTheInc./2: rPsi+psiRefineStep*rTheInc./2;
-                else
-                  inPlaneRefine  = rPsi-  psiRefineStep*rPsiInc : rPsiInc : rPsi    + psiRefineStep*rPsiInc;
-                end
-                polarRefine    = rTheta-thetaRefineStep*rTheInc : rTheInc : rTheta  + thetaRefineStep*rTheInc;
-                azimuthalRefine= rPhi-phiRefineStep*rPhiInc : rPhiInc : rPhi  + phiRefineStep*rPhiInc;
-                
-                searchList = zeros(totalRefineStep,3);
-                nSearch = 1;
-                for iPhi = azimuthalRefine
-                  for iTheta = polarRefine
-                    for iPsi = inPlaneRefine
-                      % best iPsi is origin Psi - Phi, no need to subtract here.
-                      
-                      searchList(nSearch, :) = [iPhi, iTheta, iPsi-iPhi];
-                      
-                      nSearch = nSearch + 1;
-                    end
-                  end
-                end % end of building angle list
-                
-                for iRefine = 1:nSearch-1
-                  for alignLoop = 1:2
-                    if alignLoop == 1
-                      rXYZ = rXYZest;
-                    elseif alignLoop == 2
-                      rXYZ = cccStorage3(iRefine,8:10);
-                    end
-                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-                    
-                    RotMat = BH_defineMatrix(searchList(iRefine,:),rotConvention, 'inv');
-                    RotMat = reshape(angles,3,3) * RotMat;
-                    
-                    
-                    
-                    
-                    switch alignLoop
-                      % This keeps seperate shifts due to windowing and binning from
-                      % shifts found in CCC
-                      case 1
-                        
-                        % Estimate the peakshift by rotating the ref not the particle.
-                        iTrimParticle = ...
-                          iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                          padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                          padWindow(1,3) + 1:end - padWindow(2,3) );
-                        
-                      case 2
-  
-                        [ iTrimParticle ] = particleInterpolator.interp3d(...
-                          RotMat,...
-                          rXYZ,rotConvention ,...
-                          'inv',particle_symmetry);
-                        
-                        
-                        [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
-                          RotMat,...
-                          [0,0,0],rotConvention ,...
-                          'inv',particle_symmetry);
-                               
-                    end
-                    
-                    
-                    
-                    if alignLoop == 1
-                      
-                      
-                      [ iRotRef ] = refInterpolator.interp3d(...
-                        RotMat',...
-                        rXYZ,rotConvention ,...
-                        'forward','C1');
-                      
-                      
-                      [ iRotWdg ] = refWdgInterpolator.interp3d(...
-                        RotMat',...
-                        [0,0,0],rotConvention ,...
-                        'forward','C1');
-                      
-                      [ iRotMask ] = peakMaskInterpolator.interp3d(...
-                        RotMat',...
-                        [0,0,0],rotConvention ,...
-                        'forward','C1');
-                      
-                      iRotRef = BH_bandLimitCenterNormalize(...
-                        iRotRef,...
-                        bandpassFiltREF_tmp{rRef},'',...
-                        padCalc,flgPrecision);
-                      
-                      rotPart_FT = BH_bandLimitCenterNormalize(...
-                        iTrimParticle,...
-                        bandpassFilt_tmp{rRef} ,'',padCalc,flgPrecision);
-                      
-                      [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                        rotPart_FT.*ifftshift(iRotWdg), ...
-                        conj(iRotRef).*iMaxWedgeIfft,...
-                        iRotMask, peakCOM);
-                      
-                      
-                      % 2016-11-11 also took out (+ rXYZ)
-                      cccStorage3(iRefine,:) = [rRef, rPart, ...
-                        searchList(iRefine,:), ...
-                        1, 1, ...
-                        peakCoord+rXYZ];
-                    else
-                      rotPart_FT = BH_bandLimitCenterNormalize(...
-                        iTrimParticle.*volMask_tmp,...
-                        bandpassFilt_tmp{rRef},volBinary_tmp,...
-                        padCalc,flgPrecision);
-                      
-                      [ iCCC, ~ ] = ...
-                        BH_multi_xcf_Rotational( rotPart_FT, ...
-                        ref_FT1_tmp{half_set}{rRef},...
-                        ifftshift(iWedgeMask),...
-                        ref_WGT_tmp{half_set}{rRef}, ...
-                        wCCC_tmp{iRef});
-                      
-                      
-                      cccStorage3(iRefine,:) = [rRef, rPart, ...
-                        searchList(iRefine,:), ...
-                        iCCC, 1, ...
-                        rXYZ] ;
-                    end
-                  end
+            cccStorage3 = zeros(totalRefineStep,10,'gpuArray');
+            
+            if (rPsiInc == 0)
+              inPlaneRefine = rPsi - psiRefineStep*rTheInc./2:rTheInc./2: rPsi+psiRefineStep*rTheInc./2;
+            else
+              inPlaneRefine  = rPsi-  psiRefineStep*rPsiInc : rPsiInc : rPsi    + psiRefineStep*rPsiInc;
+            end
+            polarRefine    = rTheta-thetaRefineStep*rTheInc : rTheInc : rTheta  + thetaRefineStep*rTheInc;
+            azimuthalRefine= rPhi-phiRefineStep*rPhiInc : rPhiInc : rPhi  + phiRefineStep*rPhiInc;
+            
+            searchList = zeros(totalRefineStep,3);
+            nSearch = 1;
+            for iPhi = azimuthalRefine
+              for iTheta = polarRefine
+                for iPsi = inPlaneRefine
+                  % best iPsi is origin Psi - Phi, no need to subtract here.
                   
+                  searchList(nSearch, :) = [iPhi, iTheta, iPsi-iPhi];
+                  
+                  nSearch = nSearch + 1;
                 end
-                
-                sortRef = sortrows(gather(cccStorage3),-6);
-                cccStorageRefine{iPeak}(iSubTomo,:) = sortRef(1,:);
-                
-              end % end of refinement loop
+              end
+            end % end of building angle list
               
-              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-              % Get the final translational shift for the best scoring angular
-              % match.
-              try
-                if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
-                  bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
+            for iRefine = 1:nSearch-1
+              for alignLoop = 1:2
+                if alignLoop == 1
+                  rXYZ = rXYZest;
+                elseif alignLoop == 2
+                  rXYZ = cccStorage3(iRefine,8:10);
+                end
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+                
+                RotMat = BH_defineMatrix(searchList(iRefine,:),rotConvention, 'inv');
+                RotMat = reshape(angles,3,3) * RotMat;
+                  
+                switch alignLoop
+                  % This keeps seperate shifts due to windowing and binning from
+                  % shifts found in CCC
+                  case 1
+                    % Estimate the peakshift by rotating the ref not the particle.
+                    iTrimParticle = ...
+                      iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
+                      padWindow(1,2) + 1:end - padWindow(2,2) , ...
+                      padWindow(1,3) + 1:end - padWindow(2,3) );
+                  case 2
+                      [ iTrimParticle ] = particleInterpolator.interp3d(...
+                        RotMat,...
+                        rXYZ,rotConvention ,...
+                        'inv',particle_symmetry);
+                      
+                      [ iWedgeMask ] = imgWdgInterpolator.interp3d(...
+                        RotMat,...
+                        [0,0,0],rotConvention ,...
+                        'inv',particle_symmetry);
+                end
+
+                if ( alignLoop == 1 )
+                  
+                  [ iRotRef ] = refInterpolator{iHalfSet}.interp3d(...
+                    RotMat',...
+                    rXYZ,rotConvention ,...
+                    'forward','C1');
+                  
+                  
+                  [ iRotWdg ] = refWdgInterpolator{iHalfSet}.interp3d(...
+                    RotMat',...
+                    [0,0,0],rotConvention ,...
+                    'forward','C1');
+                  
+                  [ iRotMask ] = peakMaskInterpolator.interp3d(...
+                    RotMat',...
+                    [0,0,0],rotConvention ,...
+                    'forward','C1');
+                  
+                  iRotRef = BH_bandLimitCenterNormalize(...
+                    iRotRef,...
+                    bandpassFiltREF_tmp{1},'',...
+                      [0,0,0;0,0,0],flgPrecision);
+                  
+                  rotPart_FT = BH_bandLimitCenterNormalize(...
+                    iTrimParticle,...
+                    bandpassFilt_tmp{1} ,'',padCalc,flgPrecision);
+                    
+                    size(rotPart_FT)
+                    size(iRotWdg)
+                    size(iRotMask)
+                    size(iRotRef)
+                    size(iMaxWedgeIfft)
+                    [ peakCoord ] =  BH_multi_xcf_Translational( ...
+                      rotPart_FT.*ifftshift(iRotWdg), ...
+                      conj(iRotRef).*iMaxWedgeIfft,...
+                      iRotMask, peakCOM);
+                      
+                  % 2016-11-11 also took out (+ rXYZ)
+                  cccStorage3(iRefine,:) = [rRef, rPart, ...
+                    searchList(iRefine,:), ...
+                    1, 1, ...
+                    peakCoord+rXYZ];
                 else
-                  bestRotPeak = cccPreRefineSort(1,:);
-                  bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
-                end
-              catch
-                fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
-                cccStorageRefine{iPeak}(iSubTomo,:)
-                cccPreRefineSort(1,:)
-              end
-              
-              finalRef  = bestRotPeak(1,1);
-              finalPart = bestRotPeak(1,2);
-              finalPhi  = bestRotPeak(1,3);
-              finalTheta= bestRotPeak(1,4);
-              finalPsi  = bestRotPeak(1,5);
-              % Confirm shiftVAL is doing what it should be
-              finalrXYZest  = bestRotPeak(1,8:10);
-              
-              RotMat = BH_defineMatrix([finalPhi, finalTheta, finalPsi],rotConvention, 'inv');
-              RotMat = reshape(angles,3,3) * RotMat;
-              
-              
-              
-              
-              iTrimParticle = ...
-                iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
-                padWindow(1,2) + 1:end - padWindow(2,2) , ...
-                padWindow(1,3) + 1:end - padWindow(2,3) );
-              
-              
-              % use transpose of RotMat
-              %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
-              %%% the last writing, but now switching to zeros
-              try
-                [ iRotRef ] = refInterpolator.interp3d(...
-                  RotMat',...
-                  finalrXYZest,rotConvention ,...
-                  'forward','C1');
-                [ iRotWdg ] = refWdgInterpolator.interp3d(...
-                  RotMat',...
-                  [0,0,0],rotConvention ,...
-                  'forward','C1');
+                  rotPart_FT = BH_bandLimitCenterNormalize(...
+                    iTrimParticle.*volMask_tmp,...
+                    bandpassFilt_tmp{1},volBinary_tmp,...
+                    padCalc,flgPrecision);
+                  
+                  [ iCCC, ~ ] = ...
+                    BH_multi_xcf_Rotational( rotPart_FT, ...
+                    ref_FT1{half_set}{rRef},...
+                    ifftshift(iWedgeMask),...
+                    refWGT{half_set}{rRef}, ...
+                    wCCC_tmp{iRef});
+                  
+                  
+                  cccStorage3(iRefine,:) = [rRef, rPart, ...
+                    searchList(iRefine,:), ...
+                    iCCC, 1, ...
+                    rXYZ] ;
+                end % if alignLoope == 1
+              end % end of alignLoop
                 
-                [ iRotMask ] = peakMaskInterpolator.interp3d(...
-                  RotMat',...
-                  [0,0,0],rotConvention ,...
-                  'forward','C1');
-              catch
-                fprintf('\n\nFinal ref,part,phi,theta,psi %f %f %f %f %f\n\n',...
-                  bestRotPeak(:,1:5));
-                bestRotPeak(1,1:5)
-                fprintf('BreakPeak %d\n',breakPeak);
-                error('errrorsoedfsdf')
-              end
+              sortRef = sortrows(gather(cccStorage3),-6);
+              cccStorageRefine{iPeak}(iSubTomo,:) = sortRef(1,:);
               
+          end % end of if flgRegine
               
-              iRotRef = BH_bandLimitCenterNormalize(...
-                iRotRef,...
-                bandpassFiltREF_tmp{finalRef} ,'',...
-                padCalc,flgPrecision);
+          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+          % Get the final translational shift for the best scoring angular
+          % match.
+          try
+            if (flgRefine) && any(cccStorageRefine{iPeak}(iSubTomo,:))
+              bestRotPeak = cccStorageRefine{iPeak}(iSubTomo,:);
+            else
+              bestRotPeak = cccPreRefineSort(1,:);
+              bestRotPeak(1,5) = bestRotPeak(1,5) - bestRotPeak(1,3);
+            end
+          catch
+            fprintf('\nflgRefine %d, iPeak %d, iSubTomo %d\n',flgRefine,iPeak,iSubTomo);
+            cccStorageRefine{iPeak}(iSubTomo,:)
+            cccPreRefineSort(1,:)
+          end
               
-              rotPart_FT = BH_bandLimitCenterNormalize(...
-                iTrimParticle,...
-                bandpassFilt_tmp{finalRef} ,'',padCalc,flgPrecision );
+          finalRef  = bestRotPeak(1,1);
+          finalPart = bestRotPeak(1,2);
+          finalPhi  = bestRotPeak(1,3);
+          finalTheta= bestRotPeak(1,4);
+          finalPsi  = bestRotPeak(1,5);
+          % Confirm shiftVAL is doing what it should be
+          finalrXYZest  = bestRotPeak(1,8:10);
+
+          bandpassFilt_tmp{1} = gpuArray(bandpassFilt{finalRef});
+          bandpassFiltREF_tmp{1} = gpuArray(bandpassFiltREF{finalRef});
+          refInterpolator = {2,1};
+          refWdgInterpolator= {2,1};
+          for iHalfSet = 1:2
+            refInterpolator{iHalfSet} = interpolator(ifftn(gpuArray(ref_FT1{iHalfSet}{finalRef})),[0,0,0],[0,0,0], 'Bah', 'forward', 'C1', false);
+            refWdgInterpolator{iHalfSet} = interpolator(gpuArray(refWgtROT{iHalfSet}{finalRef}),[0,0,0],[0,0,0],'Bah','forward','C1',false);
+          end
+            
+          RotMat = BH_defineMatrix([finalPhi, finalTheta, finalPsi],rotConvention, 'inv');
+          RotMat = reshape(angles,3,3) * RotMat;
+            
+          iTrimParticle = ...
+            iparticle(padWindow(1,1) + 1:end - padWindow(2,1) , ...
+            padWindow(1,2) + 1:end - padWindow(2,2) , ...
+            padWindow(1,3) + 1:end - padWindow(2,3) );
+            
+          % use transpose of RotMat
+          %%% 2016-11-11 estPeakCoord should have been finalrXYZest in
+          %%% the last writing, but now switching to zeros
+          try
+            [ iRotRef ] = refInterpolator{iHalfSet}.interp3d(...
+              RotMat',...
+              finalrXYZest,rotConvention ,...
+              'forward','C1');
+            [ iRotWdg ] = refWdgInterpolator{iHalfSet}.interp3d(...
+              RotMat',...
+              [0,0,0],rotConvention ,...
+              'forward','C1');
+            
+            [ iRotMask ] = peakMaskInterpolator.interp3d(...
+              RotMat',...
+              [0,0,0],rotConvention ,...
+              'forward','C1');
+          catch
+            fprintf('\n\nFinal ref,part,phi,theta,psi %f %f %f %f %f\n\n',...
+              bestRotPeak(:,1:5));
+            bestRotPeak(1,1:5)
+            fprintf('BreakPeak %d\n',breakPeak);
+            error('errrorsoedfsdf')
+          end
+            
+          iRotRef = BH_bandLimitCenterNormalize(...
+            iRotRef,...
+            bandpassFiltREF_tmp{1} ,'',...
+              [0,0,0;0,0,0],flgPrecision);
+            
+          rotPart_FT = BH_bandLimitCenterNormalize(...
+          iTrimParticle,...
+          bandpassFilt_tmp{1} ,'',padCalc,flgPrecision );
+          
+          
+          [ peakCoord ] =  BH_multi_xcf_Translational( ...
+            rotPart_FT.*ifftshift(iRotWdg), ...
+            conj(iRotRef).*iMaxWedgeIfft,...
+            iRotMask, peakCOM);
+          
+          
+          % Subtract shiftVAL since this is due to windowing, not the actual
+          % position.
+          cccStorageBest{iPeak}(iSubTomo,:) = gather([bestRotPeak(1,1:7), ...
+            peakCoord + finalrXYZest - shiftVAL]) ;
+          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+          
+          % It is probably more useful see the shifts in the particle
+          % reference frame vs. the avg which was the original
+          if (emc.printShiftsInParticleBasis)
+            printShifts = zeros(3,3);
+            printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
+            printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
+            printShifts(3,:) = RotMat * reshape(cccStorageBest{iPeak}(iSubTomo,end-2:end),3,1);
+          else
+            printShifts = [cccInitial(1,end-2:end); ...
+              cccPreRefineSort(1,end-2:end);...
+              cccStorageBest{iPeak}(iSubTomo,end-2:end)];
+          end
               
-              
-              [ peakCoord ] =  BH_multi_xcf_Translational( ...
-                rotPart_FT.*ifftshift(iRotWdg), ...
-                conj(iRotRef).*iMaxWedgeIfft,...
-                iRotMask, peakCOM);
-              
-              
-              % Subtract shiftVAL since this is due to windowing, not the actual
-              % position.
-              cccStorageBest{iPeak}(iSubTomo,:) = gather([bestRotPeak(1,1:7), ...
-                peakCoord + finalrXYZest - shiftVAL]) ;
-              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-              
-              % It is probably more useful see the shifts in the particle
-              % reference frame vs. the avg which was the original
-              if (emc.printShiftsInParticleBasis)
-                printShifts = zeros(3,3);
-                printShifts(1,:) = RotMat * reshape(cccInitial(1,end-2:end),3,1);
-                printShifts(2,:) = RotMat * reshape(cccPreRefineSort(1,end-2:end),3,1);
-                printShifts(3,:) = RotMat * reshape(cccStorageBest{iPeak}(iSubTomo,end-2:end),3,1);
-              else
-                printShifts = [cccInitial(1,end-2:end); ...
-                  cccPreRefineSort(1,end-2:end);...
-                  cccStorageBest{iPeak}(iSubTomo,end-2:end)];
-              end
-              
-              % Print out in Angstrom
-              printShifts = printShifts .* emc.pixel_size_angstroms;
-              
-              
-              deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
-              if (emc.print_alignment_stats && deltaCCC < 0 && abs(deltaCCC) > 0.15*cccInitial(1,6))
-                fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
-                fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                  '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                  'PreInitial',iPeak,cccInitial(1,1:end-3),printShifts(1,:),...
-                  'PreRefine', iPeak,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
-                cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
-                
-              end
-              
-              if (emc.track_stats)
-                
-                if thetaInc > 0
-                  cccStorageBest{iPeak}(iSubTomo,end-3) = gather(mean(mip.x , 'all')./std(mip.x,0,'all')./thetaInc);
-                else
-                  cccStorageBest{iPeak}(iSubTomo,end-3) = 0;
-                end
-                
-                %           % I'm not sold on what do do with this. The distribution over the
-                %           % shift parameters doesn't really seem to make sense to me. There
-                %           % are too many factors that can lead to large shifts (e.g.
-                %           % tomoCPR) If we were searching the full angular space each
-                %           % iteration, then this would make sense.
-                %           mip_mean = mip.X./mip.N;
-                %           mip_covar = mip.X2./mip.N - transpose(mip_mean)*(mip_mean);
-                %           mip_covar_inv = mip_covar\eye(3);
-                %           gauss_norm = ((2.*pi).^(3/2).*abs(mip_covar)).^-1;
-                %           gauss_exp = exp(-0.5.*(printShifts(2,:)-mip_mean)*mip_covar_inv*transpose(printShifts(2,:)-mip_mean));
-                
-              end
-              
-              
-              cccInitial(1,1) = classVector{iGold}(cccInitial(1,1));
-              cccStorageBest{iPeak}(iSubTomo,1) = classVector{iGold}(cccStorageBest{iPeak}(iSubTomo,1));
-              if (emc.print_alignment_stats && flgRefine)
-                cccPreRefineSort(1,1) = classVector{iGold}(cccPreRefineSort(1,1));
-                fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                  '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                  '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                  'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:), ...
-                  'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
-                  cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
-                  'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
-                
-              else 
-                if (emc.print_alignment_stats)
-                  fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
-                    '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
-                    'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:),...
-                    'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
-                end
-              end
-              
-              
-            end % if condition on newly ignored particles
+          % Print out in Angstrom
+          printShifts = printShifts .* emc.pixel_size_angstroms;
+          
+          
+          deltaCCC = cccStorageBest{iPeak}(iSubTomo,6) - cccInitial(1,6);
+          if (emc.print_alignment_stats && deltaCCC < 0 && abs(deltaCCC) > 0.15*cccInitial(1,6))
+            fprintf('Drop in CCC greater than 15 pph (%2.3f), reverting to prior.\n', deltaCCC);
+            fprintf(['\n%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+              '%s\t%d, %d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+              'PreInitial',iPeak,cccInitial(1,1:end-3),printShifts(1,:),...
+              'PreRefine', iPeak,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
+            cccStorageBest{iPeak}(iSubTomo,:) = cccInitial(1,:);
             
           end
+          
+          if (emc.track_stats)
+            
+            if thetaInc > 0
+              cccStorageBest{iPeak}(iSubTomo,end-3) = gather(mean(mip.x , 'all')./std(mip.x,0,'all')./thetaInc);
+            else
+              cccStorageBest{iPeak}(iSubTomo,end-3) = 0;
+            end
+            
+            %           % I'm not sold on what do do with this. The distribution over the
+            %           % shift parameters doesn't really seem to make sense to me. There
+            %           % are too many factors that can lead to large shifts (e.g.
+            %           % tomoCPR) If we were searching the full angular space each
+            %           % iteration, then this would make sense.
+            %           mip_mean = mip.X./mip.N;
+            %           mip_covar = mip.X2./mip.N - transpose(mip_mean)*(mip_mean);
+            %           mip_covar_inv = mip_covar\eye(3);
+            %           gauss_norm = ((2.*pi).^(3/2).*abs(mip_covar)).^-1;
+            %           gauss_exp = exp(-0.5.*(printShifts(2,:)-mip_mean)*mip_covar_inv*transpose(printShifts(2,:)-mip_mean));
+            
+          end
+              
+          cccInitial
+          cccStorageBest{iPeak}(iSubTomo,:)
+          cccInitial(1,1) = classVector{iGold}(cccInitial(1,1));
+          cccStorageBest{iPeak}(iSubTomo,1) = classVector{iGold}(cccStorageBest{iPeak}(iSubTomo,1));
+          if (emc.print_alignment_stats && flgRefine)
+            cccPreRefineSort(1,1) = classVector{iGold}(cccPreRefineSort(1,1));
+            fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+              '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+              '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+              'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:), ...
+              'PreRefine', iPeak,classIDX,[cccPreRefineSort(1,1:4),cccPreRefineSort(1,5)-...
+              cccPreRefineSort(1,3),cccPreRefineSort(1,6:7),printShifts(2,:)], ...
+              'PostRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
+            
+          else 
+            if (emc.print_alignment_stats)
+              fprintf(['\n%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n', ...
+                '%s\t%d, %d,%d,%d,%6.3f,%6.3f,%6.3f,%6.6f,%6.6f,%6.3f,%6.3f,%6.3f\n'], ...
+                'PreInitial',iPeak,classIDX, cccInitial(1,1:end-3),printShifts(1,:),...
+                'PreRefine',iPeak,classIDX,cccStorageBest{iPeak}(iSubTomo,1:end-3),printShifts(3,:));
+            end
+          end
+
           
           if ~(rem(iSubTomo,100))
             timeClass = toc;
@@ -1471,10 +1371,10 @@ parfor iParProc = parVect
           rotPart_FT = [];
           rotParticle = [];
         end % end loop over possible peaks
-        
-        iMaxWedgeIfft = [];
+      
       end % loop over subTomos
       
+      iMaxWedgeIfft = [];
       
       for iPeak = 1:emc.nPeaks
         

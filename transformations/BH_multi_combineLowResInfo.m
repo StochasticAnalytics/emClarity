@@ -2,8 +2,8 @@ function [ outputRefs ] = BH_multi_combineLowResInfo( inputRefs, inputCounts, pi
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-refIDX = BH_multi_isCell( inputRefs{1} )
-nRefs = length(refIDX)
+refIDX = BH_multi_isCell( inputRefs{1} );
+nRefs = length(refIDX);
 
 [radialGrid,~,~,~,~,~] = BH_multi_gridCoordinates([512,512,512],...
   'Cartesian','cpu',{'none'},1,0,1);

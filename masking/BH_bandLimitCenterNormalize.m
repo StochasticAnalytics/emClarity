@@ -45,7 +45,11 @@ if ( applyShift )
   IMG = BH_padZeros3d(IMG, PAD(1,:), PAD(2,:),'GPU', PRECISION,real(mean(IMG(:))));
   IMG = fftn(IMG(MASK));
 else
-  IMG = fftn(BH_padZeros3d(IMG, PAD(1,:), PAD(2,:),'GPU', PRECISION,real(mean(IMG(:)))));
+  if any(PAD(:))
+    IMG = fftn(BH_padZeros3d(IMG, PAD(1,:), PAD(2,:),'GPU', PRECISION,real(mean(IMG(:)))));
+  else
+    IMG = fftn(IMG);
+  end
 end
 if (flgMeanWOMask)
   IMG(1) = 0;
