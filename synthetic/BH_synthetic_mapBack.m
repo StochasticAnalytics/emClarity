@@ -767,7 +767,7 @@ for iTiltSeries = tiltStart:nTiltSeries
     clear avgTomo
     
     if (emc.save_mapback_classes || flgClassAvg)
-      SAVE_IMG(avgColor,{sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),'half'},pixel_size);
+      SAVE_IMG(single(avgColor),{sprintf('%smapBack%d/%s.tmpTomoColor', mbOUT{1:3}),'half'},pixel_size);
       clear avgColor
     end
 
