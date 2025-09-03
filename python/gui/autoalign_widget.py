@@ -38,8 +38,7 @@ def align_single_asset(asset_data: Dict[str, Any], output_queue, progress_value,
         status_queue.put(f"Starting alignment for {asset_name}")
         
         # Update progress
-        with progress_value.get_lock():
-            progress_value.value = 10
+        progress_value.value = 10
             
         # Build emClarity command
         cmd = [
@@ -76,19 +75,16 @@ def align_single_asset(asset_data: Dict[str, Any], output_queue, progress_value,
                 if "Progress:" in line:
                     try:
                         prog = int(line.split("Progress:")[1].split("%")[0].strip())
-                        with progress_value.get_lock():
-                            progress_value.value = max(10, min(90, prog))
+                        progress_value.value = max(10, min(90, prog))
                     except:
                         pass
                 elif "Completed" in line:
-                    with progress_value.get_lock():
-                        progress_value.value = 90
+                    progress_value.value = 90
                         
         return_code = process.wait()
         
         if return_code == 0:
-            with progress_value.get_lock():
-                progress_value.value = 100
+            progress_value.value = 100
             output_queue.put({'asset': asset_name, 'success': True, 'message': 'Completed successfully'})
             status_queue.put(f"Completed alignment for {asset_name}")
         else:
@@ -178,8 +174,7 @@ class AlignmentWorker(QThread):
             while completed_assets + failed_assets < total_assets and not self.should_stop:
                 # Update individual asset progress
                 for asset_name, progress_val in progress_values.items():
-                    with progress_val.get_lock():
-                        current_progress = progress_val.value
+                    current_progress = progress_val.value
                     self.asset_progress_updated.emit(asset_name, current_progress)
                 
                 # Calculate overall progress
